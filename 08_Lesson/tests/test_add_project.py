@@ -1,7 +1,6 @@
 import json
-from API.YouGileAPI import YouGileAPI
-from API.Config import LOGIN, PASSWORD, COMPANY_ID
-
+from config import LOGIN, PASSWORD, COMPANY_ID
+from YouGileAPI import YouGileAPI
 
 
 
@@ -18,5 +17,7 @@ def test_add_project():
         print(json.dumps(project, indent=2, ensure_ascii=False))
     except Exception as e:
         print(f"\n❌ Ошибка: {e}")
+
+
 
 
