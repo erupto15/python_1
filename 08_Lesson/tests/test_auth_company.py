@@ -1,11 +1,11 @@
 import json
-from API.YouGileAPI import YouGileAPI
-from API.config import LOGIN, PASSWORD, COMPANY_ID
+from config import LOGIN, PASSWORD, COMPANY_ID
+from YouGileAPI import YouGileAPI
 
 
 def test_auth_and_info():
     """Тест: аутентификация + получение информации о компании"""
-    api = Config(LOGIN, PASSWORD, COMPANY_ID)
+    api = YouGileAPI(LOGIN, PASSWORD, COMPANY_ID)
 
     try:
         api.authenticate()
