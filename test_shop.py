@@ -16,7 +16,7 @@ from checkout_page import CheckoutPage
 @allure.severity
 class TestShopFlow(unittest.TestCase):
 
-    allure.step ("Ожидание загрузки 10 сек {wait}")
+    @allure.step (f"Ожидание загрузки 10 сек {wait}")
     def setUp(self):
         self.driver = webdriver.Chrome()
         self.driver.get("https://www.saucedemo.com/")
@@ -25,13 +25,12 @@ class TestShopFlow(unittest.TestCase):
     def tearDown(self):
         self.driver.quit()
 
-    allure.step ("Авторизация {LoginPage}, {username}, {password}")
-    allure.step ("Проверка авторизации {wait}")
-    allure.step ("Добавление товаров {InventoryPage}, {add_backpack}, {add_bolt_tshirt}, {add_oneside}") 
-    allure.step ("Корзина товаров {cart_items}, {CLASS_NAME}")
-    allure.step ("Итог суммы {Cardpage}")
-    allure.step ("Заполнение данных {first_name}, {last_name}, {zip_code} ")
-    allure.step ("Проверка итоговой суммыn {total_price}") 
+    @allure.step (f"Авторизация {username}, {password}")
+    @allure.step (f"Проверка авторизации {wait}")
+    @allure.step (f"Корзина товаров {cart_items}, {CLASS_NAME}")
+    @allure.step (f"Итог суммы {Cardpage}")
+    @allure.step (f"Заполнение данных {first_name}, {last_name}, {zip_code} ")
+    @allure.step (f"Проверка итоговой суммы {total_price}") 
     def test_purchase_flow(self):
         # 1. Авторизация
         login_page = LoginPage(self.driver)
