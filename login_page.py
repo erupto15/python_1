@@ -9,12 +9,12 @@ from selenium.webdriver.support import expected_conditions as EC
 @allure.severity
 class LoginPage:
 
-    allure.step ("Ожидание работы 10 сек {driver}")
+    @allure.step (f"Ожидание работы 10 сек {driver}")
     def __init__(self, driver):
         self.driver = driver
         self.wait = WebDriverWait(driver, 10)
 
-    allure.step ("Ввод имени в поле логина {ID}, {username}")
+    @allure.step (f"Ввод имени в поле логина {ID}, {username}")
     def enter_username(self, username):
         """
         Ввести имя пользователя в поле логина.
@@ -27,7 +27,7 @@ class LoginPage:
         element.clear()  # Очистка поля
         element.send_keys(username)
 
-    allure.step ("Ввод пароля в поле ввода {ID}:{password}")
+    @allure.step (f"Ввод пароля в поле ввода {ID}:{password}")
     def enter_password(self, password):
 
         """Ввести пароль в поле ввода.
@@ -40,7 +40,7 @@ class LoginPage:
         element.clear()  # Очистка поля
         element.send_keys(password)
 
-    allure.step ("Нажатие кнопки входа {ID}:{button}")
+    @allure.step (f"Нажатие кнопки входа {ID}:{button}")
     def click_login(self):
         """
         Нажать кнопку входа в систему.
