@@ -426,6 +426,34 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
+        /* Тач / Telegram WebView: клик по div часто не срабатывает — основная зона строки = button */
+        .catalog-climb-row {
+            touch-action: manipulation;
+        }
+
+        .climb-row-open {
+            flex: 1 1 auto;
+            min-width: 0;
+            align-self: stretch;
+            display: block;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            border-radius: 0;
+            font: inherit;
+            color: inherit;
+            text-align: left;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(93, 156, 255, 0.15);
+        }
+
+        .climb-row-open:focus {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+
         .item-info h3 {
             font-size: 18px;
             margin-bottom: 6px;
@@ -855,17 +883,39 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 14px 16px;
+            padding: 0;
             background: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: var(--radius);
             margin-bottom: 10px;
-            cursor: pointer;
+            cursor: default;
             transition: var(--transition);
+            overflow: hidden;
         }
 
         .catalog-row:hover {
             border-color: var(--primary-color);
+        }
+
+        .catalog-row-open {
+            flex: 1 1 auto;
+            min-width: 0;
+            display: block;
+            margin: 0;
+            padding: 14px 16px;
+            border: 0;
+            background: transparent;
+            text-align: left;
+            font: inherit;
+            color: inherit;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(93, 156, 255, 0.15);
+        }
+
+        .catalog-row-open:focus {
+            outline: 2px solid var(--primary-color);
+            outline-offset: -2px;
         }
 
         .catalog-row-title {
@@ -927,7 +977,49 @@
         }
 
         .photo-preview-with-markup .photo-preview-actions {
-            z-index: 4;
+            z-index: 6;
+        }
+
+        .photo-album-open-btn {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            border-radius: inherit;
+            background: transparent;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(93, 156, 255, 0.18);
+            display: block;
+            overflow: hidden;
+        }
+
+        .photo-album-open-btn img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            pointer-events: none;
+        }
+
+        .photo-album-open-btn .markup-badge {
+            pointer-events: none;
+        }
+
+        .photo-album-caption {
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+            right: 5px;
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            line-height: 1.35;
+            pointer-events: none;
         }
 
         /* Стили для режима редактирования в диалогах */
@@ -1327,6 +1419,12 @@
         <div class="tabs">
             <button class="tab-btn active" data-tab="catalog">
                 <i class="fas fa-sitemap"></i> Районы и секторы
+            </button>
+            <button class="tab-btn" data-tab="routes">
+                <i class="fas fa-route"></i> Трассы
+            </button>
+            <button class="tab-btn" data-tab="boulders">
+                <i class="fas fa-mountain"></i> Боулдеринг
             </button>
             <button class="tab-btn" data-tab="map">
                 <i class="fas fa-map-marked-alt"></i> Карта
@@ -1792,6 +1890,32 @@
         </div>
     </div>
 
+    <!-- Просмотр трассы / боулдеринга: фото и описание -->
+    <div class="dialog-overlay hidden" id="climbDetailDialog" style="z-index: 998;">
+        <div class="dialog-content" style="max-width: 520px;">
+            <div class="dialog-header">
+                <div class="dialog-title" id="climbDetailTitle">—</div>
+                <div class="dialog-subtitle" id="climbDetailMeta"></div>
+            </div>
+            <div class="dialog-body">
+                <div id="climbDetailNoPhoto" class="hidden" style="padding:16px;text-align:center;color:var(--light-text);border:1px dashed var(--border-color);border-radius:8px;margin-bottom:12px;">
+                    Фото ещё не добавлено — его можно прикрепить при редактировании или во вкладке «Фотоальбом».
+                </div>
+                <div id="climbDetailImageWrap" class="hidden" style="border-radius:8px;overflow:hidden;border:1px solid var(--border-color);margin-bottom:12px;background:#0d0d0d;">
+                    <img id="climbDetailImage" src="" alt="" style="width:100%;max-height:min(52vh,360px);object-fit:contain;display:block;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <div class="form-label">Описание</div>
+                    <div id="climbDetailDescription" style="min-height:72px;max-height:40vh;overflow:auto;white-space:pre-wrap;background:var(--card-bg);color:var(--text-color);padding:12px 14px;border:2px solid var(--border-color);border-radius:8px;font-size:15px;line-height:1.45;"></div>
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button type="button" class="btn btn-secondary" id="climbDetailCloseBtn"><i class="fas fa-times"></i> Закрыть</button>
+                <button type="button" class="btn btn-primary" id="climbDetailMarkupBtn"><i class="fas fa-draw-polygon"></i> Схема на фото</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
         /**
@@ -1804,6 +1928,7 @@
             sectorDialog: { text: 'Сохранить', btnId: 'sectorSubmitBtn' },
             quickRouteDialog: { text: 'Добавить трассу', btnId: 'saveQuickRouteBtn' },
             quickBoulderDialog: { text: 'Добавить боулдеринг', btnId: 'saveQuickBoulderBtn' },
+            climbDetailDialog: { text: 'Закрыть', btnId: 'climbDetailCloseBtn' },
             routeLineMarkupDialog: { text: 'Сохранить разметку', btnId: 'saveRouteLineMarkupBtn' },
             boulderHoldsMarkupDialog: { text: 'Сохранить разметку', btnId: 'saveBoulderHoldsMarkupBtn' }
         };
@@ -1813,6 +1938,7 @@
             sectorDialog: 'cancelSectorBtn',
             quickRouteDialog: 'cancelQuickRouteBtn',
             quickBoulderDialog: 'cancelQuickBoulderBtn',
+            climbDetailDialog: 'climbDetailCloseBtn',
             routeLineMarkupDialog: 'cancelRouteLineMarkupBtn',
             boulderHoldsMarkupDialog: 'cancelBoulderHoldsMarkupBtn'
         };
@@ -1982,16 +2108,27 @@
     <script>
         /** Только боулдеринг: скрыты трассы (вкладка, каталог, карта, фильтр в альбоме). Данные трасс в хранилище не трогаем. */
         const APP_BOULDER_ONLY = false;
-        /** База API: при file:// или странице не с :8000 — по умолчанию бэкенд на 127.0.0.1:8000. Задайте window.CLIMBING_API_BASE_URL при другом хосте. */
+        /** База API: задайте window.CLIMBING_API_BASE_URL, чтобы явно переопределить адрес. */
         const API_BASE_URL = (() => {
             const c = typeof window.CLIMBING_API_BASE_URL === 'string' ? window.CLIMBING_API_BASE_URL.trim() : '';
             if (c) return c.replace(/\/$/, '');
+            if (window.location.hostname === '6a9aguidebook.info' || window.location.hostname === 'www.6a9aguidebook.info') {
+                return 'https://python-1-dicp.onrender.com';
+            }
             if (window.location.protocol === 'file:') return 'http://127.0.0.1:8000';
             if (window.location.port && window.location.port !== '8000') return 'http://127.0.0.1:8000';
             return '';
         })();
         const AUTH_STORAGE_KEY = 'climbingApp_auth';
+        const ADMIN_LOGIN_FLAG_KEY = 'climbingApp_admin_login_enabled';
         const ADMIN_EMAIL_HINT = window.CLIMBING_ADMIN_EMAIL || 'admin@climbing-guidebook.local';
+        const MAX_PHOTO_SIZE_MB = 25;
+        const MAX_PHOTO_SIZE_BYTES = MAX_PHOTO_SIZE_MB * 1024 * 1024;
+        /** Фото грузим лениво при первом заходе во «Фотоальбом», чтобы старт Mini App не ждал сотни запросов. */
+        let _photosLoadedFromApi = false;
+        const PHOTO_FETCH_CHUNK = 14;
+        /** Запросы секторов по районам — небольшими пачками, чтобы не забивать канал и Render. */
+        const SECTOR_FETCH_BATCH = 6;
 
         function getAuthData() {
             const raw = localStorage.getItem(AUTH_STORAGE_KEY);
@@ -2475,7 +2612,36 @@
             };
         }
 
-        async function loadClimbingDataFromApi() {
+        async function fetchPhotosBatched(routes, boulders) {
+            const tasks = [];
+            if (!APP_BOULDER_ONLY) {
+                routes.forEach((r) => {
+                    tasks.push(() => apiFetch(`/api/photos/by-route/${r.id}`).catch(() => []));
+                });
+            }
+            boulders.forEach((b) => {
+                tasks.push(() => apiFetch(`/api/photos/by-boulder/${b.id}`).catch(() => []));
+            });
+            const flat = [];
+            for (let i = 0; i < tasks.length; i += PHOTO_FETCH_CHUNK) {
+                const slice = tasks.slice(i, i + PHOTO_FETCH_CHUNK);
+                const part = await Promise.all(slice.map((fn) => fn()));
+                flat.push(...part);
+            }
+            return flat.flat().map(mapApiPhotoToUi);
+        }
+
+        async function loadClimbingDataFromApi(options = {}) {
+            const includePhotos = options.includePhotos !== false;
+            if (!includePhotos) {
+                _photosLoadedFromApi = false;
+            }
+
+            const prevPhotosSlice =
+                !includePhotos && climbingDataCache && Array.isArray(climbingDataCache.photos)
+                    ? climbingDataCache.photos.slice()
+                    : null;
+
             const [areasRaw, routesRaw, bouldersRaw] = await Promise.all([
                 apiFetch('/api/areas'),
                 apiFetch('/api/routes'),
@@ -2483,20 +2649,24 @@
             ]);
 
             const areas = (areasRaw || []).map(mapApiAreaToUi);
-            const sectorsGrouped = await Promise.all(
-                (areasRaw || []).map((a) => apiFetch(`/api/areas/${a.id}/sectors`))
-            );
+            const areasList = areasRaw || [];
+            const sectorsGrouped = [];
+            for (let i = 0; i < areasList.length; i += SECTOR_FETCH_BATCH) {
+                const chunk = areasList.slice(i, i + SECTOR_FETCH_BATCH);
+                const part = await Promise.all(chunk.map((a) => apiFetch(`/api/areas/${a.id}/sectors`)));
+                sectorsGrouped.push(...part);
+            }
             const sectors = sectorsGrouped.flat().map(mapApiSectorToUi);
             const routes = (routesRaw || []).map(mapApiRouteToUi);
             const boulders = (bouldersRaw || []).map(mapApiBoulderToUi);
 
-            const routePhotos = await Promise.all(
-                routes.map((r) => apiFetch(`/api/photos/by-route/${r.id}`).catch(() => []))
-            );
-            const boulderPhotos = await Promise.all(
-                boulders.map((b) => apiFetch(`/api/photos/by-boulder/${b.id}`).catch(() => []))
-            );
-            const photos = [...routePhotos.flat(), ...boulderPhotos.flat()].map(mapApiPhotoToUi);
+            let photos = [];
+            if (includePhotos) {
+                photos = await fetchPhotosBatched(routes, boulders);
+                _photosLoadedFromApi = true;
+            } else if (prevPhotosSlice) {
+                photos = prevPhotosSlice;
+            }
 
             climbingDataCache = normalizeClimbingData({
                 areas,
@@ -2511,6 +2681,18 @@
                 nextPhotoId: Math.max(1, ...photos.map(p => Number(p.id) || 0)) + 1
             });
             return climbingDataCache;
+        }
+
+        async function ensurePhotosLoadedFromApi() {
+            if (_photosLoadedFromApi) return;
+            const routes = getRoutes();
+            const boulders = getBoulders();
+            const photos = await fetchPhotosBatched(routes, boulders);
+            const data = getClimbingData();
+            data.photos = photos;
+            data.nextPhotoId = Math.max(1, ...photos.map(p => Number(p.id) || 0)) + 1;
+            saveClimbingData(data);
+            _photosLoadedFromApi = true;
         }
 
         function getClimbingData() {
@@ -2549,6 +2731,40 @@
             const data = getClimbingData();
             data.photos = photos;
             saveClimbingData(data);
+        }
+
+        function recomputeNextPhotoId(data) {
+            const ids = (data.photos || []).map((p) => Number(p.id)).filter(Number.isFinite);
+            data.nextPhotoId = ids.length ? Math.max(...ids) + 1 : 1;
+        }
+
+        function appendPhotoFromApiResponse(apiPhoto) {
+            const data = getClimbingData();
+            const ui = mapApiPhotoToUi(apiPhoto);
+            data.photos = [...(data.photos || []), ui];
+            recomputeNextPhotoId(data);
+            saveClimbingData(data);
+            _photosLoadedFromApi = true;
+        }
+
+        function removePhotoFromLocalCache(photoId) {
+            const pid = String(photoId);
+            const data = getClimbingData();
+            data.photos = (data.photos || []).filter((p) => String(p.id) !== pid);
+            recomputeNextPhotoId(data);
+            saveClimbingData(data);
+            _photosLoadedFromApi = true;
+        }
+
+        function patchPhotoInLocalCacheFromApi(apiPhoto) {
+            const ui = mapApiPhotoToUi(apiPhoto);
+            const data = getClimbingData();
+            const idx = data.photos.findIndex((p) => String(p.id) === String(ui.id));
+            if (idx >= 0) {
+                data.photos[idx] = ui;
+                recomputeNextPhotoId(data);
+                saveClimbingData(data);
+            }
         }
 
         function getAreas() {
@@ -2603,6 +2819,8 @@
 
                 this._routeLineMarkupAbort = null;
                 this._boulderHoldsMarkupAbort = null;
+                this._routeSearchDebounceTimer = null;
+                this._boulderSearchDebounceTimer = null;
                 this._boulderHoldDrag = null;
                 this._onBoulderHoldMouseMove = this.onBoulderHoldMouseMove.bind(this);
                 this._onBoulderHoldMouseUp = this.onBoulderHoldMouseUp.bind(this);
@@ -2610,6 +2828,10 @@
                 document.addEventListener('mouseup', this._onBoulderHoldMouseUp);
 
                 this.catalog = { view: 'areas', areaId: null, sectorId: null };
+
+                /** Просмотр разметки без редактирования (гость / пользователь). */
+                this._markupDialogViewOnly = false;
+                this._climbDetailContext = null;
 
                 this.init();
             }
@@ -2648,6 +2870,7 @@
 
             init() {
                 this.data = getClimbingData();
+                this.setupHiddenAdminAccess();
                 this.renderAuthUI();
                 this.fillSectorSelects();
                 if (!APP_BOULDER_ONLY) {
@@ -2662,6 +2885,22 @@
                 this.restoreAuthSession();
             }
 
+            /** После фоновой загрузки с API — обновить списки и карту (не блокирует первый показ UI). */
+            refreshUiAfterRemoteLoad() {
+                this.data = getClimbingData();
+                this.fillSectorSelects();
+                if (!APP_BOULDER_ONLY) {
+                    this.renderRoutes();
+                }
+                this.renderBoulders();
+                this.renderPhotoAlbum();
+                this.renderCatalog();
+                this.applyRoleUI();
+                if (this.map) {
+                    this.updateMapMarkers();
+                }
+            }
+
             getCurrentUser() {
                 const auth = getAuthData();
                 return auth.currentUser || null;
@@ -2672,6 +2911,34 @@
                 if (!user) return false;
                 const em = String(user.email || '').toLowerCase();
                 return em === String(ADMIN_EMAIL_HINT).toLowerCase();
+            }
+
+            isAdminLoginEnabled() {
+                const qp = new URLSearchParams(window.location.search || '');
+                if (qp.get('admin') === '1') {
+                    localStorage.setItem(ADMIN_LOGIN_FLAG_KEY, '1');
+                    return true;
+                }
+                return localStorage.getItem(ADMIN_LOGIN_FLAG_KEY) === '1';
+            }
+
+            setupHiddenAdminAccess() {
+                const logo = document.querySelector('.site-logo');
+                if (!logo) return;
+                let clicks = 0;
+                let lastClickTs = 0;
+                logo.addEventListener('click', () => {
+                    const now = Date.now();
+                    if (now - lastClickTs > 4000) clicks = 0;
+                    lastClickTs = now;
+                    clicks += 1;
+                    if (clicks >= 4) {
+                        localStorage.setItem(ADMIN_LOGIN_FLAG_KEY, '1');
+                        clicks = 0;
+                        this.renderAuthUI();
+                        this.showToast('Режим входа администратора включён');
+                    }
+                });
             }
 
             async restoreAuthSession() {
@@ -2717,78 +2984,22 @@
                     status.innerHTML = `<span class="role-badge ${role}"><i class="fas fa-user-shield"></i> ${this.escapeHtml(user.display_name || user.email || 'user')} (${role})</span>`;
                     logoutBtn.style.display = 'inline-flex';
                 } else {
-                    usernameInput.style.display = 'inline-block';
-                    passwordInput.style.display = 'inline-block';
-                    loginBtn.style.display = 'inline-flex';
-                    registerBtn.style.display = 'inline-flex';
-                    status.style.display = 'none';
+                    const adminLoginEnabled = this.isAdminLoginEnabled();
+                    usernameInput.style.display = adminLoginEnabled ? 'inline-block' : 'none';
+                    passwordInput.style.display = adminLoginEnabled ? 'inline-block' : 'none';
+                    loginBtn.style.display = adminLoginEnabled ? 'inline-flex' : 'none';
+                    registerBtn.style.display = 'none';
+                    status.style.display = 'inline-flex';
+                    status.innerHTML = adminLoginEnabled
+                        ? '<span class="role-badge admin"><i class="fas fa-user-shield"></i> Вход администратора</span>'
+                        : '<span class="role-badge user"><i class="fas fa-eye"></i> Режим просмотра для пользователей</span>';
                     logoutBtn.style.display = 'none';
                 }
             }
 
             setupAuthEventListeners() {
                 document.getElementById('registerBtn')?.addEventListener('click', async () => {
-                    const emailRaw = (document.getElementById('loginUsername')?.value || '').trim();
-                    const email = emailRaw.toLowerCase();
-                    const password = (document.getElementById('loginPassword')?.value || '').trim();
-                    if (!email) {
-                        this.showToast('Введите email', true);
-                        return;
-                    }
-                    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                        this.showToast('Введите корректный email', true);
-                        return;
-                    }
-                    if (password.length < 1) {
-                        this.showToast('Введите пароль', true);
-                        return;
-                    }
-
-                    try {
-                        await apiFetch('/api/users', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                email,
-                                password,
-                                display_name: emailRaw.split('@')[0] || email
-                            })
-                        });
-                    } catch (err) {
-                        this.showToast(`Ошибка регистрации: ${err.message}`, true);
-                        return;
-                    }
-
-                    try {
-                        const formBody = new URLSearchParams({
-                            username: email,
-                            password
-                        }).toString();
-                        const loginRes = await fetch(`${API_BASE_URL}/api/auth/login`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: formBody
-                        });
-                        if (!loginRes.ok) {
-                            throw new Error(`HTTP ${loginRes.status}`);
-                        }
-                        const tokenData = await loginRes.json();
-                        const auth = { accessToken: tokenData.access_token, currentUser: null };
-                        saveAuthData(auth);
-                        const me = await apiFetch('/api/auth/me');
-                        auth.currentUser = me;
-                        saveAuthData(auth);
-                        this.auth = auth;
-                        this.renderAuthUI();
-                        this.applyRoleUI();
-                        this.renderCatalog();
-                        this.renderRoutes();
-                        this.renderBoulders();
-                        this.renderPhotoAlbum();
-                        this.showToast('Аккаунт создан в PostgreSQL, вход выполнен');
-                    } catch (err) {
-                        this.showToast(`Регистрация выполнена, но вход не удался: ${err.message}`, true);
-                    }
+                    this.showToast('Регистрация отключена. Доступен только вход администратора.', true);
                 });
 
                 document.getElementById('loginBtn')?.addEventListener('click', async () => {
@@ -2938,8 +3149,8 @@
                     this.clearQuickDialogPhoto(kind);
                     return;
                 }
-                if (file.size > 5 * 1024 * 1024) {
-                    this.showToast('Размер файла не должен превышать 5MB', true);
+                if (file.size > MAX_PHOTO_SIZE_BYTES) {
+                    this.showToast(`Размер файла не должен превышать ${MAX_PHOTO_SIZE_MB}MB`, true);
                     this.clearQuickDialogPhoto(kind);
                     return;
                 }
@@ -3063,6 +3274,7 @@
                             const catalogLine = route.sectorId != null && this.getStructureLabel(route.sectorId)
                                 ? `Каталог: ${this.getStructureLabel(route.sectorId)}<br>`
                                 : '';
+                            const routeIdJs = Number(route.id);
                             L.circleMarker([route.latitude, route.longitude], routeDot)
                                 .addTo(this.map)
                                 .bindPopup(`
@@ -3070,6 +3282,10 @@
                                     ${catalogLine}
                                     Трудность: ${this.escapeHtml(route.grade)}<br>
                                     Длина: ${this.escapeHtml(route.length || '?')}м
+                                    <div style="margin-top:8px">
+                                        <button type="button" class="btn btn-small btn-secondary" style="font-size:12px;padding:6px 10px;cursor:pointer"
+                                            onclick="event.preventDefault(); if(window.app&&window.app.showClimbDetailDialog)window.app.showClimbDetailDialog('route',${Number.isFinite(routeIdJs) ? routeIdJs : 0}); return false;">Просмотр</button>
+                                    </div>
                                 `);
                         }
                     });
@@ -3081,6 +3297,7 @@
                         const catalogLine = boulder.sectorId != null && this.getStructureLabel(boulder.sectorId)
                             ? `Каталог: ${this.getStructureLabel(boulder.sectorId)}<br>`
                             : '';
+                        const boulderIdJs = Number(boulder.id);
                         L.circleMarker([boulder.latitude, boulder.longitude], boulderDot)
                             .addTo(this.map)
                             .bindPopup(`
@@ -3088,6 +3305,10 @@
                                 ${catalogLine}
                                 Трудность: ${this.escapeHtml(boulder.grade)}<br>
                                 Высота: ${this.escapeHtml(boulder.height || '?')}м
+                                <div style="margin-top:8px">
+                                    <button type="button" class="btn btn-small btn-secondary" style="font-size:12px;padding:6px 10px;cursor:pointer"
+                                        onclick="event.preventDefault(); if(window.app&&window.app.showClimbDetailDialog)window.app.showClimbDetailDialog('boulder',${Number.isFinite(boulderIdJs) ? boulderIdJs : 0}); return false;">Просмотр</button>
+                                </div>
                             `);
                     }
                 });
@@ -3153,12 +3374,12 @@
                             ? `${sc} секторов · ${bcnt} боулдеров`
                             : `${sc} секторов · ${rc} трасс · ${bcnt} боулдеров`;
                         return `
-                            <div class="catalog-row" data-catalog-go="area" data-id="${a.id}">
-                                <div>
+                            <div class="catalog-row">
+                                <button type="button" class="catalog-row-open" data-catalog-go="area" data-id="${a.id}" aria-label="Открыть район: ${this.escapeHtml(a.name)}">
                                     <div class="catalog-row-title">${this.escapeHtml(a.name)}</div>
                                     <div class="catalog-row-meta">${meta}</div>
-                                </div>
-                                <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" onclick="event.stopPropagation()">
+                                </button>
+                                <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" onclick="event.stopPropagation()" style="align-self:center;padding-right:12px">
                                     <button type="button" class="btn btn-secondary btn-small" data-catalog-act="edit-area" data-id="${a.id}"><i class="fas fa-edit"></i></button>
                                     <button type="button" class="btn btn-danger btn-small" data-catalog-act="delete-area" data-id="${a.id}"><i class="fas fa-trash"></i></button>
                                 </div>
@@ -3188,12 +3409,12 @@
                             ? `${bcnt} боулдеров`
                             : `${rc} трасс · ${bcnt} боулдеров`;
                         return `
-                            <div class="catalog-row" data-catalog-go="sector" data-id="${s.id}">
-                                <div>
+                            <div class="catalog-row">
+                                <button type="button" class="catalog-row-open" data-catalog-go="sector" data-id="${s.id}" aria-label="Открыть сектор: ${this.escapeHtml(s.name)}">
                                     <div class="catalog-row-title">${this.escapeHtml(s.name)}</div>
                                     <div class="catalog-row-meta">${meta}</div>
-                                </div>
-                                <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" onclick="event.stopPropagation()">
+                                </button>
+                                <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" onclick="event.stopPropagation()" style="align-self:center;padding-right:12px">
                                     <button type="button" class="btn btn-secondary btn-small" data-catalog-act="edit-sector" data-id="${s.id}"><i class="fas fa-edit"></i></button>
                                     <button type="button" class="btn btn-danger btn-small" data-catalog-act="delete-sector" data-id="${s.id}"><i class="fas fa-trash"></i></button>
                                 </div>
@@ -3233,17 +3454,19 @@
                         blocks.push('<h4 style="margin:12px 0 8px;color:var(--light-text)">Трассы</h4>');
                         rs.forEach(r => {
                             blocks.push(`
-                                <div class="list-item" style="margin-bottom:8px">
-                                    <div class="item-info">
-                                        <h3 style="font-size:16px">${this.escapeHtml(r.name)}</h3>
-                                        <div class="item-meta">
-                                            <span>Трудность: <span class="grade-badge grade-route">${this.escapeHtml(r.grade)}</span></span>
-                                            ${r.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(r.category)}</span>` : ''}
-                                            ${r.rating != null && r.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(r.rating)}</span>` : ''}
-                                            ${r.length ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(r.length)}м</span>` : ''}
-                                            ${r.sector ? `<span><i class="fas fa-map-marker-alt"></i> ${this.escapeHtml(r.sector)}</span>` : ''}
+                                <div class="list-item catalog-climb-row" style="margin-bottom:8px" data-open-climb="route" data-open-climb-id="${r.id}">
+                                    <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(r.name)}">
+                                        <div class="item-info">
+                                            <h3 style="font-size:16px">${this.escapeHtml(r.name)}</h3>
+                                            <div class="item-meta">
+                                                <span>Трудность: <span class="grade-badge grade-route">${this.escapeHtml(r.grade)}</span></span>
+                                                ${r.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(r.category)}</span>` : ''}
+                                                ${r.rating != null && r.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(r.rating)}</span>` : ''}
+                                                ${r.length ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(r.length)}м</span>` : ''}
+                                                ${r.sector ? `<span><i class="fas fa-map-marker-alt"></i> ${this.escapeHtml(r.sector)}</span>` : ''}
+                                            </div>
                                         </div>
-                                    </div>
+                                    </button>
                                     <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                                         <button type="button" class="btn btn-danger btn-small" data-action="delete-route" data-route-id="${r.id}"><i class="fas fa-trash"></i></button>
                                     </div>
@@ -3254,16 +3477,18 @@
                         blocks.push('<h4 style="margin:16px 0 8px;color:var(--light-text)">Боулдеринг</h4>');
                         bs.forEach(b => {
                             blocks.push(`
-                                <div class="list-item" style="margin-bottom:8px">
-                                    <div class="item-info">
-                                        <h3 style="font-size:16px">${this.escapeHtml(b.name)}</h3>
-                                        <div class="item-meta">
-                                            <span>Трудность: <span class="grade-badge grade-boulder">${this.escapeHtml(b.grade)}</span></span>
-                                            ${b.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(b.category)}</span>` : ''}
-                                            ${b.rating != null && b.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(b.rating)}</span>` : ''}
-                                            ${b.height ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(b.height)}м</span>` : ''}
+                                <div class="list-item catalog-climb-row" style="margin-bottom:8px" data-open-climb="boulder" data-open-climb-id="${b.id}">
+                                    <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(b.name)}">
+                                        <div class="item-info">
+                                            <h3 style="font-size:16px">${this.escapeHtml(b.name)}</h3>
+                                            <div class="item-meta">
+                                                <span>Трудность: <span class="grade-badge grade-boulder">${this.escapeHtml(b.grade)}</span></span>
+                                                ${b.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(b.category)}</span>` : ''}
+                                                ${b.rating != null && b.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(b.rating)}</span>` : ''}
+                                                ${b.height ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(b.height)}м</span>` : ''}
+                                            </div>
                                         </div>
-                                    </div>
+                                    </button>
                                     <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                                         <button type="button" class="btn btn-danger btn-small" data-action="delete-boulder" data-boulder-id="${b.id}"><i class="fas fa-trash"></i></button>
                                     </div>
@@ -3315,6 +3540,16 @@
                     if (go.dataset.catalogGo === 'sector') {
                         this.catalog = { view: 'problems', areaId: this.catalog.areaId, sectorId: gid };
                         this.renderCatalog();
+                    }
+                    return;
+                }
+                const climbOpen = e.target.closest('[data-open-climb]');
+                if (climbOpen && !e.target.closest('[data-action]')) {
+                    const oc = climbOpen.getAttribute('data-open-climb');
+                    const oid = Number(climbOpen.dataset.openClimbId);
+                    if ((oc === 'route' || oc === 'boulder') && Number.isFinite(oid)) {
+                        e.preventDefault();
+                        this.showClimbDetailDialog(oc, oid);
                     }
                 }
             }
@@ -3371,7 +3606,7 @@
                             body: JSON.stringify(payload)
                         });
                     }
-                    await loadClimbingDataFromApi();
+                    await loadClimbingDataFromApi({ includePhotos: false });
                 } catch (err) {
                     this.showToast(`Ошибка сохранения района: ${err.message}`, true);
                     return;
@@ -3389,7 +3624,7 @@
                     : 'Удалить район и все секторы, трассы и боулдеры внутри? Данные будут удалены без восстановления.')) return;
                 try {
                     await apiFetch(`/api/areas/${Number(areaId)}`, { method: 'DELETE' });
-                    await loadClimbingDataFromApi();
+                    await loadClimbingDataFromApi({ includePhotos: false });
                 } catch (err) {
                     this.showToast(`Ошибка удаления района: ${err.message}`, true);
                     return;
@@ -3490,8 +3725,9 @@
                             sector_label: sector.name
                         })
                     });
+                    let createdRoutePhoto = null;
                     if (routePhotoData?.data) {
-                        await apiFetch('/api/photos', {
+                        createdRoutePhoto = await apiFetch('/api/photos', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -3506,7 +3742,10 @@
                             })
                         });
                     }
-                    await loadClimbingDataFromApi();
+                    await loadClimbingDataFromApi({ includePhotos: false });
+                    if (createdRoutePhoto) {
+                        appendPhotoFromApiResponse(createdRoutePhoto);
+                    }
                     this.data = getClimbingData();
                     this.hideDialog('quickRouteDialog');
                     this.clearQuickDialogPhoto('route');
@@ -3514,6 +3753,7 @@
                     this.renderRoutes();
                     this.updateMapMarkers();
                     this.showToast('Трасса добавлена');
+                    this.showClimbDetailDialog('route', Number(createdRoute.id));
                 } catch (err) {
                     this.showToast(`Ошибка добавления трассы: ${err.message}`, true);
                 }
@@ -3559,8 +3799,9 @@
                             longitude: coordinates.longitude
                         })
                     });
+                    let createdBoulderPhoto = null;
                     if (boulderPhotoData?.data) {
-                        await apiFetch('/api/photos', {
+                        createdBoulderPhoto = await apiFetch('/api/photos', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -3575,7 +3816,10 @@
                             })
                         });
                     }
-                    await loadClimbingDataFromApi();
+                    await loadClimbingDataFromApi({ includePhotos: false });
+                    if (createdBoulderPhoto) {
+                        appendPhotoFromApiResponse(createdBoulderPhoto);
+                    }
                     this.data = getClimbingData();
                     this.hideDialog('quickBoulderDialog');
                     this.clearQuickDialogPhoto('boulder');
@@ -3583,6 +3827,7 @@
                     this.renderBoulders();
                     this.updateMapMarkers();
                     this.showToast('Боулдеринг добавлен');
+                    this.showClimbDetailDialog('boulder', Number(createdBoulder.id));
                 } catch (err) {
                     this.showToast(`Ошибка добавления боулдеринга: ${err.message}`, true);
                 }
@@ -3615,7 +3860,7 @@
                             body: JSON.stringify(payload)
                         });
                     }
-                    await loadClimbingDataFromApi();
+                    await loadClimbingDataFromApi({ includePhotos: false });
                 } catch (err) {
                     this.showToast(`Ошибка сохранения сектора: ${err.message}`, true);
                     return;
@@ -3633,7 +3878,7 @@
                     : 'Удалить сектор и все трассы/боулдеры в нём?')) return;
                 try {
                     await apiFetch(`/api/sectors/${Number(sectorId)}`, { method: 'DELETE' });
-                    await loadClimbingDataFromApi();
+                    await loadClimbingDataFromApi({ includePhotos: false });
                 } catch (err) {
                     this.showToast(`Ошибка удаления сектора: ${err.message}`, true);
                     return;
@@ -3652,6 +3897,7 @@
             renderRoutes() {
                 if (APP_BOULDER_ONLY) return;
                 const routesList = document.getElementById('routesList');
+                if (!routesList) return;
                 const routes = getRoutes();
 
                 if (routes.length === 0) {
@@ -3693,22 +3939,24 @@
                 }
 
                 routesList.innerHTML = filteredRoutes.map(route => `
-                    <div class="list-item" data-id="${route.id}">
-                        <div class="item-info">
-                            <h3>${this.escapeHtml(route.name)}</h3>
-                            <div class="item-meta">
-                                ${route.sectorId != null && this.getStructureLabel(route.sectorId) ? `<span><i class="fas fa-layer-group"></i> ${this.getStructureLabel(route.sectorId)}</span>` : ''}
-                                <span>Трудность: <span class="grade-badge grade-route">${this.escapeHtml(route.grade)}</span></span>
-                                ${route.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(route.category)}</span>` : ''}
-                                ${route.rating != null && route.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(route.rating)}</span>` : ''}
-                                ${route.length ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(route.length)}м</span>` : ''}
-                                ${route.bolts ? `<span><i class="fas fa-bolt"></i> ${this.escapeHtml(route.bolts)} болтов</span>` : ''}
-                                ${route.sector ? `<span><i class="fas fa-map-marker-alt"></i> ${this.escapeHtml(route.sector)}</span>` : ''}
+                    <div class="list-item catalog-climb-row" data-id="${route.id}" data-open-climb="route" data-open-climb-id="${route.id}">
+                        <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(route.name)}">
+                            <div class="item-info">
+                                <h3>${this.escapeHtml(route.name)}</h3>
+                                <div class="item-meta">
+                                    ${route.sectorId != null && this.getStructureLabel(route.sectorId) ? `<span><i class="fas fa-layer-group"></i> ${this.getStructureLabel(route.sectorId)}</span>` : ''}
+                                    <span>Трудность: <span class="grade-badge grade-route">${this.escapeHtml(route.grade)}</span></span>
+                                    ${route.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(route.category)}</span>` : ''}
+                                    ${route.rating != null && route.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(route.rating)}</span>` : ''}
+                                    ${route.length ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(route.length)}м</span>` : ''}
+                                    ${route.bolts ? `<span><i class="fas fa-bolt"></i> ${this.escapeHtml(route.bolts)} болтов</span>` : ''}
+                                    ${route.sector ? `<span><i class="fas fa-map-marker-alt"></i> ${this.escapeHtml(route.sector)}</span>` : ''}
+                                </div>
+                                ${route.description ? `<p style="margin-top: 8px; color: var(--light-text);">${this.escapeHtml(route.description)}</p>` : ''}
                             </div>
-                            ${route.description ? `<p style="margin-top: 8px; color: var(--light-text);">${this.escapeHtml(route.description)}</p>` : ''}
-                        </div>
+                        </button>
                         <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
-                            <button class="btn btn-danger btn-small" data-action="delete-route" data-route-id="${route.id}">
+                            <button type="button" class="btn btn-danger btn-small" data-action="delete-route" data-route-id="${route.id}">
                                 <i class="fas fa-trash"></i> Удалить
                             </button>
                         </div>
@@ -3718,6 +3966,7 @@
 
             renderBoulders() {
                 const bouldersList = document.getElementById('bouldersList');
+                if (!bouldersList) return;
                 const boulders = getBoulders();
 
                 if (boulders.length === 0) {
@@ -3758,20 +4007,22 @@
                 }
 
                 bouldersList.innerHTML = filteredBoulders.map(boulder => `
-                    <div class="list-item" data-id="${boulder.id}">
-                        <div class="item-info">
-                            <h3>${this.escapeHtml(boulder.name)}</h3>
-                            <div class="item-meta">
-                                ${boulder.sectorId != null && this.getStructureLabel(boulder.sectorId) ? `<span><i class="fas fa-layer-group"></i> ${this.getStructureLabel(boulder.sectorId)}</span>` : ''}
-                                <span>Трудность: <span class="grade-badge grade-boulder">${this.escapeHtml(boulder.grade)}</span></span>
-                                ${boulder.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(boulder.category)}</span>` : ''}
-                                ${boulder.rating != null && boulder.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(boulder.rating)}</span>` : ''}
-                                ${boulder.height ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(boulder.height)}м</span>` : ''}
+                    <div class="list-item catalog-climb-row" data-id="${boulder.id}" data-open-climb="boulder" data-open-climb-id="${boulder.id}">
+                        <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(boulder.name)}">
+                            <div class="item-info">
+                                <h3>${this.escapeHtml(boulder.name)}</h3>
+                                <div class="item-meta">
+                                    ${boulder.sectorId != null && this.getStructureLabel(boulder.sectorId) ? `<span><i class="fas fa-layer-group"></i> ${this.getStructureLabel(boulder.sectorId)}</span>` : ''}
+                                    <span>Трудность: <span class="grade-badge grade-boulder">${this.escapeHtml(boulder.grade)}</span></span>
+                                    ${boulder.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(boulder.category)}</span>` : ''}
+                                    ${boulder.rating != null && boulder.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(boulder.rating)}</span>` : ''}
+                                    ${boulder.height ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(boulder.height)}м</span>` : ''}
+                                </div>
+                                ${boulder.description ? `<p style="margin-top: 8px; color: var(--light-text);">${this.escapeHtml(boulder.description)}</p>` : ''}
                             </div>
-                            ${boulder.description ? `<p style="margin-top: 8px; color: var(--light-text);">${this.escapeHtml(boulder.description)}</p>` : ''}
-                        </div>
+                        </button>
                         <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
-                            <button class="btn btn-danger btn-small" data-action="delete-boulder" data-boulder-id="${boulder.id}">
+                            <button type="button" class="btn btn-danger btn-small" data-action="delete-boulder" data-boulder-id="${boulder.id}">
                                 <i class="fas fa-trash"></i> Удалить
                             </button>
                         </div>
@@ -3805,9 +4056,10 @@
                 }
 
                 photoAlbum.innerHTML = filteredPhotos.map(photo => {
+                    const cid = String(photo.climbId ?? '');
                     const climb = photo.type === 'route'
-                        ? getRoutes().find(r => r.id === parseInt(photo.climbId))
-                        : getBoulders().find(b => b.id === parseInt(photo.climbId));
+                        ? getRoutes().find((r) => String(r.id) === cid)
+                        : getBoulders().find((b) => String(b.id) === cid);
                     const struct = climb && climb.sectorId != null && this.getStructureLabel(climb.sectorId)
                         ? this.getStructureLabel(climb.sectorId)
                         : '';
@@ -3815,21 +4067,24 @@
                         ? ` · ${this.escapeHtml(climb.grade)}`
                         : '';
 
+                    const climbLabel = this.escapeHtml(climb ? climb.name : 'Неизвестно');
                     return `
-                        <div class="photo-preview-with-markup">
-                            <img src="${this.escapeHtml(photo.imageData)}" alt="${this.escapeHtml(photo.description || 'Фото')}">
+                        <div class="photo-preview-with-markup photo-album-tile-wrap">
+                            <button type="button" class="photo-album-open-btn" data-open-photo-id="${this.escapeHtml(String(photo.id))}" aria-label="Просмотр: ${climbLabel}">
+                                <img src="${this.escapeHtml(photo.imageData)}" alt="${this.escapeHtml(photo.description || 'Фото')}">
+                                ${photo.markup ? '<div class="markup-badge"><i class="fas fa-draw-polygon"></i> Размечено</div>' : ''}
+                                <div class="photo-album-caption">
+                                    <div><strong>${climbLabel}</strong>${grade}</div>
+                                    ${struct ? `<div style="opacity:0.92;margin-top:2px;font-size:9px;">${this.escapeHtml(struct)}</div>` : ''}
+                                </div>
+                            </button>
                             <div class="photo-preview-actions">
-                                <button class="remove-btn small ${this.isAdmin() ? '' : 'hidden-by-role'}" data-action="delete-photo" data-photo-id="${photo.id}">
+                                <button type="button" class="remove-btn small ${this.isAdmin() ? '' : 'hidden-by-role'}" data-action="delete-photo" data-photo-id="${photo.id}">
                                     <i class="fas fa-times"></i> Удалить
                                 </button>
-                                <button class="markup-btn small ${photo.type} ${this.isAdmin() ? '' : 'hidden-by-role'}" data-action="edit-markup" data-photo-id="${photo.id}">
+                                <button type="button" class="markup-btn small ${photo.type} ${this.isAdmin() ? '' : 'hidden-by-role'}" data-action="edit-markup" data-photo-id="${photo.id}">
                                     <i class="fas fa-draw-polygon"></i> ${photo.markup ? 'Изменить' : 'Разметить'}
                                 </button>
-                            </div>
-                            ${photo.markup ? '<div class="markup-badge"><i class="fas fa-draw-polygon"></i> Размечено</div>' : ''}
-                            <div style="position: absolute; bottom: 5px; left: 5px; right: 5px; background: rgba(0,0,0,0.75); color: white; padding: 4px 6px; border-radius: 4px; font-size: 10px; line-height: 1.35;">
-                                <div><strong>${this.escapeHtml(climb ? climb.name : 'Неизвестно')}</strong>${grade}</div>
-                                ${struct ? `<div style="opacity:0.92;margin-top:2px;font-size:9px;">${struct}</div>` : ''}
                             </div>
                         </div>
                     `;
@@ -3839,30 +4094,40 @@
             setupTabSwitching() {
                 document.querySelectorAll('.tab-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
-                        const tabId = btn.dataset.tab;
+                        void (async () => {
+                            const tabId = btn.dataset.tab;
 
-                        // Убираем активный класс у всех кнопок и контента
-                        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
-                        // Добавляем активный класс выбранной вкладке
-                        btn.classList.add('active');
-                        document.getElementById(tabId).classList.add('active');
+                            btn.classList.add('active');
+                            document.getElementById(tabId).classList.add('active');
 
-                        if (tabId === 'map') {
-                            if (!this.map) {
-                                this.initMap();
-                            } else {
-                                this.syncMapAfterTabShow();
+                            if (tabId === 'map') {
+                                if (!this.map) {
+                                    this.initMap();
+                                } else {
+                                    this.syncMapAfterTabShow();
+                                }
+                            } else if (tabId === 'photos') {
+                                try {
+                                    await ensurePhotosLoadedFromApi();
+                                } catch (err) {
+                                    console.error(err);
+                                    this.showToast('Не удалось загрузить фотографии', true);
+                                }
+                                this.renderPhotoAlbum();
+                            } else if (tabId === 'catalog') {
+                                this.renderCatalog();
+                            } else if (tabId === 'routes') {
+                                this.renderRoutes();
+                            } else if (tabId === 'boulders') {
+                                this.renderBoulders();
                             }
-                        } else if (tabId === 'photos') {
-                            this.renderPhotoAlbum();
-                        } else if (tabId === 'catalog') {
-                            this.renderCatalog();
-                        }
-                        if (typeof window.syncTelegramMiniAppUi === 'function') {
-                            window.syncTelegramMiniAppUi();
-                        }
+                            if (typeof window.syncTelegramMiniAppUi === 'function') {
+                                window.syncTelegramMiniAppUi();
+                            }
+                        })();
                     });
                 });
             }
@@ -3917,9 +4182,16 @@
                 });
 
                 // Поиск и фильтры
-                document.getElementById('routeSearch')?.addEventListener('input', () => this.renderRoutes());
+                const searchDebounceMs = 200;
+                document.getElementById('routeSearch')?.addEventListener('input', () => {
+                    clearTimeout(this._routeSearchDebounceTimer);
+                    this._routeSearchDebounceTimer = setTimeout(() => this.renderRoutes(), searchDebounceMs);
+                });
                 document.getElementById('routeGradeFilter')?.addEventListener('change', () => this.renderRoutes());
-                document.getElementById('boulderSearch')?.addEventListener('input', () => this.renderBoulders());
+                document.getElementById('boulderSearch')?.addEventListener('input', () => {
+                    clearTimeout(this._boulderSearchDebounceTimer);
+                    this._boulderSearchDebounceTimer = setTimeout(() => this.renderBoulders(), searchDebounceMs);
+                });
                 document.getElementById('boulderGradeFilter')?.addEventListener('change', () => this.renderBoulders());
 
                 // Фильтры фотоальбома
@@ -3977,6 +4249,12 @@
                         e.preventDefault();
                         if (!this.requireAdmin('Удаление трассы')) return;
                         this.deleteRoute(Number(deleteBtn.dataset.routeId));
+                        return;
+                    }
+                    const row = e.target.closest('[data-open-climb="route"]');
+                    if (row && !e.target.closest('[data-action]')) {
+                        const oid = Number(row.dataset.openClimbId);
+                        if (Number.isFinite(oid)) this.showClimbDetailDialog('route', oid);
                     }
                 });
 
@@ -3986,6 +4264,29 @@
                         e.preventDefault();
                         if (!this.requireAdmin('Удаление боулдера')) return;
                         this.deleteBoulder(Number(deleteBtn.dataset.boulderId));
+                        return;
+                    }
+                    const row = e.target.closest('[data-open-climb="boulder"]');
+                    if (row && !e.target.closest('[data-action]')) {
+                        const oid = Number(row.dataset.openClimbId);
+                        if (Number.isFinite(oid)) this.showClimbDetailDialog('boulder', oid);
+                    }
+                });
+
+                document.getElementById('climbDetailCloseBtn')?.addEventListener('click', () => {
+                    this.hideDialog('climbDetailDialog');
+                });
+                document.getElementById('climbDetailMarkupBtn')?.addEventListener('click', () => {
+                    const ctx = this._climbDetailContext;
+                    if (!ctx) return;
+                    const t = ctx.climbType;
+                    const id = ctx.climbId;
+                    const pid = ctx.photoId;
+                    this.hideDialog('climbDetailDialog');
+                    if (pid) {
+                        this.openPhotoMarkupView(pid);
+                    } else {
+                        this.openClimbMarkupView(t, id);
                     }
                 });
 
@@ -3996,10 +4297,23 @@
                         e.preventDefault();
                         if (!this.requireAdmin('Удаление фото')) return;
                         this.deletePhoto(deleteBtn.dataset.photoId);
-                    } else if (markupBtn) {
+                        return;
+                    }
+                    if (markupBtn) {
                         e.preventDefault();
                         if (!this.requireAdmin('Разметка фото')) return;
                         this.editPhotoMarkup(markupBtn.dataset.photoId);
+                        return;
+                    }
+                    const tile = e.target.closest('[data-open-photo-id]');
+                    if (tile && !e.target.closest('[data-action]')) {
+                        e.preventDefault();
+                        const ph = getPhotos().find((p) => String(p.id) === String(tile.dataset.openPhotoId));
+                        if (ph && ph.climbId != null && ph.climbId !== '') {
+                            this.showClimbDetailDialog(ph.type, ph.climbId, { preferPhotoId: ph.id });
+                        } else {
+                            this.openPhotoMarkupView(tile.dataset.openPhotoId);
+                        }
                     }
                 });
 
@@ -4021,6 +4335,23 @@
             hideDialog(dialogId) {
                 document.getElementById(dialogId).classList.add('hidden');
                 this.currentPhotoPreview = null;
+                if (dialogId === 'routeLineMarkupDialog') {
+                    this._routeLineMarkupAbort?.abort();
+                    this._markupDialogViewOnly = false;
+                    this.resetRouteMarkupDialogChrome();
+                }
+                if (dialogId === 'boulderHoldsMarkupDialog') {
+                    this._boulderHoldsMarkupAbort?.abort();
+                    this._markupDialogViewOnly = false;
+                    this.resetBoulderMarkupDialogChrome();
+                }
+                if (dialogId === 'climbDetailDialog') {
+                    this._climbDetailContext = null;
+                    const img = document.getElementById('climbDetailImage');
+                    if (img) img.removeAttribute('src');
+                    document.getElementById('climbDetailImageWrap')?.classList.add('hidden');
+                    document.getElementById('climbDetailNoPhoto')?.classList.add('hidden');
+                }
                 if (typeof window.hideTelegramMainButton === 'function') {
                     window.hideTelegramMainButton();
                 }
@@ -4047,7 +4378,7 @@
                 }
                 try {
                     await apiFetch(`/api/routes/${Number(routeId)}`, { method: 'DELETE' });
-                    await loadClimbingDataFromApi();
+                    await loadClimbingDataFromApi({ includePhotos: false });
                 } catch (err) {
                     this.showToast(`Ошибка удаления трассы: ${err.message}`, true);
                     return;
@@ -4067,7 +4398,7 @@
                 }
                 try {
                     await apiFetch(`/api/boulders/${Number(boulderId)}`, { method: 'DELETE' });
-                    await loadClimbingDataFromApi();
+                    await loadClimbingDataFromApi({ includePhotos: false });
                 } catch (err) {
                     this.showToast(`Ошибка удаления боулдера: ${err.message}`, true);
                     return;
@@ -4094,8 +4425,8 @@
                     return;
                 }
 
-                if (file.size > 5 * 1024 * 1024) {
-                    this.showToast('Размер файла не должен превышать 5MB', true);
+                if (file.size > MAX_PHOTO_SIZE_BYTES) {
+                    this.showToast(`Размер файла не должен превышать ${MAX_PHOTO_SIZE_MB}MB`, true);
                     return;
                 }
 
@@ -4353,7 +4684,7 @@
                     removeEvent.stopPropagation();
                     try {
                         await apiFetch(`/api/photos/${Number(photo.id)}`, { method: 'DELETE' });
-                        await loadClimbingDataFromApi();
+                        removePhotoFromLocalCache(photo.id);
                         previewItem.remove();
                         this.showToast('Фотография удалена');
                         this.renderPhotoAlbum();
@@ -4374,9 +4705,9 @@
                     markupEvent.stopPropagation();
 
                     if (climbType === 'route') {
-                        this.showExistingPhotoRouteLineMarkup(photo, climbId);
+                        this.showExistingPhotoRouteLineMarkup(photo, climbId, false);
                     } else if (climbType === 'boulder') {
-                        this.showExistingPhotoBoulderHoldsMarkup(photo, climbId);
+                        this.showExistingPhotoBoulderHoldsMarkup(photo, climbId, false);
                     }
                 });
 
@@ -4403,12 +4734,12 @@
                     markup: this.currentPhotoPreview.markup || null
                 };
                 try {
-                    await apiFetch('/api/photos', {
+                    const created = await apiFetch('/api/photos', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-                    await loadClimbingDataFromApi();
+                    appendPhotoFromApiResponse(created);
                 } catch (err) {
                     this.showToast(`Ошибка сохранения фото: ${err.message}`, true);
                     return;
@@ -4426,7 +4757,7 @@
                 }
                 try {
                     await apiFetch(`/api/photos/${Number(photoId)}`, { method: 'DELETE' });
-                    await loadClimbingDataFromApi();
+                    removePhotoFromLocalCache(photoId);
                     this.renderPhotoAlbum();
                     this.showToast('Фотография удалена');
                 } catch (err) {
@@ -4436,14 +4767,212 @@
 
             editPhotoMarkup(photoId) {
                 if (!this.requireAdmin('Разметка фото')) return;
-                const photo = getPhotos().find(p => p.id === photoId);
+                const photo = getPhotos().find((p) => String(p.id) === String(photoId));
                 if (!photo) return;
 
                 if (photo.type === 'route') {
-                    this.showExistingPhotoRouteLineMarkup(photo, photo.climbId);
+                    this.showExistingPhotoRouteLineMarkup(photo, photo.climbId, false);
                 } else if (photo.type === 'boulder') {
-                    this.showExistingPhotoBoulderHoldsMarkup(photo, photo.climbId);
+                    this.showExistingPhotoBoulderHoldsMarkup(photo, photo.climbId, false);
                 }
+            }
+
+            showClimbDetailDialog(climbType, climbId, opts = {}) {
+                const idStr = String(climbId);
+                const preferPhotoId = opts.preferPhotoId != null ? String(opts.preferPhotoId) : null;
+                const climb =
+                    climbType === 'route'
+                        ? getRoutes().find((r) => String(r.id) === idStr)
+                        : getBoulders().find((b) => String(b.id) === idStr);
+                if (!climb) {
+                    this.showToast(
+                        climbType === 'route' ? 'Трасса не найдена' : 'Боулдеринг не найден',
+                        true
+                    );
+                    return;
+                }
+                const photos = getPhotos().filter(
+                    (p) => p.type === climbType && String(p.climbId) === idStr
+                );
+                const photo =
+                    (preferPhotoId && photos.find((p) => String(p.id) === preferPhotoId))
+                    || photos.find((p) => p.markup)
+                    || photos[0];
+
+                this._climbDetailContext = {
+                    climbType,
+                    climbId: idStr,
+                    photoId: preferPhotoId && photo && String(photo.id) === preferPhotoId ? preferPhotoId : null
+                };
+
+                const titleEl = document.getElementById('climbDetailTitle');
+                const metaEl = document.getElementById('climbDetailMeta');
+                const descEl = document.getElementById('climbDetailDescription');
+                const wrap = document.getElementById('climbDetailImageWrap');
+                const img = document.getElementById('climbDetailImage');
+                const noPh = document.getElementById('climbDetailNoPhoto');
+                const mkBtn = document.getElementById('climbDetailMarkupBtn');
+
+                if (titleEl) titleEl.textContent = climb.name || '—';
+                const structLabel =
+                    climb.sectorId != null ? this.getStructureLabel(climb.sectorId) : '';
+                const structHtml = structLabel ? `<br><span style="opacity:.92;font-size:13px">${this.escapeHtml(structLabel)}</span>` : '';
+                const grade =
+                    climb.grade != null && climb.grade !== '' ? this.escapeHtml(String(climb.grade)) : '—';
+                const kindRu = climbType === 'route' ? 'Трасса' : 'Боулдеринг';
+                let extraBits = '';
+                if (climbType === 'route') {
+                    if (climb.length != null && climb.length !== '') {
+                        extraBits += ` · ${this.escapeHtml(String(climb.length))} м`;
+                    }
+                    if (climb.bolts != null && climb.bolts !== '') {
+                        extraBits += ` · ${this.escapeHtml(String(climb.bolts))} болт.`;
+                    }
+                } else {
+                    if (climb.height != null && climb.height !== '') {
+                        extraBits += ` · выс. ${this.escapeHtml(String(climb.height))} м`;
+                    }
+                    if (climb.category) {
+                        extraBits += ` · ${this.escapeHtml(String(climb.category))}`;
+                    }
+                }
+                if (metaEl) {
+                    metaEl.innerHTML = `${kindRu} · <strong>${grade}</strong>${extraBits}${structHtml}`;
+                }
+                const descRaw = climb.description != null ? String(climb.description).trim() : '';
+                if (descEl) {
+                    descEl.textContent = descRaw || 'Описание пока не указано.';
+                }
+
+                if (photo && photo.imageData) {
+                    wrap?.classList.remove('hidden');
+                    noPh?.classList.add('hidden');
+                    if (img) {
+                        img.src = photo.imageData;
+                        img.alt = climb.name || '';
+                    }
+                    if (mkBtn) mkBtn.style.display = '';
+                } else {
+                    wrap?.classList.add('hidden');
+                    noPh?.classList.remove('hidden');
+                    if (img) img.removeAttribute('src');
+                    if (mkBtn) mkBtn.style.display = 'none';
+                }
+
+                this.showDialog('climbDetailDialog');
+            }
+
+            openClimbMarkupView(climbType, climbId) {
+                const idStr = String(climbId);
+                const photos = getPhotos().filter(
+                    (p) => p.type === climbType && String(p.climbId) === idStr
+                );
+                if (!photos.length) {
+                    this.showToast(
+                        'Для этой проблемы пока нет фотографии. Добавьте фото при создании или во вкладке «Фотоальбом».',
+                        false
+                    );
+                    return;
+                }
+                const photo = photos.find((p) => p.markup) || photos[0];
+                const viewOnly = !this.isAdmin();
+                if (climbType === 'route') {
+                    this.showExistingPhotoRouteLineMarkup(photo, photo.climbId, viewOnly);
+                } else {
+                    this.showExistingPhotoBoulderHoldsMarkup(photo, photo.climbId, viewOnly);
+                }
+            }
+
+            /** Открыть выбранное фото из альбома (конкретный снимок, не только «первый у трассы»). */
+            openPhotoMarkupView(rawPhotoId) {
+                const pid = String(rawPhotoId ?? '');
+                const photo = getPhotos().find((p) => String(p.id) === pid);
+                if (!photo) {
+                    this.showToast('Фотография не найдена', true);
+                    return;
+                }
+                const viewOnly = !this.isAdmin();
+                if (photo.type === 'route') {
+                    this.showExistingPhotoRouteLineMarkup(photo, photo.climbId, viewOnly);
+                } else if (photo.type === 'boulder') {
+                    this.showExistingPhotoBoulderHoldsMarkup(photo, photo.climbId, viewOnly);
+                }
+            }
+
+            resetRouteMarkupDialogChrome() {
+                const dlg = document.getElementById('routeLineMarkupDialog');
+                if (!dlg) return;
+                const title = dlg.querySelector('.dialog-title');
+                const subtitle = dlg.querySelector('.dialog-subtitle');
+                if (title) title.textContent = 'Трудность';
+                if (subtitle) subtitle.textContent = 'Разметка на фото: старты и линия хода';
+                ['clearRouteLineMarkupBtn', 'saveRouteLineMarkupBtn'].forEach((id) => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = '';
+                });
+                dlg.querySelectorAll('.route-markup-mode-btn').forEach((btn) => {
+                    btn.style.display = '';
+                });
+                const instr = dlg.querySelector('.markup-instructions');
+                if (instr) instr.style.display = '';
+            }
+
+            resetBoulderMarkupDialogChrome() {
+                const dlg = document.getElementById('boulderHoldsMarkupDialog');
+                if (!dlg) return;
+                const title = dlg.querySelector('.dialog-title');
+                const subtitle = dlg.querySelector('.dialog-subtitle');
+                if (title) title.textContent = 'Разметка боулдеринга на фотографии';
+                if (subtitle) subtitle.textContent = 'Кружки и линия хода задаются отдельно (два режима)';
+                ['clearBoulderHoldsMarkupBtn', 'saveBoulderHoldsMarkupBtn'].forEach((id) => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = '';
+                });
+                dlg.querySelectorAll('.boulder-markup-mode-btn').forEach((btn) => {
+                    btn.style.display = '';
+                });
+                const instr = dlg.querySelector('.markup-instructions');
+                if (instr) instr.style.display = '';
+            }
+
+            applyRouteMarkupViewOnlyUi(viewOnly) {
+                const dlg = document.getElementById('routeLineMarkupDialog');
+                if (!dlg) return;
+                if (viewOnly) {
+                    const title = dlg.querySelector('.dialog-title');
+                    const subtitle = dlg.querySelector('.dialog-subtitle');
+                    if (title) title.textContent = 'Трасса на фото';
+                    if (subtitle) subtitle.textContent = 'Просмотр линии и стартовых точек';
+                }
+                ['clearRouteLineMarkupBtn', 'saveRouteLineMarkupBtn'].forEach((id) => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = viewOnly ? 'none' : '';
+                });
+                dlg.querySelectorAll('.route-markup-mode-btn').forEach((btn) => {
+                    btn.style.display = viewOnly ? 'none' : '';
+                });
+                const instr = dlg.querySelector('.markup-instructions');
+                if (instr) instr.style.display = viewOnly ? 'none' : '';
+            }
+
+            applyBoulderMarkupViewOnlyUi(viewOnly) {
+                const dlg = document.getElementById('boulderHoldsMarkupDialog');
+                if (!dlg) return;
+                if (viewOnly) {
+                    const title = dlg.querySelector('.dialog-title');
+                    const subtitle = dlg.querySelector('.dialog-subtitle');
+                    if (title) title.textContent = 'Боулдеринг на фото';
+                    if (subtitle) subtitle.textContent = 'Просмотр зацепок и линии';
+                }
+                ['clearBoulderHoldsMarkupBtn', 'saveBoulderHoldsMarkupBtn'].forEach((id) => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = viewOnly ? 'none' : '';
+                });
+                dlg.querySelectorAll('.boulder-markup-mode-btn').forEach((btn) => {
+                    btn.style.display = viewOnly ? 'none' : '';
+                });
+                const instr = dlg.querySelector('.markup-instructions');
+                if (instr) instr.style.display = viewOnly ? 'none' : '';
             }
 
             syncRouteMarkupModeUI() {
@@ -4454,6 +4983,8 @@
 
             // Методы для разметки трасс (линии + стартовые кружки)
             showRouteLineMarkupDialog(photoData) {
+                this._markupDialogViewOnly = false;
+                this.resetRouteMarkupDialogChrome();
                 this.routeMarkupMode = 'line';
                 this.currentRouteLineMarkup = {
                     points: [],
@@ -4473,7 +5004,11 @@
                 }, 50);
             }
 
-            showExistingPhotoRouteLineMarkup(photo, climbId) {
+            showExistingPhotoRouteLineMarkup(photo, climbId, viewOnly = false) {
+                this.resetRouteMarkupDialogChrome();
+                this._markupDialogViewOnly = !!viewOnly;
+                this.applyRouteMarkupViewOnlyUi(this._markupDialogViewOnly);
+
                 this.routeMarkupMode = 'line';
 
                 const img = document.getElementById('routeLineMarkupImage');
@@ -4499,7 +5034,9 @@
                         photoId: photo.id,
                         climbId: climbId
                     };
-                    this.setupRouteLineMarkupEvents();
+                    if (!this._markupDialogViewOnly) {
+                        this.setupRouteLineMarkupEvents();
+                    }
                     this.syncRouteMarkupModeUI();
                     this.renderRouteLineMarkup();
                 }, 50);
@@ -4688,12 +5225,12 @@
                     savedAt: new Date().toISOString()
                 };
                 try {
-                    await apiFetch(`/api/photos/${photoId}`, {
+                    const updated = await apiFetch(`/api/photos/${photoId}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ markup: newMarkup })
                     });
-                    await loadClimbingDataFromApi();
+                    patchPhotoInLocalCacheFromApi(updated);
                     this.showToast('Разметка обновлена');
                     const pid = String(photoId);
                     const prev = document.querySelector(`.photo-preview-with-markup[data-photo-id="${pid}"]`);
@@ -4717,6 +5254,8 @@
 
             // Методы для разметки боулдеринга (кружки и линия раздельно)
             showBoulderHoldsMarkupDialog(photoData) {
+                this._markupDialogViewOnly = false;
+                this.resetBoulderMarkupDialogChrome();
                 this.boulderMarkupMode = 'circles';
                 this.currentBoulderHoldsMarkup = {
                     holds: [],
@@ -4735,7 +5274,11 @@
                 }, 50);
             }
 
-            showExistingPhotoBoulderHoldsMarkup(photo, climbId) {
+            showExistingPhotoBoulderHoldsMarkup(photo, climbId, viewOnly = false) {
+                this.resetBoulderMarkupDialogChrome();
+                this._markupDialogViewOnly = !!viewOnly;
+                this.applyBoulderMarkupViewOnlyUi(this._markupDialogViewOnly);
+
                 this.boulderMarkupMode = 'circles';
 
                 const img = document.getElementById('boulderHoldsMarkupImage');
@@ -4763,7 +5306,9 @@
                         photoId: photo.id,
                         climbId: climbId
                     };
-                    this.setupBoulderHoldsMarkupEvents();
+                    if (!this._markupDialogViewOnly) {
+                        this.setupBoulderHoldsMarkupEvents();
+                    }
                     this.syncBoulderMarkupModeUI();
                     this.renderBoulderHoldsMarkup();
                 }, 50);
@@ -4900,8 +5445,9 @@
 
                     marker.appendChild(number);
 
-                    // Добавляем перетаскивание
-                    this.makeHoldDraggable(marker, index);
+                    if (!this._markupDialogViewOnly) {
+                        this.makeHoldDraggable(marker, index);
+                    }
 
                     container.appendChild(marker);
                 });
@@ -4987,12 +5533,12 @@
                     savedAt: new Date().toISOString()
                 };
                 try {
-                    await apiFetch(`/api/photos/${photoId}`, {
+                    const updated = await apiFetch(`/api/photos/${photoId}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ markup: newMarkup })
                     });
-                    await loadClimbingDataFromApi();
+                    patchPhotoInLocalCacheFromApi(updated);
                     this.showToast('Разметка боулдеринга обновлена');
                     const pid = String(photoId);
                     const prev = document.querySelector(`.photo-preview-with-markup[data-photo-id="${pid}"]`);
@@ -5009,16 +5555,23 @@
             }
         }
 
-        window.addEventListener('DOMContentLoaded', async () => {
-            try {
-                await loadClimbingDataFromApi();
-            } catch (err) {
-                console.error('API load error', err);
-            }
+        window.addEventListener('DOMContentLoaded', () => {
             window.app = new ClimbingApp();
             if (typeof window.syncTelegramMiniAppUi === 'function') {
                 window.syncTelegramMiniAppUi();
             }
+            void (async () => {
+                try {
+                    await loadClimbingDataFromApi({ includePhotos: false });
+                    window.app?.refreshUiAfterRemoteLoad?.();
+                    if (typeof window.syncTelegramMiniAppUi === 'function') {
+                        window.syncTelegramMiniAppUi();
+                    }
+                } catch (err) {
+                    console.error('API load error', err);
+                    window.app?.showToast?.('Не удалось загрузить данные. Проверьте сеть.', true);
+                }
+            })();
         });
     </script>
 </body>

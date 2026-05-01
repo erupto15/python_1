@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     admin_email: str = "admin@climbing-guidebook.local"
     admin_password: str = "admin"
     admin_display_name: str = "Administrator"
+    telegram_bot_token: str = ""
+    telegram_auth_max_age_sec: int = 86400
 
 
 settings = Settings()

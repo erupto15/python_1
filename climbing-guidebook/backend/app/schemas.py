@@ -11,6 +11,10 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class TelegramAuthRequest(BaseModel):
+    init_data: str = Field(min_length=1)
+
+
 class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
