@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import secrets
 import time
 from urllib.parse import parse_qsl
 
@@ -27,6 +28,8 @@ def _telegram_display_name(user_data: dict) -> str:
     last_name = str(user_data.get("last_name") or "").strip()
     username = str(user_data.get("username") or "").strip()
     full_name = " ".join(part for part in [first_name, last_name] if part).strip()
+    if full_name and username:
+        return f"{full_name} (@{username})"[:120]
     if full_name:
         return full_name[:120]
     if username:
@@ -91,15 +94,56 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive")
     token = security.create_access_token(user.id)
-    return {"access_token": token, "token_type": "bearer"}
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": schemas.UserRead.model_validate(user),
+    }
 
 
 @router.post("/telegram", response_model=schemas.Token)
-def login_telegram(payload: schemas.TelegramAuthRequest, db: Session = Depends(get_db)) -> dict[str, str]:
+def login_telegram(payload: schemas.TelegramAuthRequest, db: Session = Depends(get_db)) -> dict:
     """
-    Telegram user auth is disabled in admin-only mode.
+    Автовход из Telegram Mini App: проверка подписи initData, создание/обновление пользователя,
+    сохранение telegram_id и telegram_username.
     """
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Telegram user login is disabled")
+    user_data = _parse_and_verify_init_data(payload.init_data)
+    tg_id = int(user_data["id"])
+    tg_username = (str(user_data.get("username") or "").strip() or None)
+    email = _telegram_email(tg_id)
+    display_name = _telegram_display_name(user_data)
+
+    user = db.query(User).filter(User.telegram_id == tg_id).first()
+    if not user:
+        user = db.query(User).filter(User.email == email).first()
+
+    if user:
+        user.telegram_id = tg_id
+        user.telegram_username = tg_username
+        if display_name:
+            user.display_name = display_name[:120]
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    else:
+        user = User(
+            email=email,
+            password_hash=security.hash_password(secrets.token_urlsafe(32)),
+            display_name=display_name[:120] if display_name else "",
+            telegram_id=tg_id,
+            telegram_username=tg_username,
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    token = security.create_access_token(user.id)
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": schemas.UserRead.model_validate(user),
+    }
 
 
 @router.get("/me", response_model=schemas.UserRead)

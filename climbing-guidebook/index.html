@@ -115,6 +115,23 @@
             justify-content: flex-end;
         }
 
+        /* Блок пароля админа скрыт до 4 тапов по логотипу */
+        .admin-password-login-block {
+            display: none;
+            align-items: flex-end;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .admin-password-login-block.is-visible {
+            display: flex;
+        }
+
+        /* Панель шапки: скрыта у гостя без входа (Telegram сам залогинит); видна у вошедших */
+        .auth-panel.auth-panel--concealed {
+            display: none !important;
+        }
+
         .auth-panel .form-input {
             width: 160px;
             min-width: 120px;
@@ -1398,17 +1415,18 @@
                     </h1>
                     <p class="site-tagline">Скалолазные районы и маршруты</p>
                 </div>
-                <div class="auth-panel" id="authPanel">
-                    <div class="auth-field">
-                        <label class="auth-label" for="loginUsername">Email</label>
-                        <input type="email" class="form-input" id="loginUsername" placeholder="you@example.com" title="Вход и регистрация по электронной почте" autocomplete="email" maxlength="255">
+                <div class="auth-panel auth-panel--concealed" id="authPanel">
+                    <div id="adminPasswordLoginBlock" class="admin-password-login-block" aria-hidden="true">
+                        <div class="auth-field">
+                            <label class="auth-label" for="loginUsername">Email</label>
+                            <input type="email" class="form-input" id="loginUsername" placeholder="you@example.com" title="Вход администратора" autocomplete="email" maxlength="255">
+                        </div>
+                        <div class="auth-field">
+                            <label class="auth-label" for="loginPassword">Пароль</label>
+                            <input type="password" class="form-input" id="loginPassword" placeholder="" autocomplete="current-password">
+                        </div>
+                        <button type="button" class="btn btn-primary" id="loginBtn"><i class="fas fa-sign-in-alt"></i> Войти</button>
                     </div>
-                    <div class="auth-field">
-                        <label class="auth-label" for="loginPassword">Пароль</label>
-                        <input type="password" class="form-input" id="loginPassword" placeholder="" autocomplete="current-password">
-                    </div>
-                    <button type="button" class="btn btn-primary" id="loginBtn"><i class="fas fa-sign-in-alt"></i> Войти</button>
-                    <button type="button" class="btn btn-secondary" id="registerBtn"><i class="fas fa-user-plus"></i> Регистрация</button>
                     <div id="authStatus" style="display:none;"></div>
                     <button type="button" class="btn btn-secondary" id="logoutBtn" style="display:none;"><i class="fas fa-sign-out-alt"></i> Выйти</button>
                 </div>
@@ -2120,7 +2138,13 @@
             return '';
         })();
         const AUTH_STORAGE_KEY = 'climbingApp_auth';
-        const ADMIN_LOGIN_FLAG_KEY = 'climbingApp_admin_login_enabled';
+        /** Новый ключ: старый `climbingApp_admin_login_enabled` (?admin=1 / прошлые сборки) при старте сбрасываем. */
+        const ADMIN_LOGIN_FLAG_KEY = 'climbingApp_admin_form_unlock_v2';
+        try {
+            localStorage.removeItem('climbingApp_admin_login_enabled');
+        } catch (_) {
+            /* ignore */
+        }
         const ADMIN_EMAIL_HINT = window.CLIMBING_ADMIN_EMAIL || 'admin@climbing-guidebook.local';
         const MAX_PHOTO_SIZE_MB = 25;
         const MAX_PHOTO_SIZE_BYTES = MAX_PHOTO_SIZE_MB * 1024 * 1024;
@@ -2199,6 +2223,56 @@
             if (res.status === 204) return null;
             const text = await res.text();
             return text ? JSON.parse(text) : null;
+        }
+
+        /**
+         * В Telegram Mini App: автоматический вход по initData (подпись на бэкенде),
+         * создание/обновление пользователя и полей telegram_username / display_name.
+         * Не перезаписывает сессию, если уже вошёл администратор по паролю.
+         */
+        async function tryTelegramSilentLogin() {
+            if (!API_BASE_URL) return;
+            if (!document.documentElement.classList.contains('tg-mini-app')) return;
+            const initData = (
+                window.__TG_INIT_DATA ||
+                (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) ||
+                ''
+            ).trim();
+            if (!initData) return;
+
+            const auth = getAuthData();
+            if (auth.accessToken && auth.currentUser) {
+                const em = String(auth.currentUser.email || '').toLowerCase();
+                if (em === String(ADMIN_EMAIL_HINT).toLowerCase()) return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/auth/telegram`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ init_data: initData })
+                });
+                if (!res.ok) {
+                    const t = await res.text();
+                    console.warn('Telegram auth:', res.status, t.slice(0, 200));
+                    return;
+                }
+                const data = JSON.parse(await res.text());
+                let me = data.user || null;
+                if (!me) {
+                    saveAuthData({ accessToken: data.access_token, currentUser: null });
+                    me = await apiFetch('/api/auth/me');
+                }
+                saveAuthData({ accessToken: data.access_token, currentUser: me });
+                if (window.app) {
+                    window.app.auth = getAuthData();
+                    window.app.renderAuthUI();
+                    window.app.applyRoleUI();
+                    window.app.refreshListsAfterRoleChange();
+                }
+            } catch (e) {
+                console.warn('Telegram silent login', e);
+            }
         }
 
         if (APP_BOULDER_ONLY) {
@@ -2882,7 +2956,6 @@
                 this.setupEventListeners();
                 this.setupTabSwitching();
                 this.applyRoleUI();
-                this.restoreAuthSession();
             }
 
             /** После фоновой загрузки с API — обновить списки и карту (не блокирует первый показ UI). */
@@ -2913,12 +2986,8 @@
                 return em === String(ADMIN_EMAIL_HINT).toLowerCase();
             }
 
-            isAdminLoginEnabled() {
-                const qp = new URLSearchParams(window.location.search || '');
-                if (qp.get('admin') === '1') {
-                    localStorage.setItem(ADMIN_LOGIN_FLAG_KEY, '1');
-                    return true;
-                }
+            /** Показ полей email/пароль только после 4 тапов по логотипу (не через URL). */
+            isAdminPasswordFormUnlocked() {
                 return localStorage.getItem(ADMIN_LOGIN_FLAG_KEY) === '1';
             }
 
@@ -2937,6 +3006,7 @@
                         clicks = 0;
                         this.renderAuthUI();
                         this.showToast('Режим входа администратора включён');
+                        setTimeout(() => document.getElementById('loginUsername')?.focus(), 0);
                     }
                 });
             }
@@ -2951,57 +3021,55 @@
                     this.auth = auth;
                     this.renderAuthUI();
                     this.applyRoleUI();
-                    this.renderCatalog();
-                    this.renderRoutes();
-                    this.renderBoulders();
-                    this.renderPhotoAlbum();
+                    this.refreshListsAfterRoleChange();
                 } catch {
                     saveAuthData({ accessToken: null, currentUser: null });
                     this.auth = getAuthData();
                     this.renderAuthUI();
                     this.applyRoleUI();
+                    this.refreshListsAfterRoleChange();
                 }
             }
 
             renderAuthUI() {
                 this.auth = getAuthData();
                 const user = this.getCurrentUser();
+                const panel = document.getElementById('authPanel');
+                const adminBlock = document.getElementById('adminPasswordLoginBlock');
                 const usernameInput = document.getElementById('loginUsername');
                 const passwordInput = document.getElementById('loginPassword');
                 const loginBtn = document.getElementById('loginBtn');
-                const registerBtn = document.getElementById('registerBtn');
                 const logoutBtn = document.getElementById('logoutBtn');
                 const status = document.getElementById('authStatus');
-                if (!usernameInput || !passwordInput || !loginBtn || !registerBtn || !logoutBtn || !status) return;
+                if (!usernameInput || !passwordInput || !loginBtn || !logoutBtn || !status) return;
 
                 if (user) {
-                    usernameInput.style.display = 'none';
-                    passwordInput.style.display = 'none';
-                    loginBtn.style.display = 'none';
-                    registerBtn.style.display = 'none';
+                    panel?.classList.remove('auth-panel--concealed');
+                    adminBlock?.classList.remove('is-visible');
+                    adminBlock?.setAttribute('aria-hidden', 'true');
                     status.style.display = 'inline-flex';
                     const role = this.isAdmin() ? 'admin' : 'user';
                     status.innerHTML = `<span class="role-badge ${role}"><i class="fas fa-user-shield"></i> ${this.escapeHtml(user.display_name || user.email || 'user')} (${role})</span>`;
                     logoutBtn.style.display = 'inline-flex';
                 } else {
-                    const adminLoginEnabled = this.isAdminLoginEnabled();
-                    usernameInput.style.display = adminLoginEnabled ? 'inline-block' : 'none';
-                    passwordInput.style.display = adminLoginEnabled ? 'inline-block' : 'none';
-                    loginBtn.style.display = adminLoginEnabled ? 'inline-flex' : 'none';
-                    registerBtn.style.display = 'none';
-                    status.style.display = 'inline-flex';
-                    status.innerHTML = adminLoginEnabled
+                    const showAdminForm = this.isAdminPasswordFormUnlocked();
+                    panel?.classList.toggle('auth-panel--concealed', !showAdminForm);
+                    if (showAdminForm) {
+                        adminBlock?.classList.add('is-visible');
+                        adminBlock?.setAttribute('aria-hidden', 'false');
+                    } else {
+                        adminBlock?.classList.remove('is-visible');
+                        adminBlock?.setAttribute('aria-hidden', 'true');
+                    }
+                    status.style.display = showAdminForm ? 'inline-flex' : 'none';
+                    status.innerHTML = showAdminForm
                         ? '<span class="role-badge admin"><i class="fas fa-user-shield"></i> Вход администратора</span>'
-                        : '<span class="role-badge user"><i class="fas fa-eye"></i> Режим просмотра для пользователей</span>';
+                        : '';
                     logoutBtn.style.display = 'none';
                 }
             }
 
             setupAuthEventListeners() {
-                document.getElementById('registerBtn')?.addEventListener('click', async () => {
-                    this.showToast('Регистрация отключена. Доступен только вход администратора.', true);
-                });
-
                 document.getElementById('loginBtn')?.addEventListener('click', async () => {
                     const username = (document.getElementById('loginUsername')?.value || '').trim().toLowerCase();
                     const password = (document.getElementById('loginPassword')?.value || '').trim();
@@ -3020,18 +3088,18 @@
                             throw new Error('Неверный email или пароль');
                         }
                         const tokenData = await loginRes.json();
-                        const auth = { accessToken: tokenData.access_token, currentUser: null };
-                        saveAuthData(auth);
-                        const me = await apiFetch('/api/auth/me');
-                        auth.currentUser = me;
+                        let me = tokenData.user || null;
+                        if (!me) {
+                            const authProbe = { accessToken: tokenData.access_token, currentUser: null };
+                            saveAuthData(authProbe);
+                            me = await apiFetch('/api/auth/me');
+                        }
+                        const auth = { accessToken: tokenData.access_token, currentUser: me };
                         saveAuthData(auth);
                         this.auth = auth;
                         this.renderAuthUI();
                         this.applyRoleUI();
-                        this.renderCatalog();
-                        this.renderRoutes();
-                        this.renderBoulders();
-                        this.renderPhotoAlbum();
+                        this.refreshListsAfterRoleChange();
                         this.showToast(`Вход выполнен: ${me.display_name || me.email}`);
                     } catch (err) {
                         this.showToast(err.message || 'Ошибка входа', true);
@@ -3043,10 +3111,7 @@
                     this.auth = getAuthData();
                     this.renderAuthUI();
                     this.applyRoleUI();
-                    this.renderCatalog();
-                    this.renderRoutes();
-                    this.renderBoulders();
-                    this.renderPhotoAlbum();
+                    this.refreshListsAfterRoleChange();
                     this.showToast('Вы вышли из системы');
                 });
 
@@ -3070,6 +3135,29 @@
                     if (adminMode) el.classList.remove('hidden-by-role');
                     else el.classList.add('hidden-by-role');
                 });
+            }
+
+            /**
+             * После смены роли (вход/выход): обновить списки без блокировки UI.
+             * Альбом с data URL перерисовываем только на вкладке «Фото» и после кадра отрисовки —
+             * иначе десятки base64-картинок в одном синхронном проходе дают длинный фриз.
+             */
+            refreshListsAfterRoleChange() {
+                this.renderCatalog();
+                if (!APP_BOULDER_ONLY) {
+                    this.renderRoutes();
+                }
+                this.renderBoulders();
+                const activeTab = document.querySelector('.tab-content.active')?.id || '';
+                if (activeTab !== 'photos') {
+                    return;
+                }
+                const run = () => this.renderPhotoAlbum();
+                if (typeof requestAnimationFrame === 'function') {
+                    requestAnimationFrame(() => requestAnimationFrame(run));
+                } else {
+                    setTimeout(run, 0);
+                }
             }
 
             setStarRating(targetId, value) {
@@ -5562,6 +5650,10 @@
             }
             void (async () => {
                 try {
+                    await tryTelegramSilentLogin();
+                    if (window.app) {
+                        await window.app.restoreAuthSession();
+                    }
                     await loadClimbingDataFromApi({ includePhotos: false });
                     window.app?.refreshUiAfterRemoteLoad?.();
                     if (typeof window.syncTelegramMiniAppUi === 'function') {

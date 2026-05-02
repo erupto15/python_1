@@ -40,6 +40,8 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE routes ADD COLUMN IF NOT EXISTS rating DOUBLE PRECISION",
             "ALTER TABLE boulders ADD COLUMN IF NOT EXISTS category VARCHAR(64)",
             "ALTER TABLE boulders ADD COLUMN IF NOT EXISTS rating DOUBLE PRECISION",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_id BIGINT",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_username VARCHAR(64)",
         ]
     else:
         statements = [
@@ -47,6 +49,8 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE routes ADD COLUMN rating FLOAT",
             "ALTER TABLE boulders ADD COLUMN category VARCHAR(64)",
             "ALTER TABLE boulders ADD COLUMN rating FLOAT",
+            "ALTER TABLE users ADD COLUMN telegram_id INTEGER",
+            "ALTER TABLE users ADD COLUMN telegram_username VARCHAR(64)",
         ]
     with engine.begin() as conn:
         for stmt in statements:
