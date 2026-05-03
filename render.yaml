@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: climbing-guidebook-api
+    runtime: python
+    # Ветка с актуальным backend + Telegram auth (смените на main, если сервис должен следовать за main)
+    branch: 12_Lesson
+    rootDir: climbing-guidebook/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        value: admin@climbing-guidebook.local
+      - key: ADMIN_PASSWORD
+        value: admin
+      - key: ADMIN_DISPLAY_NAME
+        value: Administrator
+      # Тот же токен, что у бота Mini App (@BotFather). Задайте вручную в Dashboard → Environment (sync: false).
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_AUTH_MAX_AGE_SEC
+        value: "86400"

@@ -18,7 +18,7 @@ pip install -r requirements.txt
 | | Значение по умолчанию |
 |---|------------------------|
 | **Логин (email)** | `admin@climbing-guidebook.local` |
-| **Пароль** | `AdminCatalog2026!` |
+| **Пароль** | `admin` |
 | Имя в системе | `Administrator` |
 
 Переопределение через переменные окружения: `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_DISPLAY_NAME` (см. `.env.example`).
@@ -50,6 +50,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 - **Регистрация** `POST /api/users` и **логин** `POST /api/auth/login` — без токена.
 - Логин: OAuth2 password form — поле **`username`** = email, **`password`** = пароль. Ответ: `access_token`, `token_type: bearer`.
+- Telegram Mini App: `POST /api/auth/telegram` с полем `init_data` (строка `Telegram.WebApp.initData`), подпись проверяется на сервере по `TELEGRAM_BOT_TOKEN`.
 - Остальные **POST / PATCH / DELETE** (районы, секторы, трассы, боулдеры, фото, комментарии) требуют заголовок:  
   `Authorization: Bearer <access_token>`
 - **`GET /api/auth/me`** — текущий пользователь (нужен Bearer).
@@ -60,6 +61,13 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ```bash
 export JWT_SECRET="$(openssl rand -hex 32)"
+```
+
+Для Telegram авторизации в продакшене задайте:
+
+```bash
+export TELEGRAM_BOT_TOKEN="<bot_token_from_botfather>"
+export TELEGRAM_AUTH_MAX_AGE_SEC="86400"
 ```
 
 ## Маршруты

@@ -6,9 +6,8 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+class TelegramAuthRequest(BaseModel):
+    init_data: str = Field(min_length=1)
 
 
 class UserCreate(BaseModel):
@@ -30,6 +29,14 @@ class UserRead(BaseModel):
     display_name: str
     is_active: bool
     created_at: datetime
+    telegram_id: Optional[int] = None
+    telegram_username: Optional[str] = None
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: Optional[UserRead] = None
 
 
 class AreaCreate(BaseModel):
