@@ -5,6 +5,8 @@ services:
     # Ветка с актуальным backend + Telegram auth (смените на main, если сервис должен следовать за main)
     branch: 12_Lesson
     rootDir: climbing-guidebook/backend
+    # ВАЖНО: без внешней БД SQLite на диске Render теряется при сне/деплое — трассы «пропадают».
+    # Создайте PostgreSQL в Render, в этом сервисе: Environment → Link database → добавится DATABASE_URL.
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health

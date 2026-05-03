@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>6А9А — скалолазные районы и маршруты</title>
     <!-- Иконка — ромб: сверху светлый треугольник, снизу тёмный -->
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 36'%3E%3Cpolygon points='16,2 30,18 2,18' fill='%23f2f4f8'/%3E%3Cpolygon points='2,18 30,18 16,34' fill='%23121722'/%3E%3Ctext x='16' y='14.5' text-anchor='middle' font-family='Arial%20Narrow%2C%20sans-serif' font-size='8' font-weight='700' fill='%23121722'%3E6%D0%90%3C/text%3E%3Ctext x='16' y='27.5' text-anchor='middle' font-family='Arial%20Narrow%2C%20sans-serif' font-size='8' font-weight='700' fill='%23f2f4f8'%3E9%D0%90%3C/text%3E%3C/svg%3E" type="image/svg+xml">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 36'%3E%3Cdefs%3E%3ClinearGradient id='lt' x1='0%25' y1='0%25' x2='0%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23ffffff'/%3E%3Cstop offset='100%25' stop-color='%23d2dae6'/%3E%3C/linearGradient%3E%3ClinearGradient id='dk' x1='0%25' y1='0%25' x2='0%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%231c2433'/%3E%3Cstop offset='100%25' stop-color='%230a0d12'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='16,2 30,18 2,18' fill='url(%23lt)'/%3E%3Cpolygon points='2,18 30,18 16,34' fill='url(%23dk)'/%3E%3Ctext x='16' y='14.5' text-anchor='middle' font-family='Arial%20Narrow%2C%20sans-serif' font-size='8' font-weight='700' fill='%230c1018'%3E6%D0%90%3C/text%3E%3Ctext x='16' y='27.5' text-anchor='middle' font-family='Arial%20Narrow%2C%20sans-serif' font-size='8' font-weight='700' fill='%23f2f5fa'%3E9%D0%90%3C/text%3E%3C/svg%3E" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -29,6 +29,20 @@
             --radius: 12px;
             --transition: all 0.3s ease;
             --logo-font: 'Barlow Condensed', 'Arial Narrow', 'Helvetica Neue Condensed', sans-serif;
+            /* Ромб логотипа (светлый / тёмный треугольник) */
+            --logo-light-top: #ffffff;
+            --logo-light-mid: #e8ecf4;
+            --logo-light-ink: #0c1018;
+            --logo-dark-top: #1c2433;
+            --logo-dark-bottom: #0a0d12;
+            --logo-dark-ink: #f2f5fa;
+            --logo-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+            --logo-shadow-soft: 0 4px 14px rgba(0, 0, 0, 0.28);
+            /* Уже ромб + стык треугольников */
+            --logo-diamond-w: 4.5rem;
+            --logo-diamond-h: 2.35rem;
+            --logo-diamond-font: 1.56rem;
+            --logo-diamond-overlap: -0.62rem;
             /* Кнопки в духе Telegram (inline / reply keyboard, тёмная тема) */
             --tg-blue: #3390ec;
             --tg-blue-hover: #4a9cf0;
@@ -183,48 +197,80 @@
             color: transparent;
             font-size: 0;
             letter-spacing: 0;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            touch-action: manipulation;
         }
 
         .site-logo-mark {
             display: inline-flex;
             flex-direction: column;
             align-items: center;
-            filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.4));
+            position: relative;
+            transform-origin: 50% 45%;
+            filter:
+                drop-shadow(0 0 0 0.55px rgba(255, 255, 255, 0.42))
+                drop-shadow(0 0 0 1px rgba(0, 0, 0, 0.52))
+                drop-shadow(var(--logo-shadow-soft))
+                drop-shadow(var(--logo-shadow));
+            transition: transform 0.18s ease, filter 0.18s ease;
+            animation: logoEnter 0.72s cubic-bezier(0.33, 1.18, 0.55, 1) forwards;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .site-logo-mark {
+                transition: none;
+                animation: none !important;
+            }
+        }
+
+        h1.site-logo:active .site-logo-mark {
+            transform: scale(0.96);
+            filter:
+                drop-shadow(0 0 0 0.55px rgba(255, 255, 255, 0.35))
+                drop-shadow(0 0 0 1px rgba(0, 0, 0, 0.5))
+                drop-shadow(0 2px 10px rgba(0, 0, 0, 0.38));
         }
 
         .site-logo-tri {
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 6.35rem;
-            height: 3.32rem;
+            width: var(--logo-diamond-w);
+            height: var(--logo-diamond-h);
             font-family: var(--logo-font);
             font-weight: 700;
-            font-size: 2.1rem;
+            font-size: var(--logo-diamond-font);
             line-height: 1;
             letter-spacing: 0.02em;
             font-variant-numeric: tabular-nums;
             box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
         }
 
         .site-logo-tri--light {
             clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
-            background: #f2f4f8;
-            color: #121722;
+            background: linear-gradient(168deg, var(--logo-light-top) 0%, var(--logo-light-mid) 52%, #d2dae6 100%);
+            color: var(--logo-light-ink);
             padding-top: 0.2rem;
             align-items: flex-start;
             padding-bottom: 0.15rem;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
         }
 
         .site-logo-tri--dark {
             clip-path: polygon(0% 0%, 100% 0%, 50% 100%);
-            background: #121722;
-            color: #f2f4f8;
-            margin-top: -0.86rem;
+            background: linear-gradient(348deg, var(--logo-dark-top) 0%, #141a24 45%, var(--logo-dark-bottom) 100%);
+            color: var(--logo-dark-ink);
+            margin-top: var(--logo-diamond-overlap);
             align-items: center;
             justify-content: center;
-            padding: 0.1rem 0 0.22rem;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            padding: 0.1rem 0 0.24rem;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+            text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.35);
         }
 
         .site-logo-tri-nudge-up {
@@ -1197,8 +1243,33 @@
             }
         }
 
+        @keyframes logoEnter {
+            0% {
+                opacity: 0;
+                transform: scale(0.82) translateY(0.45rem) rotate(-2.2deg);
+            }
+            58% {
+                opacity: 1;
+                transform: scale(1.035) translateY(0) rotate(0.35deg);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1) translateY(0) rotate(0deg);
+            }
+        }
+
         /* Адаптивность */
         @media (max-width: 768px) {
+            .site-logo-tri {
+                width: 3.92rem;
+                height: 2.05rem;
+                font-size: 1.34rem;
+            }
+
+            .site-logo-tri--dark {
+                margin-top: -0.54rem;
+            }
+
             .header-top {
                 flex-direction: column;
                 align-items: center;

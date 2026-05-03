@@ -29,7 +29,11 @@ pip install -r requirements.txt
 
 ---
 
-По умолчанию используется SQLite-файл `climbing.db` в текущей директории. Для PostgreSQL задайте переменную окружения:
+По умолчанию используется SQLite-файл `climbing.db` в текущей директории.
+
+**Render и аналоги:** у web-сервиса диск часто **временный** — после сна инстанса или деплоя SQLite **обнуляется**, трассы и боулдеры «пропадают». В продакшене подключите **PostgreSQL** (в Render: New PostgreSQL → в веб-сервисе **Environment → Link database** — появится `DATABASE_URL`). Достаточно `postgres://...` из панели: приложение само подставит драйвер `psycopg2`.
+
+Для PostgreSQL локально или при явном URL задайте переменную окружения:
 
 ```bash
 export DATABASE_URL="postgresql+psycopg2://user:pass@localhost:5432/climbing"
