@@ -16,6 +16,9 @@ class Settings(BaseSettings):
         if not isinstance(v, str):
             return v
         s = v.strip()
+        # Пустая строка в Render (переменная задана, но без значения) ломает SQLAlchemy при импорте engine.
+        if not s:
+            return "sqlite:///./climbing.db"
         if s.startswith("postgres://"):
             return "postgresql+psycopg2://" + s[len("postgres://") :]
         if s.startswith("postgresql://") and not s.startswith("postgresql+"):
