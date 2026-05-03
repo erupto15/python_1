@@ -33,6 +33,8 @@ pip install -r requirements.txt
 
 **Render и аналоги:** у web-сервиса диск часто **временный** — после сна инстанса или деплоя SQLite **обнуляется**, трассы и боулдеры «пропадают». В продакшене подключите **PostgreSQL** (в Render: New PostgreSQL → в веб-сервисе **Environment → Link database** — появится `DATABASE_URL`). Достаточно `postgres://...` из панели: приложение само подставит драйвер `psycopg2`.
 
+Если в логах `could not translate host name "host"` — в `DATABASE_URL` всё ещё **шаблон** (хост `host`), а не Internal Database URL из панели PostgreSQL.
+
 Для PostgreSQL локально или при явном URL задайте переменную окружения:
 
 ```bash

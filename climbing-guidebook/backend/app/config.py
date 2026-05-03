@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,6 +21,22 @@ class Settings(BaseSettings):
         if s.startswith("postgresql://") and not s.startswith("postgresql+"):
             return "postgresql+psycopg2://" + s[len("postgresql://") :]
         return s
+
+    @field_validator("database_url", mode="after")
+    @classmethod
+    def reject_placeholder_database_host(cls, v: str) -> str:
+        """Ловит типичную ошибку: в URL оставили слово host из примера вместо реального хоста Render."""
+        if not isinstance(v, str) or v.startswith("sqlite"):
+            return v
+        host = (urlparse(v).hostname or "").lower()
+        if host in ("host", "хост"):
+            raise ValueError(
+                "DATABASE_URL указывает заглушечный хост «host»/«хост». "
+                "В Render откройте сервис PostgreSQL → Connections → Internal Database URL "
+                "и вставьте эту строку целиком в DATABASE_URL веб-сервиса (или Link database)."
+            )
+        return v
+
     app_title: str = "Climbing Guidebook API"
 
     # JWT: в продакшене обязательно задайте JWT_SECRET в окружении

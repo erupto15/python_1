@@ -41,7 +41,7 @@
             /* Уже ромб + стык треугольников */
             --logo-diamond-w: 4.5rem;
             --logo-diamond-h: 2.35rem;
-            --logo-diamond-font: 1.56rem;
+            --logo-diamond-font: 1.48rem;
             --logo-diamond-overlap: -0.62rem;
             /* Кнопки в духе Telegram (inline / reply keyboard, тёмная тема) */
             --tg-blue: #3390ec;
@@ -141,8 +141,13 @@
             display: flex;
         }
 
-        /* Панель шапки: скрыта у гостя без входа (Telegram сам залогинит); видна у вошедших */
-        .auth-panel.auth-panel--concealed {
+        /* Одна кнопка «Войти» для пользователей (Telegram); скрывается, когда открыта форма админа после 4 тапов */
+        .user-telegram-login-block {
+            display: flex;
+            align-items: flex-end;
+        }
+
+        .user-telegram-login-block.is-hidden {
             display: none !important;
         }
 
@@ -243,20 +248,23 @@
             font-weight: 700;
             font-size: var(--logo-diamond-font);
             line-height: 1;
-            letter-spacing: 0.02em;
+            letter-spacing: 0.01em;
             font-variant-numeric: tabular-nums;
             box-sizing: border-box;
             -webkit-font-smoothing: antialiased;
+            padding-inline: 0.22rem;
         }
 
         .site-logo-tri--light {
             clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
             background: linear-gradient(168deg, var(--logo-light-top) 0%, var(--logo-light-mid) 52%, #d2dae6 100%);
             color: var(--logo-light-ink);
-            padding-top: 0.2rem;
+            padding-top: 0.26rem;
             align-items: flex-start;
-            padding-bottom: 0.15rem;
+            padding-bottom: 0.2rem;
             text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+            transform: scale(0.9);
+            transform-origin: 50% 66%;
         }
 
         .site-logo-tri--dark {
@@ -266,16 +274,18 @@
             margin-top: var(--logo-diamond-overlap);
             align-items: center;
             justify-content: center;
-            padding: 0.1rem 0 0.24rem;
+            padding: 0.12rem 0.22rem 0.28rem;
             box-shadow:
                 inset 0 1px 0 rgba(255, 255, 255, 0.1),
                 inset 0 -1px 0 rgba(0, 0, 0, 0.25);
             text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.35);
+            transform: scale(0.9);
+            transform-origin: 50% 34%;
         }
 
         .site-logo-tri-nudge-up {
             display: inline-block;
-            transform: translateY(-0.06rem);
+            transform: translateY(-0.04rem);
         }
 
         .site-tagline {
@@ -1263,7 +1273,8 @@
             .site-logo-tri {
                 width: 3.92rem;
                 height: 2.05rem;
-                font-size: 1.34rem;
+                font-size: 1.28rem;
+                padding-inline: 0.18rem;
             }
 
             .site-logo-tri--dark {
@@ -1486,7 +1497,10 @@
                     </h1>
                     <p class="site-tagline">Скалолазные районы и маршруты</p>
                 </div>
-                <div class="auth-panel auth-panel--concealed" id="authPanel">
+                <div class="auth-panel" id="authPanel">
+                    <div id="userTelegramLoginBlock" class="user-telegram-login-block">
+                        <button type="button" class="btn btn-primary" id="userTelegramLoginBtn">Войти</button>
+                    </div>
                     <div id="adminPasswordLoginBlock" class="admin-password-login-block" aria-hidden="true">
                         <div class="auth-field">
                             <label class="auth-label" for="loginUsername">Email</label>
@@ -1496,7 +1510,7 @@
                             <label class="auth-label" for="loginPassword">Пароль</label>
                             <input type="password" class="form-input" id="loginPassword" placeholder="" autocomplete="current-password">
                         </div>
-                        <button type="button" class="btn btn-primary" id="loginBtn"><i class="fas fa-sign-in-alt"></i> Войти</button>
+                        <button type="button" class="btn btn-primary" id="loginBtn">Войти</button>
                     </div>
                     <div id="authStatus" style="display:none;"></div>
                     <button type="button" class="btn btn-secondary" id="logoutBtn" style="display:none;"><i class="fas fa-sign-out-alt"></i> Выйти</button>
@@ -2301,20 +2315,21 @@
          * создание/обновление пользователя и полей telegram_username / display_name.
          * Не перезаписывает сессию, если уже вошёл администратор по паролю.
          */
+        /** @returns {Promise<boolean>} true, если сессия пользователя через Telegram установлена или уже активна (не трогаем сессию админа по паролю). */
         async function tryTelegramSilentLogin() {
-            if (!API_BASE_URL) return;
-            if (!document.documentElement.classList.contains('tg-mini-app')) return;
+            if (!API_BASE_URL) return false;
+            if (!document.documentElement.classList.contains('tg-mini-app')) return false;
             const initData = (
                 window.__TG_INIT_DATA ||
                 (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) ||
                 ''
             ).trim();
-            if (!initData) return;
+            if (!initData) return false;
 
             const auth = getAuthData();
             if (auth.accessToken && auth.currentUser) {
                 const em = String(auth.currentUser.email || '').toLowerCase();
-                if (em === String(ADMIN_EMAIL_HINT).toLowerCase()) return;
+                if (em === String(ADMIN_EMAIL_HINT).toLowerCase()) return true;
             }
 
             try {
@@ -2326,7 +2341,7 @@
                 if (!res.ok) {
                     const t = await res.text();
                     console.warn('Telegram auth:', res.status, t.slice(0, 200));
-                    return;
+                    return false;
                 }
                 const data = JSON.parse(await res.text());
                 let me = data.user || null;
@@ -2341,8 +2356,10 @@
                     window.app.applyRoleUI();
                     window.app.refreshListsAfterRoleChange();
                 }
+                return true;
             } catch (e) {
                 console.warn('Telegram silent login', e);
+                return false;
             }
         }
 
@@ -3105,8 +3122,8 @@
             renderAuthUI() {
                 this.auth = getAuthData();
                 const user = this.getCurrentUser();
-                const panel = document.getElementById('authPanel');
                 const adminBlock = document.getElementById('adminPasswordLoginBlock');
+                const userTgBlock = document.getElementById('userTelegramLoginBlock');
                 const usernameInput = document.getElementById('loginUsername');
                 const passwordInput = document.getElementById('loginPassword');
                 const loginBtn = document.getElementById('loginBtn');
@@ -3115,7 +3132,7 @@
                 if (!usernameInput || !passwordInput || !loginBtn || !logoutBtn || !status) return;
 
                 if (user) {
-                    panel?.classList.remove('auth-panel--concealed');
+                    userTgBlock?.classList.add('is-hidden');
                     adminBlock?.classList.remove('is-visible');
                     adminBlock?.setAttribute('aria-hidden', 'true');
                     status.style.display = 'inline-flex';
@@ -3124,18 +3141,17 @@
                     logoutBtn.style.display = 'inline-flex';
                 } else {
                     const showAdminForm = this.isAdminPasswordFormUnlocked();
-                    panel?.classList.toggle('auth-panel--concealed', !showAdminForm);
                     if (showAdminForm) {
+                        userTgBlock?.classList.add('is-hidden');
                         adminBlock?.classList.add('is-visible');
                         adminBlock?.setAttribute('aria-hidden', 'false');
                     } else {
+                        userTgBlock?.classList.remove('is-hidden');
                         adminBlock?.classList.remove('is-visible');
                         adminBlock?.setAttribute('aria-hidden', 'true');
                     }
-                    status.style.display = showAdminForm ? 'inline-flex' : 'none';
-                    status.innerHTML = showAdminForm
-                        ? '<span class="role-badge admin"><i class="fas fa-user-shield"></i> Вход администратора</span>'
-                        : '';
+                    status.style.display = 'none';
+                    status.innerHTML = '';
                     logoutBtn.style.display = 'none';
                 }
             }
@@ -3168,6 +3184,7 @@
                         const auth = { accessToken: tokenData.access_token, currentUser: me };
                         saveAuthData(auth);
                         this.auth = auth;
+                        localStorage.removeItem(ADMIN_LOGIN_FLAG_KEY);
                         this.renderAuthUI();
                         this.applyRoleUI();
                         this.refreshListsAfterRoleChange();
@@ -3190,6 +3207,24 @@
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         document.getElementById('loginBtn')?.click();
+                    }
+                });
+
+                document.getElementById('userTelegramLoginBtn')?.addEventListener('click', async () => {
+                    const inTg = document.documentElement.classList.contains('tg-mini-app');
+                    const ok = await tryTelegramSilentLogin();
+                    if (ok) {
+                        const a = getAuthData();
+                        if (a.currentUser) {
+                            this.showToast(`Вход: ${a.currentUser.display_name || a.currentUser.email || 'готово'}`);
+                        }
+                    } else {
+                        this.showToast(
+                            inTg
+                                ? 'Не удалось войти через Telegram. Попробуйте позже или проверьте сеть.'
+                                : 'Откройте приложение в Telegram (Mini App), чтобы войти автоматически.',
+                            true
+                        );
                     }
                 });
             }
