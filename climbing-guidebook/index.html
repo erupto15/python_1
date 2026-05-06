@@ -2263,6 +2263,38 @@
         const QUICK_PHOTO_JPEG_QUALITY = 0.82;
         const QUICK_PHOTO_DATAURL_SOFT_CAP = 900000;
 
+        /** Автосохранение открытых фото в память устройства (Telegram/WebView). */
+        const AUTO_SAVE_OPENED_MEDIA_KEY = 'climbingApp_auto_save_opened_media_v1';
+        const AUTO_SAVE_OPENED_MEDIA_MAX_ITEMS = 800;
+
+        function getAutoSavedMediaSet() {
+            try {
+                const raw = localStorage.getItem(AUTO_SAVE_OPENED_MEDIA_KEY);
+                if (!raw) return new Set();
+                const arr = JSON.parse(raw);
+                if (!Array.isArray(arr)) return new Set();
+                return new Set(arr.map((x) => String(x || '')).filter(Boolean));
+            } catch (_) {
+                return new Set();
+            }
+        }
+
+        function markMediaAutoSaved(key) {
+            const set = getAutoSavedMediaSet();
+            set.add(String(key || ''));
+            const arr = Array.from(set).filter(Boolean);
+            const tail = arr.slice(Math.max(0, arr.length - AUTO_SAVE_OPENED_MEDIA_MAX_ITEMS));
+            try {
+                localStorage.setItem(AUTO_SAVE_OPENED_MEDIA_KEY, JSON.stringify(tail));
+            } catch (_) {
+                /* ignore */
+            }
+        }
+
+        function wasMediaAutoSaved(key) {
+            return getAutoSavedMediaSet().has(String(key || ''));
+        }
+
         function downscaleDataUrlForUpload(dataUrl) {
             if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return Promise.resolve(dataUrl);
             return new Promise((resolve) => {
@@ -3451,6 +3483,129 @@
                         btn.innerHTML = btn.dataset._saveOrigHtml;
                         delete btn.dataset._saveOrigHtml;
                     }
+                }
+            }
+
+            async tryAutoSaveOpenedMediaToDevice(photo, climbType, climbName) {
+                if (!photo || !photo.imageData || typeof photo.imageData !== 'string') return;
+                const key = `${climbType}:${String(photo.id || photo.climbId || '')}`;
+                if (!key || wasMediaAutoSaved(key)) return;
+
+                const isDataUrl = photo.imageData.startsWith('data:');
+                if (!isDataUrl) return;
+
+                const extByMime = {
+                    'image/jpeg': 'jpg',
+                    'image/png': 'png',
+                    'image/webp': 'webp',
+                    'image/gif': 'gif'
+                };
+                const mime = String(photo.fileType || '').toLowerCase();
+                const ext = extByMime[mime] || 'jpg';
+                const baseName = String(climbName || (climbType === 'route' ? 'route' : 'boulder'))
+                    .toLowerCase()
+                    .replace(/[^a-z0-9а-яё_-]+/gi, '_')
+                    .replace(/^_+|_+$/g, '')
+                    .slice(0, 42) || (climbType === 'route' ? 'route' : 'boulder');
+                const fileName = `${baseName}_${String(photo.id || Date.now())}.${ext}`;
+
+                const composeWithMarkup = () => new Promise((resolve) => {
+                    const markup = photo.markup || null;
+                    const hasMarkup = markup && (
+                        (climbType === 'route' && markup.type === 'route-line')
+                        || (climbType === 'boulder' && markup.type === 'boulder-holds')
+                    );
+                    if (!hasMarkup) {
+                        resolve(photo.imageData);
+                        return;
+                    }
+                    const img = new Image();
+                    img.onload = () => {
+                        try {
+                            const w = img.naturalWidth || img.width || 0;
+                            const h = img.naturalHeight || img.height || 0;
+                            if (!w || !h) {
+                                resolve(photo.imageData);
+                                return;
+                            }
+                            const canvas = document.createElement('canvas');
+                            canvas.width = w;
+                            canvas.height = h;
+                            const ctx = canvas.getContext('2d');
+                            if (!ctx) {
+                                resolve(photo.imageData);
+                                return;
+                            }
+                            ctx.drawImage(img, 0, 0, w, h);
+
+                            const toPx = (p) => ({ x: Number(p?.x) * w, y: Number(p?.y) * h });
+                            const drawLine = (pts) => {
+                                if (!Array.isArray(pts) || pts.length < 2) return;
+                                ctx.beginPath();
+                                pts.forEach((p, i) => {
+                                    const q = toPx(p);
+                                    if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return;
+                                    if (i === 0) ctx.moveTo(q.x, q.y);
+                                    else ctx.lineTo(q.x, q.y);
+                                });
+                                ctx.strokeStyle = '#d32f2f';
+                                ctx.lineWidth = Math.max(2, Math.round(Math.min(w, h) * 0.006));
+                                ctx.lineJoin = 'round';
+                                ctx.lineCap = 'round';
+                                ctx.stroke();
+                            };
+                            const drawCircle = (p, rPx, fill, stroke, lineW) => {
+                                const q = toPx(p);
+                                if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return;
+                                ctx.beginPath();
+                                ctx.arc(q.x, q.y, rPx, 0, Math.PI * 2);
+                                if (fill) {
+                                    ctx.fillStyle = fill;
+                                    ctx.fill();
+                                }
+                                ctx.strokeStyle = stroke;
+                                ctx.lineWidth = lineW;
+                                ctx.stroke();
+                            };
+
+                            if (climbType === 'route') {
+                                const pts = Array.isArray(markup.points) ? markup.points : [];
+                                const starts = Array.isArray(markup.startHolds) ? markup.startHolds : [];
+                                drawLine(pts);
+                                const r1 = Math.max(4, Math.round(Math.min(w, h) * 0.018));
+                                const r2 = Math.max(5, Math.round(Math.min(w, h) * 0.024));
+                                pts.forEach((p) => drawCircle(p, r1, '#e53935', '#7f0000', Math.max(1, Math.round(r1 * 0.28))));
+                                starts.forEach((p) => drawCircle(p, r2, '#e53935', '#7f0000', Math.max(1, Math.round(r2 * 0.28))));
+                            } else {
+                                const holds = Array.isArray(markup.holds) ? markup.holds : [];
+                                const linePts = Array.isArray(markup.linePoints) ? markup.linePoints : [];
+                                drawLine(linePts);
+                                const r = Math.max(4, Math.round(Math.min(w, h) * 0.019));
+                                holds.forEach((p) => drawCircle(p, r, 'rgba(255,255,255,0.12)', '#d32f2f', Math.max(1, Math.round(r * 0.22))));
+                            }
+
+                            resolve(canvas.toDataURL('image/jpeg', 0.92));
+                        } catch (_) {
+                            resolve(photo.imageData);
+                        }
+                    };
+                    img.onerror = () => resolve(photo.imageData);
+                    img.src = photo.imageData;
+                });
+
+                try {
+                    const downloadable = await composeWithMarkup();
+                    const a = document.createElement('a');
+                    a.href = downloadable;
+                    a.download = fileName;
+                    a.rel = 'noopener';
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    markMediaAutoSaved(key);
+                } catch (_) {
+                    // В некоторых WebView авто-загрузка может блокироваться политикой браузера.
                 }
             }
 
@@ -5246,6 +5401,7 @@
                     }
                     if (mkBtn) mkBtn.style.display = '';
                     applyDetailMarkup();
+                    void this.tryAutoSaveOpenedMediaToDevice(photo, climbType, climb.name || '');
                 } else {
                     wrap?.classList.add('hidden');
                     noPh?.classList.remove('hidden');
