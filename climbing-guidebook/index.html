@@ -3208,13 +3208,41 @@
                     if (now - lastClickTs > 4000) clicks = 0;
                     lastClickTs = now;
                     clicks += 1;
-                    if (clicks >= 4) {
-                        localStorage.setItem(ADMIN_LOGIN_FLAG_KEY, '1');
-                        clicks = 0;
+                    if (clicks < 4) return;
+                    clicks = 0;
+
+                    if (this.isAdmin()) {
+                        localStorage.removeItem(ADMIN_LOGIN_FLAG_KEY);
+                        saveAuthData({ accessToken: null, currentUser: null });
+                        this.auth = getAuthData();
                         this.renderAuthUI();
-                        this.showToast('Режим входа администратора включён');
-                        setTimeout(() => document.getElementById('loginUsername')?.focus(), 0);
+                        this.applyRoleUI();
+                        this.refreshListsAfterRoleChange();
+                        void (async () => {
+                            const inTg = document.documentElement.classList.contains('tg-mini-app');
+                            const ok = await tryTelegramSilentLogin();
+                            const u = getAuthData().currentUser;
+                            if (ok && u && !this.isAdmin()) {
+                                this.showToast('Режим администратора выключен. Вход под пользователем Telegram.');
+                            } else {
+                                this.showToast(
+                                    inTg
+                                        ? 'Режим администратора выключен. Нажмите «Войти» для входа через Telegram.'
+                                        : 'Режим администратора выключен. В Telegram нажмите «Войти» для автоматического входа.',
+                                    false
+                                );
+                            }
+                            if (typeof window.syncTelegramMiniAppUi === 'function') {
+                                window.syncTelegramMiniAppUi();
+                            }
+                        })();
+                        return;
                     }
+
+                    localStorage.setItem(ADMIN_LOGIN_FLAG_KEY, '1');
+                    this.renderAuthUI();
+                    this.showToast('Режим входа администратора включён');
+                    setTimeout(() => document.getElementById('loginUsername')?.focus(), 0);
                 });
             }
 
