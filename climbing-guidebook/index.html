@@ -47,13 +47,17 @@
             --tg-blue: #3390ec;
             --tg-blue-hover: #4a9cf0;
             --tg-blue-active: #2b7fd6;
-            --tg-btn-bg: rgba(255, 255, 255, 0.08);
-            --tg-btn-bg-hover: rgba(255, 255, 255, 0.12);
-            --tg-btn-border: rgba(255, 255, 255, 0.14);
+            --tg-btn-bg: rgba(255, 255, 255, 0.055);
+            --tg-btn-bg-hover: rgba(255, 255, 255, 0.1);
+            --tg-btn-border: rgba(255, 255, 255, 0.12);
             --tg-btn-radius: 8px;
             --tg-danger: #e53935;
             --tg-danger-hover: #ef5350;
             --tg-btn-press: 0.97;
+            --btn-primary-glow: 0 1px 0 rgba(255, 255, 255, 0.12) inset, 0 1px 2px rgba(0, 0, 0, 0.22);
+            --btn-secondary-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            --btn-ghost-border: color-mix(in srgb, var(--tg-btn-border) 50%, rgba(255, 255, 255, 0.3));
+            --btn-ghost-hover-bg: rgba(255, 255, 255, 0.06);
             /* Высота окна Mini App (переопределяется из Telegram.WebApp) */
             --app-height: 100vh;
         }
@@ -311,14 +315,14 @@
 
         .tab-btn {
             padding: 10px 18px;
-            background: transparent;
-            border: none;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid transparent;
             border-radius: var(--tg-btn-radius);
             font-size: 15px;
             font-weight: 500;
             color: var(--light-text);
             cursor: pointer;
-            transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+            transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.1s ease;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -328,11 +332,14 @@
         .tab-btn:hover {
             background-color: var(--tg-btn-bg-hover);
             color: var(--text-color);
+            border-color: var(--tg-btn-border);
         }
 
         .tab-btn.active {
             background-color: var(--tg-blue);
             color: #fff;
+            border-color: color-mix(in srgb, var(--tg-blue) 50%, #0a1628 50%);
+            box-shadow: var(--btn-primary-glow);
         }
 
         .tab-btn:active {
@@ -378,7 +385,7 @@
             gap: 10px;
         }
 
-        /* Кнопки — плоский стиль как у Telegram-бота */
+        /* Кнопки: вторичные полупрозрачные, первичные и акценты читаются на тёмном фоне */
         .btn {
             padding: 10px 18px;
             border: 1px solid transparent;
@@ -387,37 +394,52 @@
             font-weight: 500;
             letter-spacing: 0.01em;
             cursor: pointer;
-            transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease, opacity 0.1s ease;
+            transition:
+                background-color 0.18s ease,
+                border-color 0.18s ease,
+                color 0.18s ease,
+                box-shadow 0.18s ease,
+                transform 0.1s ease,
+                opacity 0.15s ease;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
             text-decoration: none;
-            box-shadow: none;
             line-height: 1.25;
             -webkit-tap-highlight-color: transparent;
         }
 
-        .btn:active {
+        .btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+            pointer-events: none;
+            box-shadow: none;
+        }
+
+        .btn:active:not(:disabled) {
             transform: scale(var(--tg-btn-press));
         }
 
         .btn:focus-visible {
-            outline: 2px solid var(--tg-blue);
+            outline: 2px solid color-mix(in srgb, var(--tg-blue) 75%, transparent);
             outline-offset: 2px;
         }
 
         .btn-primary {
             background-color: var(--tg-blue);
             color: #fff;
-            border-color: transparent;
+            border-color: color-mix(in srgb, var(--tg-blue) 55%, #0a1628 45%);
+            box-shadow: var(--btn-primary-glow);
         }
 
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background-color: var(--tg-blue-hover);
+            border-color: color-mix(in srgb, var(--tg-blue-hover) 50%, #0a1628 50%);
         }
 
-        .btn-primary:active {
+        .btn-primary:active:not(:disabled) {
             background-color: var(--tg-blue-active);
         }
 
@@ -425,49 +447,96 @@
             background-color: var(--tg-btn-bg);
             color: var(--text-color);
             border-color: var(--tg-btn-border);
+            box-shadow: var(--btn-secondary-inset);
         }
 
-        .btn-secondary:hover {
+        @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+            .btn-secondary {
+                background-color: color-mix(in srgb, var(--card-bg) 35%, rgba(255, 255, 255, 0.07));
+                -webkit-backdrop-filter: blur(10px);
+                backdrop-filter: blur(10px);
+            }
+
+            .btn-secondary:hover:not(:disabled) {
+                background-color: color-mix(in srgb, var(--card-bg) 28%, rgba(255, 255, 255, 0.12));
+            }
+        }
+
+        .btn-secondary:hover:not(:disabled) {
             background-color: var(--tg-btn-bg-hover);
+            border-color: color-mix(in srgb, var(--tg-btn-border) 70%, rgba(255, 255, 255, 0.35));
+        }
+
+        /**
+         * «Воздух»: почти только обводка. Не смешивать с .btn-secondary —
+         * для шапки, навигации каталога, закрытия просмотра, редких контекстных кнопок.
+         */
+        .btn-ghost {
+            background-color: transparent;
+            color: var(--text-color);
+            border-color: var(--btn-ghost-border);
+            box-shadow: none;
+        }
+
+        .btn-ghost:hover:not(:disabled) {
+            background-color: var(--btn-ghost-hover-bg);
+            border-color: color-mix(in srgb, var(--tg-btn-border) 35%, rgba(255, 255, 255, 0.45));
+        }
+
+        .btn-ghost:active:not(:disabled) {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+            .btn-ghost:hover:not(:disabled) {
+                -webkit-backdrop-filter: blur(10px);
+                backdrop-filter: blur(10px);
+                background-color: rgba(255, 255, 255, 0.045);
+            }
         }
 
         .btn-danger {
-            background-color: var(--tg-danger);
+            background-color: color-mix(in srgb, var(--tg-danger) 92%, transparent);
             color: #fff;
-            border-color: transparent;
+            border-color: color-mix(in srgb, var(--tg-danger) 45%, #1a0505 55%);
+            box-shadow: 0 1px 0 rgba(255, 200, 200, 0.1) inset, 0 1px 2px rgba(0, 0, 0, 0.2);
         }
 
-        .btn-danger:hover {
+        .btn-danger:hover:not(:disabled) {
             background-color: var(--tg-danger-hover);
+            border-color: color-mix(in srgb, var(--tg-danger-hover) 40%, #1a0505 60%);
         }
 
         .btn-success {
-            background-color: var(--success-color);
+            background-color: color-mix(in srgb, var(--success-color) 90%, transparent);
             color: #fff;
-            border-color: transparent;
+            border-color: color-mix(in srgb, var(--success-color) 35%, #061a0c 65%);
+            box-shadow: 0 1px 0 rgba(200, 255, 210, 0.12) inset;
         }
 
-        .btn-success:hover {
+        .btn-success:hover:not(:disabled) {
             filter: brightness(1.08);
         }
 
         .btn-route {
-            background-color: var(--route-color);
+            background-color: color-mix(in srgb, var(--route-color) 88%, transparent);
             color: #fff;
-            border-color: transparent;
+            border-color: color-mix(in srgb, var(--route-color) 40%, #041a18 60%);
+            box-shadow: 0 1px 0 rgba(200, 255, 250, 0.1) inset;
         }
 
-        .btn-route:hover {
+        .btn-route:hover:not(:disabled) {
             filter: brightness(1.08);
         }
 
         .btn-boulder {
-            background-color: var(--boulder-color);
+            background-color: color-mix(in srgb, var(--boulder-color) 88%, transparent);
             color: #fff;
-            border-color: transparent;
+            border-color: color-mix(in srgb, var(--boulder-color) 42%, #1a0808 58%);
+            box-shadow: 0 1px 0 rgba(255, 220, 220, 0.1) inset;
         }
 
-        .btn-boulder:hover {
+        .btn-boulder:hover:not(:disabled) {
             filter: brightness(1.08);
         }
 
@@ -475,6 +544,18 @@
             padding: 7px 14px;
             font-size: 14px;
             border-radius: var(--tg-btn-radius);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .btn {
+                transition: none;
+            }
+
+            .btn-ghost:hover:not(:disabled),
+            .btn-ghost:active:not(:disabled) {
+                -webkit-backdrop-filter: none;
+                backdrop-filter: none;
+            }
         }
 
         /* Списки */
@@ -794,7 +875,8 @@
         .boulder-markup-mode-btn.active {
             background-color: var(--tg-blue);
             color: #fff;
-            border-color: transparent;
+            border-color: color-mix(in srgb, var(--tg-blue) 55%, #0a1628 45%);
+            box-shadow: var(--btn-primary-glow);
         }
 
         .hold-number {
@@ -818,11 +900,54 @@
             border-radius: 6px;
             margin: 10px 0;
             font-size: 14px;
+            line-height: 1.45;
+            max-height: min(36vh, 220px);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         .markup-instructions i {
             margin-right: 5px;
             color: #ffc107;
+        }
+
+        .markup-mode-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 10px;
+            margin-bottom: 12px;
+        }
+
+        .markup-mode-toolbar .markup-mode-label {
+            font-size: 13px;
+            color: var(--light-text);
+            width: 100%;
+        }
+
+        @media (min-width: 420px) {
+            .markup-mode-toolbar .markup-mode-label {
+                width: auto;
+                margin-right: 4px;
+            }
+        }
+
+        .markup-dialog-stage {
+            position: relative;
+            width: 100%;
+            height: min(50vh, 440px);
+            min-height: 200px;
+            max-height: min(62vh, 520px);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        @media (max-width: 480px) {
+            .markup-dialog-stage {
+                height: min(48vh, 360px);
+                min-height: 180px;
+            }
         }
 
         .markup-toolbar {
@@ -841,6 +966,25 @@
             border-radius: 6px;
             font-size: 12px;
             color: var(--text-color);
+        }
+
+        .markup-instructions .markup-touch-note {
+            display: block;
+            margin-top: 8px;
+            font-size: 12px;
+            opacity: 0.92;
+            font-weight: 500;
+        }
+
+        .markup-tool span {
+            line-height: 1.35;
+        }
+
+        @media (max-width: 480px) {
+            .markup-tool {
+                font-size: 13px;
+                flex: 1 1 100%;
+            }
         }
 
         .hold-color-selector {
@@ -1070,6 +1214,31 @@
             display: block;
         }
 
+        /* Карточка трассы/боулдера: сохранение после описания, визуально отделено */
+        .climb-detail-save-row {
+            margin: 16px 0 0;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .climb-detail-save-hint {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.4;
+            color: var(--light-text);
+            text-align: center;
+            max-width: 36rem;
+            margin-inline: auto;
+        }
+
+        .climb-detail-save-row .btn {
+            width: 100%;
+            justify-content: center;
+        }
+
         .photo-album-open-btn {
             position: absolute;
             inset: 0;
@@ -1110,6 +1279,34 @@
             font-size: 10px;
             line-height: 1.35;
             pointer-events: none;
+        }
+
+        /* Фотоальбом: крупнее плитки, подпись выше полосы кнопок */
+        #photoAlbum.photo-preview {
+            grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+            gap: 14px;
+        }
+
+        #photoAlbum > .photo-album-tile-wrap.photo-preview-with-markup {
+            width: 100%;
+            max-width: 220px;
+            margin-inline: auto;
+            height: auto;
+            min-height: 0;
+            aspect-ratio: 1;
+        }
+
+        #photoAlbum > .photo-album-tile-wrap .photo-album-caption {
+            bottom: 48px;
+            left: 6px;
+            right: 6px;
+            font-size: 11px;
+            padding: 5px 7px;
+            line-height: 1.3;
+        }
+
+        html.tg-mini-app #photoAlbum > .photo-album-tile-wrap .photo-album-caption {
+            font-size: 12px;
         }
 
         /* Стили для режима редактирования в диалогах */
@@ -1192,7 +1389,20 @@
             border-top: 1px solid var(--border-color);
             display: flex;
             justify-content: flex-end;
+            flex-wrap: wrap;
             gap: 12px;
+        }
+
+        @media (max-width: 400px) {
+            .dialog-footer {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .dialog-footer .btn {
+                width: 100%;
+                justify-content: center;
+            }
         }
 
         .dialog-content .form-input,
@@ -1225,6 +1435,64 @@
             margin-top: 20px;
             padding-top: 20px;
             border-top: 1px solid var(--border-color);
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 440px) {
+            .dialog-body > .markup-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .dialog-body > .markup-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            /* Сверху «Отмена», ниже основное действие у большого пальца */
+            .dialog-body > .markup-actions .btn-secondary {
+                order: 1;
+            }
+
+            .dialog-body > .markup-actions .btn-danger {
+                order: 2;
+            }
+
+            .dialog-body > .markup-actions .btn-primary {
+                order: 3;
+            }
+        }
+
+        .form-hint {
+            font-size: 13px;
+            color: var(--light-text);
+            margin: 6px 0 0;
+            line-height: 1.4;
+        }
+
+        html.tg-mini-app .dialog-body input[type="file"].form-input {
+            min-height: 44px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+        }
+
+        @media (max-width: 400px) {
+            #quickRoutePhotoActions,
+            #quickBoulderPhotoActions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            #quickRoutePhotoActions .btn,
+            #quickBoulderPhotoActions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        html.tg-mini-app .filter-btn {
+            min-height: 40px;
+            touch-action: manipulation;
         }
 
         /* Карта */
@@ -1239,16 +1507,27 @@
         /* Уведомления */
         .toast {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
-            padding: 12px 20px;
+            bottom: max(16px, env(safe-area-inset-bottom, 0px));
+            right: max(12px, env(safe-area-inset-right, 0px));
+            left: auto;
+            padding: 12px 18px;
             border-radius: 8px;
             color: white;
             font-weight: 500;
             z-index: 10000;
             animation: slideIn 0.3s ease;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            max-width: 400px;
+            max-width: min(400px, calc(100vw - 24px));
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        @media (max-width: 520px) {
+            .toast {
+                right: max(12px, env(safe-area-inset-right, 0px));
+                left: max(12px, env(safe-area-inset-left, 0px));
+                max-width: none;
+            }
         }
 
         .toast.success {
@@ -1380,17 +1659,19 @@
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
-            transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+            transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.1s ease;
         }
 
         .filter-btn:hover {
             background-color: var(--tg-btn-bg-hover);
+            border-color: color-mix(in srgb, var(--tg-btn-border) 70%, rgba(255, 255, 255, 0.3));
         }
 
         .filter-btn.active {
             background-color: var(--tg-blue);
-            border-color: var(--tg-blue);
+            border-color: color-mix(in srgb, var(--tg-blue) 55%, #0a1628 45%);
             color: #fff;
+            box-shadow: var(--btn-primary-glow);
         }
 
         .filter-btn:active {
@@ -1462,7 +1743,8 @@
 
         @media (hover: none) {
             .tab-btn:hover:not(.active) {
-                background-color: transparent;
+                background-color: rgba(255, 255, 255, 0.04);
+                border-color: transparent;
                 color: var(--light-text);
             }
 
@@ -1480,21 +1762,28 @@
                 background-color: var(--tg-btn-bg);
             }
 
-            .btn-primary:hover {
+            .btn-primary:hover:not(:disabled) {
                 background-color: var(--tg-blue);
             }
 
-            .btn-secondary:hover {
+            .btn-secondary:hover:not(:disabled) {
                 background-color: var(--tg-btn-bg);
             }
 
-            .btn-danger:hover {
-                background-color: var(--tg-danger);
+            .btn-ghost:hover:not(:disabled) {
+                background-color: transparent;
+                border-color: var(--btn-ghost-border);
+                -webkit-backdrop-filter: none;
+                backdrop-filter: none;
             }
 
-            .btn-success:hover,
-            .btn-route:hover,
-            .btn-boulder:hover {
+            .btn-danger:hover:not(:disabled) {
+                background-color: color-mix(in srgb, var(--tg-danger) 92%, transparent);
+            }
+
+            .btn-success:hover:not(:disabled),
+            .btn-route:hover:not(:disabled),
+            .btn-boulder:hover:not(:disabled) {
                 filter: none;
             }
         }
@@ -1530,7 +1819,7 @@
                         <button type="button" class="btn btn-primary" id="loginBtn">Войти</button>
                     </div>
                     <div id="authStatus" style="display:none;"></div>
-                    <button type="button" class="btn btn-secondary" id="logoutBtn" style="display:none;"><i class="fas fa-sign-out-alt"></i> Выйти</button>
+                    <button type="button" class="btn btn-ghost" id="logoutBtn" style="display:none;"><i class="fas fa-sign-out-alt"></i> Выйти</button>
                 </div>
             </div>
         </header>
@@ -1725,15 +2014,16 @@
                     <i class="fas fa-info-circle"></i>
                     <strong>Инструкция:</strong> Выберите режим: «Стартовые кружки» — отметьте стартовые зацепки; «Линия хода» — кликами по фото задайте линию движения по скале (всё отображается красным).
                     Удаление ближайшей точки или кружка: Ctrl / ⌘ + клик рядом с ним.
+                    <span class="markup-touch-note">На телефоне без клавиатуры точку проще сбросить кнопкой «Очистить все» или отменить и начать заново.</span>
                 </div>
 
-                <div class="markup-toolbar" style="margin-bottom: 10px; align-items: center;">
-                    <span style="font-size: 13px; color: var(--light-text); margin-right: 6px;">Режим:</span>
+                <div class="markup-mode-toolbar">
+                    <span class="markup-mode-label">Режим</span>
                     <button type="button" class="btn btn-small route-markup-mode-btn" id="routeMarkupModeStarts" data-mode="starts">Стартовые кружки</button>
                     <button type="button" class="btn btn-small route-markup-mode-btn active" id="routeMarkupModeLine" data-mode="line">Линия хода</button>
                 </div>
 
-                <div id="routeLineMarkupContainer" style="position: relative; width: 100%; height: 400px; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
+                <div id="routeLineMarkupContainer" class="markup-dialog-stage">
                     <img id="routeLineMarkupImage" src="" alt="Markup" style="width: 100%; height: 100%; object-fit: contain; display: block;">
                     <canvas id="routeLineCanvas" class="line-canvas"></canvas>
                 </div>
@@ -1780,15 +2070,16 @@
                     <i class="fas fa-info-circle"></i>
                     <strong>Инструкция:</strong> Выберите режим: «Кружки» — прозрачные метки с красной обводкой (перетаскивание). «Линия» — кликами по фото задайте линию хода; она не соединяет кружки автоматически.
                     Удаление ближайшей точки кружка или вершины линии: Ctrl / ⌘ + клик рядом.
+                    <span class="markup-touch-note">На телефоне без клавиатуры точку проще сбросить кнопкой «Очистить все» или отменить и начать заново.</span>
                 </div>
 
-                <div class="markup-toolbar" style="margin-bottom: 10px; align-items: center;">
-                    <span style="font-size: 13px; color: var(--light-text); margin-right: 6px;">Режим:</span>
+                <div class="markup-mode-toolbar">
+                    <span class="markup-mode-label">Режим</span>
                     <button type="button" class="btn btn-small boulder-markup-mode-btn active" id="boulderMarkupModeCircles" data-mode="circles">Кружки</button>
                     <button type="button" class="btn btn-small boulder-markup-mode-btn" id="boulderMarkupModeLine" data-mode="line">Линия</button>
                 </div>
 
-                <div id="boulderHoldsMarkupContainer" style="position: relative; width: 100%; height: 400px; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
+                <div id="boulderHoldsMarkupContainer" class="markup-dialog-stage">
                     <img id="boulderHoldsMarkupImage" src="" alt="Markup" style="width: 100%; height: 100%; object-fit: contain; display: block;">
                     <svg id="boulderHoldsMarkupSvg" class="boulder-markup-line-svg" aria-hidden="true"></svg>
                 </div>
@@ -1932,6 +2223,7 @@
                     <div class="form-group">
                         <label class="form-label" for="quickRoutePhoto">Прикрепить фото</label>
                         <input type="file" class="form-input" id="quickRoutePhoto" accept="image/*">
+                        <p class="form-hint">После выбора файла можно разметить снимок кнопкой под превью — до отправки формы.</p>
                         <div class="photo-preview" id="quickRoutePhotoPreview" style="margin-top:10px;"></div>
                         <div class="markup-actions" id="quickRoutePhotoActions" style="display:none; margin-top:8px;">
                             <button type="button" class="btn btn-secondary btn-small" id="quickRouteMarkupBtn"><i class="fas fa-draw-polygon"></i> Разметить</button>
@@ -1995,6 +2287,7 @@
                     <div class="form-group">
                         <label class="form-label" for="quickBoulderPhoto">Прикрепить фото</label>
                         <input type="file" class="form-input" id="quickBoulderPhoto" accept="image/*">
+                        <p class="form-hint">После выбора файла можно разметить снимок кнопкой под превью — до отправки формы.</p>
                         <div class="photo-preview" id="quickBoulderPhotoPreview" style="margin-top:10px;"></div>
                         <div class="markup-actions" id="quickBoulderPhotoActions" style="display:none; margin-top:8px;">
                             <button type="button" class="btn btn-secondary btn-small" id="quickBoulderMarkupBtn"><i class="fas fa-draw-polygon"></i> Разметить</button>
@@ -2030,9 +2323,13 @@
                     <div class="form-label">Описание</div>
                     <div id="climbDetailDescription" style="min-height:72px;max-height:40vh;overflow:auto;white-space:pre-wrap;background:var(--card-bg);color:var(--text-color);padding:12px 14px;border:2px solid var(--border-color);border-radius:8px;font-size:15px;line-height:1.45;"></div>
                 </div>
+                <div id="climbDetailSaveRow" class="climb-detail-save-row hidden">
+                    <p id="climbDetailSaveHint" class="climb-detail-save-hint hidden">В Telegram автосохранение часто отключено. Нажмите кнопку — откроется «Поделиться» или загрузка файла со схемой.</p>
+                    <button type="button" class="btn btn-secondary" id="climbDetailSavePhotoBtn" aria-label="Сохранить фото со схемой на устройство"><i class="fas fa-download" aria-hidden="true"></i> Сохранить со схемой</button>
+                </div>
             </div>
             <div class="dialog-footer">
-                <button type="button" class="btn btn-secondary" id="climbDetailCloseBtn"><i class="fas fa-times"></i> Закрыть</button>
+                <button type="button" class="btn btn-ghost" id="climbDetailCloseBtn"><i class="fas fa-times"></i> Закрыть</button>
                 <button type="button" class="btn btn-primary" id="climbDetailMarkupBtn"><i class="fas fa-draw-polygon"></i> Схема на фото</button>
             </div>
         </div>
@@ -2293,6 +2590,208 @@
 
         function wasMediaAutoSaved(key) {
             return getAutoSavedMediaSet().has(String(key || ''));
+        }
+
+        function guessImageExtFromDataUrl(dataUrl) {
+            const s = String(dataUrl || '');
+            if (s.startsWith('data:image/jpeg')) return 'jpg';
+            if (s.startsWith('data:image/png')) return 'png';
+            if (s.startsWith('data:image/webp')) return 'webp';
+            if (s.startsWith('data:image/gif')) return 'gif';
+            return 'jpg';
+        }
+
+        /**
+         * Готовит растровый data: URL исходника (в т.ч. скачивает https с API при CORS),
+         * чтобы canvas не был «tainted» и можно было наложить разметку.
+         */
+        async function resolvePhotoImageDataUrlForExport(photo) {
+            const raw = photo?.imageData;
+            if (!raw || typeof raw !== 'string') return null;
+            const s = raw.trim();
+            if (s.startsWith('data:')) return s;
+            if (s.startsWith('blob:')) return s;
+            let url = s;
+            if (s.startsWith('/')) {
+                if (!API_BASE_URL) return null;
+                url = `${API_BASE_URL.replace(/\/$/, '')}${s}`;
+            }
+            if (!/^https?:\/\//i.test(url)) return null;
+            try {
+                const ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                const timer = ac ? setTimeout(() => ac.abort(), 45000) : 0;
+                const res = await fetch(url, {
+                    mode: 'cors',
+                    credentials: 'omit',
+                    cache: 'force-cache',
+                    signal: ac ? ac.signal : undefined
+                });
+                if (timer) clearTimeout(timer);
+                if (!res.ok) return null;
+                const blob = await res.blob();
+                return await new Promise((resolve) => {
+                    const fr = new FileReader();
+                    fr.onload = () => resolve(String(fr.result || '') || null);
+                    fr.onerror = () => resolve(null);
+                    fr.readAsDataURL(blob);
+                });
+            } catch (_) {
+                return null;
+            }
+        }
+
+        function composeMarkupOnDataUrl(srcDataUrl, photo, climbType) {
+            return new Promise((resolve) => {
+                const markup = photo.markup || null;
+                const hasMarkup = markup && (
+                    (climbType === 'route' && markup.type === 'route-line')
+                    || (climbType === 'boulder' && markup.type === 'boulder-holds')
+                );
+                if (!hasMarkup) {
+                    resolve(srcDataUrl);
+                    return;
+                }
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        const w = img.naturalWidth || img.width || 0;
+                        const h = img.naturalHeight || img.height || 0;
+                        if (!w || !h) {
+                            resolve(srcDataUrl);
+                            return;
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) {
+                            resolve(srcDataUrl);
+                            return;
+                        }
+                        ctx.drawImage(img, 0, 0, w, h);
+
+                        const toPx = (p) => ({ x: Number(p?.x) * w, y: Number(p?.y) * h });
+                        const drawLine = (pts) => {
+                            if (!Array.isArray(pts) || pts.length < 2) return;
+                            ctx.beginPath();
+                            pts.forEach((p, i) => {
+                                const q = toPx(p);
+                                if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return;
+                                if (i === 0) ctx.moveTo(q.x, q.y);
+                                else ctx.lineTo(q.x, q.y);
+                            });
+                            ctx.strokeStyle = '#d32f2f';
+                            ctx.lineWidth = Math.max(2, Math.round(Math.min(w, h) * 0.006));
+                            ctx.lineJoin = 'round';
+                            ctx.lineCap = 'round';
+                            ctx.stroke();
+                        };
+                        const drawCircle = (p, rPx, fill, stroke, lineW) => {
+                            const q = toPx(p);
+                            if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return;
+                            ctx.beginPath();
+                            ctx.arc(q.x, q.y, rPx, 0, Math.PI * 2);
+                            if (fill) {
+                                ctx.fillStyle = fill;
+                                ctx.fill();
+                            }
+                            ctx.strokeStyle = stroke;
+                            ctx.lineWidth = lineW;
+                            ctx.stroke();
+                        };
+
+                        if (climbType === 'route') {
+                            const pts = Array.isArray(markup.points) ? markup.points : [];
+                            const starts = Array.isArray(markup.startHolds) ? markup.startHolds : [];
+                            drawLine(pts);
+                            const r1 = Math.max(4, Math.round(Math.min(w, h) * 0.018));
+                            const r2 = Math.max(5, Math.round(Math.min(w, h) * 0.024));
+                            pts.forEach((p) => drawCircle(p, r1, '#e53935', '#7f0000', Math.max(1, Math.round(r1 * 0.28))));
+                            starts.forEach((p) => drawCircle(p, r2, '#e53935', '#7f0000', Math.max(1, Math.round(r2 * 0.28))));
+                        } else {
+                            const holds = Array.isArray(markup.holds) ? markup.holds : [];
+                            const linePts = Array.isArray(markup.linePoints) ? markup.linePoints : [];
+                            drawLine(linePts);
+                            const r = Math.max(4, Math.round(Math.min(w, h) * 0.019));
+                            holds.forEach((p) => drawCircle(p, r, 'rgba(255,255,255,0.12)', '#d32f2f', Math.max(1, Math.round(r * 0.22))));
+                        }
+
+                        resolve(canvas.toDataURL('image/jpeg', 0.92));
+                    } catch (_) {
+                        resolve(srcDataUrl);
+                    }
+                };
+                img.onerror = () => resolve(srcDataUrl);
+                img.src = srcDataUrl;
+            });
+        }
+
+        async function buildClimbPhotoExportPackage(photo, climbType, climbName) {
+            const src = await resolvePhotoImageDataUrlForExport(photo);
+            if (!src) return null;
+            const dataUrl = await composeMarkupOnDataUrl(src, photo, climbType);
+            const extByMime = {
+                'image/jpeg': 'jpg',
+                'image/png': 'png',
+                'image/webp': 'webp',
+                'image/gif': 'gif'
+            };
+            const mime = String(photo.fileType || '').toLowerCase();
+            const baseName = String(climbName || (climbType === 'route' ? 'route' : 'boulder'))
+                .toLowerCase()
+                .replace(/[^a-z0-9а-яё_-]+/gi, '_')
+                .replace(/^_+|_+$/g, '')
+                .slice(0, 42) || (climbType === 'route' ? 'route' : 'boulder');
+            const pid = String(photo.id || '').trim();
+            let outExt = extByMime[mime] || 'jpg';
+            if (dataUrl.startsWith('data:image/jpeg')) outExt = 'jpg';
+            else if (dataUrl.startsWith('data:image/png')) outExt = 'png';
+            else if (dataUrl.startsWith('data:image/webp')) outExt = 'webp';
+            else if (dataUrl.startsWith('data:image/gif')) outExt = 'gif';
+            else outExt = guessImageExtFromDataUrl(dataUrl);
+            const fileName = `${baseName}_${pid || Date.now()}.${outExt}`;
+            return { dataUrl, fileName };
+        }
+
+        /**
+         * Сохранение на устройство: в Telegram Mini App сначала Web Share (часто есть «Сохранить в Фото»),
+         * иначе загрузка через blob URL + download (срабатывает при явном жесте пользователя).
+         */
+        async function triggerClimbPhotoSaveToDevice(dataUrl, fileName, opts = {}) {
+            const tryShareFirst = !!opts.tryShareFirstInTelegram
+                && document.documentElement.classList.contains('tg-mini-app');
+            try {
+                const res = await fetch(dataUrl);
+                const blob = await res.blob();
+                const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+                if (tryShareFirst && navigator.share && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({ files: [file], title: fileName });
+                        return true;
+                    } catch (e) {
+                        if (e && e.name === 'AbortError') return false;
+                    }
+                }
+                const objUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = objUrl;
+                a.download = fileName;
+                a.rel = 'noopener';
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => {
+                    try {
+                        URL.revokeObjectURL(objUrl);
+                    } catch (_) {
+                        /* ignore */
+                    }
+                }, 90000);
+                return true;
+            } catch (_) {
+                return false;
+            }
         }
 
         function downscaleDataUrlForUpload(dataUrl) {
@@ -3488,124 +3987,70 @@
 
             async tryAutoSaveOpenedMediaToDevice(photo, climbType, climbName) {
                 if (!photo || !photo.imageData || typeof photo.imageData !== 'string') return;
-                const key = `${climbType}:${String(photo.id || photo.climbId || '')}`;
+                const pid = String(photo.id || '').trim();
+                const key = pid ? `${climbType}:photo:${pid}` : `${climbType}:climb:${String(photo.climbId || '')}:open`;
                 if (!key || wasMediaAutoSaved(key)) return;
+                try {
+                    const pkg = await buildClimbPhotoExportPackage(photo, climbType, climbName);
+                    if (!pkg) return;
+                    const ok = await triggerClimbPhotoSaveToDevice(pkg.dataUrl, pkg.fileName, {
+                        tryShareFirstInTelegram: false
+                    });
+                    if (ok) markMediaAutoSaved(key);
+                } catch (_) {
+                    /* WebView может блокировать загрузку без жеста — есть кнопка «Сохранить фото». */
+                }
+            }
 
-                const isDataUrl = photo.imageData.startsWith('data:');
-                if (!isDataUrl) return;
-
-                const extByMime = {
-                    'image/jpeg': 'jpg',
-                    'image/png': 'png',
-                    'image/webp': 'webp',
-                    'image/gif': 'gif'
-                };
-                const mime = String(photo.fileType || '').toLowerCase();
-                const ext = extByMime[mime] || 'jpg';
-                const baseName = String(climbName || (climbType === 'route' ? 'route' : 'boulder'))
-                    .toLowerCase()
-                    .replace(/[^a-z0-9а-яё_-]+/gi, '_')
-                    .replace(/^_+|_+$/g, '')
-                    .slice(0, 42) || (climbType === 'route' ? 'route' : 'boulder');
-                const fileName = `${baseName}_${String(photo.id || Date.now())}.${ext}`;
-
-                const composeWithMarkup = () => new Promise((resolve) => {
-                    const markup = photo.markup || null;
-                    const hasMarkup = markup && (
-                        (climbType === 'route' && markup.type === 'route-line')
-                        || (climbType === 'boulder' && markup.type === 'boulder-holds')
-                    );
-                    if (!hasMarkup) {
-                        resolve(photo.imageData);
+            /** Явное сохранение из карточки трассы/боулдера (жест пользователя): share или загрузка файла. */
+            async saveClimbDetailPhotoFromUserGesture() {
+                const ctx = this._climbDetailContext;
+                if (!ctx) {
+                    this.showToast('Фото для сохранения не найдено', true);
+                    return;
+                }
+                const photos = getPhotos().filter(
+                    (p) => p.type === ctx.climbType && String(p.climbId) === String(ctx.climbId)
+                );
+                const photo = (ctx.shownPhotoId && photos.find((p) => String(p.id) === String(ctx.shownPhotoId)))
+                    || photos[0];
+                if (!photo || !photo.imageData) {
+                    this.showToast('Фото для сохранения не найдено', true);
+                    return;
+                }
+                const btn = document.getElementById('climbDetailSavePhotoBtn');
+                if (btn) {
+                    btn.disabled = true;
+                    if (!btn.dataset._saveOrigHtml) btn.dataset._saveOrigHtml = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Готовим файл…';
+                }
+                try {
+                    const pkg = await buildClimbPhotoExportPackage(photo, ctx.climbType, ctx.climbName || '');
+                    if (!pkg) {
+                        this.showToast(
+                            'Не удалось скачать снимок для сборки файла (сеть или CORS). Попробуйте долгое нажатие на фото выше.',
+                            true
+                        );
                         return;
                     }
-                    const img = new Image();
-                    img.onload = () => {
-                        try {
-                            const w = img.naturalWidth || img.width || 0;
-                            const h = img.naturalHeight || img.height || 0;
-                            if (!w || !h) {
-                                resolve(photo.imageData);
-                                return;
-                            }
-                            const canvas = document.createElement('canvas');
-                            canvas.width = w;
-                            canvas.height = h;
-                            const ctx = canvas.getContext('2d');
-                            if (!ctx) {
-                                resolve(photo.imageData);
-                                return;
-                            }
-                            ctx.drawImage(img, 0, 0, w, h);
-
-                            const toPx = (p) => ({ x: Number(p?.x) * w, y: Number(p?.y) * h });
-                            const drawLine = (pts) => {
-                                if (!Array.isArray(pts) || pts.length < 2) return;
-                                ctx.beginPath();
-                                pts.forEach((p, i) => {
-                                    const q = toPx(p);
-                                    if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return;
-                                    if (i === 0) ctx.moveTo(q.x, q.y);
-                                    else ctx.lineTo(q.x, q.y);
-                                });
-                                ctx.strokeStyle = '#d32f2f';
-                                ctx.lineWidth = Math.max(2, Math.round(Math.min(w, h) * 0.006));
-                                ctx.lineJoin = 'round';
-                                ctx.lineCap = 'round';
-                                ctx.stroke();
-                            };
-                            const drawCircle = (p, rPx, fill, stroke, lineW) => {
-                                const q = toPx(p);
-                                if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return;
-                                ctx.beginPath();
-                                ctx.arc(q.x, q.y, rPx, 0, Math.PI * 2);
-                                if (fill) {
-                                    ctx.fillStyle = fill;
-                                    ctx.fill();
-                                }
-                                ctx.strokeStyle = stroke;
-                                ctx.lineWidth = lineW;
-                                ctx.stroke();
-                            };
-
-                            if (climbType === 'route') {
-                                const pts = Array.isArray(markup.points) ? markup.points : [];
-                                const starts = Array.isArray(markup.startHolds) ? markup.startHolds : [];
-                                drawLine(pts);
-                                const r1 = Math.max(4, Math.round(Math.min(w, h) * 0.018));
-                                const r2 = Math.max(5, Math.round(Math.min(w, h) * 0.024));
-                                pts.forEach((p) => drawCircle(p, r1, '#e53935', '#7f0000', Math.max(1, Math.round(r1 * 0.28))));
-                                starts.forEach((p) => drawCircle(p, r2, '#e53935', '#7f0000', Math.max(1, Math.round(r2 * 0.28))));
-                            } else {
-                                const holds = Array.isArray(markup.holds) ? markup.holds : [];
-                                const linePts = Array.isArray(markup.linePoints) ? markup.linePoints : [];
-                                drawLine(linePts);
-                                const r = Math.max(4, Math.round(Math.min(w, h) * 0.019));
-                                holds.forEach((p) => drawCircle(p, r, 'rgba(255,255,255,0.12)', '#d32f2f', Math.max(1, Math.round(r * 0.22))));
-                            }
-
-                            resolve(canvas.toDataURL('image/jpeg', 0.92));
-                        } catch (_) {
-                            resolve(photo.imageData);
+                    const ok = await triggerClimbPhotoSaveToDevice(pkg.dataUrl, pkg.fileName, {
+                        tryShareFirstInTelegram: true
+                    });
+                    if (ok) {
+                        this.showToast('Готово: «Фото», загрузки или пункт в «Поделиться»');
+                    } else {
+                        this.showToast('Сохранение отменено. Нажмите кнопку ещё раз или используйте долгое нажатие на фото.', false);
+                    }
+                } catch (e) {
+                    this.showToast(`Ошибка: ${e && e.message ? e.message : 'не удалось сохранить'}`, true);
+                } finally {
+                    if (btn) {
+                        btn.disabled = false;
+                        if (btn.dataset._saveOrigHtml) {
+                            btn.innerHTML = btn.dataset._saveOrigHtml;
+                            delete btn.dataset._saveOrigHtml;
                         }
-                    };
-                    img.onerror = () => resolve(photo.imageData);
-                    img.src = photo.imageData;
-                });
-
-                try {
-                    const downloadable = await composeWithMarkup();
-                    const a = document.createElement('a');
-                    a.href = downloadable;
-                    a.download = fileName;
-                    a.rel = 'noopener';
-                    a.style.display = 'none';
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    markMediaAutoSaved(key);
-                } catch (_) {
-                    // В некоторых WebView авто-загрузка может блокироваться политикой браузера.
+                    }
                 }
             }
 
@@ -3802,7 +4247,7 @@
                                     Трудность: ${this.escapeHtml(route.grade)}<br>
                                     Длина: ${this.escapeHtml(route.length || '?')}м
                                     <div style="margin-top:8px">
-                                        <button type="button" class="btn btn-small btn-secondary" style="font-size:12px;padding:6px 10px;cursor:pointer"
+                                        <button type="button" class="btn btn-small btn-ghost" style="font-size:12px;padding:6px 10px;cursor:pointer"
                                             onclick="event.preventDefault(); if(window.app&&window.app.showClimbDetailDialog)window.app.showClimbDetailDialog('route',${Number.isFinite(routeIdJs) ? routeIdJs : 0}); return false;">Просмотр</button>
                                     </div>
                                 `);
@@ -3825,7 +4270,7 @@
                                 Трудность: ${this.escapeHtml(boulder.grade)}<br>
                                 Высота: ${this.escapeHtml(boulder.height || '?')}м
                                 <div style="margin-top:8px">
-                                    <button type="button" class="btn btn-small btn-secondary" style="font-size:12px;padding:6px 10px;cursor:pointer"
+                                    <button type="button" class="btn btn-small btn-ghost" style="font-size:12px;padding:6px 10px;cursor:pointer"
                                         onclick="event.preventDefault(); if(window.app&&window.app.showClimbDetailDialog)window.app.showClimbDetailDialog('boulder',${Number.isFinite(boulderIdJs) ? boulderIdJs : 0}); return false;">Просмотр</button>
                                 </div>
                             `);
@@ -3899,7 +4344,7 @@
                                     <div class="catalog-row-meta">${meta}</div>
                                 </button>
                                 <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" onclick="event.stopPropagation()" style="align-self:center;padding-right:12px">
-                                    <button type="button" class="btn btn-secondary btn-small" data-catalog-act="edit-area" data-id="${a.id}"><i class="fas fa-edit"></i></button>
+                                    <button type="button" class="btn btn-ghost btn-small" data-catalog-act="edit-area" data-id="${a.id}"><i class="fas fa-edit"></i></button>
                                     <button type="button" class="btn btn-danger btn-small" data-catalog-act="delete-area" data-id="${a.id}"><i class="fas fa-trash"></i></button>
                                 </div>
                             </div>`;
@@ -3915,11 +4360,11 @@
                         <button type="button" class="linkish" data-catalog-act="nav-areas">Районы</button>
                         <span>/</span><span><strong>${areaName}</strong></span>`;
                     tb.innerHTML = this.isAdmin() ? `
-                        <button type="button" class="btn btn-secondary" data-catalog-act="nav-areas"><i class="fas fa-arrow-left"></i> Назад</button>
+                        <button type="button" class="btn btn-ghost" data-catalog-act="nav-areas"><i class="fas fa-arrow-left"></i> Назад</button>
                         <button type="button" class="btn btn-primary" data-catalog-act="add-sector" data-id="${this.catalog.areaId}">
                             <i class="fas fa-plus"></i> Добавить сектор
                         </button>` : `
-                        <button type="button" class="btn btn-secondary" data-catalog-act="nav-areas"><i class="fas fa-arrow-left"></i> Назад</button>`;
+                        <button type="button" class="btn btn-ghost" data-catalog-act="nav-areas"><i class="fas fa-arrow-left"></i> Назад</button>`;
                     const listSectors = sectors.filter(s => Number(s.areaId) === Number(this.catalog.areaId));
                     list.innerHTML = listSectors.length ? listSectors.map(s => {
                         const rc = getRoutes().filter(r => Number(r.sectorId) === Number(s.id)).length;
@@ -3934,7 +4379,7 @@
                                     <div class="catalog-row-meta">${meta}</div>
                                 </button>
                                 <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" onclick="event.stopPropagation()" style="align-self:center;padding-right:12px">
-                                    <button type="button" class="btn btn-secondary btn-small" data-catalog-act="edit-sector" data-id="${s.id}"><i class="fas fa-edit"></i></button>
+                                    <button type="button" class="btn btn-ghost btn-small" data-catalog-act="edit-sector" data-id="${s.id}"><i class="fas fa-edit"></i></button>
                                     <button type="button" class="btn btn-danger btn-small" data-catalog-act="delete-sector" data-id="${s.id}"><i class="fas fa-trash"></i></button>
                                 </div>
                             </div>`;
@@ -3963,7 +4408,7 @@
                         </button>
                     ` : '';
                     tb.innerHTML = `
-                        <button type="button" class="btn btn-secondary" data-catalog-act="nav-area" data-id="${this.catalog.areaId}"><i class="fas fa-arrow-left"></i> К секторам</button>
+                        <button type="button" class="btn btn-ghost" data-catalog-act="nav-area" data-id="${this.catalog.areaId}"><i class="fas fa-arrow-left"></i> К секторам</button>
                         ${addButtons}`;
 
                     const rs = getRoutes().filter(r => Number(r.sectorId) === Number(this.catalog.sectorId));
@@ -4810,6 +5255,9 @@
                         this.openClimbMarkupView(t, id);
                     }
                 });
+                document.getElementById('climbDetailSavePhotoBtn')?.addEventListener('click', () => {
+                    void this.saveClimbDetailPhotoFromUserGesture();
+                });
 
                 document.getElementById('photoAlbum')?.addEventListener('click', (e) => {
                     const deleteBtn = e.target.closest('[data-action="delete-photo"]');
@@ -4874,6 +5322,8 @@
                     if (mount) this.applyPhotoPreviewMarkupOverlay(mount, null, 'route');
                     document.getElementById('climbDetailImageWrap')?.classList.add('hidden');
                     document.getElementById('climbDetailNoPhoto')?.classList.add('hidden');
+                    document.getElementById('climbDetailSaveRow')?.classList.add('hidden');
+                    document.getElementById('climbDetailSaveHint')?.classList.add('hidden');
                 }
                 if (typeof window.hideTelegramMainButton === 'function') {
                     window.hideTelegramMainButton();
@@ -5337,7 +5787,9 @@
                 this._climbDetailContext = {
                     climbType,
                     climbId: idStr,
-                    photoId: preferPhotoId && photo && String(photo.id) === preferPhotoId ? preferPhotoId : null
+                    photoId: preferPhotoId && photo && String(photo.id) === preferPhotoId ? preferPhotoId : null,
+                    shownPhotoId: photo && photo.id != null && String(photo.id) !== '' ? String(photo.id) : '',
+                    climbName: climb.name || ''
                 };
 
                 const titleEl = document.getElementById('climbDetailTitle');
@@ -5347,6 +5799,8 @@
                 const img = document.getElementById('climbDetailImage');
                 const noPh = document.getElementById('climbDetailNoPhoto');
                 const mkBtn = document.getElementById('climbDetailMarkupBtn');
+                const saveRow = document.getElementById('climbDetailSaveRow');
+                const saveHint = document.getElementById('climbDetailSaveHint');
 
                 if (titleEl) titleEl.textContent = climb.name || '—';
                 const structLabel =
@@ -5389,6 +5843,11 @@
                 };
 
                 if (photo && photo.imageData) {
+                    saveRow?.classList.remove('hidden');
+                    if (saveHint) {
+                        const isTg = document.documentElement.classList.contains('tg-mini-app');
+                        saveHint.classList.toggle('hidden', !isTg);
+                    }
                     wrap?.classList.remove('hidden');
                     noPh?.classList.add('hidden');
                     if (img) {
@@ -5403,6 +5862,8 @@
                     applyDetailMarkup();
                     void this.tryAutoSaveOpenedMediaToDevice(photo, climbType, climb.name || '');
                 } else {
+                    saveRow?.classList.add('hidden');
+                    saveHint?.classList.add('hidden');
                     wrap?.classList.add('hidden');
                     noPh?.classList.remove('hidden');
                     if (img) img.removeAttribute('src');
