@@ -1653,6 +1653,8 @@
         .search-bar.search-bar--compound {
             display: flex;
             flex-direction: row;
+            flex-wrap: nowrap;
+            gap: 0;
             align-items: stretch;
             width: 100%;
             max-width: 100%;
@@ -1682,7 +1684,7 @@
             border-right: 1px solid var(--border-color);
             border-radius: 0;
             background: transparent;
-            background-color: transparent;
+            background-color: var(--card-bg);
             box-shadow: none;
             color: var(--text-color);
             font-size: 14px;
@@ -1702,16 +1704,16 @@
         }
 
         .search-bar.search-bar--compound .list-grade-select {
-            flex: 0 0 6.75rem;
-            width: 6.75rem;
-            max-width: 38%;
+            flex: 0 0 clamp(6rem, 33vw, 6.75rem);
+            width: clamp(6rem, 33vw, 6.75rem);
+            max-width: 40%;
             min-width: 0;
             margin: 0;
             padding: 8px 1.25rem 8px 6px;
             border: none;
             border-radius: 0;
             background: transparent;
-            background-color: transparent;
+            background-color: var(--card-bg);
             box-shadow: none;
             color: var(--text-color);
             font-size: 12px;
