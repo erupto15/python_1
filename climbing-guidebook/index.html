@@ -1652,7 +1652,7 @@
 
         .search-bar.search-bar--compound {
             display: flex;
-            flex-direction: row;
+            flex-direction: column;
             flex-wrap: nowrap;
             gap: 0;
             align-items: stretch;
@@ -1660,7 +1660,7 @@
             max-width: 100%;
             min-width: 0;
             box-sizing: border-box;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
             border: 1px solid var(--border-color);
             border-radius: 7px;
             background-color: var(--card-bg);
@@ -1674,20 +1674,20 @@
         }
 
         .search-bar.search-bar--compound .search-input {
-            flex: 1 1 0;
+            flex: 0 0 auto;
             min-width: 0;
-            width: auto;
-            max-width: none;
+            width: 100%;
+            max-width: 100%;
             margin: 0;
-            padding: 6px 9px;
+            padding: 5px 8px;
             border: none;
-            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
             border-radius: 0;
             background: transparent;
             background-color: var(--card-bg);
             box-shadow: none;
             color: var(--text-color);
-            font-size: 13px;
+            font-size: 12px;
             line-height: 1.2;
         }
 
@@ -1700,16 +1700,16 @@
             outline: none;
             box-shadow: none;
             border-color: transparent;
-            border-right-color: var(--border-color);
+            border-bottom-color: var(--border-color);
         }
 
         .search-bar.search-bar--compound .list-grade-select {
-            flex: 0 0 clamp(6rem, 33vw, 6.75rem);
-            width: clamp(6rem, 33vw, 6.75rem);
-            max-width: 40%;
+            flex: 0 0 auto;
+            width: 100%;
+            max-width: 100%;
             min-width: 0;
             margin: 0;
-            padding: 6px 1.4rem 6px 8px;
+            padding: 5px 1.6rem 5px 8px;
             border: none;
             border-radius: 0;
             background: transparent;
@@ -1736,36 +1736,14 @@
         }
 
         html.tg-mini-app .search-bar.search-bar--compound .search-input {
-            padding: 6px 7px;
-            font-size: 12px;
+            padding: 4px 7px;
+            font-size: 11px;
         }
 
         html.tg-mini-app .search-bar.search-bar--compound .list-grade-select {
-            flex: 0 0 6.25rem;
-            width: 6.25rem;
-            max-width: 34%;
             font-size: 10px;
-            padding: 6px 1.35rem 6px 8px;
+            padding: 4px 1.35rem 4px 8px;
             background-position: right 9px center;
-        }
-
-        @media (max-width: 400px) {
-            .search-bar.search-bar--compound {
-                flex-direction: column;
-            }
-
-            .search-bar.search-bar--compound .search-input {
-                border-right: none;
-                border-bottom: 1px solid var(--border-color);
-            }
-
-            .search-bar.search-bar--compound .list-grade-select {
-                flex: 0 0 auto;
-                width: 100%;
-                max-width: 100%;
-                font-size: 13px;
-                padding: 8px 1.5rem 8px 10px;
-            }
         }
 
         .filters {
@@ -2024,8 +2002,8 @@
                 <!-- Поиск и фильтры -->
                 <div class="search-bar search-bar--compound">
                     <input type="text" class="search-input" id="routeSearch" placeholder="Поиск…" title="Поиск: название, район, сектор, трудность">
-                    <select class="list-grade-select" id="routeGradeFilter" aria-label="Фильтр по трудности" title="Все трудности">
-                        <option value="">Все</option>
+                    <select class="list-grade-select" id="routeGradeFilter" aria-label="Новое название категории" title="Новое название категории">
+                        <option value="">Новое название категории</option>
                         <option value="4">4</option>
                         <option value="4+">4+</option>
                         <option value="5">5</option>
@@ -2079,8 +2057,8 @@
                 <!-- Поиск и фильтры -->
                 <div class="search-bar search-bar--compound">
                     <input type="text" class="search-input" id="boulderSearch" placeholder="Поиск…" title="Поиск: название, район, сектор, трудность">
-                    <select class="list-grade-select" id="boulderGradeFilter" aria-label="Фильтр по трудности" title="Все трудности">
-                        <option value="">Все</option>
+                    <select class="list-grade-select" id="boulderGradeFilter" aria-label="Новое название категории" title="Новое название категории">
+                        <option value="">Новое название категории</option>
                         <option value="4">4</option>
                         <option value="5">5</option>
                         <option value="6A">6A</option>
