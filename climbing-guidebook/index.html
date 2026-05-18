@@ -1635,6 +1635,84 @@
             margin-bottom: 20px;
         }
 
+        /* Трассы / боулдеринг: поиск + «Все трудности» в одной рамке, без выхода за край */
+        .search-bar.search-bar--compound {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(7.5rem, 9.75rem);
+            gap: 0;
+            align-items: stretch;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--card-bg);
+            overflow: hidden;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .search-bar.search-bar--compound:focus-within {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(93, 156, 255, 0.12);
+        }
+
+        .search-bar.search-bar--compound .search-input,
+        .search-bar.search-bar--compound .form-select {
+            box-sizing: border-box;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            margin: 0;
+            border: none;
+            border-radius: 0;
+            background-color: transparent;
+            background-image: none;
+            color: var(--text-color);
+            font-size: 15px;
+            line-height: 1.25;
+        }
+
+        .search-bar.search-bar--compound .search-input {
+            padding: 12px 14px;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .search-bar.search-bar--compound .form-select {
+            padding: 12px 2rem 12px 10px;
+            border-left: none;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239aa0b3' d='M1.4 0 6 4.6 10.6 0 12 1.4l-6 6-6-6z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 10px 7px;
+        }
+
+        .search-bar.search-bar--compound .search-input:focus,
+        .search-bar.search-bar--compound .form-select:focus {
+            outline: none;
+            box-shadow: none;
+            border-color: transparent;
+        }
+
+        @media (max-width: 480px) {
+            .search-bar.search-bar--compound {
+                grid-template-columns: 1fr;
+            }
+
+            .search-bar.search-bar--compound .search-input {
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .search-bar.search-bar--compound .form-select {
+                padding-left: 14px;
+            }
+        }
+
         .search-input {
             flex: 1;
             padding: 12px 16px;
@@ -1739,6 +1817,36 @@
 
         html.tg-mini-app .btn.btn-small {
             min-height: 38px;
+        }
+
+        /* Telegram: нативные Main / Secondary внизу — дубли в подвале диалога скрываем */
+        html.tg-mini-app.tg-webapp-buttons .dialog-footer--tg-native,
+        html.tg-mini-app.tg-webapp-buttons .markup-actions--tg-native {
+            display: none !important;
+        }
+
+        html.tg-mini-app.tg-webapp-buttons .dialog-content {
+            max-height: calc(var(--app-height, 100vh) - 2rem - var(--tg-chrome-bottom, 0px));
+        }
+
+        html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] {
+            --tg-chrome-bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+        }
+
+        html.tg-mini-app.tg-webapp-buttons[data-tg-secondary-visible="true"] {
+            --tg-chrome-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+        }
+
+        html.tg-mini-app.tg-webapp-buttons .toast {
+            bottom: calc(16px + var(--tg-chrome-bottom, 0px));
+        }
+
+        html.tg-mini-app.tg-webapp-buttons #climbDetailSavePhotoBtn {
+            display: none !important;
+        }
+
+        .markup-dialog--view-only .markup-actions {
+            display: none !important;
         }
 
         @media (hover: none) {
@@ -1867,9 +1975,9 @@
                 </div>
 
                 <!-- Поиск и фильтры -->
-                <div class="search-bar">
+                <div class="search-bar search-bar--compound">
                     <input type="text" class="search-input" id="routeSearch" placeholder="Поиск: название, район, сектор, трудность…">
-                    <select class="form-select" id="routeGradeFilter" style="width: 200px;">
+                    <select class="form-select" id="routeGradeFilter" aria-label="Фильтр по трудности">
                         <option value="">Все трудности</option>
                         <option value="4">4</option>
                         <option value="4+">4+</option>
@@ -1922,9 +2030,9 @@
                 </div>
 
                 <!-- Поиск и фильтры -->
-                <div class="search-bar">
+                <div class="search-bar search-bar--compound">
                     <input type="text" class="search-input" id="boulderSearch" placeholder="Поиск: название, район, сектор, трудность…">
-                    <select class="form-select" id="boulderGradeFilter" style="width: 200px;">
+                    <select class="form-select" id="boulderGradeFilter" aria-label="Фильтр по трудности">
                         <option value="">Все трудности</option>
                         <option value="4">4</option>
                         <option value="5">5</option>
@@ -2043,7 +2151,7 @@
                     </div>
                 </div>
 
-                <div class="markup-actions">
+                <div class="markup-actions markup-actions--tg-native">
                     <button class="btn btn-secondary" id="cancelRouteLineMarkupBtn">
                         <i class="fas fa-times"></i> Отмена
                     </button>
@@ -2091,7 +2199,7 @@
                     </div>
                 </div>
 
-                <div class="markup-actions">
+                <div class="markup-actions markup-actions--tg-native">
                     <button class="btn btn-secondary" id="cancelBoulderHoldsMarkupBtn">
                         <i class="fas fa-times"></i> Отмена
                     </button>
@@ -2136,7 +2244,7 @@
                     </div>
                 </form>
             </div>
-            <div class="dialog-footer">
+            <div class="dialog-footer dialog-footer--tg-native">
                 <button type="button" class="btn btn-secondary" id="cancelAreaBtn"><i class="fas fa-times"></i> Отмена</button>
                 <button type="button" class="btn btn-primary" id="areaSubmitBtn"><i class="fas fa-save"></i> Сохранить</button>
             </div>
@@ -2164,7 +2272,7 @@
                     </div>
                 </form>
             </div>
-            <div class="dialog-footer">
+            <div class="dialog-footer dialog-footer--tg-native">
                 <button type="button" class="btn btn-secondary" id="cancelSectorBtn"><i class="fas fa-times"></i> Отмена</button>
                 <button type="button" class="btn btn-primary" id="sectorSubmitBtn"><i class="fas fa-save"></i> Сохранить</button>
             </div>
@@ -2232,7 +2340,7 @@
                     </div>
                 </form>
             </div>
-            <div class="dialog-footer">
+            <div class="dialog-footer dialog-footer--tg-native">
                 <button type="button" class="btn btn-secondary" id="cancelQuickRouteBtn"><i class="fas fa-times"></i> Отмена</button>
                 <button type="button" class="btn btn-primary" id="saveQuickRouteBtn"><i class="fas fa-save"></i> Добавить трассу</button>
             </div>
@@ -2296,7 +2404,7 @@
                     </div>
                 </form>
             </div>
-            <div class="dialog-footer">
+            <div class="dialog-footer dialog-footer--tg-native">
                 <button type="button" class="btn btn-secondary" id="cancelQuickBoulderBtn"><i class="fas fa-times"></i> Отмена</button>
                 <button type="button" class="btn btn-primary" id="saveQuickBoulderBtn"><i class="fas fa-save"></i> Добавить боулдеринг</button>
             </div>
@@ -2328,7 +2436,7 @@
                     <button type="button" class="btn btn-secondary" id="climbDetailSavePhotoBtn" aria-label="Сохранить фото со схемой на устройство"><i class="fas fa-download" aria-hidden="true"></i> Сохранить со схемой</button>
                 </div>
             </div>
-            <div class="dialog-footer">
+            <div class="dialog-footer dialog-footer--tg-native">
                 <button type="button" class="btn btn-ghost" id="climbDetailCloseBtn"><i class="fas fa-times"></i> Закрыть</button>
                 <button type="button" class="btn btn-primary" id="climbDetailMarkupBtn"><i class="fas fa-draw-polygon"></i> Схема на фото</button>
             </div>
@@ -2343,13 +2451,72 @@
          * настройте CORS для домена Mini App. Сырые данные: window.__TG_INIT_DATA
          */
         window.__TG_DIALOG_MAIN = {
-            areaDialog: { text: 'Сохранить', btnId: 'areaSubmitBtn' },
-            sectorDialog: { text: 'Сохранить', btnId: 'sectorSubmitBtn' },
-            quickRouteDialog: { text: 'Добавить трассу', btnId: 'saveQuickRouteBtn' },
-            quickBoulderDialog: { text: 'Добавить боулдеринг', btnId: 'saveQuickBoulderBtn' },
-            climbDetailDialog: { text: 'Закрыть', btnId: 'climbDetailCloseBtn' },
-            routeLineMarkupDialog: { text: 'Сохранить разметку', btnId: 'saveRouteLineMarkupBtn' },
-            boulderHoldsMarkupDialog: { text: 'Сохранить разметку', btnId: 'saveBoulderHoldsMarkupBtn' }
+            areaDialog: {
+                text: 'Сохранить',
+                btnId: 'areaSubmitBtn',
+                secondaryText: 'Отмена',
+                secondaryBtnId: 'cancelAreaBtn'
+            },
+            sectorDialog: {
+                text: 'Сохранить',
+                btnId: 'sectorSubmitBtn',
+                secondaryText: 'Отмена',
+                secondaryBtnId: 'cancelSectorBtn'
+            },
+            quickRouteDialog: {
+                text: 'Добавить трассу',
+                btnId: 'saveQuickRouteBtn',
+                secondaryText: 'Отмена',
+                secondaryBtnId: 'cancelQuickRouteBtn'
+            },
+            quickBoulderDialog: {
+                text: 'Добавить боулдеринг',
+                btnId: 'saveQuickBoulderBtn',
+                secondaryText: 'Отмена',
+                secondaryBtnId: 'cancelQuickBoulderBtn'
+            },
+            climbDetailDialog: {
+                resolve() {
+                    const mkBtn = document.getElementById('climbDetailMarkupBtn');
+                    const saveRow = document.getElementById('climbDetailSaveRow');
+                    const hasPhoto = mkBtn && mkBtn.style.display !== 'none';
+                    if (!hasPhoto) {
+                        return {
+                            text: 'Закрыть',
+                            btnId: 'climbDetailCloseBtn'
+                        };
+                    }
+                    const showSave = saveRow && !saveRow.classList.contains('hidden');
+                    return {
+                        text: 'Схема на фото',
+                        btnId: 'climbDetailMarkupBtn',
+                        secondaryText: showSave ? 'Сохранить со схемой' : 'Закрыть',
+                        secondaryBtnId: showSave ? 'climbDetailSavePhotoBtn' : 'climbDetailCloseBtn'
+                    };
+                }
+            },
+            routeLineMarkupDialog: {
+                resolve() {
+                    if (window.app && window.app._markupDialogViewOnly) return null;
+                    return {
+                        text: 'Сохранить разметку',
+                        btnId: 'saveRouteLineMarkupBtn',
+                        secondaryText: 'Отмена',
+                        secondaryBtnId: 'cancelRouteLineMarkupBtn'
+                    };
+                }
+            },
+            boulderHoldsMarkupDialog: {
+                resolve() {
+                    if (window.app && window.app._markupDialogViewOnly) return null;
+                    return {
+                        text: 'Сохранить разметку',
+                        btnId: 'saveBoulderHoldsMarkupBtn',
+                        secondaryText: 'Отмена',
+                        secondaryBtnId: 'cancelBoulderHoldsMarkupBtn'
+                    };
+                }
+            }
         };
 
         window.__TG_DIALOG_CANCEL = {
@@ -2420,6 +2587,9 @@
                 } catch (e) {
                     /* старые клиенты / ограничения WebView */
                 }
+                if (typeof window.applyTelegramThemeToNativeButtons === 'function') {
+                    window.applyTelegramThemeToNativeButtons(tg);
+                }
             }
 
             function syncTelegramViewport() {
@@ -2472,56 +2642,199 @@
             if (tg.MainButton && !tg.__mainBound) {
                 tg.__mainBound = true;
                 tg.MainButton.onClick(() => {
-                    const ids = Object.keys(window.__TG_DIALOG_MAIN || {});
-                    for (let i = 0; i < ids.length; i++) {
-                        const id = ids[i];
-                        const el = document.getElementById(id);
-                        if (el && !el.classList.contains('hidden')) {
-                            const btnId = window.__TG_DIALOG_MAIN[id].btnId;
-                            document.getElementById(btnId)?.click();
-                            return;
-                        }
+                    const openId = window.findOpenTelegramDialogId && window.findOpenTelegramDialogId();
+                    if (!openId) return;
+                    const cfg = window.resolveTelegramDialogButtonConfig
+                        ? window.resolveTelegramDialogButtonConfig(openId)
+                        : window.__TG_DIALOG_MAIN[openId];
+                    if (cfg && cfg.btnId) {
+                        document.getElementById(cfg.btnId)?.click();
                     }
                 });
             }
+
+            if (tg.SecondaryButton && !tg.__secondaryBound) {
+                tg.__secondaryBound = true;
+                tg.SecondaryButton.onClick(() => {
+                    const openId = window.findOpenTelegramDialogId && window.findOpenTelegramDialogId();
+                    if (!openId) return;
+                    const cfg = window.resolveTelegramDialogButtonConfig
+                        ? window.resolveTelegramDialogButtonConfig(openId)
+                        : null;
+                    if (cfg && cfg.secondaryBtnId) {
+                        document.getElementById(cfg.secondaryBtnId)?.click();
+                    }
+                });
+            }
+
         })();
 
-        window.applyTelegramMainButtonForDialog = function applyTelegramMainButtonForDialog(dialogId) {
-            const tg = window.Telegram && window.Telegram.WebApp;
-            if (!tg || !tg.MainButton) return;
-            const cfg = window.__TG_DIALOG_MAIN && window.__TG_DIALOG_MAIN[dialogId];
-            if (!cfg) {
-                tg.MainButton.hide();
+        window.getTelegramWebApp = function getTelegramWebApp() {
+            return (window.Telegram && window.Telegram.WebApp) || null;
+        };
+
+        window.isTelegramMiniApp = function isTelegramMiniApp() {
+            return document.documentElement.classList.contains('tg-mini-app');
+        };
+
+        window.findOpenTelegramDialogId = function findOpenTelegramDialogId() {
+            return Object.keys(window.__TG_DIALOG_MAIN || {}).find((id) => {
+                const el = document.getElementById(id);
+                return el && !el.classList.contains('hidden');
+            }) || null;
+        };
+
+        window.resolveTelegramDialogButtonConfig = function resolveTelegramDialogButtonConfig(dialogId) {
+            const raw = window.__TG_DIALOG_MAIN && window.__TG_DIALOG_MAIN[dialogId];
+            if (!raw) return null;
+            if (typeof raw.resolve === 'function') return raw.resolve(dialogId);
+            return raw;
+        };
+
+        window.applyTelegramThemeToNativeButtons = function applyTelegramThemeToNativeButtons(tg) {
+            if (!tg) return;
+            const tp = tg.themeParams || {};
+            const btn = (() => {
+                const c = tp.button_color;
+                if (c == null || c === '') return '';
+                const s = String(c).trim();
+                return s.startsWith('#') ? s : `#${s}`;
+            })();
+            const btnText = (() => {
+                const c = tp.button_text_color;
+                if (c == null || c === '') return '';
+                const s = String(c).trim();
+                return s.startsWith('#') ? s : `#${s}`;
+            })();
+            const secBg = (() => {
+                const c = tp.secondary_bg_color || tp.bg_color;
+                if (c == null || c === '') return '';
+                const s = String(c).trim();
+                return s.startsWith('#') ? s : `#${s}`;
+            })();
+            try {
+                if (btn && tg.MainButton) tg.MainButton.color = btn;
+                if (btnText && tg.MainButton) tg.MainButton.textColor = btnText;
+                if (secBg && tg.SecondaryButton) tg.SecondaryButton.color = secBg;
+                if (btnText && tg.SecondaryButton) tg.SecondaryButton.textColor = btnText;
+            } catch (_) {
+                /* старые клиенты */
+            }
+        };
+
+        window.setTelegramMainButtonLoading = function setTelegramMainButtonLoading(loading) {
+            const tg = window.getTelegramWebApp();
+            if (!tg || !tg.MainButton || !window.isTelegramMiniApp()) return;
+            try {
+                if (loading) {
+                    if (typeof tg.MainButton.showProgress === 'function') {
+                        tg.MainButton.showProgress(loading === true ? true : loading);
+                    }
+                    if (typeof tg.MainButton.disable === 'function') tg.MainButton.disable();
+                } else {
+                    if (typeof tg.MainButton.hideProgress === 'function') tg.MainButton.hideProgress();
+                    if (typeof tg.MainButton.enable === 'function') tg.MainButton.enable();
+                }
+            } catch (_) {
+                /* ignore */
+            }
+        };
+
+        window.setTelegramWebAppButtonsBusy = function setTelegramWebAppButtonsBusy(busy) {
+            const tg = window.getTelegramWebApp();
+            if (!tg || !window.isTelegramMiniApp()) return;
+            try {
+                if (busy) {
+                    if (tg.MainButton && typeof tg.MainButton.disable === 'function') tg.MainButton.disable();
+                    if (tg.SecondaryButton && typeof tg.SecondaryButton.disable === 'function') tg.SecondaryButton.disable();
+                } else if (typeof window.syncTelegramWebAppButtons === 'function') {
+                    window.syncTelegramWebAppButtons();
+                }
+            } catch (_) {
+                /* ignore */
+            }
+        };
+
+        window.syncTelegramWebAppButtons = function syncTelegramWebAppButtons(dialogId) {
+            const tg = window.getTelegramWebApp();
+            const isTg = window.isTelegramMiniApp();
+            const root = document.documentElement;
+            root.classList.toggle('tg-webapp-buttons', isTg);
+
+            if (!isTg || !tg) {
+                root.removeAttribute('data-tg-main-visible');
+                root.removeAttribute('data-tg-secondary-visible');
+                if (tg && tg.MainButton) tg.MainButton.hide();
+                if (tg && tg.SecondaryButton) tg.SecondaryButton.hide();
                 return;
             }
-            tg.MainButton.setText(cfg.text);
-            tg.MainButton.show();
+
+            window.applyTelegramThemeToNativeButtons(tg);
+
+            const openId = dialogId || window.findOpenTelegramDialogId();
+            const cfg = openId ? window.resolveTelegramDialogButtonConfig(openId) : null;
+
+            if (!cfg || !cfg.btnId) {
+                root.removeAttribute('data-tg-main-visible');
+                if (tg.MainButton) tg.MainButton.hide();
+            } else {
+                const mainBtn = document.getElementById(cfg.btnId);
+                if (mainBtn && !mainBtn.disabled && mainBtn.offsetParent !== null) {
+                    tg.MainButton.setText(cfg.text || 'OK');
+                    if (typeof tg.MainButton.enable === 'function') tg.MainButton.enable();
+                    tg.MainButton.show();
+                    root.setAttribute('data-tg-main-visible', 'true');
+                } else {
+                    root.removeAttribute('data-tg-main-visible');
+                    tg.MainButton.hide();
+                }
+            }
+
+            const secId = cfg && cfg.secondaryBtnId;
+            const showSecondary = !!(secId && cfg.secondaryText);
+            if (showSecondary && tg.SecondaryButton) {
+                const secBtn = document.getElementById(secId);
+                if (secBtn && !secBtn.disabled && secBtn.offsetParent !== null) {
+                    tg.SecondaryButton.setText(cfg.secondaryText);
+                    if (typeof tg.SecondaryButton.show === 'function') tg.SecondaryButton.show();
+                    root.setAttribute('data-tg-secondary-visible', 'true');
+                } else {
+                    root.removeAttribute('data-tg-secondary-visible');
+                    tg.SecondaryButton.hide();
+                }
+            } else {
+                root.removeAttribute('data-tg-secondary-visible');
+                if (tg.SecondaryButton) tg.SecondaryButton.hide();
+            }
+        };
+
+        window.applyTelegramMainButtonForDialog = function applyTelegramMainButtonForDialog(dialogId) {
+            window.syncTelegramWebAppButtons(dialogId);
         };
 
         window.hideTelegramMainButton = function hideTelegramMainButton() {
-            const tg = window.Telegram && window.Telegram.WebApp;
-            if (!tg || !tg.MainButton) return;
-            tg.MainButton.hide();
+            window.syncTelegramWebAppButtons(null);
         };
 
         window.syncTelegramMiniAppUi = function syncTelegramMiniAppUi() {
-            const tg = window.Telegram && window.Telegram.WebApp;
+            const tg = window.getTelegramWebApp();
             if (!tg || !tg.BackButton) return;
             const app = window.app;
-            const dialogOpen = Object.keys(window.__TG_DIALOG_MAIN || {}).some((id) => {
-                const el = document.getElementById(id);
-                return el && !el.classList.contains('hidden');
-            });
+            const dialogOpen = !!window.findOpenTelegramDialogId();
             if (dialogOpen) {
                 tg.BackButton.show();
-                return;
-            }
-            if (app && app.catalog && app.catalog.view !== 'areas') {
+            } else if (app && app.catalog && app.catalog.view !== 'areas') {
                 tg.BackButton.show();
-                return;
+            } else {
+                tg.BackButton.hide();
             }
-            tg.BackButton.hide();
+            window.syncTelegramWebAppButtons();
         };
+
+        if (window.isTelegramMiniApp()) {
+            window.syncTelegramWebAppButtons();
+            window.syncTelegramMiniAppUi();
+        }
     </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
@@ -3983,6 +4296,13 @@
                         delete btn.dataset._saveOrigHtml;
                     }
                 }
+                if (typeof window.setTelegramMainButtonLoading === 'function') {
+                    window.setTelegramMainButtonLoading(busy);
+                }
+                if (typeof window.syncTelegramWebAppButtons === 'function') {
+                    const dlg = kind === 'route' ? 'quickRouteDialog' : 'quickBoulderDialog';
+                    window.syncTelegramWebAppButtons(dlg);
+                }
             }
 
             async tryAutoSaveOpenedMediaToDevice(photo, climbType, climbName) {
@@ -4024,6 +4344,9 @@
                     if (!btn.dataset._saveOrigHtml) btn.dataset._saveOrigHtml = btn.innerHTML;
                     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Готовим файл…';
                 }
+                if (typeof window.setTelegramWebAppButtonsBusy === 'function') {
+                    window.setTelegramWebAppButtonsBusy(true);
+                }
                 try {
                     const pkg = await buildClimbPhotoExportPackage(photo, ctx.climbType, ctx.climbName || '');
                     if (!pkg) {
@@ -4050,6 +4373,9 @@
                             btn.innerHTML = btn.dataset._saveOrigHtml;
                             delete btn.dataset._saveOrigHtml;
                         }
+                    }
+                    if (typeof window.setTelegramWebAppButtonsBusy === 'function') {
+                        window.setTelegramWebAppButtonsBusy(false);
                     }
                 }
             }
@@ -5965,6 +6291,10 @@
                 });
                 const instr = dlg.querySelector('.markup-instructions');
                 if (instr) instr.style.display = viewOnly ? 'none' : '';
+                dlg.classList.toggle('markup-dialog--view-only', !!viewOnly);
+                if (typeof window.syncTelegramWebAppButtons === 'function') {
+                    window.syncTelegramWebAppButtons('routeLineMarkupDialog');
+                }
             }
 
             applyBoulderMarkupViewOnlyUi(viewOnly) {
@@ -5985,6 +6315,10 @@
                 });
                 const instr = dlg.querySelector('.markup-instructions');
                 if (instr) instr.style.display = viewOnly ? 'none' : '';
+                dlg.classList.toggle('markup-dialog--view-only', !!viewOnly);
+                if (typeof window.syncTelegramWebAppButtons === 'function') {
+                    window.syncTelegramWebAppButtons('boulderHoldsMarkupDialog');
+                }
             }
 
             syncRouteMarkupModeUI() {
