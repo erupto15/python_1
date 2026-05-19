@@ -1428,6 +1428,19 @@
             background-color: rgba(255, 255, 255, 0.03);
         }
 
+        .inline-dialog-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 12px;
+        }
+
+        @media (max-width: 400px) {
+            .inline-dialog-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
         .markup-actions {
             display: flex;
             gap: 10px;
@@ -1856,8 +1869,8 @@
         .grade-chip {
             border: 1px solid var(--tg-btn-border);
             border-radius: 999px;
-            padding: 5px 8px;
-            font-size: 11px;
+            padding: 8px 12px;
+            font-size: 13px;
             font-weight: 600;
             line-height: 1;
             white-space: nowrap;
@@ -1869,6 +1882,7 @@
             scroll-snap-align: start;
             width: 100%;
             text-align: left;
+            min-height: 36px;
         }
 
         .grade-chip:hover {
@@ -2023,9 +2037,9 @@
             min-height: 38px;
         }
 
-        /* Telegram: нативные Main / Secondary внизу — дубли в подвале диалога скрываем */
-        html.tg-mini-app.tg-webapp-buttons .dialog-footer--tg-native,
-        html.tg-mini-app.tg-webapp-buttons .markup-actions--tg-native {
+        /* Telegram: дубли в подвале скрываем только когда нативные кнопки реально видимы */
+        html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] .dialog-footer--tg-native,
+        html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] .markup-actions--tg-native {
             display: none !important;
         }
 
@@ -2459,6 +2473,9 @@
                         </div>
                     </div>
                 </form>
+                <div class="inline-dialog-actions">
+                    <button type="button" class="btn btn-primary" id="areaSubmitInlineBtn"><i class="fas fa-save"></i> Сохранить</button>
+                </div>
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
                 <button type="button" class="btn btn-secondary" id="cancelAreaBtn"><i class="fas fa-times"></i> Отмена</button>
@@ -2487,6 +2504,9 @@
                         <textarea class="form-textarea" id="sectorDescription" rows="2"></textarea>
                     </div>
                 </form>
+                <div class="inline-dialog-actions">
+                    <button type="button" class="btn btn-primary" id="sectorSubmitInlineBtn"><i class="fas fa-save"></i> Сохранить</button>
+                </div>
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
                 <button type="button" class="btn btn-secondary" id="cancelSectorBtn"><i class="fas fa-times"></i> Отмена</button>
@@ -2995,7 +3015,7 @@
                 if (tg.MainButton) tg.MainButton.hide();
             } else {
                 const mainBtn = document.getElementById(cfg.btnId);
-                if (mainBtn && !mainBtn.disabled && mainBtn.offsetParent !== null) {
+                if (mainBtn && !mainBtn.disabled) {
                     tg.MainButton.setText(cfg.text || 'OK');
                     if (typeof tg.MainButton.enable === 'function') tg.MainButton.enable();
                     tg.MainButton.show();
@@ -3010,7 +3030,7 @@
             const showSecondary = !!(secId && cfg.secondaryText);
             if (showSecondary && tg.SecondaryButton) {
                 const secBtn = document.getElementById(secId);
-                if (secBtn && !secBtn.disabled && secBtn.offsetParent !== null) {
+                if (secBtn && !secBtn.disabled) {
                     tg.SecondaryButton.setText(cfg.secondaryText);
                     if (typeof tg.SecondaryButton.show === 'function') tg.SecondaryButton.show();
                     root.setAttribute('data-tg-secondary-visible', 'true');
@@ -5739,8 +5759,16 @@
                     if (!this.requireAdmin('Сохранение района')) return;
                     this.saveArea();
                 });
+                document.getElementById('areaSubmitInlineBtn')?.addEventListener('click', () => {
+                    if (!this.requireAdmin('Сохранение района')) return;
+                    this.saveArea();
+                });
                 document.getElementById('cancelSectorBtn')?.addEventListener('click', () => this.hideDialog('sectorDialog'));
                 document.getElementById('sectorSubmitBtn')?.addEventListener('click', () => {
+                    if (!this.requireAdmin('Сохранение сектора')) return;
+                    this.saveSector();
+                });
+                document.getElementById('sectorSubmitInlineBtn')?.addEventListener('click', () => {
                     if (!this.requireAdmin('Сохранение сектора')) return;
                     this.saveSector();
                 });
@@ -5754,6 +5782,12 @@
                 document.getElementById('quickBoulderMarkupBtn')?.addEventListener('click', () => this.openQuickDialogPhotoMarkup('boulder'));
                 document.getElementById('quickRoutePhotoClearBtn')?.addEventListener('click', () => this.clearQuickDialogPhoto('route'));
                 document.getElementById('quickBoulderPhotoClearBtn')?.addEventListener('click', () => this.clearQuickDialogPhoto('boulder'));
+                // Закрытие диалогов тапом по затемнённому фону (outside click)
+                ['areaDialog', 'sectorDialog', 'quickRouteDialog', 'quickBoulderDialog', 'climbDetailDialog'].forEach((id) => {
+                    document.getElementById(id)?.addEventListener('click', (e) => {
+                        if (e.target && e.target.id === id) this.hideDialog(id);
+                    });
+                });
                 document.querySelectorAll('.star-rating').forEach((wrap) => {
                     const targetId = wrap.getAttribute('data-rating-target');
                     wrap.querySelectorAll('.star-btn').forEach((btn) => {
