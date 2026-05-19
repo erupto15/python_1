@@ -1654,23 +1654,17 @@
             display: flex;
             flex-direction: column;
             flex-wrap: nowrap;
-            gap: 0;
+            gap: 8px;
             align-items: stretch;
             width: 100%;
             max-width: 100%;
             min-width: 0;
             box-sizing: border-box;
             margin-bottom: 20px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            background-color: var(--card-bg);
-            overflow: hidden;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .search-bar.search-bar--compound:focus-within {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(93, 156, 255, 0.12);
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            overflow: visible;
         }
 
         .search-bar.search-bar--compound .search-input {
@@ -1679,28 +1673,27 @@
             width: 100%;
             max-width: 100%;
             margin: 0;
-            padding: 12px 16px;
-            border: none;
-            border-bottom: 1px solid var(--border-color);
-            border-radius: 0;
-            background: transparent;
-            background-color: var(--card-bg);
-            box-shadow: none;
+            padding: 10px 14px;
+            border: 1px solid var(--tg-btn-border);
+            border-radius: var(--tg-btn-radius);
+            background: var(--tg-btn-bg);
+            box-shadow: var(--btn-secondary-inset);
             color: var(--text-color);
-            font-size: 15px;
+            font-size: 14px;
             line-height: 1.2;
+            min-height: 42px;
+            transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
         }
 
         .search-bar.search-bar--compound .search-input::placeholder {
-            font-size: 15px;
+            font-size: 14px;
             opacity: 0.85;
         }
 
         .search-bar.search-bar--compound .search-input:focus {
             outline: none;
-            box-shadow: none;
-            border-color: transparent;
-            border-bottom-color: var(--border-color);
+            border-color: color-mix(in srgb, var(--tg-btn-border) 70%, rgba(255, 255, 255, 0.35));
+            box-shadow: 0 0 0 2px rgba(93, 156, 255, 0.12);
         }
 
         .search-bar.search-bar--compound .list-grade-select {
@@ -1709,14 +1702,13 @@
             max-width: 100%;
             min-width: 0;
             margin: 0;
-            padding: 12px 2rem 12px 16px;
-            border: none;
-            border-radius: 0;
-            background: transparent;
-            background-color: var(--card-bg);
-            box-shadow: none;
+            padding: 10px 2rem 10px 14px;
+            border: 1px solid var(--tg-btn-border);
+            border-radius: var(--tg-btn-radius);
+            background: var(--tg-btn-bg);
+            box-shadow: var(--btn-secondary-inset);
             color: var(--text-color);
-            font-size: 15px;
+            font-size: 14px;
             text-align: left;
             line-height: 1.2;
             text-overflow: ellipsis;
@@ -1728,11 +1720,28 @@
             background-repeat: no-repeat;
             background-position: right 12px center;
             background-size: 10px 6px;
+            min-height: 42px;
+            transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
         }
 
         .search-bar.search-bar--compound .list-grade-select:focus {
             outline: none;
-            box-shadow: none;
+            border-color: color-mix(in srgb, var(--tg-btn-border) 70%, rgba(255, 255, 255, 0.35));
+            box-shadow: 0 0 0 2px rgba(93, 156, 255, 0.12);
+        }
+
+        .search-bar.search-bar--compound .list-grade-select:hover,
+        .search-bar.search-bar--compound .search-input:hover {
+            background-color: var(--tg-btn-bg-hover);
+        }
+
+        @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+            .search-bar.search-bar--compound .search-input,
+            .search-bar.search-bar--compound .list-grade-select {
+                background-color: color-mix(in srgb, var(--card-bg) 35%, rgba(255, 255, 255, 0.07));
+                -webkit-backdrop-filter: blur(10px);
+                backdrop-filter: blur(10px);
+            }
         }
 
         html.tg-mini-app .search-bar.search-bar--compound .search-input {
@@ -1744,6 +1753,176 @@
             font-size: 14px;
             padding: 10px 2rem 10px 12px;
             background-position: right 12px center;
+        }
+
+        .visually-hidden {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+        }
+
+        .grade-picker {
+            position: relative;
+            margin-top: 8px;
+            width: min(220px, 100%);
+            max-width: 100%;
+        }
+
+        .grade-picker-toggle {
+            width: 100%;
+            border: 1px solid var(--tg-btn-border);
+            border-radius: var(--tg-btn-radius);
+            padding: 8px 30px 8px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.1;
+            color: var(--text-color);
+            background: var(--tg-btn-bg);
+            box-shadow: var(--btn-secondary-inset);
+            text-align: left;
+            cursor: pointer;
+            position: relative;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+        }
+
+        .grade-picker-toggle::after {
+            content: '';
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            width: 8px;
+            height: 5px;
+            transform: translateY(-50%);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 12 8'%3E%3Cpath fill='%239aa0b3' d='M1.4 0 6 4.6 10.6 0 12 1.4l-6 6-6-6z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain;
+            transition: transform 0.15s ease;
+        }
+
+        .grade-picker.open .grade-picker-toggle::after {
+            transform: translateY(-50%) rotate(180deg);
+        }
+
+        .grade-picker-toggle:hover {
+            background: var(--tg-btn-bg-hover);
+        }
+
+        .grade-picker-toggle:focus-visible {
+            outline: 2px solid color-mix(in srgb, var(--tg-blue) 75%, transparent);
+            outline-offset: 2px;
+        }
+
+        .grade-picker-dropdown {
+            position: absolute;
+            left: 0;
+            top: calc(100% + 6px);
+            width: min(220px, calc(100vw - 56px));
+            max-width: 100%;
+            border: 1px solid var(--tg-btn-border);
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--card-bg) 78%, rgba(255, 255, 255, 0.08));
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32);
+            padding: 6px;
+            z-index: 8;
+            display: none;
+        }
+
+        .grade-picker.open .grade-picker-dropdown {
+            display: block;
+        }
+
+        .grade-visual-strip {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            max-height: 120px;
+            padding: 1px;
+            scrollbar-width: thin;
+            -webkit-overflow-scrolling: touch;
+            scroll-snap-type: y proximity;
+        }
+
+        .grade-chip {
+            border: 1px solid var(--tg-btn-border);
+            border-radius: 999px;
+            padding: 5px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1;
+            white-space: nowrap;
+            cursor: pointer;
+            color: var(--text-color);
+            background: var(--tg-btn-bg);
+            box-shadow: var(--btn-secondary-inset);
+            transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.1s ease, color 0.18s ease;
+            scroll-snap-align: start;
+            width: 100%;
+            text-align: left;
+        }
+
+        .grade-chip:hover {
+            background: var(--tg-btn-bg-hover);
+        }
+
+        .grade-chip:active {
+            transform: scale(var(--tg-btn-press));
+        }
+
+        .grade-chip.active {
+            color: #fff;
+            border-color: transparent;
+            box-shadow: var(--btn-primary-glow);
+        }
+
+        .grade-chip--all.active {
+            background-color: var(--tg-blue);
+        }
+
+        .grade-chip--easy.active {
+            background-color: #2e7d32;
+        }
+
+        .grade-chip--mid.active {
+            background-color: #ef6c00;
+        }
+
+        .grade-chip--hard.active {
+            background-color: #c62828;
+        }
+
+        .grade-chip--easy {
+            border-color: color-mix(in srgb, #2e7d32 55%, var(--tg-btn-border));
+        }
+
+        .grade-chip--mid {
+            border-color: color-mix(in srgb, #ef6c00 55%, var(--tg-btn-border));
+        }
+
+        .grade-chip--hard {
+            border-color: color-mix(in srgb, #c62828 55%, var(--tg-btn-border));
+        }
+
+        html.tg-mini-app .grade-picker {
+            width: min(210px, 100%);
+        }
+
+        html.tg-mini-app .grade-picker-dropdown {
+            width: min(210px, calc(100vw - 56px));
+        }
+
+        html.tg-mini-app .grade-visual-strip {
+            max-height: 110px;
         }
 
         .filters {
@@ -2002,7 +2181,7 @@
                 <!-- Поиск и фильтры -->
                 <div class="search-bar search-bar--compound">
                     <input type="text" class="search-input" id="routeSearch" placeholder="Поиск…" title="Поиск: название, район, сектор, трудность">
-                    <select class="list-grade-select" id="routeGradeFilter" aria-label="Новое название категории" title="Новое название категории">
+                    <select class="list-grade-select visually-hidden" id="routeGradeFilter" aria-label="Новое название категории" title="Новое название категории">
                         <option value="">Новое название категории</option>
                         <option value="4">4</option>
                         <option value="4+">4+</option>
@@ -2032,6 +2211,12 @@
                         <option value="9b+">9b+</option>
                         <option value="9c">9c</option>
                     </select>
+                    <div class="grade-picker" id="routeGradePicker">
+                        <button type="button" class="grade-picker-toggle" id="routeGradeToggleBtn" aria-expanded="false" aria-controls="routeGradeDropdown">Категория</button>
+                        <div class="grade-picker-dropdown" id="routeGradeDropdown">
+                            <div class="grade-visual-strip" id="routeGradeVisualStrip" aria-label="Категории трасс"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Список трасс -->
@@ -2057,7 +2242,7 @@
                 <!-- Поиск и фильтры -->
                 <div class="search-bar search-bar--compound">
                     <input type="text" class="search-input" id="boulderSearch" placeholder="Поиск…" title="Поиск: название, район, сектор, трудность">
-                    <select class="list-grade-select" id="boulderGradeFilter" aria-label="Новое название категории" title="Новое название категории">
+                    <select class="list-grade-select visually-hidden" id="boulderGradeFilter" aria-label="Новое название категории" title="Новое название категории">
                         <option value="">Новое название категории</option>
                         <option value="4">4</option>
                         <option value="5">5</option>
@@ -2082,6 +2267,12 @@
                         <option value="9A">9A</option>
                         <option value="9A+">9A+</option>
                     </select>
+                    <div class="grade-picker" id="boulderGradePicker">
+                        <button type="button" class="grade-picker-toggle" id="boulderGradeToggleBtn" aria-expanded="false" aria-controls="boulderGradeDropdown">Категория</button>
+                        <div class="grade-picker-dropdown" id="boulderGradeDropdown">
+                            <div class="grade-visual-strip" id="boulderGradeVisualStrip" aria-label="Категории боулдеринга"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Список боулдерингов -->
@@ -4295,6 +4486,97 @@
                 });
             }
 
+            _gradeChipToneByValue(v) {
+                const s = String(v || '').trim();
+                if (!s) return 'all';
+                const m = s.match(/^(\d+)/);
+                const n = m ? Number(m[1]) : NaN;
+                if (!Number.isFinite(n)) return 'all';
+                if (n <= 5) return 'easy';
+                if (n <= 7) return 'mid';
+                return 'hard';
+            }
+
+            _buildVisualGradeFilter(selectId, stripId, toggleId, panelId, onSelect) {
+                const select = document.getElementById(selectId);
+                const strip = document.getElementById(stripId);
+                const toggle = document.getElementById(toggleId);
+                const panel = document.getElementById(panelId);
+                const picker = toggle ? toggle.closest('.grade-picker') : null;
+                if (!select || !strip || !toggle || !panel || !picker) return;
+
+                const options = Array.from(select.options || []);
+                strip.innerHTML = '';
+                options.forEach((opt, idx) => {
+                    const value = String(opt.value || '');
+                    const label = idx === 0 ? 'Категория' : String(opt.textContent || value || '—');
+                    const chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.className = `grade-chip grade-chip--${this._gradeChipToneByValue(value)}`;
+                    chip.dataset.value = value;
+                    chip.textContent = label;
+                    chip.setAttribute('aria-pressed', 'false');
+                    chip.addEventListener('click', () => {
+                        select.value = value;
+                        this._syncVisualGradeFilter(strip, value, toggle, select);
+                        this._setGradePickerOpen(picker, toggle, false);
+                        onSelect();
+                    });
+                    strip.appendChild(chip);
+                });
+
+                this._syncVisualGradeFilter(strip, String(select.value || ''), toggle, select);
+
+                toggle.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const open = picker.classList.contains('open');
+                    this._closeAllGradePickers();
+                    this._setGradePickerOpen(picker, toggle, !open);
+                });
+            }
+
+            _syncVisualGradeFilter(strip, selectedValue, toggle, selectEl) {
+                strip.querySelectorAll('.grade-chip').forEach((chip) => {
+                    const active = String(chip.dataset.value || '') === String(selectedValue || '');
+                    chip.classList.toggle('active', active);
+                    chip.setAttribute('aria-pressed', active ? 'true' : 'false');
+                });
+                if (toggle && selectEl) {
+                    const current = Array.from(selectEl.options || []).find((o) => String(o.value || '') === String(selectedValue || ''));
+                    toggle.textContent = current ? String(current.textContent || '').trim() || 'Категория' : 'Категория';
+                }
+            }
+
+            _setGradePickerOpen(picker, toggle, open) {
+                if (!picker || !toggle) return;
+                picker.classList.toggle('open', !!open);
+                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            }
+
+            _closeAllGradePickers() {
+                document.querySelectorAll('.grade-picker.open').forEach((picker) => {
+                    const t = picker.querySelector('.grade-picker-toggle');
+                    if (t) this._setGradePickerOpen(picker, t, false);
+                });
+            }
+
+            initVisualGradeFilters() {
+                this._buildVisualGradeFilter(
+                    'routeGradeFilter',
+                    'routeGradeVisualStrip',
+                    'routeGradeToggleBtn',
+                    'routeGradeDropdown',
+                    () => this.renderRoutes()
+                );
+                this._buildVisualGradeFilter(
+                    'boulderGradeFilter',
+                    'boulderGradeVisualStrip',
+                    'boulderGradeToggleBtn',
+                    'boulderGradeDropdown',
+                    () => this.renderBoulders()
+                );
+            }
+
             parseCoordinates(rawValue) {
                 const raw = String(rawValue || '').trim();
                 if (!raw) return { latitude: null, longitude: null };
@@ -5504,12 +5786,37 @@
                     clearTimeout(this._routeSearchDebounceTimer);
                     this._routeSearchDebounceTimer = setTimeout(() => this.renderRoutes(), searchDebounceMs);
                 });
-                document.getElementById('routeGradeFilter')?.addEventListener('change', () => this.renderRoutes());
                 document.getElementById('boulderSearch')?.addEventListener('input', () => {
                     clearTimeout(this._boulderSearchDebounceTimer);
                     this._boulderSearchDebounceTimer = setTimeout(() => this.renderBoulders(), searchDebounceMs);
                 });
-                document.getElementById('boulderGradeFilter')?.addEventListener('change', () => this.renderBoulders());
+                document.getElementById('routeGradeFilter')?.addEventListener('change', () => {
+                    this.renderRoutes();
+                    this._syncVisualGradeFilter(
+                        document.getElementById('routeGradeVisualStrip'),
+                        document.getElementById('routeGradeFilter')?.value || '',
+                        document.getElementById('routeGradeToggleBtn'),
+                        document.getElementById('routeGradeFilter')
+                    );
+                });
+                document.getElementById('boulderGradeFilter')?.addEventListener('change', () => {
+                    this.renderBoulders();
+                    this._syncVisualGradeFilter(
+                        document.getElementById('boulderGradeVisualStrip'),
+                        document.getElementById('boulderGradeFilter')?.value || '',
+                        document.getElementById('boulderGradeToggleBtn'),
+                        document.getElementById('boulderGradeFilter')
+                    );
+                });
+                this.initVisualGradeFilters();
+
+                document.addEventListener('click', (e) => {
+                    if (e.target && e.target.closest && e.target.closest('.grade-picker')) return;
+                    this._closeAllGradePickers();
+                });
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') this._closeAllGradePickers();
+                });
 
                 // Фильтры фотоальбома
                 document.querySelectorAll('#photos .filter-btn').forEach(btn => {
