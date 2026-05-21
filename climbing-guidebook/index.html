@@ -2518,12 +2518,13 @@
     <!-- Диалог добавления трассы в сектор -->
     <div class="dialog-overlay hidden" id="quickRouteDialog">
         <div class="dialog-content">
-            <div class="dialog-header">
-                <div class="dialog-title">Добавить трассу</div>
-                <div class="dialog-subtitle">Новая трасса в выбранном секторе</div>
+                <div class="dialog-header">
+                    <div class="dialog-title" id="quickRouteDialogTitle">Добавить трассу</div>
+                    <div class="dialog-subtitle" id="quickRouteDialogSubtitle">Новая трасса в выбранном секторе</div>
             </div>
             <div class="dialog-body">
                 <form id="quickRouteForm">
+                    <input type="hidden" id="quickRouteId" value="">
                     <input type="hidden" id="quickRouteSectorId" value="">
                     <div class="form-group">
                         <label class="form-label" for="quickRouteName">Название *</label>
@@ -2589,12 +2590,13 @@
     <!-- Диалог добавления боулдеринга в сектор -->
     <div class="dialog-overlay hidden" id="quickBoulderDialog">
         <div class="dialog-content">
-            <div class="dialog-header">
-                <div class="dialog-title">Добавить боулдеринг</div>
-                <div class="dialog-subtitle">Новый боулдеринг в выбранном секторе</div>
+                <div class="dialog-header">
+                    <div class="dialog-title" id="quickBoulderDialogTitle">Добавить боулдеринг</div>
+                    <div class="dialog-subtitle" id="quickBoulderDialogSubtitle">Новый боулдеринг в выбранном секторе</div>
             </div>
             <div class="dialog-body">
                 <form id="quickBoulderForm">
+                    <input type="hidden" id="quickBoulderId" value="">
                     <input type="hidden" id="quickBoulderSectorId" value="">
                     <div class="form-group">
                         <label class="form-label" for="quickBoulderName">Название *</label>
@@ -4616,20 +4618,24 @@
             }
 
             _setQuickSaveLoading(kind, busy) {
-                const id = kind === 'route' ? 'saveQuickRouteBtn' : 'saveQuickBoulderBtn';
-                const btn = document.getElementById(id);
-                if (!btn) return;
-                if (busy) {
-                    if (!btn.dataset._saveOrigHtml) btn.dataset._saveOrigHtml = btn.innerHTML;
-                    btn.disabled = true;
-                    btn.innerHTML = 'Сохранение…';
-                } else {
-                    btn.disabled = false;
-                    if (btn.dataset._saveOrigHtml) {
-                        btn.innerHTML = btn.dataset._saveOrigHtml;
-                        delete btn.dataset._saveOrigHtml;
+                const ids = kind === 'route'
+                    ? ['saveQuickRouteBtn', 'quickRouteSubmitInlineBtn']
+                    : ['saveQuickBoulderBtn', 'quickBoulderSubmitInlineBtn'];
+                ids.forEach((id) => {
+                    const btn = document.getElementById(id);
+                    if (!btn) return;
+                    if (busy) {
+                        if (!btn.dataset._saveOrigHtml) btn.dataset._saveOrigHtml = btn.innerHTML;
+                        btn.disabled = true;
+                        btn.innerHTML = 'Сохранение…';
+                    } else {
+                        btn.disabled = false;
+                        if (btn.dataset._saveOrigHtml) {
+                            btn.innerHTML = btn.dataset._saveOrigHtml;
+                            delete btn.dataset._saveOrigHtml;
+                        }
                     }
-                }
+                });
                 if (typeof window.setTelegramMainButtonLoading === 'function') {
                     window.setTelegramMainButtonLoading(busy);
                 }
@@ -5092,6 +5098,7 @@
                                         </div>
                                     </button>
                                     <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
+                                    <button type="button" class="btn btn-ghost btn-small" data-action="edit-route" data-route-id="${r.id}"><i class="fas fa-edit"></i></button>
                                         <button type="button" class="btn btn-danger btn-small" data-action="delete-route" data-route-id="${r.id}"><i class="fas fa-trash"></i></button>
                                     </div>
                                 </div>`);
@@ -5114,6 +5121,7 @@
                                         </div>
                                     </button>
                                     <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
+                                    <button type="button" class="btn btn-ghost btn-small" data-action="edit-boulder" data-boulder-id="${b.id}"><i class="fas fa-edit"></i></button>
                                         <button type="button" class="btn btn-danger btn-small" data-action="delete-boulder" data-boulder-id="${b.id}"><i class="fas fa-trash"></i></button>
                                     </div>
                                 </div>`);
@@ -5288,9 +5296,14 @@
 
             async quickAddRouteInSector(sectorId) {
                 const sid = Number(sectorId || this.catalog.sectorId || 0);
+                document.getElementById('quickRouteId').value = '';
                 document.getElementById('quickRouteSectorId').value = String(sid || '');
                 document.getElementById('quickRouteForm')?.reset();
                 document.getElementById('quickRouteGrade').value = '6a';
+                document.getElementById('quickRouteDialogTitle').textContent = 'Добавить трассу';
+                document.getElementById('quickRouteDialogSubtitle').textContent = 'Новая трасса в выбранном секторе';
+                document.getElementById('saveQuickRouteBtn').innerHTML = '<i class="fas fa-save"></i> Добавить трассу';
+                document.getElementById('quickRouteSubmitInlineBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить';
                 this.setStarRating('quickRouteRating', '');
                 this.clearQuickDialogPhoto('route');
                 this.showDialog('quickRouteDialog');
@@ -5298,16 +5311,71 @@
 
             async quickAddBoulderInSector(sectorId) {
                 const sid = Number(sectorId || this.catalog.sectorId || 0);
+                document.getElementById('quickBoulderId').value = '';
                 document.getElementById('quickBoulderSectorId').value = String(sid || '');
                 document.getElementById('quickBoulderForm')?.reset();
                 document.getElementById('quickBoulderGrade').value = '7A';
+                document.getElementById('quickBoulderDialogTitle').textContent = 'Добавить боулдеринг';
+                document.getElementById('quickBoulderDialogSubtitle').textContent = 'Новый боулдеринг в выбранном секторе';
+                document.getElementById('saveQuickBoulderBtn').innerHTML = '<i class="fas fa-save"></i> Добавить боулдеринг';
+                document.getElementById('quickBoulderSubmitInlineBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить';
                 this.setStarRating('quickBoulderRating', '');
+                this.clearQuickDialogPhoto('boulder');
+                this.showDialog('quickBoulderDialog');
+            }
+
+            showEditRouteDialog(routeId) {
+                if (!this.requireAdmin('Редактирование трассы')) return;
+                const route = getRoutes().find((r) => Number(r.id) === Number(routeId));
+                if (!route) {
+                    this.showToast('Трасса не найдена', true);
+                    return;
+                }
+                document.getElementById('quickRouteId').value = String(route.id);
+                document.getElementById('quickRouteSectorId').value = String(route.sectorId || '');
+                document.getElementById('quickRouteName').value = route.name || '';
+                document.getElementById('quickRouteGrade').value = route.grade || '6a';
+                document.getElementById('quickRouteDescription').value = route.description || '';
+                document.getElementById('quickRouteLength').value = route.length ?? '';
+                document.getElementById('quickRouteBolts').value = route.bolts ?? '';
+                document.getElementById('quickRouteCoordinates').value =
+                    route.latitude != null && route.longitude != null ? `${route.latitude}, ${route.longitude}` : '';
+                this.setStarRating('quickRouteRating', route.rating != null ? String(route.rating) : '');
+                document.getElementById('quickRouteDialogTitle').textContent = 'Редактировать трассу';
+                document.getElementById('quickRouteDialogSubtitle').textContent = 'Измените параметры трассы';
+                document.getElementById('saveQuickRouteBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить изменения';
+                document.getElementById('quickRouteSubmitInlineBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить изменения';
+                this.clearQuickDialogPhoto('route');
+                this.showDialog('quickRouteDialog');
+            }
+
+            showEditBoulderDialog(boulderId) {
+                if (!this.requireAdmin('Редактирование боулдеринга')) return;
+                const boulder = getBoulders().find((b) => Number(b.id) === Number(boulderId));
+                if (!boulder) {
+                    this.showToast('Боулдеринг не найден', true);
+                    return;
+                }
+                document.getElementById('quickBoulderId').value = String(boulder.id);
+                document.getElementById('quickBoulderSectorId').value = String(boulder.sectorId || '');
+                document.getElementById('quickBoulderName').value = boulder.name || '';
+                document.getElementById('quickBoulderGrade').value = boulder.grade || '7A';
+                document.getElementById('quickBoulderDescription').value = boulder.description || '';
+                document.getElementById('quickBoulderHeight').value = boulder.height ?? '';
+                document.getElementById('quickBoulderCoordinates').value =
+                    boulder.latitude != null && boulder.longitude != null ? `${boulder.latitude}, ${boulder.longitude}` : '';
+                this.setStarRating('quickBoulderRating', boulder.rating != null ? String(boulder.rating) : '');
+                document.getElementById('quickBoulderDialogTitle').textContent = 'Редактировать боулдеринг';
+                document.getElementById('quickBoulderDialogSubtitle').textContent = 'Измените параметры боулдеринга';
+                document.getElementById('saveQuickBoulderBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить изменения';
+                document.getElementById('quickBoulderSubmitInlineBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить изменения';
                 this.clearQuickDialogPhoto('boulder');
                 this.showDialog('quickBoulderDialog');
             }
 
             async saveQuickRoute() {
                 if (!this.requireAdmin('Добавление трассы')) return;
+                const editId = Number(document.getElementById('quickRouteId').value || 0);
                 const sid = Number(document.getElementById('quickRouteSectorId').value || 0);
                 const sector = getSectors().find(s => Number(s.id) === sid);
                 if (!sector) {
@@ -5333,31 +5401,32 @@
 
                 this._setQuickSaveLoading('route', true);
                 try {
-                    const createdRoute = await apiFetch('/api/routes', {
-                        method: 'POST',
+                    const routePayload = {
+                        sector_id: sid,
+                        area_id: Number(sector.areaId),
+                        name,
+                        description: description || null,
+                        grade,
+                        rating: ratingStr ? Number(ratingStr) : null,
+                        length_m: lengthStr ? Number(lengthStr) : null,
+                        bolts: boltsStr ? Number(boltsStr) : null,
+                        latitude: coordinates.latitude,
+                        longitude: coordinates.longitude,
+                        sector_label: sector.name
+                    };
+                    const savedRoute = await apiFetch(editId ? `/api/routes/${editId}` : '/api/routes', {
+                        method: editId ? 'PATCH' : 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            sector_id: sid,
-                            area_id: Number(sector.areaId),
-                            name,
-                            description: description || null,
-                            grade,
-                            rating: ratingStr ? Number(ratingStr) : null,
-                            length_m: lengthStr ? Number(lengthStr) : null,
-                            bolts: boltsStr ? Number(boltsStr) : null,
-                            latitude: coordinates.latitude,
-                            longitude: coordinates.longitude,
-                            sector_label: sector.name
-                        })
+                        body: JSON.stringify(routePayload)
                     });
                     let createdRoutePhoto = null;
-                    if (routePhotoData?.data) {
+                    if (!editId && routePhotoData?.data) {
                         createdRoutePhoto = await apiFetch('/api/photos', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 climb_type: 'route',
-                                route_id: Number(createdRoute.id),
+                                route_id: Number(savedRoute.id),
                                 boulder_id: null,
                                 image_url: routePhotoData.data,
                                 description: `Фото трассы: ${name}`,
@@ -5367,7 +5436,7 @@
                             })
                         });
                     }
-                    mergeRouteFromApiResponse(createdRoute);
+                    mergeRouteFromApiResponse(savedRoute);
                     if (createdRoutePhoto) appendPhotoFromApiResponse(createdRoutePhoto);
                     this.data = getClimbingData();
                     this.hideDialog('quickRouteDialog');
@@ -5375,10 +5444,10 @@
                     this.renderCatalog();
                     this.renderRoutes();
                     this.updateMapMarkers();
-                    this.showToast('Трасса добавлена');
-                    this.showClimbDetailDialog('route', Number(createdRoute.id));
+                    this.showToast(editId ? 'Трасса обновлена' : 'Трасса добавлена');
+                    this.showClimbDetailDialog('route', Number(savedRoute.id));
                 } catch (err) {
-                    this.showToast(`Ошибка добавления трассы: ${err.message}`, true);
+                    this.showToast(`Ошибка сохранения трассы: ${err.message}`, true);
                 } finally {
                     this._setQuickSaveLoading('route', false);
                 }
@@ -5386,6 +5455,7 @@
 
             async saveQuickBoulder() {
                 if (!this.requireAdmin('Добавление боулдеринга')) return;
+                const editId = Number(document.getElementById('quickBoulderId').value || 0);
                 const sid = Number(document.getElementById('quickBoulderSectorId').value || 0);
                 const sector = getSectors().find(s => Number(s.id) === sid);
                 if (!sector) {
@@ -5410,30 +5480,31 @@
 
                 this._setQuickSaveLoading('boulder', true);
                 try {
-                    const createdBoulder = await apiFetch('/api/boulders', {
-                        method: 'POST',
+                    const boulderPayload = {
+                        sector_id: sid,
+                        area_id: Number(sector.areaId),
+                        name,
+                        description: description || null,
+                        grade,
+                        rating: ratingStr ? Number(ratingStr) : null,
+                        height_m: heightStr ? Number(heightStr) : null,
+                        latitude: coordinates.latitude,
+                        longitude: coordinates.longitude
+                    };
+                    const savedBoulder = await apiFetch(editId ? `/api/boulders/${editId}` : '/api/boulders', {
+                        method: editId ? 'PATCH' : 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            sector_id: sid,
-                            area_id: Number(sector.areaId),
-                            name,
-                            description: description || null,
-                            grade,
-                            rating: ratingStr ? Number(ratingStr) : null,
-                            height_m: heightStr ? Number(heightStr) : null,
-                            latitude: coordinates.latitude,
-                            longitude: coordinates.longitude
-                        })
+                        body: JSON.stringify(boulderPayload)
                     });
                     let createdBoulderPhoto = null;
-                    if (boulderPhotoData?.data) {
+                    if (!editId && boulderPhotoData?.data) {
                         createdBoulderPhoto = await apiFetch('/api/photos', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 climb_type: 'boulder',
                                 route_id: null,
-                                boulder_id: Number(createdBoulder.id),
+                                boulder_id: Number(savedBoulder.id),
                                 image_url: boulderPhotoData.data,
                                 description: `Фото боулдеринга: ${name}`,
                                 file_name: boulderPhotoData.fileName || null,
@@ -5442,7 +5513,7 @@
                             })
                         });
                     }
-                    mergeBoulderFromApiResponse(createdBoulder);
+                    mergeBoulderFromApiResponse(savedBoulder);
                     if (createdBoulderPhoto) appendPhotoFromApiResponse(createdBoulderPhoto);
                     this.data = getClimbingData();
                     this.hideDialog('quickBoulderDialog');
@@ -5450,10 +5521,10 @@
                     this.renderCatalog();
                     this.renderBoulders();
                     this.updateMapMarkers();
-                    this.showToast('Боулдеринг добавлен');
-                    this.showClimbDetailDialog('boulder', Number(createdBoulder.id));
+                    this.showToast(editId ? 'Боулдеринг обновлён' : 'Боулдеринг добавлен');
+                    this.showClimbDetailDialog('boulder', Number(savedBoulder.id));
                 } catch (err) {
-                    this.showToast(`Ошибка добавления боулдеринга: ${err.message}`, true);
+                    this.showToast(`Ошибка сохранения боулдеринга: ${err.message}`, true);
                 } finally {
                     this._setQuickSaveLoading('boulder', false);
                 }
@@ -5582,6 +5653,9 @@
                             </div>
                         </button>
                         <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
+                            <button type="button" class="btn btn-ghost btn-small" data-action="edit-route" data-route-id="${route.id}">
+                                <i class="fas fa-edit"></i> Редактировать
+                            </button>
                             <button type="button" class="btn btn-danger btn-small" data-action="delete-route" data-route-id="${route.id}">
                                 <i class="fas fa-trash"></i> Удалить
                             </button>
@@ -5648,6 +5722,9 @@
                             </div>
                         </button>
                         <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
+                            <button type="button" class="btn btn-ghost btn-small" data-action="edit-boulder" data-boulder-id="${boulder.id}">
+                                <i class="fas fa-edit"></i> Редактировать
+                            </button>
                             <button type="button" class="btn btn-danger btn-small" data-action="delete-boulder" data-boulder-id="${boulder.id}">
                                 <i class="fas fa-trash"></i> Удалить
                             </button>
@@ -5761,6 +5838,22 @@
             setupEventListeners() {
                 this.setupAuthEventListeners();
                 document.getElementById('catalog')?.addEventListener('click', (e) => this.handleCatalogClick(e));
+                document.getElementById('catalogList')?.addEventListener('click', (e) => {
+                    const editRoute = e.target.closest('[data-action="edit-route"]');
+                    const editBoulder = e.target.closest('[data-action="edit-boulder"]');
+                    if (editRoute) {
+                        e.preventDefault();
+                        if (!this.requireAdmin('Редактирование трассы')) return;
+                        this.showEditRouteDialog(Number(editRoute.dataset.routeId));
+                        return;
+                    }
+                    if (editBoulder) {
+                        e.preventDefault();
+                        if (!this.requireAdmin('Редактирование боулдеринга')) return;
+                        this.showEditBoulderDialog(Number(editBoulder.dataset.boulderId));
+                        return;
+                    }
+                });
                 document.getElementById('cancelAreaBtn')?.addEventListener('click', () => this.hideDialog('areaDialog'));
                 document.getElementById('areaSubmitBtn')?.addEventListener('click', () => {
                     if (!this.requireAdmin('Сохранение района')) return;
@@ -5911,6 +6004,13 @@
                 });
 
                 document.getElementById('routesList')?.addEventListener('click', (e) => {
+                    const editBtn = e.target.closest('[data-action="edit-route"]');
+                    if (editBtn) {
+                        e.preventDefault();
+                        if (!this.requireAdmin('Редактирование трассы')) return;
+                        this.showEditRouteDialog(Number(editBtn.dataset.routeId));
+                        return;
+                    }
                     const deleteBtn = e.target.closest('[data-action="delete-route"]');
                     if (deleteBtn) {
                         e.preventDefault();
@@ -5926,6 +6026,13 @@
                 });
 
                 document.getElementById('bouldersList')?.addEventListener('click', (e) => {
+                    const editBtn = e.target.closest('[data-action="edit-boulder"]');
+                    if (editBtn) {
+                        e.preventDefault();
+                        if (!this.requireAdmin('Редактирование боулдеринга')) return;
+                        this.showEditBoulderDialog(Number(editBtn.dataset.boulderId));
+                        return;
+                    }
                     const deleteBtn = e.target.closest('[data-action="delete-boulder"]');
                     if (deleteBtn) {
                         e.preventDefault();
