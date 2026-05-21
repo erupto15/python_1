@@ -1,3 +1,4 @@
+import os
 from urllib.parse import urlparse
 
 from pydantic import field_validator
@@ -9,6 +10,17 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./climbing.db"
 
+    @staticmethod
+    def _is_production_env() -> bool:
+        env = (
+            os.getenv("APP_ENV")
+            or os.getenv("ENV")
+            or os.getenv("ENVIRONMENT")
+            or os.getenv("PYTHON_ENV")
+            or ""
+        ).strip().lower()
+        return env in {"prod", "production"} or os.getenv("RENDER") == "true"
+
     @field_validator("database_url", mode="before")
     @classmethod
     def normalize_database_url(cls, v: object) -> object:
@@ -18,6 +30,11 @@ class Settings(BaseSettings):
         s = v.strip()
         # Пустая строка в Render (переменная задана, но без значения) ломает SQLAlchemy при импорте engine.
         if not s:
+            if cls._is_production_env():
+                raise ValueError(
+                    "DATABASE_URL пустой в production. Подключите PostgreSQL и укажите "
+                    "Internal Database URL в переменной DATABASE_URL."
+                )
             return "sqlite:///./climbing.db"
         if s.startswith("postgres://"):
             return "postgresql+psycopg2://" + s[len("postgres://") :]
@@ -29,7 +46,14 @@ class Settings(BaseSettings):
     @classmethod
     def reject_placeholder_database_host(cls, v: str) -> str:
         """Ловит типичную ошибку: в URL оставили слово host из примера вместо реального хоста Render."""
-        if not isinstance(v, str) or v.startswith("sqlite"):
+        if not isinstance(v, str):
+            return v
+        if v.startswith("sqlite"):
+            if cls._is_production_env():
+                raise ValueError(
+                    "SQLite недопустим в production: у web-сервиса временный диск, данные теряются "
+                    "после рестарта/деплоя. Укажите PostgreSQL DATABASE_URL."
+                )
             return v
         host = (urlparse(v).hostname or "").lower()
         if host in ("host", "хост"):

@@ -146,6 +146,8 @@ class Photo(Base):
     uploaded_by: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("users.id", ondelete="SET NULL"))
     image_url: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
+    climb_name: Mapped[Optional[str]] = mapped_column(String(255))
+    climb_category: Mapped[Optional[str]] = mapped_column(String(64))
     file_name: Mapped[Optional[str]] = mapped_column(String(255))
     mime_type: Mapped[Optional[str]] = mapped_column(String(128))
     file_size_bytes: Mapped[Optional[int]] = mapped_column(BigInteger().with_variant(Integer, "sqlite"))

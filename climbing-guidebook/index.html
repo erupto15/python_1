@@ -3910,6 +3910,8 @@
                 id: String(p.id),
                 climbId: String(p.route_id ?? p.boulder_id ?? ''),
                 type: p.climb_type,
+                climbName: p.climb_name || '',
+                climbCategory: p.climb_category || '',
                 imageData: p.image_url,
                 description: p.description || '',
                 fileName: p.file_name || '',
@@ -4154,7 +4156,6 @@
                 this.auth = getAuthData();
                 this.map = null;
                 this.currentPhotoPreview = null;
-                this.tempPhotoForMarkup = null;
                 this.quickRoutePhotoData = null;
                 this.quickBoulderPhotoData = null;
 
@@ -6144,19 +6145,22 @@
                         markupBtn.addEventListener('click', (markupEvent) => {
                             markupEvent.preventDefault();
                             markupEvent.stopPropagation();
-
-                            this.tempPhotoForMarkup = {
+                            // Для нового (ещё не сохранённого) фото используем временный id:
+                            // тогда разметка пишется в превью и уйдёт в POST /api/photos вместе с фото.
+                            const previewPayload = this.currentPhotoPreview || {
                                 data: e.target.result,
                                 fileName: file.name,
                                 type: file.type,
                                 climbType: climbType,
-                                climbId: climbId || 'temp-' + Date.now()
+                                climbId: `temp-detail-${climbType}-${Date.now()}`,
+                                markup: null
                             };
+                            this.currentPhotoPreview = previewPayload;
 
                             if (climbType === 'route') {
-                                this.showRouteLineMarkupDialog(this.tempPhotoForMarkup);
+                                this.showRouteLineMarkupDialog(previewPayload);
                             } else if (climbType === 'boulder') {
-                                this.showBoulderHoldsMarkupDialog(this.tempPhotoForMarkup);
+                                this.showBoulderHoldsMarkupDialog(previewPayload);
                             }
                         });
 
@@ -6180,7 +6184,8 @@
                         fileName: file.name,
                         type: file.type,
                         climbType: climbType,
-                        climbId: climbId
+                        climbId: `temp-detail-${climbType}-${Date.now()}`,
+                        markup: null
                     };
 
                     this.applyPhotoPreviewMarkupOverlay(previewItem, this.currentPhotoPreview.markup, climbType);

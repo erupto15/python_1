@@ -40,6 +40,8 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE routes ADD COLUMN IF NOT EXISTS rating DOUBLE PRECISION",
             "ALTER TABLE boulders ADD COLUMN IF NOT EXISTS category VARCHAR(64)",
             "ALTER TABLE boulders ADD COLUMN IF NOT EXISTS rating DOUBLE PRECISION",
+            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS climb_name VARCHAR(255)",
+            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS climb_category VARCHAR(64)",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_id BIGINT",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_username VARCHAR(64)",
         ]
@@ -49,6 +51,8 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE routes ADD COLUMN rating FLOAT",
             "ALTER TABLE boulders ADD COLUMN category VARCHAR(64)",
             "ALTER TABLE boulders ADD COLUMN rating FLOAT",
+            "ALTER TABLE photos ADD COLUMN climb_name VARCHAR(255)",
+            "ALTER TABLE photos ADD COLUMN climb_category VARCHAR(64)",
             "ALTER TABLE users ADD COLUMN telegram_id INTEGER",
             "ALTER TABLE users ADD COLUMN telegram_username VARCHAR(64)",
         ]
@@ -58,4 +62,42 @@ def ensure_optional_columns() -> None:
                 conn.execute(text(stmt))
             except Exception:
                 # Column already exists (or backend doesn't support IF NOT EXISTS for ADD COLUMN).
+                pass
+
+        # Backfill photo metadata for older records where these fields were absent before.
+        backfill_sql = [
+            """
+            UPDATE photos
+            SET climb_name = (
+                SELECT routes.name FROM routes WHERE routes.id = photos.route_id
+            )
+            WHERE climb_type = 'route' AND route_id IS NOT NULL AND (climb_name IS NULL OR climb_name = '')
+            """,
+            """
+            UPDATE photos
+            SET climb_category = (
+                SELECT routes.category FROM routes WHERE routes.id = photos.route_id
+            )
+            WHERE climb_type = 'route' AND route_id IS NOT NULL AND climb_category IS NULL
+            """,
+            """
+            UPDATE photos
+            SET climb_name = (
+                SELECT boulders.name FROM boulders WHERE boulders.id = photos.boulder_id
+            )
+            WHERE climb_type = 'boulder' AND boulder_id IS NOT NULL AND (climb_name IS NULL OR climb_name = '')
+            """,
+            """
+            UPDATE photos
+            SET climb_category = (
+                SELECT boulders.category FROM boulders WHERE boulders.id = photos.boulder_id
+            )
+            WHERE climb_type = 'boulder' AND boulder_id IS NOT NULL AND climb_category IS NULL
+            """,
+        ]
+        for stmt in backfill_sql:
+            try:
+                conn.execute(text(stmt))
+            except Exception:
+                # Keep startup resilient if one DB backend rejects a statement.
                 pass

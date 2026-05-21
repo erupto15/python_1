@@ -18,6 +18,30 @@ def _validate_photo_payload(payload: schemas.PhotoCreate) -> None:
             raise HTTPException(status_code=400, detail="boulder_id required and route_id must be null")
 
 
+def _resolve_climb_metadata(
+    db: Session, payload: schemas.PhotoCreate
+) -> tuple[Route | None, Boulder | None, str | None, str | None]:
+    route: Route | None = None
+    boulder: Boulder | None = None
+    climb_name: str | None = None
+    climb_category: str | None = None
+
+    if payload.climb_type == "route":
+        route = db.get(Route, payload.route_id)
+        if not route:
+            raise HTTPException(status_code=404, detail="Route not found")
+        climb_name = route.name
+        climb_category = route.category
+    else:
+        boulder = db.get(Boulder, payload.boulder_id)
+        if not boulder:
+            raise HTTPException(status_code=404, detail="Boulder not found")
+        climb_name = boulder.name
+        climb_category = boulder.category
+
+    return route, boulder, climb_name, climb_category
+
+
 @router.get("/by-route/{route_id}", response_model=list[schemas.PhotoRead])
 def list_photos_for_route(route_id: int, db: Session = Depends(get_db)) -> list[Photo]:
     if not db.get(Route, route_id):
@@ -50,12 +74,11 @@ def create_photo(
 ) -> Photo:
     assert_admin(user)
     _validate_photo_payload(payload)
-    if payload.climb_type == "route" and not db.get(Route, payload.route_id):
-        raise HTTPException(status_code=404, detail="Route not found")
-    if payload.climb_type == "boulder" and not db.get(Boulder, payload.boulder_id):
-        raise HTTPException(status_code=404, detail="Boulder not found")
+    _, _, climb_name, climb_category = _resolve_climb_metadata(db, payload)
     data = payload.model_dump()
     data["uploaded_by"] = user.id
+    data["climb_name"] = climb_name
+    data["climb_category"] = climb_category
     photo = Photo(**data)
     db.add(photo)
     db.commit()

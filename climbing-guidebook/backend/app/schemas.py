@@ -221,6 +221,8 @@ class PhotoRead(BaseModel):
     uploaded_by: Optional[str]
     image_url: str
     description: Optional[str]
+    climb_name: Optional[str]
+    climb_category: Optional[str]
     file_name: Optional[str]
     mime_type: Optional[str]
     file_size_bytes: Optional[int]
