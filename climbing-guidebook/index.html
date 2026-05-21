@@ -2574,6 +2574,9 @@
                             <button type="button" class="btn btn-danger btn-small" id="quickRoutePhotoClearBtn"><i class="fas fa-trash"></i> Убрать фото</button>
                         </div>
                     </div>
+                    <div class="inline-dialog-actions">
+                        <button type="button" class="btn btn-primary" id="quickRouteSubmitInlineBtn"><i class="fas fa-save"></i> Сохранить</button>
+                    </div>
                 </form>
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
@@ -2637,6 +2640,9 @@
                             <button type="button" class="btn btn-secondary btn-small" id="quickBoulderMarkupBtn"><i class="fas fa-draw-polygon"></i> Разметить</button>
                             <button type="button" class="btn btn-danger btn-small" id="quickBoulderPhotoClearBtn"><i class="fas fa-trash"></i> Убрать фото</button>
                         </div>
+                    </div>
+                    <div class="inline-dialog-actions">
+                        <button type="button" class="btn btn-primary" id="quickBoulderSubmitInlineBtn"><i class="fas fa-save"></i> Сохранить</button>
                     </div>
                 </form>
             </div>
@@ -5775,8 +5781,10 @@
                 });
                 document.getElementById('cancelQuickRouteBtn')?.addEventListener('click', () => this.hideDialog('quickRouteDialog'));
                 document.getElementById('saveQuickRouteBtn')?.addEventListener('click', () => this.saveQuickRoute());
+                document.getElementById('quickRouteSubmitInlineBtn')?.addEventListener('click', () => this.saveQuickRoute());
                 document.getElementById('cancelQuickBoulderBtn')?.addEventListener('click', () => this.hideDialog('quickBoulderDialog'));
                 document.getElementById('saveQuickBoulderBtn')?.addEventListener('click', () => this.saveQuickBoulder());
+                document.getElementById('quickBoulderSubmitInlineBtn')?.addEventListener('click', () => this.saveQuickBoulder());
                 document.getElementById('quickRoutePhoto')?.addEventListener('change', (e) => this.onQuickDialogPhotoSelected('route', e));
                 document.getElementById('quickBoulderPhoto')?.addEventListener('change', (e) => this.onQuickDialogPhotoSelected('boulder', e));
                 document.getElementById('quickRouteMarkupBtn')?.addEventListener('click', () => this.openQuickDialogPhotoMarkup('route'));
