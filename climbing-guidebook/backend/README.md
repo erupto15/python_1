@@ -43,6 +43,18 @@ pip install -r requirements.txt
 export DATABASE_URL="postgresql+psycopg2://user:pass@localhost:5432/climbing"
 ```
 
+### Supabase как production БД
+
+Можно использовать Supabase PostgreSQL вместо Render Postgres:
+
+1. В Supabase откройте `Project Settings -> Database` и скопируйте строку подключения (`Connection string`, обычно port `6543` для pooler).
+2. В Render (web service backend) задайте:
+   - `DATABASE_URL=<строка из Supabase>`
+   - `APP_ENV=production`
+3. Перезапустите/задеплойте backend.
+
+Для URL Supabase приложение автоматически добавляет `sslmode=require`, если параметр не указан.
+
 ### Создание БД и схемы (bootstrap)
 
 Скрипт создаёт таблицы и администратора в БД из `DATABASE_URL`:
@@ -78,6 +90,8 @@ export SQLITE_URL="sqlite:///./climbing.db"
 export POSTGRES_URL="postgresql+psycopg2://user:pass@host:5432/dbname"
 python migrate_sqlite_to_postgres.py
 ```
+
+Для миграции в Supabase укажите `POSTGRES_URL` как Supabase connection string.
 
 Скрипт переносит все основные таблицы (`users`, `areas`, `sectors`, `routes`, `boulders`, `photos`, `comments`) и обновляет sequence в PostgreSQL.
 
@@ -121,6 +135,7 @@ export TELEGRAM_AUTH_MAX_AGE_SEC="86400"
 | Метод | Путь | Описание |
 |--------|------|----------|
 | POST | `/api/users` | Регистрация (без токена) |
+| POST | `/api/users/upsert-telegram` | Upsert пользователя по `telegram_id`/`username` (как в Express примере) |
 | POST | `/api/auth/login` | Получить JWT (form: username=email, password) |
 | GET | `/api/auth/me` | Текущий пользователь (Bearer) |
 | GET | `/api/users/{user_id}` | Профиль (без токена) |

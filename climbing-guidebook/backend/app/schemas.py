@@ -33,6 +33,16 @@ class UserRead(BaseModel):
     telegram_username: Optional[str] = None
 
 
+class TelegramUserUpsertRequest(BaseModel):
+    telegram_id: int
+    username: Optional[str] = Field(None, max_length=64)
+
+
+class TelegramUserUpsertResponse(BaseModel):
+    ok: bool = True
+    user: UserRead
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

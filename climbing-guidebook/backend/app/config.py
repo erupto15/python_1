@@ -37,9 +37,13 @@ class Settings(BaseSettings):
                 )
             return "sqlite:///./climbing.db"
         if s.startswith("postgres://"):
-            return "postgresql+psycopg2://" + s[len("postgres://") :]
+            s = "postgresql+psycopg2://" + s[len("postgres://") :]
         if s.startswith("postgresql://") and not s.startswith("postgresql+"):
-            return "postgresql+psycopg2://" + s[len("postgresql://") :]
+            s = "postgresql+psycopg2://" + s[len("postgresql://") :]
+        host = (urlparse(s).hostname or "").lower()
+        if host.endswith("supabase.co") and "sslmode=" not in s:
+            sep = "&" if "?" in s else "?"
+            s = f"{s}{sep}sslmode=require"
         return s
 
     @field_validator("database_url", mode="after")
