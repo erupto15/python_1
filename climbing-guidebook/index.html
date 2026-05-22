@@ -3654,96 +3654,34 @@
             return s;
         }
 
-        function normalizeClimbingData(data) {
-            let dirty = false;
-            if (!Array.isArray(data.areas)) {
-                data.areas = [];
-                dirty = true;
-            }
-            if (!Array.isArray(data.sectors)) {
-                data.sectors = [];
-                dirty = true;
-            }
-            if (typeof data.nextAreaId !== 'number') {
-                data.nextAreaId = 1;
-                dirty = true;
-            }
-            if (typeof data.nextSectorId !== 'number') {
-                data.nextSectorId = 1;
-                dirty = true;
-            }
-
-            const ts = new Date().toISOString();
-            if (data.areas.length === 0) {
-                data.areas.push({
-                    id: data.nextAreaId++,
-                    name: 'Район',
-                    description: '',
-                    latitude: null,
-                    longitude: null,
-                    createdAt: ts
-                });
-                dirty = true;
-            }
-
-            const firstArea = data.areas[0];
-            if (!data.sectors.some(s => Number(s.areaId) === Number(firstArea.id))) {
-                data.sectors.push({
-                    id: data.nextSectorId++,
-                    areaId: firstArea.id,
-                    name: 'Сектор',
-                    description: '',
-                    createdAt: ts
-                });
-                dirty = true;
-            }
-
-            const defaultSector = data.sectors.find(s => Number(s.areaId) === Number(firstArea.id)) || data.sectors[0];
-            const sid = defaultSector.id;
-            const aid = Number(defaultSector.areaId) || Number(firstArea.id);
-
-            (data.routes || []).forEach(r => {
-                if (r.sectorId == null) {
-                    r.sectorId = sid;
-                    dirty = true;
-                }
-                if (r.areaId == null) {
-                    r.areaId = aid;
-                    dirty = true;
-                }
-            });
-            (data.boulders || []).forEach(b => {
-                if (b.sectorId == null) {
-                    b.sectorId = sid;
-                    dirty = true;
-                }
-                if (b.areaId == null) {
-                    b.areaId = aid;
-                    dirty = true;
-                }
-            });
-
-            (data.routes || []).forEach(r => {
-                if (!r.grade) return;
-                const ng = normalizeRouteGrade(r.grade);
-                if (ng !== r.grade) {
-                    r.grade = ng;
-                    dirty = true;
-                }
-            });
-            (data.boulders || []).forEach(b => {
-                if (!b.grade) return;
-                const ng = normalizeBoulderGrade(b.grade);
-                if (ng !== b.grade) {
-                    b.grade = ng;
-                    dirty = true;
-                }
-            });
-
-            if (dirty) {
-                saveClimbingData(data);
-            }
+        /** Только форма массивов и next*Id — без подмены районов/секторов (KISS). */
+        function recomputeCatalogIds(data) {
+            const areaIds = (data.areas || []).map((a) => Number(a.id)).filter(Number.isFinite);
+            const sectorIds = (data.sectors || []).map((s) => Number(s.id)).filter(Number.isFinite);
+            const routeIds = (data.routes || []).map((r) => Number(r.id)).filter(Number.isFinite);
+            const boulderIds = (data.boulders || []).map((b) => Number(b.id)).filter(Number.isFinite);
+            const photoIds = (data.photos || []).map((p) => Number(p.id)).filter(Number.isFinite);
+            data.nextAreaId = areaIds.length ? Math.max(...areaIds) + 1 : 1;
+            data.nextSectorId = sectorIds.length ? Math.max(...sectorIds) + 1 : 1;
+            data.nextRouteId = routeIds.length ? Math.max(...routeIds) + 1 : 1;
+            data.nextBoulderId = boulderIds.length ? Math.max(...boulderIds) + 1 : 1;
+            data.nextPhotoId = photoIds.length ? Math.max(...photoIds) + 1 : 1;
             return data;
+        }
+
+        function ensureCatalogArrays(data) {
+            if (!Array.isArray(data.areas)) data.areas = [];
+            if (!Array.isArray(data.sectors)) data.sectors = [];
+            if (!Array.isArray(data.routes)) data.routes = [];
+            if (!Array.isArray(data.boulders)) data.boulders = [];
+            if (!Array.isArray(data.photos)) data.photos = [];
+            (data.routes || []).forEach((r) => {
+                if (r.grade) r.grade = normalizeRouteGrade(r.grade);
+            });
+            (data.boulders || []).forEach((b) => {
+                if (b.grade) b.grade = normalizeBoulderGrade(b.grade);
+            });
+            return recomputeCatalogIds(data);
         }
 
         /**
@@ -3841,6 +3779,13 @@
             return true;
         }
 
+        /**
+         * Каталог: один кэш в памяти. Поток step-by-step:
+         * 1) API (POST/PATCH/DELETE)
+         * 2) merge*FromApiResponse / remove*FromLocalCache (без полной перезагрузки)
+         * 3) render* UI
+         * Полная загрузка loadClimbingDataFromApi — только при старте приложения.
+         */
         let climbingDataCache = {
             areas: [],
             sectors: [],
@@ -3985,17 +3930,12 @@
                 photos = prevPhotosSlice;
             }
 
-            climbingDataCache = normalizeClimbingData({
+            climbingDataCache = ensureCatalogArrays({
                 areas,
                 sectors,
                 routes,
                 boulders,
-                photos,
-                nextAreaId: Math.max(1, ...areas.map(a => Number(a.id) || 0)) + 1,
-                nextSectorId: Math.max(1, ...sectors.map(s => Number(s.id) || 0)) + 1,
-                nextRouteId: Math.max(1, ...routes.map(r => Number(r.id) || 0)) + 1,
-                nextBoulderId: Math.max(1, ...boulders.map(b => Number(b.id) || 0)) + 1,
-                nextPhotoId: Math.max(1, ...photos.map(p => Number(p.id) || 0)) + 1
+                photos
             });
             return climbingDataCache;
         }
@@ -4064,6 +4004,78 @@
             _photosLoadedFromApi = true;
         }
 
+        function mergeAreaFromApiResponse(apiArea) {
+            const ui = mapApiAreaToUi(apiArea);
+            const data = getClimbingData();
+            const idx = data.areas.findIndex((a) => Number(a.id) === Number(ui.id));
+            if (idx >= 0) {
+                data.areas[idx] = ui;
+            } else {
+                data.areas.push(ui);
+            }
+            recomputeCatalogIds(data);
+            saveClimbingData(data);
+            return ui;
+        }
+
+        function mergeSectorFromApiResponse(apiSector) {
+            const ui = mapApiSectorToUi(apiSector);
+            const data = getClimbingData();
+            const idx = data.sectors.findIndex((s) => Number(s.id) === Number(ui.id));
+            if (idx >= 0) {
+                data.sectors[idx] = ui;
+            } else {
+                data.sectors.push(ui);
+            }
+            recomputeCatalogIds(data);
+            saveClimbingData(data);
+            return ui;
+        }
+
+        function removeAreaFromLocalCache(areaId) {
+            const aid = Number(areaId);
+            const data = getClimbingData();
+            const sectorIds = new Set(
+                (data.sectors || [])
+                    .filter((s) => Number(s.areaId) === aid)
+                    .map((s) => Number(s.id))
+            );
+            data.areas = (data.areas || []).filter((a) => Number(a.id) !== aid);
+            data.sectors = (data.sectors || []).filter((s) => Number(s.areaId) !== aid);
+            data.routes = (data.routes || []).filter(
+                (r) => Number(r.areaId) !== aid && !sectorIds.has(Number(r.sectorId))
+            );
+            data.boulders = (data.boulders || []).filter(
+                (b) => Number(b.areaId) !== aid && !sectorIds.has(Number(b.sectorId))
+            );
+            data.photos = (data.photos || []).filter((p) => {
+                const cid = Number(p.climbId);
+                if (p.type === 'route') {
+                    return data.routes.some((r) => Number(r.id) === cid);
+                }
+                return data.boulders.some((b) => Number(b.id) === cid);
+            });
+            recomputeCatalogIds(data);
+            saveClimbingData(data);
+        }
+
+        function removeSectorFromLocalCache(sectorId) {
+            const sid = Number(sectorId);
+            const data = getClimbingData();
+            data.sectors = (data.sectors || []).filter((s) => Number(s.id) !== sid);
+            data.routes = (data.routes || []).filter((r) => Number(r.sectorId) !== sid);
+            data.boulders = (data.boulders || []).filter((b) => Number(b.sectorId) !== sid);
+            data.photos = (data.photos || []).filter((p) => {
+                const cid = Number(p.climbId);
+                if (p.type === 'route') {
+                    return data.routes.some((r) => Number(r.id) === cid);
+                }
+                return data.boulders.some((b) => Number(b.id) === cid);
+            });
+            recomputeCatalogIds(data);
+            saveClimbingData(data);
+        }
+
         function mergeRouteFromApiResponse(apiRoute) {
             const ui = mapApiRouteToUi(apiRoute);
             const data = getClimbingData();
@@ -4074,7 +4086,7 @@
             } else {
                 data.routes = [...arr, ui];
             }
-            data.nextRouteId = Math.max(Number(data.nextRouteId) || 1, Number(ui.id) + 1);
+            recomputeCatalogIds(data);
             saveClimbingData(data);
         }
 
@@ -4088,7 +4100,7 @@
             } else {
                 data.boulders = [...arr, ui];
             }
-            data.nextBoulderId = Math.max(Number(data.nextBoulderId) || 1, Number(ui.id) + 1);
+            recomputeCatalogIds(data);
             saveClimbingData(data);
         }
 
@@ -4100,8 +4112,7 @@
                 (p) => !(String(p.type) === 'route' && String(p.climbId) === String(id))
             );
             recomputeNextPhotoId(data);
-            const rids = (data.routes || []).map((r) => Number(r.id)).filter(Number.isFinite);
-            data.nextRouteId = rids.length ? Math.max(...rids) + 1 : 1;
+            recomputeCatalogIds(data);
             saveClimbingData(data);
         }
 
@@ -4113,8 +4124,7 @@
                 (p) => !(String(p.type) === 'boulder' && String(p.climbId) === String(id))
             );
             recomputeNextPhotoId(data);
-            const bids = (data.boulders || []).map((b) => Number(b.id)).filter(Number.isFinite);
-            data.nextBoulderId = bids.length ? Math.max(...bids) + 1 : 1;
+            recomputeCatalogIds(data);
             saveClimbingData(data);
         }
 
@@ -5225,20 +5235,19 @@
                     longitude: document.getElementById('areaLongitude').value ? parseFloat(document.getElementById('areaLongitude').value) : null
                 };
                 try {
-                    if (id) {
-                        await apiFetch(`/api/areas/${Number(id)}`, {
+                    const savedArea = id
+                        ? await apiFetch(`/api/areas/${Number(id)}`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payload)
-                        });
-                    } else {
-                        await apiFetch('/api/areas', {
+                        })
+                        : await apiFetch('/api/areas', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payload)
                         });
-                    }
-                    await loadClimbingDataFromApi({ includePhotos: false });
+                    mergeAreaFromApiResponse(savedArea);
+                    this.data = getClimbingData();
                 } catch (err) {
                     this.showToast(`Ошибка сохранения района: ${err.message}`, true);
                     return;
@@ -5246,7 +5255,8 @@
                 this.hideDialog('areaDialog');
                 this.fillSectorSelects();
                 this.renderCatalog();
-                this.showToast('Район сохранён');
+                this.updateMapMarkers();
+                this.showToast(id ? 'Район обновлён' : 'Район сохранён');
             }
 
             async deleteArea(areaId) {
@@ -5256,7 +5266,7 @@
                     : 'Удалить район и все секторы, трассы и боулдеры внутри? Данные будут удалены без восстановления.')) return;
                 try {
                     await apiFetch(`/api/areas/${Number(areaId)}`, { method: 'DELETE' });
-                    await loadClimbingDataFromApi({ includePhotos: false });
+                    removeAreaFromLocalCache(areaId);
                 } catch (err) {
                     this.showToast(`Ошибка удаления района: ${err.message}`, true);
                     return;
@@ -5544,20 +5554,19 @@
                     description: document.getElementById('sectorDescription').value.trim()
                 };
                 try {
-                    if (id) {
-                        await apiFetch(`/api/sectors/${Number(id)}`, {
+                    const savedSector = id
+                        ? await apiFetch(`/api/sectors/${Number(id)}`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payload)
-                        });
-                    } else {
-                        await apiFetch(`/api/areas/${areaId}/sectors`, {
+                        })
+                        : await apiFetch(`/api/areas/${areaId}/sectors`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payload)
                         });
-                    }
-                    await loadClimbingDataFromApi({ includePhotos: false });
+                    mergeSectorFromApiResponse(savedSector);
+                    this.data = getClimbingData();
                 } catch (err) {
                     this.showToast(`Ошибка сохранения сектора: ${err.message}`, true);
                     return;
@@ -5565,7 +5574,8 @@
                 this.hideDialog('sectorDialog');
                 this.fillSectorSelects();
                 this.renderCatalog();
-                this.showToast('Сектор сохранён');
+                this.updateMapMarkers();
+                this.showToast(id ? 'Сектор обновлён' : 'Сектор сохранён');
             }
 
             async deleteSector(sectorId) {
@@ -5575,7 +5585,7 @@
                     : 'Удалить сектор и все трассы/боулдеры в нём?')) return;
                 try {
                     await apiFetch(`/api/sectors/${Number(sectorId)}`, { method: 'DELETE' });
-                    await loadClimbingDataFromApi({ includePhotos: false });
+                    removeSectorFromLocalCache(sectorId);
                 } catch (err) {
                     this.showToast(`Ошибка удаления сектора: ${err.message}`, true);
                     return;

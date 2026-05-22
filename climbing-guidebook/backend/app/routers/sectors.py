@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app import schemas
 from app.db import get_db
-from app.deps import assert_owner, get_current_user
+from app.deps import assert_admin, assert_owner, get_current_user
 from app.models import Area, Sector, User
 
 router = APIRouter(tags=["sectors"])
@@ -23,6 +23,7 @@ def create_sector(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> Sector:
+    assert_admin(user)
     if not db.get(Area, area_id):
         raise HTTPException(status_code=404, detail="Area not found")
     data = payload.model_dump(exclude_unset=True)
@@ -53,6 +54,7 @@ def update_sector(
     sector = db.get(Sector, sector_id)
     if not sector:
         raise HTTPException(status_code=404, detail="Sector not found")
+    assert_admin(user)
     assert_owner(user, sector.created_by)
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(sector, k, v)
@@ -66,6 +68,7 @@ def delete_sector(sector_id: int, db: Session = Depends(get_db), user: User = De
     sector = db.get(Sector, sector_id)
     if not sector:
         raise HTTPException(status_code=404, detail="Sector not found")
+    assert_admin(user)
     assert_owner(user, sector.created_by)
     db.delete(sector)
     db.commit()

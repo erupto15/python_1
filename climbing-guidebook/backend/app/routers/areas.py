@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app import schemas
 from app.db import get_db
-from app.deps import assert_owner, get_current_user
+from app.deps import assert_admin, assert_owner, get_current_user
 from app.models import Area, User
 
 router = APIRouter(prefix="/areas", tags=["areas"])
@@ -20,6 +20,7 @@ def create_area(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> Area:
+    assert_admin(user)
     data = payload.model_dump(exclude_unset=True)
     data.pop("created_by", None)
     data["created_by"] = user.id
@@ -48,6 +49,7 @@ def update_area(
     area = db.get(Area, area_id)
     if not area:
         raise HTTPException(status_code=404, detail="Area not found")
+    assert_admin(user)
     assert_owner(user, area.created_by)
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(area, k, v)
@@ -61,6 +63,7 @@ def delete_area(area_id: int, db: Session = Depends(get_db), user: User = Depend
     area = db.get(Area, area_id)
     if not area:
         raise HTTPException(status_code=404, detail="Area not found")
+    assert_admin(user)
     assert_owner(user, area.created_by)
     db.delete(area)
     db.commit()
