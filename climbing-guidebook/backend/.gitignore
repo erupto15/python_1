@@ -3,4 +3,6 @@ __pycache__/
 *.py[cod]
 *.db
 .env
+.postgres_password
+config/settings.yaml
 .pytest_cache/

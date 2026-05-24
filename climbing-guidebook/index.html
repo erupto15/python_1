@@ -3441,6 +3441,25 @@
             }
         }
 
+        /** Предупреждение, если API на SQLite (данные на Render пропадают после рестарта). */
+        async function warnIfApiStorageNotPersistent() {
+            if (!API_BASE_URL) return;
+            try {
+                const res = await fetch(`${API_BASE_URL}/health`, { cache: 'no-store' });
+                if (!res.ok) return;
+                const body = await res.json();
+                if (body && body.persistent_storage === false) {
+                    console.warn('API uses non-persistent SQLite; catalog data may be lost after server restart.');
+                    window.app?.showToast?.(
+                        'Сервер использует временную БД — данные могут пропадать. Нужен PostgreSQL (Supabase).',
+                        true
+                    );
+                }
+            } catch (_) {
+                /* ignore */
+            }
+        }
+
         async function apiFetch(path, options = {}) {
             const url = `${API_BASE_URL}${path}`;
             const headers = Object.assign({}, options.headers || {});
@@ -7404,6 +7423,7 @@
             }
             void (async () => {
                 try {
+                    await warnIfApiStorageNotPersistent();
                     await tryTelegramSilentLogin();
                     if (window.app) {
                         await window.app.restoreAuthSession();

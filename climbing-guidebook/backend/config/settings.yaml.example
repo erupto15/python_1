@@ -1,0 +1,23 @@
+# Скопируйте в settings.yaml и отредактируйте (файл в .gitignore).
+# Приоритет: переменные окружения → .env → этот файл.
+
+database:
+  # SQLite (локально) или PostgreSQL (продакшен)
+  url: sqlite:///./climbing.db
+
+app:
+  title: Climbing Guidebook API
+
+jwt:
+  secret: dev-only-change-me-use-openssl-rand-hex-32
+  algorithm: HS256
+  access_token_expire_minutes: 10080  # 7 дней
+
+admin:
+  email: admin@climbing-guidebook.local
+  password: admin
+  display_name: Administrator
+
+telegram:
+  bot_token: ""
+  auth_max_age_sec: 86400

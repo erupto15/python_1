@@ -1,6 +1,33 @@
 # Climbing Guidebook API
 
-FastAPI + SQLAlchemy 2.0. Таблицы создаются автоматически из моделей (`Base.metadata.create_all`) при старте приложения.
+FastAPI + SQLAlchemy 2.0 (основной API). Опционально — **Flask** с тем же подключением к БД. Таблицы создаются автоматически из моделей (`Base.metadata.create_all`) при старте приложения.
+
+## Конфигурация базы данных
+
+Подключение настраивается через **конфигурационные файлы** и переменные окружения (приоритет: **переменные окружения** → `.env` → `config/settings.yaml`).
+
+| Способ | Файл / переменная |
+|--------|-------------------|
+| YAML | `backend/config/settings.yaml` (скопируйте из `config/settings.yaml.example`) |
+| Dotenv | `backend/.env` |
+| Окружение | `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, … |
+| Другой YAML | `CONFIG_FILE=/path/to/settings.yaml` |
+
+Пример `config/settings.yaml`:
+
+```yaml
+database:
+  url: sqlite:///./climbing.db
+```
+
+Для PostgreSQL:
+
+```yaml
+database:
+  url: postgresql+psycopg2://user:pass@localhost:5432/climbing
+```
+
+Логика нормализации URL (`postgres://` → `psycopg2`, `sslmode` для Supabase, запрет SQLite в production) — в `app/config.py`.
 
 ## Запуск
 
@@ -68,7 +95,24 @@ python bootstrap_database.py
 
 `Root Directory`: `backend`  
 `Build Command`: `pip install -r requirements.txt`  
-`Start Command`: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+`Start Command`: `python bootstrap_database.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+
+(или используйте `render.yaml` в корне репозитория)
+
+### Telegram Mini App: данные не должны пропадать
+
+Причина потерь на Render — **SQLite на временном диске**. Решение — **PostgreSQL (Supabase)**:
+
+```bash
+cd backend
+cp .env.supabase.example .env
+# отредактируйте DATABASE_URL, JWT_SECRET, TELEGRAM_BOT_TOKEN
+python setup_persistent_db.py --migrate-sqlite   # если есть climbing.db
+```
+
+В Render → Environment задайте те же переменные. Проверка после деплоя:
+
+`GET https://ваш-api.onrender.com/health` → `"persistent_storage": true`, `"database": "postgresql"`.
 
 Переменные окружения (Web Service -> Environment):
 
@@ -95,7 +139,7 @@ python migrate_sqlite_to_postgres.py
 
 Скрипт переносит все основные таблицы (`users`, `areas`, `sectors`, `routes`, `boulders`, `photos`, `comments`) и обновляет sequence в PostgreSQL.
 
-Сервер:
+Сервер (FastAPI):
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -103,6 +147,20 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 - Документация OpenAPI: http://127.0.0.1:8000/docs  
 - Проверка: `GET /health`
+
+### Flask (альтернативная точка входа)
+
+Тот же `DATABASE_URL` / `settings.yaml`, те же модели SQLAlchemy:
+
+```bash
+cp config/settings.yaml.example config/settings.yaml   # при необходимости
+python run_flask.py
+```
+
+- http://127.0.0.1:8001/health — проверка API и БД  
+- http://127.0.0.1:8001/api/db-info — драйвер и имя БД (без пароля)
+
+Полный REST по-прежнему на FastAPI (`uvicorn`); Flask удобен, если нужен именно Flask-стек или отдельный лёгкий сервис health-check.
 
 Префикс REST: `/api/...`.
 

@@ -1,8 +1,10 @@
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
+flask>=3.0.0
 sqlalchemy>=2.0.36
 pydantic>=2.10.0
 pydantic-settings>=2.6.0
+pyyaml>=6.0.2
 python-multipart>=0.0.12
 bcrypt>=4.2.0
 email-validator>=2.2.0

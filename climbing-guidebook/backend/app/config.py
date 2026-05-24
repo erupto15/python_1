@@ -1,14 +1,80 @@
 import os
-from urllib.parse import urlparse
+from typing import Any
+from urllib.parse import quote_plus, urlparse
 
-from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator, model_validator
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
+
+from app.yaml_settings import YamlSettingsSource
+
+_BACKEND_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_POSTGRES_PASSWORD_FILE = os.path.join(_BACKEND_ROOT, ".postgres_password")
+
+
+def _read_postgres_password_file() -> str:
+    if not os.path.isfile(_POSTGRES_PASSWORD_FILE):
+        return ""
+    value = open(_POSTGRES_PASSWORD_FILE, encoding="utf-8").read().strip()
+    return value
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Первый источник в pydantic-settings имеет наивысший приоритет.
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            YamlSettingsSource(settings_cls),
+            file_secret_settings,
+        )
+
     database_url: str = "sqlite:///./climbing.db"
+
+    # Альтернатива DATABASE_URL: задайте POSTGRES_HOST + POSTGRES_PASSWORD (+ опционально порт/юзер/базу)
+    postgres_host: str = ""
+    postgres_port: int = 5432
+    postgres_user: str = "postgres"
+    postgres_password: str = ""
+    postgres_db: str = "postgres"
+
+    @model_validator(mode="before")
+    @classmethod
+    def assemble_database_url_from_postgres_parts(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        raw_url = (data.get("database_url") or os.getenv("DATABASE_URL") or "").strip()
+        host = (data.get("postgres_host") or os.getenv("POSTGRES_HOST") or "").strip()
+        password = data.get("postgres_password")
+        if password is None:
+            password = os.getenv("POSTGRES_PASSWORD", "")
+        password = str(password).strip() or _read_postgres_password_file()
+
+        use_parts = bool(host and password) and (
+            not raw_url or raw_url.startswith("sqlite") or raw_url == "sqlite:///./climbing.db"
+        )
+        if not use_parts:
+            return data
+
+        port = data.get("postgres_port") or os.getenv("POSTGRES_PORT") or 5432
+        user = (data.get("postgres_user") or os.getenv("POSTGRES_USER") or "postgres").strip()
+        db = (data.get("postgres_db") or os.getenv("POSTGRES_DB") or "postgres").strip()
+        data["database_url"] = (
+            f"postgresql+psycopg2://{quote_plus(user)}:{quote_plus(password)}"
+            f"@{host}:{port}/{db}"
+        )
+        return data
 
     @staticmethod
     def _is_production_env() -> bool:
