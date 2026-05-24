@@ -18,8 +18,26 @@ def _read_postgres_password_file() -> str:
     return value
 
 
+def _is_render_runtime() -> bool:
+    return os.getenv("RENDER") == "true"
+
+
+# Render Postgres GuideBook (Frankfurt) — значения по умолчанию для production на Render
+_RENDER_GUIDEBOOK_DEFAULTS = {
+    "postgres_host": "dpg-d7tfijbrjlhs73ar905g-a",
+    "postgres_port": 5432,
+    "postgres_user": "user_optional",
+    "postgres_db": "guidebook",
+}
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # На Render читаем только Environment Dashboard, не локальный .env из образа
+    model_config = SettingsConfigDict(
+        env_file=".env" if os.getenv("RENDER") != "true" else None,
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     @classmethod
     def settings_customise_sources(
@@ -55,15 +73,28 @@ class Settings(BaseSettings):
             return data
 
         raw_url = (data.get("database_url") or os.getenv("DATABASE_URL") or "").strip()
+        # Render Dashboard → Link Database подставляет DATABASE_URL — не перезаписываем
+        if raw_url and not raw_url.startswith("sqlite"):
+            return data
+
         host = (data.get("postgres_host") or os.getenv("POSTGRES_HOST") or "").strip()
         password = data.get("postgres_password")
         if password is None:
             password = os.getenv("POSTGRES_PASSWORD", "")
         password = str(password).strip() or _read_postgres_password_file()
 
-        use_parts = bool(host and password) and (
-            not raw_url or raw_url.startswith("sqlite") or raw_url == "sqlite:///./climbing.db"
-        )
+        if _is_render_runtime():
+            if not host:
+                data["postgres_host"] = _RENDER_GUIDEBOOK_DEFAULTS["postgres_host"]
+                host = data["postgres_host"]
+            if not (data.get("postgres_port") or os.getenv("POSTGRES_PORT")):
+                data["postgres_port"] = _RENDER_GUIDEBOOK_DEFAULTS["postgres_port"]
+            if not (data.get("postgres_user") or os.getenv("POSTGRES_USER")):
+                data["postgres_user"] = _RENDER_GUIDEBOOK_DEFAULTS["postgres_user"]
+            if not (data.get("postgres_db") or os.getenv("POSTGRES_DB")):
+                data["postgres_db"] = _RENDER_GUIDEBOOK_DEFAULTS["postgres_db"]
+
+        use_parts = bool(host and password)
         if not use_parts:
             return data
 
@@ -110,6 +141,10 @@ class Settings(BaseSettings):
         if host.endswith("supabase.co") and "sslmode=" not in s:
             sep = "&" if "?" in s else "?"
             s = f"{s}{sep}sslmode=require"
+        # Внешний хост Render Postgres (*.frankfurt-postgres.render.com)
+        if host.endswith(".render.com") and "sslmode=" not in s:
+            sep = "&" if "?" in s else "?"
+            s = f"{s}{sep}sslmode=require"
         return s
 
     @field_validator("database_url", mode="after")
@@ -120,9 +155,19 @@ class Settings(BaseSettings):
             return v
         if v.startswith("sqlite"):
             if cls._is_production_env():
+                hint = (
+                    "На Render задайте POSTGRES_PASSWORD и POSTGRES_* (см. .env.render.example) "
+                    "или Link Database → guidebook (DATABASE_URL)."
+                )
+                if _is_render_runtime():
+                    hint = (
+                        "На Render (GuideBook): Environment → POSTGRES_PASSWORD + "
+                        "POSTGRES_HOST=dpg-d7tfijbrjlhs73ar905g-a, POSTGRES_DB=guidebook, "
+                        "или Link Database."
+                    )
                 raise ValueError(
-                    "SQLite недопустим в production: у web-сервиса временный диск, данные теряются "
-                    "после рестарта/деплоя. Укажите PostgreSQL DATABASE_URL."
+                    "SQLite недопустим в production: данные теряются после рестарта/деплоя. "
+                    + hint
                 )
             return v
         host = (urlparse(v).hostname or "").lower()

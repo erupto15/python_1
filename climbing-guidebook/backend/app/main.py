@@ -23,7 +23,8 @@ async def lifespan(_: FastAPI):
             settings.database_url,
         )
     else:
-        logger.info("БД: %s — постоянное хранилище", dialect)
+        host = engine.url.host or "(local)"
+        logger.info("БД: %s, host=%s, database=%s", dialect, host, engine.url.database)
 
     Base.metadata.create_all(bind=engine)
     ensure_optional_columns()

@@ -1,7 +1,7 @@
-# Render Blueprint — сервис API для climbing-guidebook
-# Существующий URL: https://python-1-dicp.onrender.com
-# В Dashboard откройте этот Web Service → Environment и задайте POSTGRES_PASSWORD
-# (или Link Database → guidebook, тогда DATABASE_URL подставится автоматически).
+# Render Blueprint — API + PostgreSQL GuideBook
+# URL: https://python-1-dicp.onrender.com
+# Обязательно в Dashboard → Environment: POSTGRES_PASSWORD (или Link Database → guidebook)
+# Root Directory сервиса: climbing-guidebook/backend
 
 services:
   - type: web
