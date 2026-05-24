@@ -1,25 +1,41 @@
+# Render Blueprint — сервис API для climbing-guidebook
+# Существующий URL: https://python-1-dicp.onrender.com
+# В Dashboard откройте этот Web Service → Environment и задайте POSTGRES_PASSWORD
+# (или Link Database → guidebook, тогда DATABASE_URL подставится автоматически).
+
 services:
   - type: web
     name: climbing-guidebook-api
     runtime: python
     branch: main
-    # Обязательно: корень Python-пакета `app`, иначе uvicorn не найдёт модуль (сразу exit 1 без баннера).
     rootDir: climbing-guidebook/backend
-    # ВАЖНО: без внешней БД SQLite на диске Render теряется при сне/деплое — трассы «пропадают».
-    # Создайте PostgreSQL в Render, в этом сервисе: Environment → Link database → добавится DATABASE_URL.
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: python bootstrap_database.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
+      - key: APP_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: "3.12"
+      # Render Postgres (внутренний хост — только между сервисами Render)
+      - key: POSTGRES_HOST
+        value: dpg-d7tfijbrjlhs73ar905g-a
+      - key: POSTGRES_PORT
+        value: "5432"
+      - key: POSTGRES_USER
+        value: user_optional
+      - key: POSTGRES_DB
+        value: guidebook
+      - key: POSTGRES_PASSWORD
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: ADMIN_EMAIL
         value: admin@climbing-guidebook.local
       - key: ADMIN_PASSWORD
-        value: admin
+        sync: false
       - key: ADMIN_DISPLAY_NAME
         value: Administrator
-      # Тот же токен, что у бота Mini App (@BotFather). Задайте вручную в Dashboard → Environment (sync: false).
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_AUTH_MAX_AGE_SEC

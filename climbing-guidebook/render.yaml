@@ -11,7 +11,7 @@ services:
   - type: web
     name: climbing-guidebook-api
     runtime: python
-    rootDir: backend
+    rootDir: climbing-guidebook/backend
     buildCommand: pip install -r requirements.txt
     startCommand: python bootstrap_database.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -19,6 +19,16 @@ services:
         value: production
       - key: PYTHON_VERSION
         value: "3.12"
+      - key: POSTGRES_HOST
+        value: dpg-d7tfijbrjlhs73ar905g-a
+      - key: POSTGRES_PORT
+        value: "5432"
+      - key: POSTGRES_USER
+        value: user_optional
+      - key: POSTGRES_DB
+        value: guidebook
+      - key: POSTGRES_PASSWORD
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
