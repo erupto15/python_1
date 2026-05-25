@@ -3918,14 +3918,8 @@
 
         async function loadClimbingDataFromApi(options = {}) {
             const includePhotos = options.includePhotos !== false;
-            if (!includePhotos) {
-                _photosLoadedFromApi = false;
-            }
-
-            const prevPhotosSlice =
-                !includePhotos && climbingDataCache && Array.isArray(climbingDataCache.photos)
-                    ? climbingDataCache.photos.slice()
-                    : null;
+            const existingPhotos =
+                Array.isArray(climbingDataCache?.photos) ? climbingDataCache.photos.slice() : [];
 
             const [areasRaw, routesRaw, bouldersRaw] = await Promise.all([
                 apiFetch('/api/areas'),
@@ -3945,12 +3939,10 @@
             const routes = (routesRaw || []).map(mapApiRouteToUi);
             const boulders = (bouldersRaw || []).map(mapApiBoulderToUi);
 
-            let photos = [];
+            let photos = existingPhotos;
             if (includePhotos) {
                 photos = await fetchPhotosBatched(routes, boulders);
                 _photosLoadedFromApi = true;
-            } else if (prevPhotosSlice) {
-                photos = prevPhotosSlice;
             }
 
             climbingDataCache = ensureCatalogArrays({
@@ -4197,6 +4189,7 @@
                 this.auth = getAuthData();
                 /** Форма входа админа — только после 4 тапов по логотипу в этой вкладке. */
                 this._adminFormUnlocked = false;
+                this._climbDetailImgToken = 0;
                 this.map = null;
                 this.currentPhotoPreview = null;
                 this.quickRoutePhotoData = null;
@@ -4562,6 +4555,7 @@
                     localStorage.removeItem('climb_photos');
 
                     await loadClimbingDataFromApi({ includePhotos: false });
+                    await ensurePhotosLoadedFromApi();
                     this.data = getClimbingData();
                     this.refreshUiAfterRemoteLoad();
                     this.showToast(`Перенесено на сервер: ${imported} записей`);
@@ -6230,9 +6224,14 @@
                     this.resetBoulderMarkupDialogChrome();
                 }
                 if (dialogId === 'climbDetailDialog') {
+                    this._climbDetailImgToken = (this._climbDetailImgToken || 0) + 1;
                     this._climbDetailContext = null;
                     const img = document.getElementById('climbDetailImage');
-                    if (img) img.removeAttribute('src');
+                    if (img) {
+                        img.onload = null;
+                        img.onerror = null;
+                        img.removeAttribute('src');
+                    }
                     const mount = document.getElementById('climbDetailPhotoMount');
                     if (mount) this.applyPhotoPreviewMarkupOverlay(mount, null, 'route');
                     document.getElementById('climbDetailImageWrap')?.classList.add('hidden');
@@ -6681,9 +6680,41 @@
                 }
             }
 
-            showClimbDetailDialog(climbType, climbId, opts = {}) {
+            _setClimbDetailImageSrc(img, photo, climbName, onReady) {
+                if (!img || !photo?.imageData) return;
+                const token = (this._climbDetailImgToken = (this._climbDetailImgToken || 0) + 1);
+                const src = photo.imageData;
+                const finish = () => {
+                    if (this._climbDetailImgToken !== token) return;
+                    onReady();
+                };
+                img.alt = climbName || '';
+                img.onerror = () => {
+                    if (this._climbDetailImgToken !== token) return;
+                    img.onerror = null;
+                    img.onload = null;
+                };
+                img.onload = () => {
+                    img.onload = null;
+                    img.onerror = null;
+                    finish();
+                };
+                if (img.src !== src) {
+                    img.src = src;
+                }
+                if (img.complete && img.naturalWidth > 0) {
+                    finish();
+                }
+            }
+
+            async showClimbDetailDialog(climbType, climbId, opts = {}) {
                 const idStr = String(climbId);
                 const preferPhotoId = opts.preferPhotoId != null ? String(opts.preferPhotoId) : null;
+                try {
+                    await ensurePhotosLoadedFromApi();
+                } catch (err) {
+                    console.warn('climb detail photos load', err);
+                }
                 const climb =
                     climbType === 'route'
                         ? getRoutes().find((r) => String(r.id) === idStr)
@@ -6701,6 +6732,7 @@
                 const photo =
                     (preferPhotoId && photos.find((p) => String(p.id) === preferPhotoId))
                     || photos.find((p) => p.markup)
+                    || photos.find((p) => p.imageData)
                     || photos[0];
 
                 this._climbDetailContext = {
@@ -6770,15 +6802,9 @@
                     wrap?.classList.remove('hidden');
                     noPh?.classList.add('hidden');
                     if (img) {
-                        img.onload = () => {
-                            applyDetailMarkup();
-                            img.onload = null;
-                        };
-                        img.src = photo.imageData;
-                        img.alt = climb.name || '';
+                        this._setClimbDetailImageSrc(img, photo, climb.name || '', applyDetailMarkup);
                     }
                     if (mkBtn) mkBtn.style.display = '';
-                    applyDetailMarkup();
                     void this.tryAutoSaveOpenedMediaToDevice(photo, climbType, climb.name || '');
                 } else {
                     saveRow?.classList.add('hidden');
@@ -7508,6 +7534,9 @@
                     }
                     await loadClimbingDataFromApi({ includePhotos: false });
                     window.app?.refreshUiAfterRemoteLoad?.();
+                    void ensurePhotosLoadedFromApi().then(() => {
+                        window.app?.renderPhotoAlbum?.();
+                    }).catch((err) => console.warn('background photos prefetch', err));
                     if (typeof window.syncTelegramMiniAppUi === 'function') {
                         window.syncTelegramMiniAppUi();
                     }
