@@ -1,0 +1,21 @@
+# Скопируйте в catalog_seed.yaml — данные загрузятся в PostgreSQL при bootstrap / старте API.
+# Повторный запуск не дублирует записи (поиск по названию района / сектора / трассы).
+
+areas:
+  - name: "Общий район"
+    description: "Стартовый район из seed"
+    latitude: null
+    longitude: null
+    sectors:
+      - name: "Сектор по умолчанию"
+        description: ""
+        routes:
+          - name: "Пример трассы"
+            grade: "6a"
+            description: "Добавлена из catalog_seed.yaml"
+            length_m: 18
+            bolts: 8
+            rating: null
+            latitude: null
+            longitude: null
+        boulders: []

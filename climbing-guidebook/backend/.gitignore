@@ -5,4 +5,5 @@ __pycache__/
 .env
 .postgres_password
 config/settings.yaml
+data/catalog_seed.yaml
 .pytest_cache/

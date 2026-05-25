@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from app.db import Base, SessionLocal, engine, ensure_optional_columns
-from app.seed import ensure_admin_user
+from app.seed import bootstrap_catalog
 
 
 def main() -> None:
@@ -11,7 +11,7 @@ def main() -> None:
 
     db = SessionLocal()
     try:
-        ensure_admin_user(db)
+        bootstrap_catalog(db)
     finally:
         db.close()
 

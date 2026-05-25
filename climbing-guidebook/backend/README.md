@@ -212,6 +212,35 @@ export TELEGRAM_AUTH_MAX_AGE_SEC="86400"
 
 При создании фото API автоматически сохраняет в БД `climb_name` и `climb_category` из связанной трассы/боулдера вместе с `markup`.
 
+## Трассы и каталог в базе данных
+
+### Через Mini App (уже работает)
+
+При сохранении трассы администратором приложение вызывает **`POST /api/routes`** (или `PATCH` при редактировании). Данные попадают в PostgreSQL на Render, не остаются только в браузере.
+
+Нужны: вход администратора (JWT) и настроенный `DATABASE_URL` на Render.
+
+### Через файл в репозитории (seed)
+
+1. Скопируйте `backend/data/catalog_seed.yaml.example` → `backend/data/catalog_seed.yaml`.
+2. Опишите районы, секторы и трассы в YAML.
+3. Запустите:
+
+```bash
+cd backend
+python bootstrap_database.py
+```
+
+При старте API (`uvicorn`) тот же импорт выполняется автоматически. Повторный запуск **не дублирует** трассы с тем же названием в секторе.
+
+Отключить: `DISABLE_CATALOG_SEED=1`. Другой файл: `CATALOG_SEED_FILE=/path/to/seed.yaml`.
+
+### Старый localStorage
+
+Если в браузере остались ключи `climb_routes` / `climb_boulders`, при входе **администратора** они один раз переносятся на API и удаляются из localStorage.
+
+---
+
 ## Архитектура (KISS / SOLID)
 
 - **Роутеры** (`app/routers/*`) — только HTTP-слой.

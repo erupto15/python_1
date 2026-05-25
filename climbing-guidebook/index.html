@@ -126,11 +126,15 @@
         }
 
         .auth-panel {
-            display: flex;
+            display: none;
             align-items: flex-end;
             gap: 8px;
             flex-wrap: wrap;
             justify-content: flex-end;
+        }
+
+        .auth-panel.auth-panel--visible {
+            display: flex;
         }
 
         /* Блок пароля админа скрыт до 4 тапов по логотипу */
@@ -143,16 +147,6 @@
 
         .admin-password-login-block.is-visible {
             display: flex;
-        }
-
-        /* Одна кнопка «Войти» для пользователей (Telegram); скрывается, когда открыта форма админа после 4 тапов */
-        .user-telegram-login-block {
-            display: flex;
-            align-items: flex-end;
-        }
-
-        .user-telegram-login-block.is-hidden {
-            display: none !important;
         }
 
         .auth-panel .form-input {
@@ -935,19 +929,13 @@
         .markup-dialog-stage {
             position: relative;
             width: 100%;
-            height: min(50vh, 440px);
+            flex: 1;
             min-height: 200px;
-            max-height: min(62vh, 520px);
+            height: auto;
+            max-height: none;
             border: 1px solid var(--border-color);
             border-radius: 8px;
             overflow: hidden;
-        }
-
-        @media (max-width: 480px) {
-            .markup-dialog-stage {
-                height: min(48vh, 360px);
-                min-height: 180px;
-            }
         }
 
         .markup-toolbar {
@@ -1315,61 +1303,69 @@
             box-shadow: 0 0 10px rgba(93, 156, 255, 0.5);
         }
 
-        /* Диалоги */
+        /* Полноэкранные экраны (бывшие модальные окна) */
+        body.dialog-screen-open {
+            overflow: hidden;
+        }
+
+        body.dialog-screen-open .container {
+            visibility: hidden;
+        }
+
         .dialog-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            inset: 0;
             z-index: 1000;
-            padding:
-                calc(20px + env(safe-area-inset-top, 0px))
-                calc(20px + env(safe-area-inset-right, 0px))
-                calc(20px + env(safe-area-inset-bottom, 0px))
-                calc(20px + env(safe-area-inset-left, 0px));
-            animation: fadeIn 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--background-color, #0f1419);
+            padding: 0;
+            animation: fadeIn 0.2s ease;
         }
 
         .dialog-overlay.hidden {
-            display: none;
+            display: none !important;
         }
 
         .dialog-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            max-height: none;
+            margin: 0;
             background-color: var(--card-bg);
             color: var(--text-color);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius);
-            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
-            width: 100%;
-            max-width: 600px;
-            max-height: 90vh;
-            overflow-y: auto;
-            animation: slideUp 0.3s ease;
-        }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            overflow: hidden;
+            min-height: 0;
         }
 
         .dialog-header {
-            padding: 24px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            flex-shrink: 0;
+            padding:
+                calc(12px + env(safe-area-inset-top, 0px))
+                calc(12px + env(safe-area-inset-right, 0px))
+                12px
+                calc(12px + env(safe-area-inset-left, 0px));
             border-bottom: 1px solid var(--border-color);
         }
 
+        .dialog-header-text {
+            flex: 1;
+            min-width: 0;
+        }
+
         .dialog-title {
-            font-size: 1.5rem;
+            font-size: 1.25rem;
             font-weight: 600;
             margin-bottom: 4px;
             color: var(--text-color);
@@ -1380,12 +1376,43 @@
             font-size: 14px;
         }
 
+        .dialog-close-btn {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 42px;
+            padding: 8px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            background: var(--tg-btn-bg, rgba(255, 255, 255, 0.08));
+            color: var(--text-color);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .dialog-close-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
         .dialog-body {
-            padding: 24px;
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
         }
 
         .dialog-footer {
-            padding: 24px;
+            flex-shrink: 0;
+            padding:
+                12px
+                calc(12px + env(safe-area-inset-right, 0px))
+                calc(12px + env(safe-area-inset-bottom, 0px))
+                calc(12px + env(safe-area-inset-left, 0px));
             border-top: 1px solid var(--border-color);
             display: flex;
             justify-content: flex-end;
@@ -1611,10 +1638,6 @@
                 flex-direction: column;
                 gap: 16px;
                 align-items: flex-start;
-            }
-
-            .dialog-content {
-                margin: 10px;
             }
 
             .tabs {
@@ -2044,7 +2067,12 @@
         }
 
         html.tg-mini-app.tg-webapp-buttons .dialog-content {
-            max-height: calc(var(--app-height, 100vh) - 2rem - var(--tg-chrome-bottom, 0px));
+            max-height: none;
+            height: 100%;
+        }
+
+        html.tg-mini-app.tg-webapp-buttons .dialog-footer {
+            padding-bottom: calc(12px + var(--tg-chrome-bottom, 0px) + env(safe-area-inset-bottom, 0px));
         }
 
         html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] {
@@ -2130,9 +2158,6 @@
                     <p class="site-tagline">Скалолазные районы и маршруты</p>
                 </div>
                 <div class="auth-panel" id="authPanel">
-                    <div id="userTelegramLoginBlock" class="user-telegram-login-block">
-                        <button type="button" class="btn btn-primary" id="userTelegramLoginBtn">Войти</button>
-                    </div>
                     <div id="adminPasswordLoginBlock" class="admin-password-login-block" aria-hidden="true">
                         <div class="auth-field">
                             <label class="auth-label" for="loginUsername">Email</label>
@@ -2342,10 +2367,13 @@
 
     <!-- Диалог разметки линии (заголовок: «Трудность») -->
     <div class="dialog-overlay hidden" id="routeLineMarkupDialog" style="z-index: 1002;">
-        <div class="dialog-content" style="max-width: 800px; z-index: 1002;">
+        <div class="dialog-content">
             <div class="dialog-header">
-                <div class="dialog-title">Трудность</div>
-                <div class="dialog-subtitle">Разметка на фото: старты и линия хода</div>
+                <div class="dialog-header-text">
+                    <div class="dialog-title">Трудность</div>
+                    <div class="dialog-subtitle">Разметка на фото: старты и линия хода</div>
+                </div>
+                <button type="button" class="dialog-close-btn" id="closeRouteLineMarkupDialogBtn" data-close-dialog="routeLineMarkupDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <div class="markup-instructions">
@@ -2383,7 +2411,7 @@
 
                 <div class="markup-actions">
                     <button class="btn btn-secondary" id="cancelRouteLineMarkupBtn">
-                        <i class="fas fa-times"></i> Отмена
+                        <i class="fas fa-times"></i> Закрыть
                     </button>
                     <button class="btn btn-danger" id="clearRouteLineMarkupBtn">
                         <i class="fas fa-trash"></i> Очистить все
@@ -2398,10 +2426,13 @@
 
     <!-- Диалог разметки боулдеринга (стартовых зацепок) -->
     <div class="dialog-overlay hidden" id="boulderHoldsMarkupDialog" style="z-index: 1002;">
-        <div class="dialog-content" style="max-width: 800px; z-index: 1002;">
+        <div class="dialog-content">
             <div class="dialog-header">
-                <div class="dialog-title">Разметка боулдеринга на фотографии</div>
-                <div class="dialog-subtitle">Кружки и линия хода задаются отдельно (два режима)</div>
+                <div class="dialog-header-text">
+                    <div class="dialog-title">Разметка боулдеринга на фотографии</div>
+                    <div class="dialog-subtitle">Кружки и линия хода задаются отдельно (два режима)</div>
+                </div>
+                <button type="button" class="dialog-close-btn" id="closeBoulderHoldsMarkupDialogBtn" data-close-dialog="boulderHoldsMarkupDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <div class="markup-instructions">
@@ -2431,7 +2462,7 @@
 
                 <div class="markup-actions">
                     <button class="btn btn-secondary" id="cancelBoulderHoldsMarkupBtn">
-                        <i class="fas fa-times"></i> Отмена
+                        <i class="fas fa-times"></i> Закрыть
                     </button>
                     <button class="btn btn-danger" id="clearBoulderHoldsMarkupBtn">
                         <i class="fas fa-trash"></i> Очистить все
@@ -2448,8 +2479,11 @@
     <div class="dialog-overlay hidden" id="areaDialog">
         <div class="dialog-content">
             <div class="dialog-header">
-                <div class="dialog-title" id="areaDialogTitle">Район</div>
-                <div class="dialog-subtitle">Скалолазный район (как в гайдбуках)</div>
+                <div class="dialog-header-text">
+                    <div class="dialog-title" id="areaDialogTitle">Район</div>
+                    <div class="dialog-subtitle">Скалолазный район (как в гайдбуках)</div>
+                </div>
+                <button type="button" class="dialog-close-btn" id="closeAreaDialogBtn" data-close-dialog="areaDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <form id="areaForm">
@@ -2478,7 +2512,7 @@
                 </div>
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
-                <button type="button" class="btn btn-secondary" id="cancelAreaBtn"><i class="fas fa-times"></i> Отмена</button>
+                <button type="button" class="btn btn-secondary" id="cancelAreaBtn"><i class="fas fa-times"></i> Закрыть</button>
                 <button type="button" class="btn btn-primary" id="areaSubmitBtn"><i class="fas fa-save"></i> Сохранить</button>
             </div>
         </div>
@@ -2488,8 +2522,11 @@
     <div class="dialog-overlay hidden" id="sectorDialog">
         <div class="dialog-content">
             <div class="dialog-header">
-                <div class="dialog-title" id="sectorDialogTitle">Сектор</div>
-                <div class="dialog-subtitle">Сектор внутри района (блок / стена)</div>
+                <div class="dialog-header-text">
+                    <div class="dialog-title" id="sectorDialogTitle">Сектор</div>
+                    <div class="dialog-subtitle">Сектор внутри района (блок / стена)</div>
+                </div>
+                <button type="button" class="dialog-close-btn" id="closeSectorDialogBtn" data-close-dialog="sectorDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <form id="sectorForm">
@@ -2509,7 +2546,7 @@
                 </div>
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
-                <button type="button" class="btn btn-secondary" id="cancelSectorBtn"><i class="fas fa-times"></i> Отмена</button>
+                <button type="button" class="btn btn-secondary" id="cancelSectorBtn"><i class="fas fa-times"></i> Закрыть</button>
                 <button type="button" class="btn btn-primary" id="sectorSubmitBtn"><i class="fas fa-save"></i> Сохранить</button>
             </div>
         </div>
@@ -2518,9 +2555,12 @@
     <!-- Диалог добавления трассы в сектор -->
     <div class="dialog-overlay hidden" id="quickRouteDialog">
         <div class="dialog-content">
-                <div class="dialog-header">
+            <div class="dialog-header">
+                <div class="dialog-header-text">
                     <div class="dialog-title" id="quickRouteDialogTitle">Добавить трассу</div>
                     <div class="dialog-subtitle" id="quickRouteDialogSubtitle">Новая трасса в выбранном секторе</div>
+                </div>
+                <button type="button" class="dialog-close-btn" id="closeQuickRouteDialogBtn" data-close-dialog="quickRouteDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <form id="quickRouteForm">
@@ -2581,7 +2621,7 @@
                 </form>
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
-                <button type="button" class="btn btn-secondary" id="cancelQuickRouteBtn"><i class="fas fa-times"></i> Отмена</button>
+                <button type="button" class="btn btn-secondary" id="cancelQuickRouteBtn"><i class="fas fa-times"></i> Закрыть</button>
                 <button type="button" class="btn btn-primary" id="saveQuickRouteBtn"><i class="fas fa-save"></i> Добавить трассу</button>
             </div>
         </div>
@@ -2590,9 +2630,12 @@
     <!-- Диалог добавления боулдеринга в сектор -->
     <div class="dialog-overlay hidden" id="quickBoulderDialog">
         <div class="dialog-content">
-                <div class="dialog-header">
+            <div class="dialog-header">
+                <div class="dialog-header-text">
                     <div class="dialog-title" id="quickBoulderDialogTitle">Добавить боулдеринг</div>
                     <div class="dialog-subtitle" id="quickBoulderDialogSubtitle">Новый боулдеринг в выбранном секторе</div>
+                </div>
+                <button type="button" class="dialog-close-btn" id="closeQuickBoulderDialogBtn" data-close-dialog="quickBoulderDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <form id="quickBoulderForm">
@@ -2649,7 +2692,7 @@
                 </form>
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
-                <button type="button" class="btn btn-secondary" id="cancelQuickBoulderBtn"><i class="fas fa-times"></i> Отмена</button>
+                <button type="button" class="btn btn-secondary" id="cancelQuickBoulderBtn"><i class="fas fa-times"></i> Закрыть</button>
                 <button type="button" class="btn btn-primary" id="saveQuickBoulderBtn"><i class="fas fa-save"></i> Добавить боулдеринг</button>
             </div>
         </div>
@@ -2657,10 +2700,13 @@
 
     <!-- Просмотр трассы / боулдеринга: фото и описание -->
     <div class="dialog-overlay hidden" id="climbDetailDialog" style="z-index: 998;">
-        <div class="dialog-content" style="max-width: 520px;">
+        <div class="dialog-content">
             <div class="dialog-header">
-                <div class="dialog-title" id="climbDetailTitle">—</div>
-                <div class="dialog-subtitle" id="climbDetailMeta"></div>
+                <div class="dialog-header-text">
+                    <div class="dialog-title" id="climbDetailTitle">—</div>
+                    <div class="dialog-subtitle" id="climbDetailMeta"></div>
+                </div>
+                <button type="button" class="dialog-close-btn" id="closeClimbDetailDialogBtn" data-close-dialog="climbDetailDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <div id="climbDetailNoPhoto" class="hidden" style="padding:16px;text-align:center;color:var(--light-text);border:1px dashed var(--border-color);border-radius:8px;margin-bottom:12px;">
@@ -2668,7 +2714,7 @@
                 </div>
                 <div id="climbDetailImageWrap" class="hidden" style="border-radius:8px;overflow:hidden;border:1px solid var(--border-color);margin-bottom:12px;background:#0d0d0d;">
                     <div id="climbDetailPhotoMount" class="photo-preview-with-markup climb-detail-photo-mount">
-                        <img id="climbDetailImage" src="" alt="" style="width:100%;max-height:min(52vh,360px);object-fit:contain;display:block;">
+                        <img id="climbDetailImage" src="" alt="" style="width:100%;max-height:min(58vh,520px);object-fit:contain;display:block;">
                     </div>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
@@ -2698,26 +2744,26 @@
             areaDialog: {
                 text: 'Сохранить',
                 btnId: 'areaSubmitBtn',
-                secondaryText: 'Отмена',
-                secondaryBtnId: 'cancelAreaBtn'
+                secondaryText: 'Закрыть',
+                secondaryBtnId: 'closeAreaDialogBtn'
             },
             sectorDialog: {
                 text: 'Сохранить',
                 btnId: 'sectorSubmitBtn',
-                secondaryText: 'Отмена',
-                secondaryBtnId: 'cancelSectorBtn'
+                secondaryText: 'Закрыть',
+                secondaryBtnId: 'closeSectorDialogBtn'
             },
             quickRouteDialog: {
                 text: 'Добавить трассу',
                 btnId: 'saveQuickRouteBtn',
-                secondaryText: 'Отмена',
-                secondaryBtnId: 'cancelQuickRouteBtn'
+                secondaryText: 'Закрыть',
+                secondaryBtnId: 'closeQuickRouteDialogBtn'
             },
             quickBoulderDialog: {
                 text: 'Добавить боулдеринг',
                 btnId: 'saveQuickBoulderBtn',
-                secondaryText: 'Отмена',
-                secondaryBtnId: 'cancelQuickBoulderBtn'
+                secondaryText: 'Закрыть',
+                secondaryBtnId: 'closeQuickBoulderDialogBtn'
             },
             climbDetailDialog: {
                 resolve() {
@@ -2741,22 +2787,32 @@
             },
             routeLineMarkupDialog: {
                 resolve() {
-                    if (window.app && window.app._markupDialogViewOnly) return null;
+                    if (window.app && window.app._markupDialogViewOnly) {
+                        return {
+                            text: 'Закрыть',
+                            btnId: 'closeRouteLineMarkupDialogBtn'
+                        };
+                    }
                     return {
                         text: 'Сохранить разметку',
                         btnId: 'saveRouteLineMarkupBtn',
-                        secondaryText: 'Отмена',
+                        secondaryText: 'Закрыть',
                         secondaryBtnId: 'cancelRouteLineMarkupBtn'
                     };
                 }
             },
             boulderHoldsMarkupDialog: {
                 resolve() {
-                    if (window.app && window.app._markupDialogViewOnly) return null;
+                    if (window.app && window.app._markupDialogViewOnly) {
+                        return {
+                            text: 'Закрыть',
+                            btnId: 'closeBoulderHoldsMarkupDialogBtn'
+                        };
+                    }
                     return {
                         text: 'Сохранить разметку',
                         btnId: 'saveBoulderHoldsMarkupBtn',
-                        secondaryText: 'Отмена',
+                        secondaryText: 'Закрыть',
                         secondaryBtnId: 'cancelBoulderHoldsMarkupBtn'
                     };
                 }
@@ -2764,13 +2820,13 @@
         };
 
         window.__TG_DIALOG_CANCEL = {
-            areaDialog: 'cancelAreaBtn',
-            sectorDialog: 'cancelSectorBtn',
-            quickRouteDialog: 'cancelQuickRouteBtn',
-            quickBoulderDialog: 'cancelQuickBoulderBtn',
-            climbDetailDialog: 'climbDetailCloseBtn',
-            routeLineMarkupDialog: 'cancelRouteLineMarkupBtn',
-            boulderHoldsMarkupDialog: 'cancelBoulderHoldsMarkupBtn'
+            areaDialog: 'closeAreaDialogBtn',
+            sectorDialog: 'closeSectorDialogBtn',
+            quickRouteDialog: 'closeQuickRouteDialogBtn',
+            quickBoulderDialog: 'closeQuickBoulderDialogBtn',
+            climbDetailDialog: 'closeClimbDetailDialogBtn',
+            routeLineMarkupDialog: 'closeRouteLineMarkupDialogBtn',
+            boulderHoldsMarkupDialog: 'closeBoulderHoldsMarkupDialogBtn'
         };
 
         (function initTelegramWebApp() {
@@ -2866,8 +2922,10 @@
                         return el && !el.classList.contains('hidden');
                     });
                     if (openId) {
-                        const cancelId = window.__TG_DIALOG_CANCEL[openId];
-                        document.getElementById(cancelId)?.click();
+                        const closeBtn =
+                            document.querySelector(`[data-close-dialog="${openId}"]`)
+                            || document.getElementById(window.__TG_DIALOG_CANCEL[openId]);
+                        closeBtn?.click();
                         return;
                     }
                     if (!app || !app.catalog) return;
@@ -3096,10 +3154,9 @@
             return '';
         })();
         const AUTH_STORAGE_KEY = 'climbingApp_auth';
-        /** Новый ключ: старый `climbingApp_admin_login_enabled` (?admin=1 / прошлые сборки) при старте сбрасываем. */
-        const ADMIN_LOGIN_FLAG_KEY = 'climbingApp_admin_form_unlock_v2';
         try {
             localStorage.removeItem('climbingApp_admin_login_enabled');
+            localStorage.removeItem('climbingApp_admin_form_unlock_v2');
         } catch (_) {
             /* ignore */
         }
@@ -3480,59 +3537,6 @@
             if (res.status === 204) return null;
             const text = await res.text();
             return text ? JSON.parse(text) : null;
-        }
-
-        /**
-         * В Telegram Mini App: автоматический вход по initData (подпись на бэкенде),
-         * создание/обновление пользователя и полей telegram_username / display_name.
-         * Не перезаписывает сессию, если уже вошёл администратор по паролю.
-         */
-        /** @returns {Promise<boolean>} true, если сессия пользователя через Telegram установлена или уже активна (не трогаем сессию админа по паролю). */
-        async function tryTelegramSilentLogin() {
-            if (!API_BASE_URL) return false;
-            if (!document.documentElement.classList.contains('tg-mini-app')) return false;
-            const initData = (
-                window.__TG_INIT_DATA ||
-                (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) ||
-                ''
-            ).trim();
-            if (!initData) return false;
-
-            const auth = getAuthData();
-            if (auth.accessToken && auth.currentUser) {
-                const em = String(auth.currentUser.email || '').toLowerCase();
-                if (em === String(ADMIN_EMAIL_HINT).toLowerCase()) return true;
-            }
-
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/auth/telegram`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ init_data: initData })
-                });
-                if (!res.ok) {
-                    const t = await res.text();
-                    console.warn('Telegram auth:', res.status, t.slice(0, 200));
-                    return false;
-                }
-                const data = JSON.parse(await res.text());
-                let me = data.user || null;
-                if (!me) {
-                    saveAuthData({ accessToken: data.access_token, currentUser: null });
-                    me = await apiFetch('/api/auth/me');
-                }
-                saveAuthData({ accessToken: data.access_token, currentUser: me });
-                if (window.app) {
-                    window.app.auth = getAuthData();
-                    window.app.renderAuthUI();
-                    window.app.applyRoleUI();
-                    window.app.refreshListsAfterRoleChange();
-                }
-                return true;
-            } catch (e) {
-                console.warn('Telegram silent login', e);
-                return false;
-            }
         }
 
         if (APP_BOULDER_ONLY) {
@@ -4191,6 +4195,8 @@
             constructor() {
                 this.data = getClimbingData();
                 this.auth = getAuthData();
+                /** Форма входа админа — только после 4 тапов по логотипу в этой вкладке. */
+                this._adminFormUnlocked = false;
                 this.map = null;
                 this.currentPhotoPreview = null;
                 this.quickRoutePhotoData = null;
@@ -4311,9 +4317,9 @@
                 return em === String(ADMIN_EMAIL_HINT).toLowerCase();
             }
 
-            /** Показ полей email/пароль только после 4 тапов по логотипу (не через URL). */
+            /** Показ полей email/пароль только после 4 тапов по логотипу в текущей вкладке. */
             isAdminPasswordFormUnlocked() {
-                return localStorage.getItem(ADMIN_LOGIN_FLAG_KEY) === '1';
+                return this._adminFormUnlocked === true;
             }
 
             setupHiddenAdminAccess() {
@@ -4330,34 +4336,17 @@
                     clicks = 0;
 
                     if (this.isAdmin()) {
-                        localStorage.removeItem(ADMIN_LOGIN_FLAG_KEY);
+                        this._adminFormUnlocked = false;
                         saveAuthData({ accessToken: null, currentUser: null });
                         this.auth = getAuthData();
                         this.renderAuthUI();
                         this.applyRoleUI();
                         this.refreshListsAfterRoleChange();
-                        void (async () => {
-                            const inTg = document.documentElement.classList.contains('tg-mini-app');
-                            const ok = await tryTelegramSilentLogin();
-                            const u = getAuthData().currentUser;
-                            if (ok && u && !this.isAdmin()) {
-                                this.showToast('Режим администратора выключен. Вход под пользователем Telegram.');
-                            } else {
-                                this.showToast(
-                                    inTg
-                                        ? 'Режим администратора выключен. Нажмите «Войти» для входа через Telegram.'
-                                        : 'Режим администратора выключен. В Telegram нажмите «Войти» для автоматического входа.',
-                                    false
-                                );
-                            }
-                            if (typeof window.syncTelegramMiniAppUi === 'function') {
-                                window.syncTelegramMiniAppUi();
-                            }
-                        })();
+                        this.showToast('Режим администратора выключен');
                         return;
                     }
 
-                    localStorage.setItem(ADMIN_LOGIN_FLAG_KEY, '1');
+                    this._adminFormUnlocked = true;
                     this.renderAuthUI();
                     this.showToast('Режим входа администратора включён');
                     setTimeout(() => document.getElementById('loginUsername')?.focus(), 0);
@@ -4369,6 +4358,14 @@
                 if (!auth.accessToken) return;
                 try {
                     const me = await apiFetch('/api/auth/me');
+                    const em = String(me.email || '').toLowerCase();
+                    if (em !== String(ADMIN_EMAIL_HINT).toLowerCase()) {
+                        saveAuthData({ accessToken: null, currentUser: null });
+                        this.auth = getAuthData();
+                        this.renderAuthUI();
+                        this.applyRoleUI();
+                        return;
+                    }
                     auth.currentUser = me;
                     saveAuthData(auth);
                     this.auth = auth;
@@ -4386,9 +4383,9 @@
 
             renderAuthUI() {
                 this.auth = getAuthData();
-                const user = this.getCurrentUser();
+                const user = this.isAdmin() ? this.getCurrentUser() : null;
+                const authPanel = document.getElementById('authPanel');
                 const adminBlock = document.getElementById('adminPasswordLoginBlock');
-                const userTgBlock = document.getElementById('userTelegramLoginBlock');
                 const usernameInput = document.getElementById('loginUsername');
                 const passwordInput = document.getElementById('loginPassword');
                 const loginBtn = document.getElementById('loginBtn');
@@ -4396,24 +4393,24 @@
                 const status = document.getElementById('authStatus');
                 if (!usernameInput || !passwordInput || !loginBtn || !logoutBtn || !status) return;
 
+                const showAdminForm = !user && this.isAdminPasswordFormUnlocked();
+
                 if (user) {
-                    userTgBlock?.classList.add('is-hidden');
                     adminBlock?.classList.remove('is-visible');
                     adminBlock?.setAttribute('aria-hidden', 'true');
                     status.style.display = 'inline-flex';
-                    const role = this.isAdmin() ? 'admin' : 'user';
-                    status.innerHTML = `<span class="role-badge ${role}"><i class="fas fa-user-shield"></i> ${this.escapeHtml(user.display_name || user.email || 'user')} (${role})</span>`;
+                    status.innerHTML = `<span class="role-badge admin"><i class="fas fa-user-shield"></i> ${this.escapeHtml(user.display_name || user.email || 'admin')}</span>`;
                     logoutBtn.style.display = 'inline-flex';
+                    authPanel?.classList.add('auth-panel--visible');
                 } else {
-                    const showAdminForm = this.isAdminPasswordFormUnlocked();
                     if (showAdminForm) {
-                        userTgBlock?.classList.add('is-hidden');
                         adminBlock?.classList.add('is-visible');
                         adminBlock?.setAttribute('aria-hidden', 'false');
+                        authPanel?.classList.add('auth-panel--visible');
                     } else {
-                        userTgBlock?.classList.remove('is-hidden');
                         adminBlock?.classList.remove('is-visible');
                         adminBlock?.setAttribute('aria-hidden', 'true');
+                        authPanel?.classList.remove('auth-panel--visible');
                     }
                     status.style.display = 'none';
                     status.innerHTML = '';
@@ -4449,7 +4446,7 @@
                         const auth = { accessToken: tokenData.access_token, currentUser: me };
                         saveAuthData(auth);
                         this.auth = auth;
-                        localStorage.removeItem(ADMIN_LOGIN_FLAG_KEY);
+                        this._adminFormUnlocked = false;
                         this.renderAuthUI();
                         this.applyRoleUI();
                         this.refreshListsAfterRoleChange();
@@ -4462,6 +4459,7 @@
                 document.getElementById('logoutBtn')?.addEventListener('click', () => {
                     saveAuthData({ accessToken: null, currentUser: null });
                     this.auth = getAuthData();
+                    this._adminFormUnlocked = false;
                     this.renderAuthUI();
                     this.applyRoleUI();
                     this.refreshListsAfterRoleChange();
@@ -4474,30 +4472,103 @@
                         document.getElementById('loginBtn')?.click();
                     }
                 });
-
-                document.getElementById('userTelegramLoginBtn')?.addEventListener('click', async () => {
-                    const inTg = document.documentElement.classList.contains('tg-mini-app');
-                    const ok = await tryTelegramSilentLogin();
-                    if (ok) {
-                        const a = getAuthData();
-                        if (a.currentUser) {
-                            this.showToast(`Вход: ${a.currentUser.display_name || a.currentUser.email || 'готово'}`);
-                        }
-                    } else {
-                        this.showToast(
-                            inTg
-                                ? 'Не удалось войти через Telegram. Попробуйте позже или проверьте сеть.'
-                                : 'Откройте приложение в Telegram (Mini App), чтобы войти автоматически.',
-                            true
-                        );
-                    }
-                });
             }
 
             requireAdmin(actionLabel = 'Это действие') {
                 if (this.isAdmin()) return true;
                 this.showToast(`${actionLabel} доступно только администратору`, true);
                 return false;
+            }
+
+            /** Перенос старых трас/боулдеров из localStorage в API (один раз, только админ). */
+            async syncLegacyLocalStorageToBackend() {
+                if (!API_BASE_URL || !this.isAdmin()) return;
+                const legacyRoutes = JSON.parse(localStorage.getItem('climb_routes') || '[]');
+                const legacyBoulders = JSON.parse(localStorage.getItem('climb_boulders') || '[]');
+                if (!legacyRoutes.length && !legacyBoulders.length) return;
+
+                const defaultAreaName = 'Общий район (импорт)';
+                const defaultSectorName = 'Сектор по умолчанию';
+
+                try {
+                    let areas = await apiFetch('/api/areas');
+                    let area = (areas || []).find((a) => a.name === defaultAreaName);
+                    if (!area) {
+                        area = await apiFetch('/api/areas', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                name: defaultAreaName,
+                                description: 'Создан при переносе из localStorage'
+                            })
+                        });
+                    }
+
+                    let sectors = await apiFetch(`/api/areas/${area.id}/sectors`);
+                    let sector = (sectors || []).find((s) => s.name === defaultSectorName);
+                    if (!sector) {
+                        sector = await apiFetch(`/api/areas/${area.id}/sectors`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: defaultSectorName, description: '' })
+                        });
+                    }
+
+                    let imported = 0;
+                    for (const r of legacyRoutes) {
+                        const name = (r.name || '').trim();
+                        if (!name) continue;
+                        await apiFetch('/api/routes', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                sector_id: sector.id,
+                                area_id: area.id,
+                                name,
+                                description: (r.description || '').trim() || null,
+                                grade: normalizeRouteGrade((r.grade || '').trim() || '6a'),
+                                length_m: r.length ? Number(r.length) : null,
+                                bolts: r.bolts ? Number(r.bolts) : null,
+                                sector_label: (r.sector || defaultSectorName).trim() || defaultSectorName,
+                                latitude: r.latitude ? Number(r.latitude) : null,
+                                longitude: r.longitude ? Number(r.longitude) : null
+                            })
+                        });
+                        imported += 1;
+                    }
+
+                    for (const b of legacyBoulders) {
+                        const name = (b.name || '').trim();
+                        if (!name) continue;
+                        await apiFetch('/api/boulders', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                sector_id: sector.id,
+                                area_id: area.id,
+                                name,
+                                description: (b.description || '').trim() || null,
+                                grade: normalizeBoulderGrade((b.grade || '').trim() || '7A'),
+                                height_m: b.height ? Number(b.height) : null,
+                                latitude: b.latitude ? Number(b.latitude) : null,
+                                longitude: b.longitude ? Number(b.longitude) : null
+                            })
+                        });
+                        imported += 1;
+                    }
+
+                    localStorage.removeItem('climb_routes');
+                    localStorage.removeItem('climb_boulders');
+                    localStorage.removeItem('climb_photos');
+
+                    await loadClimbingDataFromApi({ includePhotos: false });
+                    this.data = getClimbingData();
+                    this.refreshUiAfterRemoteLoad();
+                    this.showToast(`Перенесено на сервер: ${imported} записей`);
+                } catch (err) {
+                    console.error('legacy sync', err);
+                    this.showToast(`Не удалось перенести старые данные: ${err.message}`, true);
+                }
             }
 
             applyRoleUI() {
@@ -5913,10 +5984,10 @@
                 document.getElementById('quickBoulderMarkupBtn')?.addEventListener('click', () => this.openQuickDialogPhotoMarkup('boulder'));
                 document.getElementById('quickRoutePhotoClearBtn')?.addEventListener('click', () => this.clearQuickDialogPhoto('route'));
                 document.getElementById('quickBoulderPhotoClearBtn')?.addEventListener('click', () => this.clearQuickDialogPhoto('boulder'));
-                // Закрытие диалогов тапом по затемнённому фону (outside click)
-                ['areaDialog', 'sectorDialog', 'quickRouteDialog', 'quickBoulderDialog', 'climbDetailDialog'].forEach((id) => {
-                    document.getElementById(id)?.addEventListener('click', (e) => {
-                        if (e.target && e.target.id === id) this.hideDialog(id);
+                document.querySelectorAll('[data-close-dialog]').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        const dialogId = btn.getAttribute('data-close-dialog');
+                        if (dialogId) this.hideDialog(dialogId);
                     });
                 });
                 document.querySelectorAll('.star-rating').forEach((wrap) => {
@@ -6128,8 +6199,14 @@
                 });
             }
 
+            syncBodyDialogScreenLock() {
+                const open = !!document.querySelector('.dialog-overlay:not(.hidden)');
+                document.body.classList.toggle('dialog-screen-open', open);
+            }
+
             showDialog(dialogId) {
                 document.getElementById(dialogId).classList.remove('hidden');
+                this.syncBodyDialogScreenLock();
                 if (typeof window.applyTelegramMainButtonForDialog === 'function') {
                     window.applyTelegramMainButtonForDialog(dialogId);
                 }
@@ -6140,6 +6217,7 @@
 
             hideDialog(dialogId) {
                 document.getElementById(dialogId).classList.add('hidden');
+                this.syncBodyDialogScreenLock();
                 this.currentPhotoPreview = null;
                 if (dialogId === 'routeLineMarkupDialog') {
                     this._routeLineMarkupAbort?.abort();
@@ -7424,9 +7502,9 @@
             void (async () => {
                 try {
                     await warnIfApiStorageNotPersistent();
-                    await tryTelegramSilentLogin();
                     if (window.app) {
                         await window.app.restoreAuthSession();
+                        await window.app.syncLegacyLocalStorageToBackend();
                     }
                     await loadClimbingDataFromApi({ includePhotos: false });
                     window.app?.refreshUiAfterRemoteLoad?.();

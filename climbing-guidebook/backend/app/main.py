@@ -10,7 +10,7 @@ from app.db import Base, SessionLocal, engine, ensure_optional_columns
 
 logger = logging.getLogger(__name__)
 from app.routers import areas, auth, boulders, comments, photos, routes_api, sectors, users
-from app.seed import ensure_admin_user
+from app.seed import bootstrap_catalog
 
 
 @asynccontextmanager
@@ -30,7 +30,7 @@ async def lifespan(_: FastAPI):
     ensure_optional_columns()
     db = SessionLocal()
     try:
-        ensure_admin_user(db)
+        bootstrap_catalog(db)
     finally:
         db.close()
     yield
