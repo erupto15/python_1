@@ -3140,15 +3140,15 @@
     </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        window.CLIMBING_API_BASE_URL = 'https://python-1-dicp.onrender.com';
+    </script>
+    <script>
         /** Только боулдеринг: скрыты трассы (вкладка, каталог, карта, фильтр в альбоме). Данные трасс в хранилище не трогаем. */
         const APP_BOULDER_ONLY = false;
-        /** База API: задайте window.CLIMBING_API_BASE_URL, чтобы явно переопределить адрес. */
+        /** База API: задаётся в window.CLIMBING_API_BASE_URL выше (Render). */
         const API_BASE_URL = (() => {
             const c = typeof window.CLIMBING_API_BASE_URL === 'string' ? window.CLIMBING_API_BASE_URL.trim() : '';
             if (c) return c.replace(/\/$/, '');
-            if (window.location.hostname === '6a9aguidebook.info' || window.location.hostname === 'www.6a9aguidebook.info') {
-                return 'https://python-1-dicp.onrender.com';
-            }
             if (window.location.protocol === 'file:') return 'http://127.0.0.1:8000';
             if (window.location.port && window.location.port !== '8000') return 'http://127.0.0.1:8000';
             return '';
@@ -3498,7 +3498,7 @@
                 if (body && body.persistent_storage === false) {
                     console.warn('API uses non-persistent SQLite; catalog data may be lost after server restart.');
                     window.app?.showToast?.(
-                        'Сервер использует временную БД — данные могут пропадать. Нужен PostgreSQL (Supabase).',
+                        'Сервер использует временную БД — данные могут пропадать. Нужен PostgreSQL на Render.',
                         true
                     );
                 }

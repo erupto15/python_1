@@ -2,7 +2,7 @@
 # Приоритет: переменные окружения → .env → этот файл.
 
 database:
-  # SQLite (локально) или PostgreSQL (продакшен)
+  # Локальная разработка. Production: переменные Render (POSTGRES_* / DATABASE_URL), см. .env.render.example
   url: sqlite:///./climbing.db
 
 app:

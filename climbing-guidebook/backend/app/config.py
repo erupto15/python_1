@@ -138,9 +138,6 @@ class Settings(BaseSettings):
         if s.startswith("postgresql://") and not s.startswith("postgresql+"):
             s = "postgresql+psycopg2://" + s[len("postgresql://") :]
         host = (urlparse(s).hostname or "").lower()
-        if host.endswith("supabase.co") and "sslmode=" not in s:
-            sep = "&" if "?" in s else "?"
-            s = f"{s}{sep}sslmode=require"
         # Внешний хост Render Postgres (*.frankfurt-postgres.render.com)
         if host.endswith(".render.com") and "sslmode=" not in s:
             sep = "&" if "?" in s else "?"
