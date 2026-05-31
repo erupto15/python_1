@@ -4,56 +4,32 @@ FastAPI + SQLAlchemy 2.0 (основной API). Опционально — **Fl
 
 ## Конфигурация базы данных
 
-**Production:** PostgreSQL на **Render** (`POSTGRES_*` или `DATABASE_URL`). Шаблон переменных: `.env.render.example`, blueprint: `render.yaml` в корне репозитория.
-
-**Локально:** SQLite `climbing.db` (по умолчанию) или свой PostgreSQL через `DATABASE_URL`.
-
-Приоритет настроек: **переменные окружения** → `.env` → `config/settings.yaml`.
+Подключение настраивается через **конфигурационные файлы** и переменные окружения (приоритет: **переменные окружения** → `.env` → `config/settings.yaml`).
 
 | Способ | Файл / переменная |
 |--------|-------------------|
-| Render | `POSTGRES_HOST`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, … или **Link Database** → `DATABASE_URL` |
-| Локально | `backend/.env` (см. `.env.example`) |
-| YAML | `backend/config/settings.yaml` (из `config/settings.yaml.example`) |
+| YAML | `backend/config/settings.yaml` (скопируйте из `config/settings.yaml.example`) |
+| Dotenv | `backend/.env` |
+| Окружение | `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, … |
+| Другой YAML | `CONFIG_FILE=/path/to/settings.yaml` |
 
-Нормализация URL (`postgres://` → `psycopg2`, `sslmode` для `*.render.com`, запрет SQLite в production) — в `app/config.py`.
+Пример `config/settings.yaml`:
 
-### Render (production)
-
-Web Service **python-1-dicp** → Root Directory: `climbing-guidebook/backend`
-
-**Start Command:**
-```bash
-python bootstrap_database.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```yaml
+database:
+  url: sqlite:///./climbing.db
 ```
 
-**Environment** (или Link Database → `guidebook`):
+Для PostgreSQL:
 
-| Key | Value |
-|-----|--------|
-| `APP_ENV` | `production` |
-| `POSTGRES_HOST` | `dpg-d7tfijbrjlhs73ar905g-a` |
-| `POSTGRES_PORT` | `5432` |
-| `POSTGRES_USER` | `user_optional` |
-| `POSTGRES_DB` | `guidebook` |
-| `POSTGRES_PASSWORD` | пароль из панели PostgreSQL |
-| `JWT_SECRET` | случайная строка |
-| `TELEGRAM_BOT_TOKEN` | токен бота (Mini App) |
-
-Проверка: `GET https://python-1-dicp.onrender.com/health` → `"database":"postgresql"`, `"persistent_storage":true`.
-
-Подробнее: `RENDER_FIX.md`.
-
-### Bootstrap и seed
-
-```bash
-cd backend
-python bootstrap_database.py
+```yaml
+database:
+  url: postgresql+psycopg2://user:pass@localhost:5432/climbing
 ```
 
-При старте `uvicorn` таблицы и администратор создаются автоматически. Каталог из YAML: `data/catalog_seed.yaml` (см. `data/catalog_seed.yaml.example`).
+Логика нормализации URL (`postgres://` → `psycopg2`, `sslmode` для Supabase, запрет SQLite в production) — в `app/config.py`.
 
-## Запуск локально
+## Запуск
 
 ```bash
 cd backend
@@ -80,8 +56,92 @@ pip install -r requirements.txt
 
 ---
 
+По умолчанию используется SQLite-файл `climbing.db` в текущей директории.
+
+**Render и аналоги:** у web-сервиса диск часто **временный** — после сна инстанса или деплоя SQLite **обнуляется**, трассы и боулдеры «пропадают». В продакшене подключите **PostgreSQL** (в Render: New PostgreSQL → в веб-сервисе **Environment → Link database** — появится `DATABASE_URL`). Достаточно `postgres://...` из панели: приложение само подставит драйвер `psycopg2`.
+
+Приложение дополнительно защищено от тихой потери данных: в `production` запуск с SQLite (или пустым `DATABASE_URL`) завершается ошибкой при старте.
+
+Если в логах `could not translate host name "host"` — в `DATABASE_URL` всё ещё **шаблон** (хост `host`), а не Internal Database URL из панели PostgreSQL.
+
+Для PostgreSQL локально или при явном URL задайте переменную окружения:
+
+```bash
+export DATABASE_URL="postgresql+psycopg2://user:pass@localhost:5432/climbing"
+```
+
+### Supabase как production БД
+
+Можно использовать Supabase PostgreSQL вместо Render Postgres:
+
+1. В Supabase откройте `Project Settings -> Database` и скопируйте строку подключения (`Connection string`, обычно port `6543` для pooler).
+2. В Render (web service backend) задайте:
+   - `DATABASE_URL=<строка из Supabase>`
+   - `APP_ENV=production`
+3. Перезапустите/задеплойте backend.
+
+Для URL Supabase приложение автоматически добавляет `sslmode=require`, если параметр не указан.
+
+### Создание БД и схемы (bootstrap)
+
+Скрипт создаёт таблицы и администратора в БД из `DATABASE_URL`:
+
 ```bash
 cd backend
+python bootstrap_database.py
+```
+
+### Render: production-переменные и команды
+
+`Root Directory`: `backend`  
+`Build Command`: `pip install -r requirements.txt`  
+`Start Command`: `python bootstrap_database.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+
+(или используйте `render.yaml` в корне репозитория)
+
+### Telegram Mini App: данные не должны пропадать
+
+Причина потерь на Render — **SQLite на временном диске**. Решение — **PostgreSQL (Supabase)**:
+
+```bash
+cd backend
+cp .env.supabase.example .env
+# отредактируйте DATABASE_URL, JWT_SECRET, TELEGRAM_BOT_TOKEN
+python setup_persistent_db.py --migrate-sqlite   # если есть climbing.db
+```
+
+В Render → Environment задайте те же переменные. Проверка после деплоя:
+
+`GET https://ваш-api.onrender.com/health` → `"persistent_storage": true`, `"database": "postgresql"`.
+
+Переменные окружения (Web Service -> Environment):
+
+- `DATABASE_URL` — из Render PostgreSQL (лучше через **Link database**).
+- `APP_ENV=production`
+- `JWT_SECRET` — случайная длинная строка (например `openssl rand -hex 32`).
+- `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_DISPLAY_NAME`
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_AUTH_MAX_AGE_SEC=86400`
+
+Готовый шаблон значений: `backend/.env.render.example`.
+
+### Перенос данных из SQLite в PostgreSQL
+
+Если у вас уже есть данные в `climbing.db`, перенесите их так:
+
+```bash
+cd backend
+export SQLITE_URL="sqlite:///./climbing.db"
+export POSTGRES_URL="postgresql+psycopg2://user:pass@host:5432/dbname"
+python migrate_sqlite_to_postgres.py
+```
+
+Для миграции в Supabase укажите `POSTGRES_URL` как Supabase connection string.
+
+Скрипт переносит все основные таблицы (`users`, `areas`, `sectors`, `routes`, `boulders`, `photos`, `comments`) и обновляет sequence в PostgreSQL.
+
+Сервер (FastAPI):
+
+```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 

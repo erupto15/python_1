@@ -3498,7 +3498,7 @@
                 if (body && body.persistent_storage === false) {
                     console.warn('API uses non-persistent SQLite; catalog data may be lost after server restart.');
                     window.app?.showToast?.(
-                        'Сервер использует временную БД — данные могут пропадать. Нужен PostgreSQL на Render.',
+                        'Сервер использует временную БД — данные могут пропадать. Нужен PostgreSQL (Supabase).',
                         true
                     );
                 }

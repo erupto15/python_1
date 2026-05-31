@@ -18,8 +18,8 @@ async def lifespan(_: FastAPI):
     dialect = engine.dialect.name
     if dialect == "sqlite":
         logger.warning(
-            "БД: SQLite (%s). Только для локальной разработки. "
-            "На Render задайте POSTGRES_* или DATABASE_URL (PostgreSQL).",
+            "БД: SQLite (%s). Данные НЕ сохраняются между деплоями на Render. "
+            "Задайте DATABASE_URL на PostgreSQL (Supabase).",
             settings.database_url,
         )
     else:

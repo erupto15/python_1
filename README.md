@@ -4,9 +4,9 @@
 
 ## Что внутри
 
-- `climbing-guidebook/index.html` — фронтенд (Vercel).
-- `climbing-guidebook/backend/` — API (FastAPI), БД — **Render PostgreSQL**.
-- `render.yaml` — деплой API на Render.
+- `climbing-guidebook/14.html` — основной фронтенд интерфейс.
+- `climbing-guidebook/backend/` — API (FastAPI) и модели данных.
+- `climbing.db` — локальная SQLite база.
 
 ## Быстрый старт
 
@@ -15,9 +15,8 @@
    - `pip install -r requirements.txt`
 2. Запустите API:
    - `uvicorn app.main:app --reload`
-3. Откройте фронтенд: `climbing-guidebook/index.html` (или через локальный HTTP-сервер).
-
-Production: фронт — **6a9aguidebook.info**, API — **https://python-1-dicp.onrender.com**.
+3. Откройте фронтенд:
+   - `climbing-guidebook/14.html` (или через локальный HTTP-сервер).
 
 ## Примечания
 
