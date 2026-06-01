@@ -827,10 +827,10 @@
         /* Боулдеринг: прозрачные кружки с красной обводкой (линия — SVG под маркерами) */
         .hold-marker {
             position: absolute;
-            width: 24px;
-            height: 24px;
+            width: 38px;
+            height: 38px;
             background-color: rgba(255, 255, 255, 0.08);
-            border: 2.5px solid #d32f2f;
+            border: 3px solid #d32f2f;
             border-radius: 50%;
             transform: translate(-50%, -50%);
             cursor: move;
@@ -879,7 +879,7 @@
             left: 50%;
             transform: translate(-50%, -50%);
             color: #3e0808;
-            font-size: 10px;
+            font-size: 13px;
             font-weight: bold;
             text-shadow:
                 0 0 2px rgba(255, 255, 255, 0.95),
@@ -1048,9 +1048,10 @@
 
         .boulder-markup-line-svg {
             position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
+            left: 0;
+            top: 0;
+            width: 0;
+            height: 0;
             pointer-events: none;
             z-index: 4;
             overflow: visible;
@@ -2410,7 +2411,7 @@
                 </div>
 
                 <div class="markup-actions">
-                    <button class="btn btn-secondary" id="cancelRouteLineMarkupBtn">
+                    <button type="button" class="btn btn-secondary" id="cancelRouteLineMarkupBtn" data-close-dialog="routeLineMarkupDialog">
                         <i class="fas fa-times"></i> Закрыть
                     </button>
                     <button class="btn btn-danger" id="clearRouteLineMarkupBtn">
@@ -2461,7 +2462,7 @@
                 </div>
 
                 <div class="markup-actions">
-                    <button class="btn btn-secondary" id="cancelBoulderHoldsMarkupBtn">
+                    <button type="button" class="btn btn-secondary" id="cancelBoulderHoldsMarkupBtn" data-close-dialog="boulderHoldsMarkupDialog">
                         <i class="fas fa-times"></i> Закрыть
                     </button>
                     <button class="btn btn-danger" id="clearBoulderHoldsMarkupBtn">
@@ -2727,7 +2728,7 @@
                 </div>
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
-                <button type="button" class="btn btn-ghost" id="climbDetailCloseBtn"><i class="fas fa-times"></i> Закрыть</button>
+                <button type="button" class="btn btn-ghost" id="climbDetailCloseBtn" data-close-dialog="climbDetailDialog"><i class="fas fa-times"></i> Закрыть</button>
                 <button type="button" class="btn btn-primary" id="climbDetailMarkupBtn"><i class="fas fa-draw-polygon"></i> Схема на фото</button>
             </div>
         </div>
@@ -2913,32 +2914,35 @@
                 window.addEventListener('resize', syncTelegramViewport);
             }
 
+            const handleTelegramBack = () => {
+                if (typeof window.closeTopTelegramOverlay === 'function' && window.closeTopTelegramOverlay()) {
+                    return;
+                }
+                const app = window.app;
+                if (!app || !app.catalog) return;
+                if (app.catalog.view === 'problems') {
+                    app.catalog = { view: 'sectors', areaId: app.catalog.areaId, sectorId: null };
+                    app.renderCatalog();
+                    if (typeof window.syncTelegramMiniAppUi === 'function') {
+                        window.syncTelegramMiniAppUi();
+                    }
+                    return;
+                }
+                if (app.catalog.view === 'sectors') {
+                    app.catalog = { view: 'areas', areaId: null, sectorId: null };
+                    app.renderCatalog();
+                    if (typeof window.syncTelegramMiniAppUi === 'function') {
+                        window.syncTelegramMiniAppUi();
+                    }
+                }
+            };
+
             if (tg.BackButton && !tg.__backBound) {
                 tg.__backBound = true;
-                tg.BackButton.onClick(() => {
-                    const app = window.app;
-                    const openId = Object.keys(window.__TG_DIALOG_MAIN || {}).find((id) => {
-                        const el = document.getElementById(id);
-                        return el && !el.classList.contains('hidden');
-                    });
-                    if (openId) {
-                        const closeBtn =
-                            document.querySelector(`[data-close-dialog="${openId}"]`)
-                            || document.getElementById(window.__TG_DIALOG_CANCEL[openId]);
-                        closeBtn?.click();
-                        return;
-                    }
-                    if (!app || !app.catalog) return;
-                    if (app.catalog.view === 'problems') {
-                        app.catalog = { view: 'sectors', areaId: app.catalog.areaId, sectorId: null };
-                        app.renderCatalog();
-                        return;
-                    }
-                    if (app.catalog.view === 'sectors') {
-                        app.catalog = { view: 'areas', areaId: null, sectorId: null };
-                        app.renderCatalog();
-                    }
-                });
+                tg.BackButton.onClick(handleTelegramBack);
+                if (typeof tg.onEvent === 'function') {
+                    tg.onEvent('backButtonClicked', handleTelegramBack);
+                }
             }
 
             if (tg.MainButton && !tg.__mainBound) {
@@ -2980,10 +2984,47 @@
         };
 
         window.findOpenTelegramDialogId = function findOpenTelegramDialogId() {
-            return Object.keys(window.__TG_DIALOG_MAIN || {}).find((id) => {
-                const el = document.getElementById(id);
-                return el && !el.classList.contains('hidden');
-            }) || null;
+            const overlays = Array.from(document.querySelectorAll('.dialog-overlay:not(.hidden)'));
+            if (!overlays.length) return null;
+            overlays.sort((a, b) => {
+                const za = parseInt(window.getComputedStyle(a).zIndex, 10) || 0;
+                const zb = parseInt(window.getComputedStyle(b).zIndex, 10) || 0;
+                return zb - za;
+            });
+            return overlays[0]?.id || null;
+        };
+
+        /** Закрыть верхний полноэкранный диалог (фото, разметка, формы). */
+        window.closeTopTelegramOverlay = function closeTopTelegramOverlay() {
+            const openId = window.findOpenTelegramDialogId();
+            if (!openId) return false;
+
+            const closeBtn =
+                document.querySelector(`[data-close-dialog="${openId}"]`)
+                || document.getElementById(window.__TG_DIALOG_CANCEL?.[openId]);
+            if (closeBtn) {
+                closeBtn.click();
+                return true;
+            }
+
+            const app = window.app;
+            if (app && typeof app.hideDialog === 'function') {
+                app.hideDialog(openId);
+                return true;
+            }
+
+            const el = document.getElementById(openId);
+            if (el) {
+                el.classList.add('hidden');
+                if (app && typeof app.syncBodyDialogScreenLock === 'function') {
+                    app.syncBodyDialogScreenLock();
+                }
+                if (typeof window.syncTelegramMiniAppUi === 'function') {
+                    window.syncTelegramMiniAppUi();
+                }
+                return true;
+            }
+            return false;
         };
 
         window.resolveTelegramDialogButtonConfig = function resolveTelegramDialogButtonConfig(dialogId) {
@@ -3316,7 +3357,7 @@
                             const holds = Array.isArray(markup.holds) ? markup.holds : [];
                             const linePts = Array.isArray(markup.linePoints) ? markup.linePoints : [];
                             drawLine(linePts);
-                            const r = Math.max(4, Math.round(Math.min(w, h) * 0.019));
+                            const r = Math.max(6, Math.round(Math.min(w, h) * 0.028));
                             holds.forEach((p) => drawCircle(p, r, 'rgba(255,255,255,0.12)', '#d32f2f', Math.max(1, Math.round(r * 0.22))));
                         }
 
@@ -3957,6 +3998,72 @@
             _photosLoadedFromApi = true;
         }
 
+        /** Геометрия фото внутри .markup-dialog-stage (object-fit: contain). */
+        function getMarkupStageGeometry(container) {
+            const img = container?.querySelector('img');
+            const cw = container?.clientWidth || container?.offsetWidth || 1;
+            const ch = container?.clientHeight || container?.offsetHeight || 1;
+            if (!img?.naturalWidth || !img?.naturalHeight) {
+                return { cw, ch, left: 0, top: 0, iw: cw, ih: ch };
+            }
+            const scale = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
+            const iw = img.naturalWidth * scale;
+            const ih = img.naturalHeight * scale;
+            return {
+                cw,
+                ch,
+                left: (cw - iw) / 2,
+                top: (ch - ih) / 2,
+                iw,
+                ih
+            };
+        }
+
+        function markupPxFromNorm(nx, ny, geom) {
+            return {
+                x: geom.left + nx * geom.iw,
+                y: geom.top + ny * geom.ih
+            };
+        }
+
+        function markupNormFromClient(container, clientX, clientY) {
+            const rect = container.getBoundingClientRect();
+            const geom = getMarkupStageGeometry(container);
+            const localX = clientX - rect.left;
+            const localY = clientY - rect.top;
+            const ix = localX - geom.left;
+            const iy = localY - geom.top;
+            const x = Math.max(0, Math.min(1, ix / geom.iw));
+            const y = Math.max(0, Math.min(1, iy / geom.ih));
+            const px = markupPxFromNorm(x, y, geom);
+            return { x, y, px: px.x, py: px.y, geom };
+        }
+
+        /** Старые точки (0–1 по контейнеру) → 0–1 по видимой области фото. */
+        function boulderStoredToImageNorm(stored, geom, coordSpaceImage) {
+            let x = Number(stored?.x);
+            let y = Number(stored?.y);
+            if (!Number.isFinite(x) || !Number.isFinite(y)) {
+                return { x: 0.5, y: 0.5 };
+            }
+            if (coordSpaceImage) {
+                return {
+                    x: Math.max(0, Math.min(1, x)),
+                    y: Math.max(0, Math.min(1, y))
+                };
+            }
+            if (x > 1 || y > 1) {
+                x /= geom.cw;
+                y /= geom.ch;
+            }
+            const px = x * geom.cw;
+            const py = y * geom.ch;
+            return {
+                x: Math.max(0, Math.min(1, (px - geom.left) / geom.iw)),
+                y: Math.max(0, Math.min(1, (py - geom.top) / geom.ih))
+            };
+        }
+
         function getClimbingData() {
             return climbingDataCache;
         }
@@ -4231,15 +4338,9 @@
                 const container = document.getElementById('boulderHoldsMarkupContainer');
                 if (!container) return;
 
-                const containerRect = container.getBoundingClientRect();
-                let x = e.clientX - containerRect.left - drag.offsetX;
-                let y = e.clientY - containerRect.top - drag.offsetY;
-
-                x = Math.max(10, Math.min(x, containerRect.width - 10));
-                y = Math.max(10, Math.min(y, containerRect.height - 10));
-
-                drag.marker.style.left = `${x}px`;
-                drag.marker.style.top = `${y}px`;
+                const { x, y, px, py } = markupNormFromClient(container, e.clientX, e.clientY);
+                drag.marker.style.left = `${px}px`;
+                drag.marker.style.top = `${py}px`;
 
                 const holds = this.currentBoulderHoldsMarkup?.holds;
                 if (holds && holds[drag.index]) {
@@ -6048,9 +6149,6 @@
                 });
 
                 // Слушатели для диалога разметки трасс (линии)
-                document.getElementById('cancelRouteLineMarkupBtn').addEventListener('click', () => {
-                    this.hideDialog('routeLineMarkupDialog');
-                });
                 document.getElementById('clearRouteLineMarkupBtn').addEventListener('click', () => {
                     this.clearRouteLineMarkup();
                 });
@@ -6068,9 +6166,6 @@
                 });
 
                 // Слушатели для диалога разметки боулдеринга (зацепки)
-                document.getElementById('cancelBoulderHoldsMarkupBtn').addEventListener('click', () => {
-                    this.hideDialog('boulderHoldsMarkupDialog');
-                });
                 document.getElementById('clearBoulderHoldsMarkupBtn').addEventListener('click', () => {
                     this.clearBoulderHoldsMarkup();
                 });
@@ -6131,9 +6226,6 @@
                     }
                 });
 
-                document.getElementById('climbDetailCloseBtn')?.addEventListener('click', () => {
-                    this.hideDialog('climbDetailDialog');
-                });
                 document.getElementById('climbDetailMarkupBtn')?.addEventListener('click', () => {
                     const ctx = this._climbDetailContext;
                     if (!ctx) return;
@@ -6471,10 +6563,10 @@
                         const c = document.createElementNS(NS, 'circle');
                         c.setAttribute('cx', String(nx));
                         c.setAttribute('cy', String(ny));
-                        c.setAttribute('r', '0.019');
+                        c.setAttribute('r', '0.028');
                         c.setAttribute('fill', 'rgba(255,255,255,0.06)');
                         c.setAttribute('stroke', '#d32f2f');
-                        c.setAttribute('stroke-width', '1.4');
+                        c.setAttribute('stroke-width', '1.6');
                         c.setAttribute('vector-effect', 'non-scaling-stroke');
                         svg.appendChild(c);
                     });
@@ -7220,13 +7312,20 @@
                 };
 
                 const img = document.getElementById('boulderHoldsMarkupImage');
-                img.src = photoData.data;
                 this.showDialog('boulderHoldsMarkupDialog');
-
-                setTimeout(() => {
+                const afterImgReady = () => {
                     this.setupBoulderHoldsMarkupEvents();
                     this.syncBoulderMarkupModeUI();
-                }, 50);
+                    this.renderBoulderHoldsMarkup();
+                };
+                img.onload = () => {
+                    img.onload = null;
+                    afterImgReady();
+                };
+                img.src = photoData.data;
+                if (img.complete && img.naturalWidth > 0) {
+                    afterImgReady();
+                }
             }
 
             showExistingPhotoBoulderHoldsMarkup(photo, climbId, viewOnly = false) {
@@ -7237,27 +7336,32 @@
                 this.boulderMarkupMode = 'circles';
 
                 const img = document.getElementById('boulderHoldsMarkupImage');
-                img.src = photo.imageData;
                 this.showDialog('boulderHoldsMarkupDialog');
 
-                setTimeout(() => {
+                const applyLoadedMarkup = () => {
                     const container = document.getElementById('boulderHoldsMarkupContainer');
-                    const cw = container.offsetWidth || 1;
-                    const ch = container.offsetHeight || 1;
+                    const geom = getMarkupStageGeometry(container);
                     const m = photo.markup || {};
+                    const imageCoords = m.coordSpace === 'image';
                     this.currentBoulderHoldsMarkup = {
-                        holds: (m.holds || []).map((h, i) => ({
-                            id: Date.now() + i,
-                            x: h.x * cw,
-                            y: h.y * ch,
-                            type: 'start',
-                            color: this.getHoldColor()
-                        })),
-                        linePoints: (m.linePoints || []).map((p, i) => ({
-                            id: Date.now() + 5000 + i,
-                            x: p.x * cw,
-                            y: p.y * ch
-                        })),
+                        holds: (m.holds || []).map((h, i) => {
+                            const n = boulderStoredToImageNorm(h, geom, imageCoords);
+                            return {
+                                id: Date.now() + i,
+                                x: n.x,
+                                y: n.y,
+                                type: 'start',
+                                color: this.getHoldColor()
+                            };
+                        }),
+                        linePoints: (m.linePoints || []).map((p, i) => {
+                            const n = boulderStoredToImageNorm(p, geom, imageCoords);
+                            return {
+                                id: Date.now() + 5000 + i,
+                                x: n.x,
+                                y: n.y
+                            };
+                        }),
                         photoId: photo.id,
                         climbId: climbId
                     };
@@ -7266,7 +7370,16 @@
                     }
                     this.syncBoulderMarkupModeUI();
                     this.renderBoulderHoldsMarkup();
-                }, 50);
+                };
+
+                img.onload = () => {
+                    img.onload = null;
+                    applyLoadedMarkup();
+                };
+                img.src = photo.imageData;
+                if (img.complete && img.naturalWidth > 0) {
+                    applyLoadedMarkup();
+                }
             }
 
             setupBoulderHoldsMarkupEvents() {
@@ -7277,16 +7390,20 @@
                 this._boulderHoldsMarkupAbort = new AbortController();
                 const { signal } = this._boulderHoldsMarkupAbort;
 
+                const onStageResize = () => {
+                    if (document.getElementById('boulderHoldsMarkupDialog')?.classList.contains('hidden')) return;
+                    this.renderBoulderHoldsMarkup();
+                };
+                window.addEventListener('resize', onStageResize, { signal });
+
                 container.addEventListener('click', (e) => {
                     if (e.target.closest('.hold-marker')) return;
 
-                    const rect = container.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
+                    const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
+                    const hitNorm = 22 / geom.iw;
 
                     if (e.ctrlKey || e.metaKey) {
-                        const minDist = 20;
-                        let best = { kind: null, index: -1, d: minDist };
+                        let best = { kind: null, index: -1, d: hitNorm };
 
                         (this.currentBoulderHoldsMarkup.holds || []).forEach((hold, index) => {
                             const d = Math.hypot(hold.x - x, hold.y - y);
@@ -7357,21 +7474,25 @@
                     svg.removeChild(svg.firstChild);
                 }
 
-                const w = container.offsetWidth || 1;
-                const h = container.offsetHeight || 1;
-                svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+                const geom = getMarkupStageGeometry(container);
+                svg.style.left = `${geom.left}px`;
+                svg.style.top = `${geom.top}px`;
+                svg.style.width = `${geom.iw}px`;
+                svg.style.height = `${geom.ih}px`;
+                svg.setAttribute('viewBox', '0 0 1 1');
+                svg.setAttribute('preserveAspectRatio', 'none');
 
                 const pts = this.currentBoulderHoldsMarkup?.linePoints || [];
                 if (pts.length < 2) return;
 
-                const pointsAttr = pts.map(p => `${p.x},${p.y}`).join(' ');
+                const pointsAttr = pts.map((p) => `${p.x},${p.y}`).join(' ');
                 const ns = 'http://www.w3.org/2000/svg';
 
                 const line = document.createElementNS(ns, 'polyline');
                 line.setAttribute('points', pointsAttr);
                 line.setAttribute('fill', 'none');
                 line.setAttribute('stroke', '#d32f2f');
-                line.setAttribute('stroke-width', '5');
+                line.setAttribute('stroke-width', '0.012');
                 line.setAttribute('stroke-linecap', 'round');
                 line.setAttribute('stroke-linejoin', 'round');
                 line.setAttribute('vector-effect', 'non-scaling-stroke');
@@ -7381,6 +7502,9 @@
 
             renderBoulderHoldsMarkup() {
                 const container = document.getElementById('boulderHoldsMarkupContainer');
+                if (!container || !this.currentBoulderHoldsMarkup) return;
+
+                const geom = getMarkupStageGeometry(container);
 
                 // Удаляем старые маркеры
                 const oldMarkers = container.querySelectorAll('.hold-marker');
@@ -7388,10 +7512,11 @@
 
                 // Добавляем новые маркеры
                 this.currentBoulderHoldsMarkup.holds.forEach((hold, index) => {
+                    const pos = markupPxFromNorm(hold.x, hold.y, geom);
                     const marker = document.createElement('div');
                     marker.className = 'hold-marker';
-                    marker.style.left = `${hold.x}px`;
-                    marker.style.top = `${hold.y}px`;
+                    marker.style.left = `${pos.x}px`;
+                    marker.style.top = `${pos.y}px`;
                     marker.dataset.index = index;
 
                     const number = document.createElement('div');
@@ -7414,15 +7539,8 @@
                 marker.addEventListener('mousedown', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-
-                    const container = document.getElementById('boulderHoldsMarkupContainer');
-                    const containerRect = container.getBoundingClientRect();
-                    const markerRect = marker.getBoundingClientRect();
-                    const offsetX = e.clientX - markerRect.left;
-                    const offsetY = e.clientY - markerRect.top;
-
                     marker.classList.add('active');
-                    this._boulderHoldDrag = { index, marker, offsetX, offsetY };
+                    this._boulderHoldDrag = { index, marker };
                 });
             }
 
@@ -7448,26 +7566,23 @@
                     return;
                 }
 
-                const container = document.getElementById('boulderHoldsMarkupContainer');
-                const cw = container.offsetWidth;
-                const ch = container.offsetHeight;
-
-                const normalizedHolds = holds.map(hold => ({
-                    x: hold.x / cw,
-                    y: hold.y / ch,
+                const normalizedHolds = holds.map((hold) => ({
+                    x: hold.x,
+                    y: hold.y,
                     type: 'start',
                     color: this.getHoldColor()
                 }));
 
-                const normalizedLine = linePts.map(p => ({
-                    x: p.x / cw,
-                    y: p.y / ch
+                const normalizedLine = linePts.map((p) => ({
+                    x: p.x,
+                    y: p.y
                 }));
 
                 // Новое фото в форме (нет id или временный)
                 if (this.currentPhotoPreview && this.isFormTempPhotoMarkupId(this.currentBoulderHoldsMarkup.photoId)) {
                     this.currentPhotoPreview.markup = {
                         type: 'boulder-holds',
+                        coordSpace: 'image',
                         holds: normalizedHolds,
                         linePoints: normalizedLine,
                         savedAt: new Date().toISOString()
@@ -7483,6 +7598,7 @@
                 const photoId = Number(this.currentBoulderHoldsMarkup.photoId);
                 const newMarkup = {
                     type: 'boulder-holds',
+                    coordSpace: 'image',
                     holds: normalizedHolds,
                     linePoints: normalizedLine,
                     savedAt: new Date().toISOString()
