@@ -2501,7 +2501,7 @@
 
                 <div id="routeLineMarkupContainer" class="markup-dialog-stage">
                     <img id="routeLineMarkupImage" src="" alt="Markup" style="width: 100%; height: 100%; object-fit: contain; display: block;">
-                    <canvas id="routeLineCanvas" class="line-canvas"></canvas>
+                    <svg id="routeLineMarkupSvg" class="boulder-markup-line-svg" aria-hidden="true"></svg>
                 </div>
 
                 <div class="markup-toolbar">
@@ -5173,11 +5173,24 @@
                 item.dataset.climbType = isRoute ? 'route' : 'boulder';
                 item.dataset.photoId = isRoute ? 'temp-quick-route' : 'temp-quick-boulder';
                 const img = document.createElement('img');
-                img.src = data.data;
                 img.alt = 'Preview';
+                const applyOverlay = () => {
+                    this.applyPhotoPreviewMarkupOverlay(
+                        item,
+                        data.markup,
+                        isRoute ? 'route' : 'boulder'
+                    );
+                };
+                img.onload = () => {
+                    img.onload = null;
+                    applyOverlay();
+                };
+                img.src = data.data;
                 item.appendChild(img);
                 box.appendChild(item);
-                this.applyPhotoPreviewMarkupOverlay(item, data.markup, isRoute ? 'route' : 'boulder');
+                if (img.complete && img.naturalWidth > 0) {
+                    applyOverlay();
+                }
                 actions.style.display = 'flex';
             }
 
@@ -6463,7 +6476,6 @@
                     const t = ctx.climbType;
                     const id = ctx.climbId;
                     const pid = ctx.photoId;
-                    this.hideDialog('climbDetailDialog');
                     if (pid) {
                         this.openPhotoMarkupView(pid);
                     } else {
@@ -6546,7 +6558,8 @@
                         img.removeAttribute('src');
                     }
                     const mount = document.getElementById('climbDetailPhotoMount');
-                    if (mount) this.applyPhotoPreviewMarkupOverlay(mount, null, 'route');
+                    const detailType = this._climbDetailContext?.climbType || 'route';
+                    if (mount) this.applyPhotoPreviewMarkupOverlay(mount, null, detailType);
                     document.getElementById('climbDetailImageWrap')?.classList.add('hidden');
                     document.getElementById('climbDetailNoPhoto')?.classList.add('hidden');
                     document.getElementById('climbDetailSaveRow')?.classList.add('hidden');
@@ -6834,7 +6847,27 @@
                     return;
                 }
 
-                const svg = this.buildPhotoMarkupOverlaySvg(markup, climbType);
+                const geom = getMarkupStageGeometry(previewItem);
+                let markupForSvg = markup;
+                if (climbType === 'route' && markup.type === 'route-line' && markup.coordSpace !== 'image') {
+                    markupForSvg = {
+                        ...markup,
+                        points: (markup.points || []).map((p) => boulderStoredToImageNorm(p, geom, false)),
+                        startHolds: (markup.startHolds || []).map((p) => boulderStoredToImageNorm(p, geom, false))
+                    };
+                } else if (climbType === 'boulder' && markup.type === 'boulder-holds' && markup.coordSpace !== 'image') {
+                    markupForSvg = {
+                        ...markup,
+                        holds: (markup.holds || []).map((h) => boulderStoredToImageNorm(h, geom, false)),
+                        linePoints: (markup.linePoints || []).map((p) => boulderStoredToImageNorm(p, geom, false))
+                    };
+                }
+
+                const svg = this.buildPhotoMarkupOverlaySvg(markupForSvg, climbType);
+                svg.style.left = `${geom.left}px`;
+                svg.style.top = `${geom.top}px`;
+                svg.style.width = `${geom.iw}px`;
+                svg.style.height = `${geom.ih}px`;
                 const actions = previewItem.querySelector('.photo-preview-actions');
                 if (actions) {
                     previewItem.insertBefore(svg, actions);
@@ -6855,6 +6888,24 @@
             isFormTempPhotoMarkupId(photoId) {
                 const s = photoId == null ? '' : String(photoId);
                 return s === '' || s === 'temp' || s.startsWith('temp-');
+            }
+
+            refreshClimbDetailMarkupOverlayIfOpen() {
+                const dlg = document.getElementById('climbDetailDialog');
+                const ctx = this._climbDetailContext;
+                if (!dlg || dlg.classList.contains('hidden') || !ctx) return;
+                const mount = document.getElementById('climbDetailPhotoMount');
+                if (!mount) return;
+                const idStr = String(ctx.climbId);
+                const photos = getPhotos().filter(
+                    (p) => p.type === ctx.climbType && String(p.climbId) === idStr
+                );
+                const photo =
+                    (ctx.shownPhotoId && photos.find((p) => String(p.id) === String(ctx.shownPhotoId)))
+                    || (ctx.photoId && photos.find((p) => String(p.id) === String(ctx.photoId)))
+                    || photos.find((p) => p.markup)
+                    || photos[0];
+                this.applyPhotoPreviewMarkupOverlay(mount, photo?.markup || null, ctx.climbType);
             }
 
             refreshDialogPhotoMarkupAfterMarkupSave() {
@@ -7259,7 +7310,7 @@
                 });
             }
 
-            // Методы для разметки трасс (линии + стартовые кружки)
+            // Методы для разметки трасс (линии + стартовые кружки), координаты 0–1 по видимой области фото
             showRouteLineMarkupDialog(photoData) {
                 this._markupDialogViewOnly = false;
                 this.resetRouteMarkupDialogChrome();
@@ -7272,14 +7323,20 @@
                 };
 
                 const img = document.getElementById('routeLineMarkupImage');
-                img.src = photoData.data;
                 this.showDialog('routeLineMarkupDialog');
-
-                setTimeout(() => {
-                    this.initRouteLineCanvas();
+                const afterImgReady = () => {
                     this.setupRouteLineMarkupEvents();
                     this.syncRouteMarkupModeUI();
-                }, 50);
+                    this.renderRouteLineMarkup();
+                };
+                img.onload = () => {
+                    img.onload = null;
+                    afterImgReady();
+                };
+                img.src = photoData.data;
+                if (img.complete && img.naturalWidth > 0) {
+                    afterImgReady();
+                }
             }
 
             showExistingPhotoRouteLineMarkup(photo, climbId, viewOnly = false) {
@@ -7290,25 +7347,22 @@
                 this.routeMarkupMode = 'line';
 
                 const img = document.getElementById('routeLineMarkupImage');
-                img.src = photo.imageData;
                 this.showDialog('routeLineMarkupDialog');
 
-                setTimeout(() => {
-                    this.initRouteLineCanvas();
-                    const cw = this.routeLineCanvas.width;
-                    const ch = this.routeLineCanvas.height;
+                const applyLoadedMarkup = () => {
+                    const container = document.getElementById('routeLineMarkupContainer');
+                    const geom = getMarkupStageGeometry(container);
                     const m = photo.markup || {};
+                    const imageCoords = m.coordSpace === 'image';
                     this.currentRouteLineMarkup = {
-                        points: (m.points || []).map((p, i) => ({
-                            id: Date.now() + i,
-                            x: p.x * cw,
-                            y: p.y * ch
-                        })),
-                        startHolds: (m.startHolds || []).map((p, i) => ({
-                            id: Date.now() + 10000 + i,
-                            x: p.x * cw,
-                            y: p.y * ch
-                        })),
+                        points: (m.points || []).map((p, i) => {
+                            const n = boulderStoredToImageNorm(p, geom, imageCoords);
+                            return { id: Date.now() + i, x: n.x, y: n.y };
+                        }),
+                        startHolds: (m.startHolds || []).map((p, i) => {
+                            const n = boulderStoredToImageNorm(p, geom, imageCoords);
+                            return { id: Date.now() + 10000 + i, x: n.x, y: n.y };
+                        }),
                         photoId: photo.id,
                         climbId: climbId
                     };
@@ -7317,18 +7371,49 @@
                     }
                     this.syncRouteMarkupModeUI();
                     this.renderRouteLineMarkup();
-                }, 50);
+                };
+
+                img.onload = () => {
+                    img.onload = null;
+                    applyLoadedMarkup();
+                };
+                img.src = photo.imageData;
+                if (img.complete && img.naturalWidth > 0) {
+                    applyLoadedMarkup();
+                }
             }
 
-            initRouteLineCanvas() {
+            updateRouteLinePolyline() {
+                const svg = document.getElementById('routeLineMarkupSvg');
                 const container = document.getElementById('routeLineMarkupContainer');
-                const canvas = document.getElementById('routeLineCanvas');
+                if (!svg || !container) return;
 
-                canvas.width = container.offsetWidth;
-                canvas.height = container.offsetHeight;
+                while (svg.firstChild) {
+                    svg.removeChild(svg.firstChild);
+                }
 
-                this.routeLineCanvas = canvas;
-                this.routeLineCtx = canvas.getContext('2d');
+                const geom = getMarkupStageGeometry(container);
+                svg.style.left = `${geom.left}px`;
+                svg.style.top = `${geom.top}px`;
+                svg.style.width = `${geom.iw}px`;
+                svg.style.height = `${geom.ih}px`;
+                svg.setAttribute('viewBox', '0 0 1 1');
+                svg.setAttribute('preserveAspectRatio', 'none');
+
+                const pts = this.currentRouteLineMarkup?.points || [];
+                if (pts.length < 2) return;
+
+                const pointsAttr = pts.map((p) => `${p.x},${p.y}`).join(' ');
+                const ns = 'http://www.w3.org/2000/svg';
+                const line = document.createElementNS(ns, 'polyline');
+                line.setAttribute('points', pointsAttr);
+                line.setAttribute('fill', 'none');
+                line.setAttribute('stroke', '#d32f2f');
+                line.setAttribute('stroke-width', '0.012');
+                line.setAttribute('stroke-linecap', 'round');
+                line.setAttribute('stroke-linejoin', 'round');
+                line.setAttribute('vector-effect', 'non-scaling-stroke');
+                svg.appendChild(line);
             }
 
             setupRouteLineMarkupEvents() {
@@ -7339,14 +7424,20 @@
                 this._routeLineMarkupAbort = new AbortController();
                 const { signal } = this._routeLineMarkupAbort;
 
+                const onStageResize = () => {
+                    if (document.getElementById('routeLineMarkupDialog')?.classList.contains('hidden')) return;
+                    this.renderRouteLineMarkup();
+                };
+                window.addEventListener('resize', onStageResize, { signal });
+
                 container.addEventListener('click', (e) => {
-                    const rect = container.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
+                    if (e.target.closest('.hold-marker')) return;
+
+                    const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
+                    const hitNorm = 22 / geom.iw;
 
                     if (e.ctrlKey || e.metaKey) {
-                        const minDist = 22;
-                        let best = { kind: null, index: -1, d: minDist };
+                        let best = { kind: null, index: -1, d: hitNorm };
 
                         (this.currentRouteLineMarkup.points || []).forEach((point, index) => {
                             const d = Math.hypot(point.x - x, point.y - y);
@@ -7380,13 +7471,11 @@
             }
 
             addRouteLinePoint(x, y) {
-                const point = {
+                this.currentRouteLineMarkup.points.push({
                     id: Date.now(),
-                    x: x,
-                    y: y
-                };
-
-                this.currentRouteLineMarkup.points.push(point);
+                    x,
+                    y
+                });
                 this.renderRouteLineMarkup();
             }
 
@@ -7402,60 +7491,45 @@
                 this.renderRouteLineMarkup();
             }
 
-            drawRouteRedCircle(point, radius, { isLineVertex, isEnd } = {}) {
-                const r = radius;
-                const strokeOuter = isLineVertex && isEnd ? '#7f0000' : '#b71c1c';
-                this.routeLineCtx.beginPath();
-                this.routeLineCtx.arc(point.x, point.y, r + 1.5, 0, Math.PI * 2);
-                this.routeLineCtx.strokeStyle = strokeOuter;
-                this.routeLineCtx.lineWidth = 2;
-                this.routeLineCtx.stroke();
-
-                this.routeLineCtx.beginPath();
-                this.routeLineCtx.arc(point.x, point.y, r, 0, Math.PI * 2);
-                this.routeLineCtx.fillStyle = '#e53935';
-                this.routeLineCtx.fill();
-                this.routeLineCtx.strokeStyle = 'rgba(255, 220, 220, 0.5)';
-                this.routeLineCtx.lineWidth = 1.2;
-                this.routeLineCtx.stroke();
-            }
-
             renderRouteLineMarkup() {
-                if (!this.routeLineCtx) return;
-                this.routeLineCtx.clearRect(0, 0, this.routeLineCanvas.width, this.routeLineCanvas.height);
+                const container = document.getElementById('routeLineMarkupContainer');
+                if (!container || !this.currentRouteLineMarkup) return;
+
+                const geom = getMarkupStageGeometry(container);
+                container.querySelectorAll('.hold-marker').forEach((marker) => marker.remove());
 
                 const starts = this.currentRouteLineMarkup.startHolds || [];
-                starts.forEach(h => this.drawRouteRedCircle(h, 9, { isLineVertex: false }));
+                starts.forEach((hold, index) => {
+                    const pos = markupPxFromNorm(hold.x, hold.y, geom);
+                    const marker = document.createElement('div');
+                    marker.className = 'hold-marker';
+                    marker.style.left = `${pos.x}px`;
+                    marker.style.top = `${pos.y}px`;
+                    marker.dataset.index = String(index);
+                    container.appendChild(marker);
+                });
 
                 const pts = this.currentRouteLineMarkup.points || [];
-                if (pts.length >= 2) {
-                    this.routeLineCtx.beginPath();
-                    this.routeLineCtx.moveTo(pts[0].x, pts[0].y);
-                    for (let i = 1; i < pts.length; i++) {
-                        this.routeLineCtx.lineTo(pts[i].x, pts[i].y);
-                    }
-                    this.routeLineCtx.strokeStyle = '#d32f2f';
-                    this.routeLineCtx.lineWidth = 5;
-                    this.routeLineCtx.lineCap = 'round';
-                    this.routeLineCtx.lineJoin = 'round';
-                    this.routeLineCtx.stroke();
-                }
+                pts.forEach((point, index) => {
+                    const pos = markupPxFromNorm(point.x, point.y, geom);
+                    const marker = document.createElement('div');
+                    marker.className = 'hold-marker';
+                    marker.style.left = `${pos.x}px`;
+                    marker.style.top = `${pos.y}px`;
+                    marker.dataset.index = String(index);
+                    container.appendChild(marker);
+                });
 
-                if (pts.length === 1) {
-                    this.drawRouteRedCircle(pts[0], 7, { isLineVertex: true, isEnd: true });
-                } else if (pts.length >= 2) {
-                    for (let i = 0; i < pts.length - 1; i++) {
-                        this.drawRouteRedCircle(pts[i], 6, { isLineVertex: true, isEnd: false });
-                    }
-                    this.drawRouteRedCircle(pts[pts.length - 1], 8, { isLineVertex: true, isEnd: true });
-                }
+                this.updateRouteLinePolyline();
             }
 
             clearRouteLineMarkup() {
                 if (confirm('Очистить всю разметку?')) {
                     this.currentRouteLineMarkup.points = [];
                     this.currentRouteLineMarkup.startHolds = [];
-                    this.routeLineCtx.clearRect(0, 0, this.routeLineCanvas.width, this.routeLineCanvas.height);
+                    const container = document.getElementById('routeLineMarkupContainer');
+                    container?.querySelectorAll('.hold-marker').forEach((marker) => marker.remove());
+                    this.updateRouteLinePolyline();
                 }
             }
 
@@ -7466,29 +7540,28 @@
                     return;
                 }
 
-                const cw = this.routeLineCanvas.width;
-                const ch = this.routeLineCanvas.height;
-
-                const normalizedPoints = (this.currentRouteLineMarkup.points || []).map(point => ({
-                    x: point.x / cw,
-                    y: point.y / ch
+                const normalizedPoints = (this.currentRouteLineMarkup.points || []).map((point) => ({
+                    x: point.x,
+                    y: point.y
                 }));
 
-                const normalizedStarts = (this.currentRouteLineMarkup.startHolds || []).map(point => ({
-                    x: point.x / cw,
-                    y: point.y / ch
+                const normalizedStarts = (this.currentRouteLineMarkup.startHolds || []).map((point) => ({
+                    x: point.x,
+                    y: point.y
                 }));
 
                 // Новое фото в форме (нет id маршрута или временный)
                 if (this.currentPhotoPreview && this.isFormTempPhotoMarkupId(this.currentRouteLineMarkup.photoId)) {
                     this.currentPhotoPreview.markup = {
                         type: 'route-line',
+                        coordSpace: 'image',
                         points: normalizedPoints,
                         startHolds: normalizedStarts,
                         savedAt: new Date().toISOString()
                     };
 
                     this.refreshDialogPhotoMarkupAfterMarkupSave();
+                    this.refreshClimbDetailMarkupOverlayIfOpen();
                     this.showToast('Разметка сохранена');
                     this.hideDialog('routeLineMarkupDialog');
                     return;
@@ -7498,6 +7571,7 @@
                 const photoId = Number(this.currentRouteLineMarkup.photoId);
                 const newMarkup = {
                     type: 'route-line',
+                    coordSpace: 'image',
                     points: normalizedPoints,
                     startHolds: normalizedStarts,
                     savedAt: new Date().toISOString()
@@ -7520,6 +7594,7 @@
                     this.showToast(`Ошибка сохранения разметки: ${err.message}`, true);
                 }
 
+                this.refreshClimbDetailMarkupOverlayIfOpen();
                 this.hideDialog('routeLineMarkupDialog');
                 this.renderPhotoAlbum();
             }
