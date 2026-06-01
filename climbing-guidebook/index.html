@@ -651,7 +651,8 @@
             border-radius: 8px;
             font-size: 15px;
             transition: var(--transition);
-            background-color: white;
+            background-color: color-mix(in srgb, var(--card-bg) 88%, transparent);
+            color: var(--text-color);
         }
 
         .form-input:focus, .form-textarea:focus, .form-select:focus {
@@ -2092,6 +2093,114 @@
             display: none !important;
         }
 
+        /* Светлая тема Telegram: прозрачные поля и кнопки, текст из themeParams */
+        html.tg-mini-app.tg-theme-light {
+            --tg-field-bg: transparent;
+            --tg-btn-bg: transparent;
+            --tg-btn-bg-hover: color-mix(in srgb, var(--text-color) 7%, transparent);
+            --tg-btn-border: color-mix(in srgb, var(--text-color) 22%, transparent);
+            --tg-btn-ghost-hover-bg: color-mix(in srgb, var(--text-color) 6%, transparent);
+        }
+
+        html.tg-mini-app.tg-theme-light .form-input,
+        html.tg-mini-app.tg-theme-light .form-textarea,
+        html.tg-mini-app.tg-theme-light .form-select,
+        html.tg-mini-app.tg-theme-light .search-input,
+        html.tg-mini-app.tg-theme-light .search-bar.search-bar--compound .search-input,
+        html.tg-mini-app.tg-theme-light .search-bar.search-bar--compound .list-grade-select,
+        html.tg-mini-app.tg-theme-light .dialog-content .form-input,
+        html.tg-mini-app.tg-theme-light .dialog-content .form-textarea,
+        html.tg-mini-app.tg-theme-light .dialog-content .form-select,
+        html.tg-mini-app.tg-theme-light .grade-picker-toggle {
+            background-color: var(--tg-field-bg) !important;
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+            color: var(--text-color);
+            border-color: color-mix(in srgb, var(--text-color) 24%, transparent);
+        }
+
+        html.tg-mini-app.tg-theme-light .form-input::placeholder,
+        html.tg-mini-app.tg-theme-light .form-textarea::placeholder,
+        html.tg-mini-app.tg-theme-light .search-input::placeholder {
+            color: var(--light-text);
+            opacity: 1;
+        }
+
+        html.tg-mini-app.tg-theme-light .btn,
+        html.tg-mini-app.tg-theme-light .filter-btn,
+        html.tg-mini-app.tg-theme-light .grade-btn,
+        html.tg-mini-app.tg-theme-light .route-markup-mode-btn,
+        html.tg-mini-app.tg-theme-light .boulder-markup-mode-btn,
+        html.tg-mini-app.tg-theme-light .tab-btn:not(.active) {
+            background-color: var(--tg-btn-bg) !important;
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+            color: var(--text-color);
+            border-color: var(--tg-btn-border);
+            box-shadow: none;
+        }
+
+        html.tg-mini-app.tg-theme-light .btn-secondary,
+        html.tg-mini-app.tg-theme-light .btn-ghost {
+            background-color: transparent !important;
+            color: var(--text-color);
+            border-color: var(--tg-btn-border);
+        }
+
+        html.tg-mini-app.tg-theme-light .btn-primary {
+            background-color: color-mix(in srgb, var(--tg-blue) 14%, transparent) !important;
+            color: var(--tg-blue);
+            border-color: color-mix(in srgb, var(--tg-blue) 42%, transparent);
+            box-shadow: none;
+        }
+
+        html.tg-mini-app.tg-theme-light .tab-btn.active,
+        html.tg-mini-app.tg-theme-light .filter-btn.active,
+        html.tg-mini-app.tg-theme-light .grade-btn.active,
+        html.tg-mini-app.tg-theme-light .route-markup-mode-btn.active,
+        html.tg-mini-app.tg-theme-light .boulder-markup-mode-btn.active {
+            background-color: color-mix(in srgb, var(--tg-blue) 18%, transparent) !important;
+            color: var(--tg-blue);
+            border-color: color-mix(in srgb, var(--tg-blue) 45%, transparent);
+            box-shadow: none;
+        }
+
+        html.tg-mini-app.tg-theme-light .card {
+            background-color: transparent;
+            box-shadow: none;
+            border: 1px solid color-mix(in srgb, var(--text-color) 12%, transparent);
+        }
+
+        html.tg-mini-app.tg-theme-light .dialog-content {
+            background-color: var(--background-color);
+        }
+
+        html.tg-mini-app.tg-theme-light #climbDetailDescription {
+            background-color: transparent !important;
+            color: var(--text-color);
+            border-color: color-mix(in srgb, var(--text-color) 20%, transparent);
+        }
+
+        html.tg-mini-app.tg-theme-light .photo-upload {
+            background-color: transparent;
+            border-color: color-mix(in srgb, var(--text-color) 22%, transparent);
+        }
+
+        html.tg-mini-app.tg-theme-light .grade-picker-dropdown {
+            background: color-mix(in srgb, var(--background-color) 92%, var(--text-color) 8%);
+            border-color: var(--tg-btn-border);
+            box-shadow: 0 8px 24px color-mix(in srgb, var(--text-color) 12%, transparent);
+        }
+
+        html.tg-mini-app.tg-theme-light .auth-label {
+            text-shadow: none;
+        }
+
+        html.tg-mini-app.tg-theme-light .catalog-breadcrumb button,
+        html.tg-mini-app.tg-theme-light .catalog-row-actions .btn {
+            background-color: transparent;
+        }
+
         .markup-dialog--view-only .markup-actions {
             display: none !important;
         }
@@ -2844,10 +2953,24 @@
                 return s.startsWith('#') ? s : `#${s}`;
             }
 
+            function isLightTelegramColor(hex) {
+                const h = String(hex || '').replace('#', '');
+                if (h.length !== 6) return false;
+                const r = parseInt(h.slice(0, 2), 16);
+                const g = parseInt(h.slice(2, 4), 16);
+                const b = parseInt(h.slice(4, 6), 16);
+                if (![r, g, b].every(Number.isFinite)) return false;
+                const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+                return lum > 0.58;
+            }
+
             function applyTelegramTheme() {
                 const tp = tg.themeParams || {};
                 const root = document.documentElement;
                 const bg = hexColor(tp.bg_color);
+                const lightTheme = bg ? isLightTelegramColor(bg) : false;
+                root.classList.toggle('tg-theme-light', lightTheme);
+                root.classList.toggle('tg-theme-dark', !lightTheme);
                 const txt = hexColor(tp.text_color);
                 const hint = hexColor(tp.hint_color);
                 const link = hexColor(tp.link_color);
