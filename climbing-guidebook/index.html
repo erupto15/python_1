@@ -937,6 +937,14 @@
             border: 1px solid var(--border-color);
             border-radius: 8px;
             overflow: hidden;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+            cursor: crosshair;
+        }
+
+        .markup-dialog-stage.markup-draw-active {
+            cursor: crosshair;
         }
 
         .markup-toolbar {
@@ -2488,8 +2496,8 @@
             <div class="dialog-body">
                 <div class="markup-instructions">
                     <i class="fas fa-info-circle"></i>
-                    <strong>Инструкция:</strong> Выберите режим: «Стартовые кружки» — отметьте стартовые зацепки; «Линия хода» — кликами по фото задайте линию движения по скале (всё отображается красным).
-                    Удаление ближайшей точки или кружка: Ctrl / ⌘ + клик рядом с ним.
+                    <strong>Инструкция:</strong> «Стартовые кружки» — короткий тап по фото. «Линия хода» — ведите палец или зажатую кнопку мыши по траектории на фото.
+                    Удаление ближайшей точки: Ctrl / ⌘ + тап рядом с ней.
                     <span class="markup-touch-note">На телефоне без клавиатуры точку проще сбросить кнопкой «Очистить все» или отменить и начать заново.</span>
                 </div>
 
@@ -2507,11 +2515,11 @@
                 <div class="markup-toolbar">
                     <div class="markup-tool">
                         <i class="fas fa-circle" style="color: #e53935;"></i>
-                        <span>Старты: режим «Стартовые кружки», клик по фото</span>
+                        <span>Старты: режим «Стартовые кружки», короткий тап по фото</span>
                     </div>
                     <div class="markup-tool">
                         <i class="fas fa-route" style="color: #e53935;"></i>
-                        <span>Линия: режим «Линия хода», клики по порядку</span>
+                        <span>Линия: режим «Линия хода», ведите палец или мышь по фото</span>
                     </div>
                     <div class="markup-tool">
                         <i class="fas fa-trash" style="color: var(--danger-color);"></i>
@@ -2547,8 +2555,8 @@
             <div class="dialog-body">
                 <div class="markup-instructions">
                     <i class="fas fa-info-circle"></i>
-                    <strong>Инструкция:</strong> Выберите режим: «Кружки» — прозрачные метки с красной обводкой (перетаскивание). «Линия» — кликами по фото задайте линию хода; она не соединяет кружки автоматически.
-                    Удаление ближайшей точки кружка или вершины линии: Ctrl / ⌘ + клик рядом.
+                    <strong>Инструкция:</strong> «Кружки» — короткий тап (можно перетащить маркер). «Линия» — ведите палец или зажатую кнопку мыши по траектории; линия не соединяет кружки автоматически.
+                    Удаление: Ctrl / ⌘ + тап рядом с маркером или точкой линии.
                     <span class="markup-touch-note">На телефоне без клавиатуры точку проще сбросить кнопкой «Очистить все» или отменить и начать заново.</span>
                 </div>
 
@@ -4270,6 +4278,27 @@
             return { x, y, px: px.x, py: px.y, geom };
         }
 
+        /** Минимальный шаг при рисовании линии (норм. координаты фото). */
+        const MARKUP_DRAW_MIN_DIST = 0.006;
+        /** Тап vs проведение пальцем/мышью (px). */
+        const MARKUP_TAP_MAX_MOVE_PX = 14;
+
+        function appendMarkupLinePoint(points, x, y, force = false) {
+            if (!Array.isArray(points)) return false;
+            if (!force && points.length) {
+                const last = points[points.length - 1];
+                if (Math.hypot(last.x - x, last.y - y) < MARKUP_DRAW_MIN_DIST) {
+                    return false;
+                }
+            }
+            points.push({
+                id: Date.now() + Math.floor(Math.random() * 1000),
+                x,
+                y
+            });
+            return true;
+        }
+
         /** Старые точки (0–1 по контейнеру) → 0–1 по видимой области фото. */
         function boulderStoredToImageNorm(stored, geom, coordSpaceImage) {
             let x = Number(stored?.x);
@@ -4548,10 +4577,11 @@
                 this._routeSearchDebounceTimer = null;
                 this._boulderSearchDebounceTimer = null;
                 this._boulderHoldDrag = null;
-                this._onBoulderHoldMouseMove = this.onBoulderHoldMouseMove.bind(this);
-                this._onBoulderHoldMouseUp = this.onBoulderHoldMouseUp.bind(this);
-                document.addEventListener('mousemove', this._onBoulderHoldMouseMove);
-                document.addEventListener('mouseup', this._onBoulderHoldMouseUp);
+                this._onBoulderHoldPointerMove = this.onBoulderHoldPointerMove.bind(this);
+                this._onBoulderHoldPointerUp = this.onBoulderHoldPointerUp.bind(this);
+                document.addEventListener('pointermove', this._onBoulderHoldPointerMove);
+                document.addEventListener('pointerup', this._onBoulderHoldPointerUp);
+                document.addEventListener('pointercancel', this._onBoulderHoldPointerUp);
 
                 this.catalog = { view: 'areas', areaId: null, sectorId: null };
 
@@ -4562,9 +4592,9 @@
                 this.init();
             }
 
-            onBoulderHoldMouseMove(e) {
+            onBoulderHoldPointerMove(e) {
                 const drag = this._boulderHoldDrag;
-                if (!drag) return;
+                if (!drag || e.pointerId !== drag.pointerId) return;
 
                 const container = document.getElementById('boulderHoldsMarkupContainer');
                 if (!container) return;
@@ -4582,9 +4612,15 @@
                 this.updateBoulderHoldsPolyline();
             }
 
-            onBoulderHoldMouseUp() {
-                if (!this._boulderHoldDrag) return;
-                this._boulderHoldDrag.marker.classList.remove('active');
+            onBoulderHoldPointerUp(e) {
+                const drag = this._boulderHoldDrag;
+                if (!drag || (e && e.pointerId !== drag.pointerId)) return;
+                try {
+                    drag.marker.releasePointerCapture(drag.pointerId);
+                } catch (_) {
+                    /* ignore */
+                }
+                drag.marker.classList.remove('active');
                 this._boulderHoldDrag = null;
             }
 
@@ -6792,7 +6828,6 @@
                     const pts = markup.points || [];
                     const starts = markup.startHolds || [];
                     addPolyline(pts);
-                    pts.forEach(p => addCircle(p.x, p.y, 0.018));
                     starts.forEach(p => addCircle(p.x, p.y, 0.024));
                 } else if (climbType === 'boulder' && markup.type === 'boulder-holds') {
                     const holds = markup.holds || [];
@@ -7416,6 +7451,32 @@
                 svg.appendChild(line);
             }
 
+            deleteNearestRouteMarkupAt(x, y, geom) {
+                const hitNorm = 22 / geom.iw;
+                let best = { kind: null, index: -1, d: hitNorm };
+
+                (this.currentRouteLineMarkup.points || []).forEach((point, index) => {
+                    const d = Math.hypot(point.x - x, point.y - y);
+                    if (d < best.d) {
+                        best = { kind: 'point', index, d };
+                    }
+                });
+                (this.currentRouteLineMarkup.startHolds || []).forEach((point, index) => {
+                    const d = Math.hypot(point.x - x, point.y - y);
+                    if (d < best.d) {
+                        best = { kind: 'start', index, d };
+                    }
+                });
+
+                if (best.kind === 'point' && best.index !== -1) {
+                    this.currentRouteLineMarkup.points.splice(best.index, 1);
+                    this.renderRouteLineMarkup();
+                } else if (best.kind === 'start' && best.index !== -1) {
+                    this.currentRouteLineMarkup.startHolds.splice(best.index, 1);
+                    this.renderRouteLineMarkup();
+                }
+            }
+
             setupRouteLineMarkupEvents() {
                 const container = document.getElementById('routeLineMarkupContainer');
                 if (!container) return;
@@ -7424,59 +7485,89 @@
                 this._routeLineMarkupAbort = new AbortController();
                 const { signal } = this._routeLineMarkupAbort;
 
+                let lineDrawing = false;
+                let tapDown = null;
+
                 const onStageResize = () => {
                     if (document.getElementById('routeLineMarkupDialog')?.classList.contains('hidden')) return;
                     this.renderRouteLineMarkup();
                 };
                 window.addEventListener('resize', onStageResize, { signal });
 
-                container.addEventListener('click', (e) => {
+                const finishLineDraw = () => {
+                    if (!lineDrawing) return;
+                    lineDrawing = false;
+                    container.classList.remove('markup-draw-active');
+                    this.renderRouteLineMarkup();
+                };
+
+                container.addEventListener('pointerdown', (e) => {
+                    if (this._markupDialogViewOnly) return;
                     if (e.target.closest('.hold-marker')) return;
+                    if (e.pointerType === 'mouse' && e.button !== 0) return;
 
                     const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
-                    const hitNorm = 22 / geom.iw;
 
                     if (e.ctrlKey || e.metaKey) {
-                        let best = { kind: null, index: -1, d: hitNorm };
-
-                        (this.currentRouteLineMarkup.points || []).forEach((point, index) => {
-                            const d = Math.hypot(point.x - x, point.y - y);
-                            if (d < best.d) {
-                                best = { kind: 'point', index, d };
-                            }
-                        });
-                        (this.currentRouteLineMarkup.startHolds || []).forEach((point, index) => {
-                            const d = Math.hypot(point.x - x, point.y - y);
-                            if (d < best.d) {
-                                best = { kind: 'start', index, d };
-                            }
-                        });
-
-                        if (best.kind === 'point' && best.index !== -1) {
-                            this.currentRouteLineMarkup.points.splice(best.index, 1);
-                            this.renderRouteLineMarkup();
-                        } else if (best.kind === 'start' && best.index !== -1) {
-                            this.currentRouteLineMarkup.startHolds.splice(best.index, 1);
-                            this.renderRouteLineMarkup();
-                        }
+                        this.deleteNearestRouteMarkupAt(x, y, geom);
                         return;
                     }
 
                     if (this.routeMarkupMode === 'starts') {
-                        this.addRouteStartHold(x, y);
-                    } else {
-                        this.addRouteLinePoint(x, y);
+                        tapDown = { x: e.clientX, y: e.clientY };
+                        return;
+                    }
+
+                    e.preventDefault();
+                    try {
+                        container.setPointerCapture(e.pointerId);
+                    } catch (_) {
+                        /* ignore */
+                    }
+                    lineDrawing = true;
+                    container.classList.add('markup-draw-active');
+                    if (!this.currentRouteLineMarkup.points) {
+                        this.currentRouteLineMarkup.points = [];
+                    }
+                    appendMarkupLinePoint(this.currentRouteLineMarkup.points, x, y, true);
+                    this.updateRouteLinePolyline();
+                }, { signal });
+
+                container.addEventListener('pointermove', (e) => {
+                    if (!lineDrawing || this.routeMarkupMode !== 'line') return;
+                    e.preventDefault();
+                    const { x, y } = markupNormFromClient(container, e.clientX, e.clientY);
+                    if (appendMarkupLinePoint(this.currentRouteLineMarkup.points, x, y, false)) {
+                        this.updateRouteLinePolyline();
                     }
                 }, { signal });
-            }
 
-            addRouteLinePoint(x, y) {
-                this.currentRouteLineMarkup.points.push({
-                    id: Date.now(),
-                    x,
-                    y
-                });
-                this.renderRouteLineMarkup();
+                const onPointerEnd = (e) => {
+                    if (lineDrawing) {
+                        try {
+                            container.releasePointerCapture(e.pointerId);
+                        } catch (_) {
+                            /* ignore */
+                        }
+                        finishLineDraw();
+                        return;
+                    }
+                    if (tapDown && this.routeMarkupMode === 'starts') {
+                        const moved = Math.hypot(e.clientX - tapDown.x, e.clientY - tapDown.y);
+                        tapDown = null;
+                        if (moved > MARKUP_TAP_MAX_MOVE_PX) return;
+                        const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
+                        if (e.ctrlKey || e.metaKey) {
+                            this.deleteNearestRouteMarkupAt(x, y, geom);
+                        } else {
+                            this.addRouteStartHold(x, y);
+                        }
+                    }
+                };
+
+                container.addEventListener('pointerup', onPointerEnd, { signal });
+                container.addEventListener('pointercancel', onPointerEnd, { signal });
+                container.addEventListener('lostpointercapture', finishLineDraw, { signal });
             }
 
             addRouteStartHold(x, y) {
@@ -7509,17 +7600,6 @@
                     container.appendChild(marker);
                 });
 
-                const pts = this.currentRouteLineMarkup.points || [];
-                pts.forEach((point, index) => {
-                    const pos = markupPxFromNorm(point.x, point.y, geom);
-                    const marker = document.createElement('div');
-                    marker.className = 'hold-marker';
-                    marker.style.left = `${pos.x}px`;
-                    marker.style.top = `${pos.y}px`;
-                    marker.dataset.index = String(index);
-                    container.appendChild(marker);
-                });
-
                 this.updateRouteLinePolyline();
             }
 
@@ -7536,7 +7616,7 @@
             async saveRouteLineMarkup() {
                 if (!this.requireAdmin('Сохранение разметки')) return;
                 if ((this.currentRouteLineMarkup.points || []).length < 2) {
-                    this.showToast('Добавьте хотя бы две точки линии (режим «Линия хода»). Стартовые кружки — по желанию.', true);
+                    this.showToast('Проведите линию по фото (режим «Линия хода») — удерживайте палец или кнопку мыши.', true);
                     return;
                 }
 
@@ -7688,6 +7768,32 @@
                 }
             }
 
+            deleteNearestBoulderMarkupAt(x, y, geom) {
+                const hitNorm = 22 / geom.iw;
+                let best = { kind: null, index: -1, d: hitNorm };
+
+                (this.currentBoulderHoldsMarkup.holds || []).forEach((hold, index) => {
+                    const d = Math.hypot(hold.x - x, hold.y - y);
+                    if (d < best.d) {
+                        best = { kind: 'hold', index, d };
+                    }
+                });
+                (this.currentBoulderHoldsMarkup.linePoints || []).forEach((pt, index) => {
+                    const d = Math.hypot(pt.x - x, pt.y - y);
+                    if (d < best.d) {
+                        best = { kind: 'line', index, d };
+                    }
+                });
+
+                if (best.kind === 'hold' && best.index !== -1) {
+                    this.currentBoulderHoldsMarkup.holds.splice(best.index, 1);
+                    this.renderBoulderHoldsMarkup();
+                } else if (best.kind === 'line' && best.index !== -1) {
+                    this.currentBoulderHoldsMarkup.linePoints.splice(best.index, 1);
+                    this.updateBoulderHoldsPolyline();
+                }
+            }
+
             setupBoulderHoldsMarkupEvents() {
                 const container = document.getElementById('boulderHoldsMarkupContainer');
                 if (!container) return;
@@ -7696,50 +7802,89 @@
                 this._boulderHoldsMarkupAbort = new AbortController();
                 const { signal } = this._boulderHoldsMarkupAbort;
 
+                let lineDrawing = false;
+                let tapDown = null;
+
                 const onStageResize = () => {
                     if (document.getElementById('boulderHoldsMarkupDialog')?.classList.contains('hidden')) return;
                     this.renderBoulderHoldsMarkup();
                 };
                 window.addEventListener('resize', onStageResize, { signal });
 
-                container.addEventListener('click', (e) => {
+                const finishLineDraw = () => {
+                    if (!lineDrawing) return;
+                    lineDrawing = false;
+                    container.classList.remove('markup-draw-active');
+                    this.renderBoulderHoldsMarkup();
+                };
+
+                container.addEventListener('pointerdown', (e) => {
+                    if (this._markupDialogViewOnly) return;
                     if (e.target.closest('.hold-marker')) return;
+                    if (e.pointerType === 'mouse' && e.button !== 0) return;
 
                     const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
-                    const hitNorm = 22 / geom.iw;
 
                     if (e.ctrlKey || e.metaKey) {
-                        let best = { kind: null, index: -1, d: hitNorm };
-
-                        (this.currentBoulderHoldsMarkup.holds || []).forEach((hold, index) => {
-                            const d = Math.hypot(hold.x - x, hold.y - y);
-                            if (d < best.d) {
-                                best = { kind: 'hold', index, d };
-                            }
-                        });
-                        (this.currentBoulderHoldsMarkup.linePoints || []).forEach((pt, index) => {
-                            const d = Math.hypot(pt.x - x, pt.y - y);
-                            if (d < best.d) {
-                                best = { kind: 'line', index, d };
-                            }
-                        });
-
-                        if (best.kind === 'hold' && best.index !== -1) {
-                            this.currentBoulderHoldsMarkup.holds.splice(best.index, 1);
-                            this.renderBoulderHoldsMarkup();
-                        } else if (best.kind === 'line' && best.index !== -1) {
-                            this.currentBoulderHoldsMarkup.linePoints.splice(best.index, 1);
-                            this.updateBoulderHoldsPolyline();
-                        }
+                        this.deleteNearestBoulderMarkupAt(x, y, geom);
                         return;
                     }
 
-                    if (this.boulderMarkupMode === 'line') {
-                        this.addBoulderLinePoint(x, y);
-                    } else {
-                        this.addBoulderHold(x, y);
+                    if (this.boulderMarkupMode === 'circles') {
+                        tapDown = { x: e.clientX, y: e.clientY };
+                        return;
+                    }
+
+                    e.preventDefault();
+                    try {
+                        container.setPointerCapture(e.pointerId);
+                    } catch (_) {
+                        /* ignore */
+                    }
+                    lineDrawing = true;
+                    container.classList.add('markup-draw-active');
+                    if (!this.currentBoulderHoldsMarkup.linePoints) {
+                        this.currentBoulderHoldsMarkup.linePoints = [];
+                    }
+                    appendMarkupLinePoint(this.currentBoulderHoldsMarkup.linePoints, x, y, true);
+                    this.updateBoulderHoldsPolyline();
+                }, { signal });
+
+                container.addEventListener('pointermove', (e) => {
+                    if (!lineDrawing || this.boulderMarkupMode !== 'line') return;
+                    e.preventDefault();
+                    const { x, y } = markupNormFromClient(container, e.clientX, e.clientY);
+                    if (appendMarkupLinePoint(this.currentBoulderHoldsMarkup.linePoints, x, y, false)) {
+                        this.updateBoulderHoldsPolyline();
                     }
                 }, { signal });
+
+                const onPointerEnd = (e) => {
+                    if (lineDrawing) {
+                        try {
+                            container.releasePointerCapture(e.pointerId);
+                        } catch (_) {
+                            /* ignore */
+                        }
+                        finishLineDraw();
+                        return;
+                    }
+                    if (tapDown && this.boulderMarkupMode === 'circles') {
+                        const moved = Math.hypot(e.clientX - tapDown.x, e.clientY - tapDown.y);
+                        tapDown = null;
+                        if (moved > MARKUP_TAP_MAX_MOVE_PX) return;
+                        const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
+                        if (e.ctrlKey || e.metaKey) {
+                            this.deleteNearestBoulderMarkupAt(x, y, geom);
+                        } else {
+                            this.addBoulderHold(x, y);
+                        }
+                    }
+                };
+
+                container.addEventListener('pointerup', onPointerEnd, { signal });
+                container.addEventListener('pointercancel', onPointerEnd, { signal });
+                container.addEventListener('lostpointercapture', finishLineDraw, { signal });
             }
 
             addBoulderHold(x, y) {
@@ -7753,18 +7898,6 @@
 
                 this.currentBoulderHoldsMarkup.holds.push(hold);
                 this.renderBoulderHoldsMarkup();
-            }
-
-            addBoulderLinePoint(x, y) {
-                if (!this.currentBoulderHoldsMarkup.linePoints) {
-                    this.currentBoulderHoldsMarkup.linePoints = [];
-                }
-                this.currentBoulderHoldsMarkup.linePoints.push({
-                    id: Date.now(),
-                    x,
-                    y
-                });
-                this.updateBoulderHoldsPolyline();
             }
 
             getHoldColor() {
@@ -7842,11 +7975,17 @@
             }
 
             makeHoldDraggable(marker, index) {
-                marker.addEventListener('mousedown', (e) => {
+                marker.addEventListener('pointerdown', (e) => {
+                    if (e.pointerType === 'mouse' && e.button !== 0) return;
                     e.preventDefault();
                     e.stopPropagation();
                     marker.classList.add('active');
-                    this._boulderHoldDrag = { index, marker };
+                    try {
+                        marker.setPointerCapture(e.pointerId);
+                    } catch (_) {
+                        /* ignore */
+                    }
+                    this._boulderHoldDrag = { index, marker, pointerId: e.pointerId };
                 });
             }
 
