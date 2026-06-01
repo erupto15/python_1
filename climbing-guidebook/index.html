@@ -3033,9 +3033,22 @@
             if (typeof tg.onEvent === 'function') {
                 tg.onEvent('themeChanged', applyTelegramTheme);
                 tg.onEvent('viewportChanged', syncTelegramViewport);
+                tg.onEvent('visibility_changed', () => {
+                    if (tg.isActive === false) return;
+                    scheduleCatalogRefreshOnAppVisible();
+                });
+                tg.onEvent('activated', () => {
+                    scheduleCatalogRefreshOnAppVisible();
+                });
             } else {
                 window.addEventListener('resize', syncTelegramViewport);
             }
+
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    scheduleCatalogRefreshOnAppVisible();
+                }
+            });
 
             const handleTelegramBack = () => {
                 if (typeof window.closeTopTelegramOverlay === 'function' && window.closeTopTelegramOverlay()) {
@@ -3326,6 +3339,14 @@
         const PHOTO_FETCH_CHUNK = 14;
         /** Запросы секторов по районам — небольшими пачками, чтобы не забивать канал и Render. */
         const SECTOR_FETCH_BATCH = 6;
+        /** Render free tier: cold start после сна — несколько попыток /health. */
+        const API_WAKE_ATTEMPTS = 12;
+        const API_WAKE_ATTEMPT_TIMEOUT_MS = 20000;
+        const API_WAKE_PAUSE_MS = 2000;
+        const CATALOG_RELOAD_DEBOUNCE_MS = 4000;
+        let _catalogReloadPromise = null;
+        let _lastCatalogReloadFinishedAt = 0;
+        let _appRemoteDataReady = false;
 
         /** Перед отправкой на API: уменьшаем base64 (быстрее JSON и отклик «Добавить»). */
         const QUICK_PHOTO_MAX_EDGE = 1920;
@@ -3650,6 +3671,93 @@
             } catch {
                 return String(detail);
             }
+        }
+
+        /** Разбудить Render (или другой хостинг): GET /health с повторами. */
+        async function wakeApiServer(options = {}) {
+            if (!API_BASE_URL) return false;
+            const attempts = options.attempts ?? API_WAKE_ATTEMPTS;
+            const timeoutMs = options.timeoutMs ?? API_WAKE_ATTEMPT_TIMEOUT_MS;
+            const pauseMs = options.pauseMs ?? API_WAKE_PAUSE_MS;
+            for (let i = 0; i < attempts; i++) {
+                try {
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+                    const res = await fetch(`${API_BASE_URL}/health`, {
+                        method: 'GET',
+                        cache: 'no-store',
+                        signal: ctrl.signal
+                    });
+                    clearTimeout(timer);
+                    if (res.ok) return true;
+                } catch (_) {
+                    /* сон / cold start */
+                }
+                if (i < attempts - 1) {
+                    await new Promise((r) => setTimeout(r, pauseMs));
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Полная подгрузка каталога с API (после пробуждения сервера).
+         * initial — первый запуск; иначе debounce и тост при повторном открытии Mini App.
+         */
+        async function refreshCatalogFromApi(options = {}) {
+            if (!API_BASE_URL) return false;
+            const isInitial = options.initial === true;
+            const force = options.force === true;
+            const now = Date.now();
+            if (
+                !isInitial &&
+                !force &&
+                _appRemoteDataReady &&
+                now - _lastCatalogReloadFinishedAt < CATALOG_RELOAD_DEBOUNCE_MS
+            ) {
+                return true;
+            }
+            if (_catalogReloadPromise) return _catalogReloadPromise;
+
+            _catalogReloadPromise = (async () => {
+                try {
+                    if (!isInitial && _appRemoteDataReady) {
+                        window.app?.showToast?.('Обновление данных…', false);
+                    }
+                    if (!options.skipWake) {
+                        const awake = await wakeApiServer();
+                        if (!awake) {
+                            throw new Error('Сервер не отвечает');
+                        }
+                    }
+                    if (options.refreshPhotos) {
+                        _photosLoadedFromApi = false;
+                    }
+                    await loadClimbingDataFromApi({ includePhotos: options.includePhotos === true });
+                    _appRemoteDataReady = true;
+                    _lastCatalogReloadFinishedAt = Date.now();
+                    window.app?.refreshUiAfterRemoteLoad?.();
+                    if (options.refreshPhotos) {
+                        await ensurePhotosLoadedFromApi();
+                        window.app?.renderPhotoAlbum?.();
+                    }
+                    return true;
+                } catch (err) {
+                    console.warn('catalog refresh', err);
+                    if (_appRemoteDataReady) {
+                        window.app?.showToast?.('Не удалось обновить данные. Проверьте сеть.', true);
+                    }
+                    throw err;
+                } finally {
+                    _catalogReloadPromise = null;
+                }
+            })();
+            return _catalogReloadPromise;
+        }
+
+        function scheduleCatalogRefreshOnAppVisible() {
+            if (!API_BASE_URL || !_appRemoteDataReady) return;
+            void refreshCatalogFromApi().catch(() => {});
         }
 
         /** Предупреждение, если API на SQLite (данные на Render пропадают после рестарта). */
@@ -7756,13 +7864,16 @@
             }
             void (async () => {
                 try {
+                    const awake = await wakeApiServer();
+                    if (!awake) {
+                        throw new Error('Сервер не отвечает');
+                    }
                     await warnIfApiStorageNotPersistent();
                     if (window.app) {
                         await window.app.restoreAuthSession();
                         await window.app.syncLegacyLocalStorageToBackend();
                     }
-                    await loadClimbingDataFromApi({ includePhotos: false });
-                    window.app?.refreshUiAfterRemoteLoad?.();
+                    await refreshCatalogFromApi({ initial: true, skipWake: true });
                     void ensurePhotosLoadedFromApi().then(() => {
                         window.app?.renderPhotoAlbum?.();
                     }).catch((err) => console.warn('background photos prefetch', err));
@@ -7771,7 +7882,10 @@
                     }
                 } catch (err) {
                     console.error('API load error', err);
-                    window.app?.showToast?.('Не удалось загрузить данные. Проверьте сеть.', true);
+                    window.app?.showToast?.(
+                        'Не удалось загрузить данные. Сервер может просыпаться до минуты — откройте приложение ещё раз.',
+                        true
+                    );
                 }
             })();
         });
