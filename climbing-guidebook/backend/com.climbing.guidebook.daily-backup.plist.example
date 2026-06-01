@@ -3,7 +3,7 @@
 <!--
   Автозапуск бэкапа раз в сутки на macOS (launchd).
 
-  1. Отредактируйте пути в ProgramArguments (run_daily_backup.sh).
+  1. Замените YOUR_PROJECT_ROOT на абсолютный путь к каталогу backend.
   2. Скопируйте:
        cp com.climbing.guidebook.daily-backup.plist.example \
           ~/Library/LaunchAgents/com.climbing.guidebook.daily-backup.plist
@@ -19,7 +19,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/Users/vladik/pytest_new/python_1/climbing-guidebook/backend/run_daily_backup.sh</string>
+    <string>YOUR_PROJECT_ROOT/climbing-guidebook/backend/run_daily_backup.sh</string>
   </array>
   <key>StartCalendarInterval</key>
   <dict>
@@ -29,9 +29,9 @@
     <integer>0</integer>
   </dict>
   <key>StandardOutPath</key>
-  <string>/Users/vladik/pytest_new/python_1/climbing-guidebook/backend/data/backups/logs/launchd.out.log</string>
+  <string>YOUR_PROJECT_ROOT/climbing-guidebook/backend/data/backups/logs/launchd.out.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/vladik/pytest_new/python_1/climbing-guidebook/backend/data/backups/logs/launchd.err.log</string>
+  <string>YOUR_PROJECT_ROOT/climbing-guidebook/backend/data/backups/logs/launchd.err.log</string>
   <key>RunAtLoad</key>
   <false/>
 </dict>

@@ -6,27 +6,29 @@
 2. **Project Settings → Database → Connection string**:
    - Type: **URI**
    - Mode: **Transaction** (pooler, порт **6543**)
-   - Для проекта `uryaxijckkryzxcpwywz` (регион **eu-west-1**):
 
 ```env
-POSTGRES_HOST=aws-0-eu-west-1.pooler.supabase.com
+POSTGRES_HOST=aws-0-<REGION>.pooler.supabase.com
 POSTGRES_PORT=6543
-POSTGRES_USER=postgres.uryaxijckkryzxcpwywz
+POSTGRES_USER=postgres.<YOUR_PROJECT_REF>
 POSTGRES_DB=postgres
 ```
 
-Пароль — в `backend/.postgres_password` (одна строка) или `POSTGRES_PASSWORD` в `.env`.
+Пароль — в `backend/.postgres_password` (одна строка, в `.gitignore`) или `POSTGRES_PASSWORD` в `.env` (тоже в `.gitignore`).
+
+Реальные значения для вашего проекта храните в **`SECRETS.local.md`** (скопируйте из `SECRETS.local.md.example`).
+
 3. В репозитории:
 
 ```bash
 cd backend
 cp .env.supabase.example .env
-# Вставьте DATABASE_URL и TELEGRAM_BOT_TOKEN в .env
+# Заполните .env локально (не коммитить)
 python setup_persistent_db.py --migrate-sqlite
 ```
 
-4. **Render** (сервис `python-1-dicp` или новый):
-   - **Environment** → добавьте переменные из `.env`
+4. **Render** (ваш Web Service):
+   - **Environment** → переменные из `.env` / Dashboard Supabase
    - **Start Command**:  
      `python bootstrap_database.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
    - Перезапустите сервис
@@ -55,4 +57,4 @@ curl https://ВАШ-API.onrender.com/health
 | `TELEGRAM_BOT_TOKEN` | Да — для входа в Mini App |
 | `ADMIN_PASSWORD` | Смените после первого входа |
 
-Фронт (`6a9aguidebook.info`) уже указывает на API Render в `index.html` — менять URL не нужно, если backend тот же.
+Фронт указывает на API в `index.html` — менять URL не нужно, если backend тот же.

@@ -22,15 +22,6 @@ def _is_render_runtime() -> bool:
     return os.getenv("RENDER") == "true"
 
 
-# Render Postgres GuideBook (Frankfurt) — значения по умолчанию для production на Render
-_RENDER_GUIDEBOOK_DEFAULTS = {
-    "postgres_host": "dpg-d7tfijbrjlhs73ar905g-a",
-    "postgres_port": 5432,
-    "postgres_user": "user_optional",
-    "postgres_db": "guidebook",
-}
-
-
 class Settings(BaseSettings):
     # На Render читаем только Environment Dashboard, не локальный .env из образа
     model_config = SettingsConfigDict(
@@ -82,17 +73,6 @@ class Settings(BaseSettings):
         if password is None:
             password = os.getenv("POSTGRES_PASSWORD", "")
         password = str(password).strip() or _read_postgres_password_file()
-
-        if _is_render_runtime():
-            if not host:
-                data["postgres_host"] = _RENDER_GUIDEBOOK_DEFAULTS["postgres_host"]
-                host = data["postgres_host"]
-            if not (data.get("postgres_port") or os.getenv("POSTGRES_PORT")):
-                data["postgres_port"] = _RENDER_GUIDEBOOK_DEFAULTS["postgres_port"]
-            if not (data.get("postgres_user") or os.getenv("POSTGRES_USER")):
-                data["postgres_user"] = _RENDER_GUIDEBOOK_DEFAULTS["postgres_user"]
-            if not (data.get("postgres_db") or os.getenv("POSTGRES_DB")):
-                data["postgres_db"] = _RENDER_GUIDEBOOK_DEFAULTS["postgres_db"]
 
         use_parts = bool(host and password)
         if not use_parts:
@@ -161,9 +141,8 @@ class Settings(BaseSettings):
                 )
                 if _is_render_runtime():
                     hint = (
-                        "На Render (GuideBook): Environment → POSTGRES_PASSWORD + "
-                        "POSTGRES_HOST=dpg-d7tfijbrjlhs73ar905g-a, POSTGRES_DB=guidebook, "
-                        "или Link Database."
+                        "На Render: Environment → POSTGRES_PASSWORD и POSTGRES_* "
+                        "(хост/пользователь/БД из панели PostgreSQL) или Link Database."
                     )
                 raise ValueError(
                     "SQLite недопустим в production: данные теряются после рестарта/деплоя. "
@@ -188,7 +167,7 @@ class Settings(BaseSettings):
 
     # Учётка администратора каталога (создаётся при первом старте, если email свободен)
     admin_email: str = "admin@climbing-guidebook.local"
-    admin_password: str = "admin"
+    admin_password: str = ""
     admin_display_name: str = "Administrator"
     telegram_bot_token: str = ""
     telegram_auth_max_age_sec: int = 86400

@@ -15,7 +15,7 @@ jwt:
 
 admin:
   email: admin@climbing-guidebook.local
-  password: admin
+  password: change-me-now
   display_name: Administrator
 
 telegram:

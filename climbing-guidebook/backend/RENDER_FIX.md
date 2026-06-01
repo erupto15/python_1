@@ -30,10 +30,10 @@
    | Key | Value |
    |-----|--------|
    | `APP_ENV` | `production` |
-   | `POSTGRES_HOST` | `dpg-d7tfijbrjlhs73ar905g-a` |
+   | `POSTGRES_HOST` | Internal host из панели PostgreSQL (Render) |
    | `POSTGRES_PORT` | `5432` |
-   | `POSTGRES_USER` | `user_optional` |
-   | `POSTGRES_DB` | `guidebook` |
+   | `POSTGRES_USER` | пользователь из Connections |
+   | `POSTGRES_DB` | имя базы |
    | `POSTGRES_PASSWORD` | пароль из панели PostgreSQL |
    | `JWT_SECRET` | длинная случайная строка |
    | `TELEGRAM_BOT_TOKEN` | токен бота (если Mini App) |

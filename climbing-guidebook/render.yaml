@@ -1,10 +1,11 @@
 # Blueprint для Render: постоянная БД через Supabase или Render Postgres.
 # https://render.com/docs/blueprint-spec
 #
-# После создания сервиса обязательно задайте в Dashboard → Environment:
-#   DATABASE_URL  — строка PostgreSQL (Supabase pooler :6543 или Render Postgres)
+# После создания сервиса задайте в Dashboard → Environment (sync: false ниже):
+#   DATABASE_URL или POSTGRES_* + POSTGRES_PASSWORD — из панели PostgreSQL
 #   JWT_SECRET    — openssl rand -hex 32
 #   TELEGRAM_BOT_TOKEN
+#   ADMIN_PASSWORD
 #   APP_ENV=production
 
 services:
@@ -20,13 +21,13 @@ services:
       - key: PYTHON_VERSION
         value: "3.12"
       - key: POSTGRES_HOST
-        value: dpg-d7tfijbrjlhs73ar905g-a
+        sync: false
       - key: POSTGRES_PORT
-        value: "5432"
+        sync: false
       - key: POSTGRES_USER
-        value: user_optional
+        sync: false
       - key: POSTGRES_DB
-        value: guidebook
+        sync: false
       - key: POSTGRES_PASSWORD
         sync: false
       - key: DATABASE_URL

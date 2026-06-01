@@ -1,6 +1,5 @@
-# Render Blueprint — API + PostgreSQL GuideBook
-# URL: https://python-1-dicp.onrender.com
-# Обязательно в Dashboard → Environment: POSTGRES_PASSWORD (или Link Database → guidebook)
+# Render Blueprint — API + PostgreSQL
+# Обязательно в Dashboard → Environment: POSTGRES_* / DATABASE_URL, POSTGRES_PASSWORD, JWT_SECRET, TELEGRAM_BOT_TOKEN, ADMIN_PASSWORD
 # Root Directory сервиса: climbing-guidebook/backend
 
 services:
@@ -17,16 +16,17 @@ services:
         value: production
       - key: PYTHON_VERSION
         value: "3.12"
-      # Render Postgres (внутренний хост — только между сервисами Render)
       - key: POSTGRES_HOST
-        value: dpg-d7tfijbrjlhs73ar905g-a
+        sync: false
       - key: POSTGRES_PORT
-        value: "5432"
+        sync: false
       - key: POSTGRES_USER
-        value: user_optional
+        sync: false
       - key: POSTGRES_DB
-        value: guidebook
+        sync: false
       - key: POSTGRES_PASSWORD
+        sync: false
+      - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
         generateValue: true
