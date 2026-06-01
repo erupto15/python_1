@@ -1184,10 +1184,11 @@
             position: absolute;
             left: 0;
             top: 0;
-            width: 100%;
-            height: 100%;
+            width: 0;
+            height: 0;
+            overflow: visible;
             pointer-events: none;
-            z-index: 2;
+            z-index: 3;
             border-radius: inherit;
         }
 
@@ -3439,12 +3440,8 @@
 
         function composeMarkupOnDataUrl(srcDataUrl, photo, climbType) {
             return new Promise((resolve) => {
-                const markup = photo.markup || null;
-                const hasMarkup = markup && (
-                    (climbType === 'route' && markup.type === 'route-line')
-                    || (climbType === 'boulder' && markup.type === 'boulder-holds')
-                );
-                if (!hasMarkup) {
+                const markup = normalizePhotoMarkup(photo.markup, climbType);
+                if (!markup) {
                     resolve(srcDataUrl);
                     return;
                 }
@@ -3498,8 +3495,9 @@
                         };
 
                         if (climbType === 'route') {
-                            const pts = Array.isArray(markup.points) ? markup.points : [];
-                            const starts = Array.isArray(markup.startHolds) ? markup.startHolds : [];
+                            const routeMarkup = normalizePhotoMarkup(markup, 'route') || markup;
+                            const pts = Array.isArray(routeMarkup.points) ? routeMarkup.points : [];
+                            const starts = Array.isArray(routeMarkup.startHolds) ? routeMarkup.startHolds : [];
                             drawLine(pts);
                             const r1 = Math.max(4, Math.round(Math.min(w, h) * 0.018));
                             const r2 = Math.max(5, Math.round(Math.min(w, h) * 0.024));
@@ -4162,7 +4160,7 @@
                 description: p.description || '',
                 fileName: p.file_name || '',
                 fileType: p.mime_type || '',
-                markup: p.markup || null,
+                markup: normalizePhotoMarkup(p.markup, p.climb_type === 'route' ? 'route' : 'boulder'),
                 createdAt: p.created_at
             };
         }
@@ -4237,25 +4235,93 @@
             _photosLoadedFromApi = true;
         }
 
-        /** Геометрия фото внутри .markup-dialog-stage (object-fit: contain). */
+        /** Геометрия видимой области фото внутри контейнера (object-fit: contain). */
         function getMarkupStageGeometry(container) {
             const img = container?.querySelector('img');
             const cw = container?.clientWidth || container?.offsetWidth || 1;
             const ch = container?.clientHeight || container?.offsetHeight || 1;
-            if (!img?.naturalWidth || !img?.naturalHeight) {
+            if (!img) {
+                return { cw, ch, left: 0, top: 0, iw: cw, ih: ch };
+            }
+            const cr = container.getBoundingClientRect();
+            const ir = img.getBoundingClientRect();
+            const iw = ir.width > 0 ? ir.width : cw;
+            const ih = ir.height > 0 ? ir.height : ch;
+            const left = ir.width > 0 ? ir.left - cr.left : 0;
+            const top = ir.height > 0 ? ir.top - cr.top : 0;
+            if (iw > 0 && ih > 0) {
+                return { cw, ch, left, top, iw, ih };
+            }
+            if (!img.naturalWidth || !img.naturalHeight) {
                 return { cw, ch, left: 0, top: 0, iw: cw, ih: ch };
             }
             const scale = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
-            const iw = img.naturalWidth * scale;
-            const ih = img.naturalHeight * scale;
+            const fiw = img.naturalWidth * scale;
+            const fih = img.naturalHeight * scale;
             return {
                 cw,
                 ch,
-                left: (cw - iw) / 2,
-                top: (ch - ih) / 2,
-                iw,
-                ih
+                left: (cw - fiw) / 2,
+                top: (ch - fih) / 2,
+                iw: fiw,
+                ih: fih
             };
+        }
+
+        function normalizePhotoMarkup(raw, climbType) {
+            if (raw == null || raw === '') return null;
+            let m = raw;
+            if (typeof m === 'string') {
+                try {
+                    m = JSON.parse(m);
+                } catch (_) {
+                    return null;
+                }
+            }
+            if (!m || typeof m !== 'object') return null;
+
+            const normPoint = (p) => {
+                const x = Number(p?.x);
+                const y = Number(p?.y);
+                if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+                return { x, y };
+            };
+
+            if (climbType === 'route') {
+                const points = Array.isArray(m.points) ? m.points : (Array.isArray(m.linePoints) ? m.linePoints : []);
+                const startHolds = Array.isArray(m.startHolds)
+                    ? m.startHolds
+                    : (Array.isArray(m.starts) ? m.starts : []);
+                const pts = points.map(normPoint).filter(Boolean);
+                const starts = startHolds.map(normPoint).filter(Boolean);
+                if (!pts.length && !starts.length) return null;
+                return {
+                    type: 'route-line',
+                    coordSpace: m.coordSpace === 'image' ? 'image' : (m.coordSpace || 'image'),
+                    points: pts,
+                    startHolds: starts,
+                    savedAt: m.savedAt
+                };
+            }
+
+            if (climbType === 'boulder') {
+                const holds = Array.isArray(m.holds) ? m.holds : [];
+                const linePoints = Array.isArray(m.linePoints)
+                    ? m.linePoints
+                    : (Array.isArray(m.points) ? m.points : []);
+                const h = holds.map(normPoint).filter(Boolean);
+                const lp = linePoints.map(normPoint).filter(Boolean);
+                if (!h.length && lp.length < 2) return null;
+                return {
+                    type: 'boulder-holds',
+                    coordSpace: m.coordSpace === 'image' ? 'image' : (m.coordSpace || 'image'),
+                    holds: h,
+                    linePoints: lp,
+                    savedAt: m.savedAt
+                };
+            }
+
+            return null;
         }
 
         function markupPxFromNorm(nx, ny, geom) {
@@ -5211,7 +5277,7 @@
                 const img = document.createElement('img');
                 img.alt = 'Preview';
                 const applyOverlay = () => {
-                    this.applyPhotoPreviewMarkupOverlay(
+                    this.schedulePhotoMarkupOverlay(
                         item,
                         data.markup,
                         isRoute ? 'route' : 'boulder'
@@ -6257,6 +6323,14 @@
                         </div>
                     `;
                 }).join('');
+
+                photoAlbum.querySelectorAll('.photo-album-tile-wrap').forEach((tile) => {
+                    const pid = tile.querySelector('[data-open-photo-id]')?.dataset?.openPhotoId;
+                    const photo = filteredPhotos.find((p) => String(p.id) === String(pid));
+                    if (photo?.markup) {
+                        this.schedulePhotoMarkupOverlay(tile, photo.markup, photo.type);
+                    }
+                });
             }
 
             setupTabSwitching() {
@@ -6586,6 +6660,7 @@
                 }
                 if (dialogId === 'climbDetailDialog') {
                     this._climbDetailImgToken = (this._climbDetailImgToken || 0) + 1;
+                    const detailType = this._climbDetailContext?.climbType || 'route';
                     this._climbDetailContext = null;
                     const img = document.getElementById('climbDetailImage');
                     if (img) {
@@ -6594,7 +6669,6 @@
                         img.removeAttribute('src');
                     }
                     const mount = document.getElementById('climbDetailPhotoMount');
-                    const detailType = this._climbDetailContext?.climbType || 'route';
                     if (mount) this.applyPhotoPreviewMarkupOverlay(mount, null, detailType);
                     document.getElementById('climbDetailImageWrap')?.classList.add('hidden');
                     document.getElementById('climbDetailNoPhoto')?.classList.add('hidden');
@@ -6802,14 +6876,13 @@
                     pl.setAttribute('points', pairs.join(' '));
                     pl.setAttribute('fill', 'none');
                     pl.setAttribute('stroke', '#d32f2f');
-                    pl.setAttribute('stroke-width', '5');
+                    pl.setAttribute('stroke-width', '0.014');
                     pl.setAttribute('stroke-linecap', 'round');
                     pl.setAttribute('stroke-linejoin', 'round');
-                    pl.setAttribute('vector-effect', 'non-scaling-stroke');
                     svg.appendChild(pl);
                 };
 
-                const addCircle = (x, y, r = 0.022) => {
+                const addCircle = (x, y, r = 0.022, fill = '#e53935') => {
                     const nx = Number(x);
                     const ny = Number(y);
                     if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
@@ -6817,10 +6890,9 @@
                     c.setAttribute('cx', String(nx));
                     c.setAttribute('cy', String(ny));
                     c.setAttribute('r', String(r));
-                    c.setAttribute('fill', '#e53935');
+                    c.setAttribute('fill', fill);
                     c.setAttribute('stroke', '#7f0000');
-                    c.setAttribute('stroke-width', '1.5');
-                    c.setAttribute('vector-effect', 'non-scaling-stroke');
+                    c.setAttribute('stroke-width', '0.004');
                     svg.appendChild(c);
                 };
 
@@ -6828,7 +6900,17 @@
                     const pts = markup.points || [];
                     const starts = markup.startHolds || [];
                     addPolyline(pts);
-                    starts.forEach(p => addCircle(p.x, p.y, 0.024));
+                    starts.forEach((p) => addCircle(p.x, p.y, 0.028));
+                    if (pts.length >= 1) {
+                        addCircle(pts[0].x, pts[0].y, 0.02);
+                    }
+                    if (pts.length >= 2) {
+                        addCircle(pts[pts.length - 1].x, pts[pts.length - 1].y, 0.024);
+                        const step = pts.length > 28 ? Math.ceil(pts.length / 14) : 1;
+                        for (let i = step; i < pts.length - 1; i += step) {
+                            addCircle(pts[i].x, pts[i].y, 0.014);
+                        }
+                    }
                 } else if (climbType === 'boulder' && markup.type === 'boulder-holds') {
                     const holds = markup.holds || [];
                     const linePts = markup.linePoints || [];
@@ -6868,33 +6950,51 @@
                 }
             }
 
+            schedulePhotoMarkupOverlay(previewItem, markup, climbType) {
+                if (!previewItem) return;
+                const normalized = normalizePhotoMarkup(markup, climbType);
+                const apply = () => this.applyPhotoPreviewMarkupOverlay(previewItem, normalized, climbType);
+                const img = previewItem.querySelector('img');
+                if (!img) {
+                    apply();
+                    return;
+                }
+                const run = () => requestAnimationFrame(() => requestAnimationFrame(apply));
+                if (img._markupOverlayOnLoad) {
+                    img.removeEventListener('load', img._markupOverlayOnLoad);
+                }
+                img._markupOverlayOnLoad = run;
+                img.addEventListener('load', run);
+                if (img.complete && img.naturalWidth > 0) {
+                    run();
+                } else {
+                    apply();
+                }
+            }
+
             applyPhotoPreviewMarkupOverlay(previewItem, markup, climbType) {
                 if (!previewItem) return;
                 previewItem.querySelectorAll('.photo-markup-overlay').forEach(el => el.remove());
 
-                const hasMarkup = markup && (
-                    (climbType === 'route' && markup.type === 'route-line')
-                    || (climbType === 'boulder' && markup.type === 'boulder-holds')
-                );
-
-                if (!hasMarkup) {
+                const normalized = normalizePhotoMarkup(markup, climbType);
+                if (!normalized) {
                     this.updatePreviewMarkupBadge(previewItem, false);
                     return;
                 }
 
                 const geom = getMarkupStageGeometry(previewItem);
-                let markupForSvg = markup;
-                if (climbType === 'route' && markup.type === 'route-line' && markup.coordSpace !== 'image') {
+                let markupForSvg = normalized;
+                if (climbType === 'route' && normalized.coordSpace !== 'image') {
                     markupForSvg = {
-                        ...markup,
-                        points: (markup.points || []).map((p) => boulderStoredToImageNorm(p, geom, false)),
-                        startHolds: (markup.startHolds || []).map((p) => boulderStoredToImageNorm(p, geom, false))
+                        ...normalized,
+                        points: (normalized.points || []).map((p) => boulderStoredToImageNorm(p, geom, false)),
+                        startHolds: (normalized.startHolds || []).map((p) => boulderStoredToImageNorm(p, geom, false))
                     };
-                } else if (climbType === 'boulder' && markup.type === 'boulder-holds' && markup.coordSpace !== 'image') {
+                } else if (climbType === 'boulder' && normalized.coordSpace !== 'image') {
                     markupForSvg = {
-                        ...markup,
-                        holds: (markup.holds || []).map((h) => boulderStoredToImageNorm(h, geom, false)),
-                        linePoints: (markup.linePoints || []).map((p) => boulderStoredToImageNorm(p, geom, false))
+                        ...normalized,
+                        holds: (normalized.holds || []).map((h) => boulderStoredToImageNorm(h, geom, false)),
+                        linePoints: (normalized.linePoints || []).map((p) => boulderStoredToImageNorm(p, geom, false))
                     };
                 }
 
@@ -6903,11 +7003,16 @@
                 svg.style.top = `${geom.top}px`;
                 svg.style.width = `${geom.iw}px`;
                 svg.style.height = `${geom.ih}px`;
-                const actions = previewItem.querySelector('.photo-preview-actions');
-                if (actions) {
-                    previewItem.insertBefore(svg, actions);
+                const img = previewItem.querySelector('img');
+                if (img && svg.nextSibling !== img && img.parentNode === previewItem) {
+                    previewItem.insertBefore(svg, img.nextSibling);
                 } else {
-                    previewItem.appendChild(svg);
+                    const actions = previewItem.querySelector('.photo-preview-actions');
+                    if (actions) {
+                        previewItem.insertBefore(svg, actions);
+                    } else {
+                        previewItem.appendChild(svg);
+                    }
                 }
 
                 this.updatePreviewMarkupBadge(previewItem, true);
@@ -6940,7 +7045,7 @@
                     || (ctx.photoId && photos.find((p) => String(p.id) === String(ctx.photoId)))
                     || photos.find((p) => p.markup)
                     || photos[0];
-                this.applyPhotoPreviewMarkupOverlay(mount, photo?.markup || null, ctx.climbType);
+                this.schedulePhotoMarkupOverlay(mount, photo?.markup || null, ctx.climbType);
             }
 
             refreshDialogPhotoMarkupAfterMarkupSave() {
@@ -6950,7 +7055,7 @@
                 const box = document.getElementById(boxId);
                 const item = box?.querySelector('.photo-preview-with-markup');
                 if (!item) return;
-                this.applyPhotoPreviewMarkupOverlay(
+                this.schedulePhotoMarkupOverlay(
                     item,
                     this.currentPhotoPreview.markup,
                     this.currentPhotoPreview.climbType
@@ -7019,7 +7124,7 @@
                 previewItem.appendChild(actionsDiv);
 
                 previewContainer.appendChild(previewItem);
-                this.applyPhotoPreviewMarkupOverlay(previewItem, photo.markup, climbType);
+                this.schedulePhotoMarkupOverlay(previewItem, photo.markup, climbType);
             }
 
             async savePhoto(climbId, type) {
@@ -7186,7 +7291,7 @@
                 const mount = document.getElementById('climbDetailPhotoMount');
                 const applyDetailMarkup = () => {
                     if (mount && photo && photo.imageData) {
-                        this.applyPhotoPreviewMarkupOverlay(mount, photo.markup || null, climbType);
+                        this.schedulePhotoMarkupOverlay(mount, photo.markup || null, climbType);
                     } else if (mount) {
                         this.applyPhotoPreviewMarkupOverlay(mount, null, climbType);
                     }
