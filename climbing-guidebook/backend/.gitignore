@@ -6,4 +6,6 @@ __pycache__/
 .postgres_password
 config/settings.yaml
 data/catalog_seed.yaml
+data/backups/
+data/local_db/
 .pytest_cache/
