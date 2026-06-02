@@ -7,17 +7,19 @@
 | Файл | Назначение |
 |------|------------|
 | `backend/.env` | Переменные окружения |
-| `backend/.postgres_password` | Пароль БД одной строкой |
 | `backend/config/settings.yaml` | YAML-настройки |
 | `backend/SECRETS.local.md` | Шпаргалка со всеми секретами (копия из `SECRETS.local.md.example`) |
-| `backend/data/backups/` | Снимки каталога |
-| `backend/data/local_db/` | Зеркало SQLite |
+| `.env` в корне | Операторские переменные для SSH/Timeweb/Telegram |
+| DB dumps / backups | Локальные или S3-бэкапы с данными |
 
-## Что задавать в Render / Supabase Dashboard
+## Что задавать на сервере
 
 - `TELEGRAM_BOT_TOKEN`, `JWT_SECRET`, `ADMIN_PASSWORD`
-- `POSTGRES_PASSWORD` или `DATABASE_URL`
-- `POSTGRES_HOST`, `POSTGRES_USER`, `POSTGRES_DB` (если не используете только `DATABASE_URL`)
+- `DATABASE_URL`
+- `APP_ENV=production`
+- `DISABLE_CATALOG_SEED=1`
+
+Runtime-секреты хранятся на VPS в `/etc/guide-rus/backend.env`. Операторские секреты для SSH, Timeweb PostgreSQL/S3 и Telegram держите только в локальном `.env`.
 
 ## Если секрет когда-то попал в историю Git
 

@@ -3672,12 +3672,12 @@
     </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        window.CLIMBING_API_BASE_URL = 'https://python-1-dicp.onrender.com';
+        window.CLIMBING_API_BASE_URL = '';
     </script>
     <script>
         /** Только боулдеринг: скрыты трассы (вкладка, каталог, карта, фильтр в альбоме). Данные трасс в хранилище не трогаем. */
         const APP_BOULDER_ONLY = false;
-        /** База API: задаётся в window.CLIMBING_API_BASE_URL выше (Render). */
+        /** База API: пустая строка означает same-origin API через reverse proxy. */
         const API_BASE_URL = (() => {
             const c = typeof window.CLIMBING_API_BASE_URL === 'string' ? window.CLIMBING_API_BASE_URL.trim() : '';
             if (c) return c.replace(/\/$/, '');
@@ -3692,9 +3692,9 @@
         /** Фото грузим лениво при первом заходе во «Фотоальбом», чтобы старт Mini App не ждал сотни запросов. */
         let _photosLoadedFromApi = false;
         const PHOTO_FETCH_CHUNK = 14;
-        /** Запросы секторов по районам — небольшими пачками, чтобы не забивать канал и Render. */
+        /** Запросы секторов по районам — небольшими пачками, чтобы не забивать канал. */
         const SECTOR_FETCH_BATCH = 6;
-        /** Render free tier: cold start после сна — несколько попыток /health. */
+        /** Проверка доступности API перед первичной загрузкой каталога. */
         const API_WAKE_ATTEMPTS = 12;
         const API_WAKE_ATTEMPT_TIMEOUT_MS = 20000;
         const API_WAKE_PAUSE_MS = 2000;
@@ -3758,10 +3758,9 @@
             if (s.startsWith('blob:')) return s;
             let url = s;
             if (s.startsWith('/')) {
-                if (!API_BASE_URL) return null;
-                url = `${API_BASE_URL.replace(/\/$/, '')}${s}`;
+                url = API_BASE_URL ? `${API_BASE_URL.replace(/\/$/, '')}${s}` : s;
             }
-            if (!/^https?:\/\//i.test(url)) return null;
+            if (!url.startsWith('/') && !/^https?:\/\//i.test(url)) return null;
             try {
                 const ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
                 const timer = ac ? setTimeout(() => ac.abort(), 45000) : 0;
@@ -4025,9 +4024,8 @@
             }
         }
 
-        /** Разбудить Render (или другой хостинг): GET /health с повторами. */
+        /** Проверить API: GET /health с повторами. */
         async function wakeApiServer(options = {}) {
-            if (!API_BASE_URL) return false;
             const attempts = options.attempts ?? API_WAKE_ATTEMPTS;
             const timeoutMs = options.timeoutMs ?? API_WAKE_ATTEMPT_TIMEOUT_MS;
             const pauseMs = options.pauseMs ?? API_WAKE_PAUSE_MS;
@@ -4057,7 +4055,6 @@
          * initial — первый запуск; иначе debounce и тост при повторном открытии Mini App.
          */
         async function refreshCatalogFromApi(options = {}) {
-            if (!API_BASE_URL) return false;
             const isInitial = options.initial === true;
             const force = options.force === true;
             const now = Date.now();
@@ -4108,13 +4105,12 @@
         }
 
         function scheduleCatalogRefreshOnAppVisible() {
-            if (!API_BASE_URL || !_appRemoteDataReady) return;
+            if (!_appRemoteDataReady) return;
             void refreshCatalogFromApi().catch(() => {});
         }
 
-        /** Предупреждение, если API на SQLite (данные на Render пропадают после рестарта). */
+        /** Предупреждение, если API на SQLite (данные пропадают после рестарта). */
         async function warnIfApiStorageNotPersistent() {
-            if (!API_BASE_URL) return;
             try {
                 const res = await fetch(`${API_BASE_URL}/health`);
                 if (!res.ok) return;
@@ -4122,7 +4118,7 @@
                 if (body && body.persistent_storage === false) {
                     console.warn('API uses non-persistent SQLite; catalog data may be lost after server restart.');
                     window.app?.showToast?.(
-                        'Сервер использует временную БД — данные могут пропадать. Нужен PostgreSQL (Supabase).',
+                        'Сервер использует временную БД — данные могут пропадать. Нужен PostgreSQL.',
                         true
                     );
                 }
@@ -5151,7 +5147,7 @@
             }
 
             async tryTelegramLogin() {
-                if (!API_BASE_URL || !window.isTelegramMiniApp?.() || !window.__TG_INIT_DATA) return false;
+                if (!window.isTelegramMiniApp?.() || !window.__TG_INIT_DATA) return false;
                 if (getAuthData().accessToken) return false;
                 try {
                     const tokenData = await apiFetch('/api/auth/telegram', {
@@ -5318,7 +5314,7 @@
 
             /** Перенос старых трас/боулдеров из localStorage в API (один раз, только админ). */
             async syncLegacyLocalStorageToBackend() {
-                if (!API_BASE_URL || !this.isAdmin()) return;
+                if (!this.isAdmin()) return;
                 const legacyRoutes = JSON.parse(localStorage.getItem('climb_routes') || '[]');
                 const legacyBoulders = JSON.parse(localStorage.getItem('climb_boulders') || '[]');
                 if (!legacyRoutes.length && !legacyBoulders.length) return;
@@ -8993,7 +8989,7 @@
                 } catch (err) {
                     console.error('API load error', err);
                     window.app?.showToast?.(
-                        'Не удалось загрузить данные. Сервер может просыпаться до минуты — откройте приложение ещё раз.',
+                        'Не удалось загрузить данные. Проверьте сеть и откройте приложение ещё раз.',
                         true
                     );
                 }

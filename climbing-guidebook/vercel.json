@@ -1,8 +1,0 @@
-{
-  "version": 2,
-  "name": "climbing-guidebook",
-  "cleanUrls": true,
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
-}

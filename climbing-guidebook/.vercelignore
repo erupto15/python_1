@@ -1,6 +1,0 @@
-backend/
-.venv/
-*.db
-.env
-.postgres_password
-config/settings.yaml

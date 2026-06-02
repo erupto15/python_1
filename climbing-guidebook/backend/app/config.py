@@ -18,14 +18,9 @@ def _read_postgres_password_file() -> str:
     return value
 
 
-def _is_render_runtime() -> bool:
-    return os.getenv("RENDER") == "true"
-
-
 class Settings(BaseSettings):
-    # На Render читаем только Environment Dashboard, не локальный .env из образа
     model_config = SettingsConfigDict(
-        env_file=".env" if os.getenv("RENDER") != "true" else None,
+        env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -64,7 +59,6 @@ class Settings(BaseSettings):
             return data
 
         raw_url = (data.get("database_url") or os.getenv("DATABASE_URL") or "").strip()
-        # Render Dashboard → Link Database подставляет DATABASE_URL — не перезаписываем
         if raw_url and not raw_url.startswith("sqlite"):
             return data
 
@@ -96,65 +90,46 @@ class Settings(BaseSettings):
             or os.getenv("PYTHON_ENV")
             or ""
         ).strip().lower()
-        return env in {"prod", "production"} or os.getenv("RENDER") == "true"
+        return env in {"prod", "production"}
 
     @field_validator("database_url", mode="before")
     @classmethod
     def normalize_database_url(cls, v: object) -> object:
-        """Render/Heroku отдают postgres:// — для SQLAlchemy + psycopg2 нужен драйвер в URL."""
+        """postgres:// URLs need an explicit psycopg2 driver for SQLAlchemy."""
         if not isinstance(v, str):
             return v
         s = v.strip()
-        # Пустая строка в Render (переменная задана, но без значения) ломает SQLAlchemy при импорте engine.
         if not s:
             if cls._is_production_env():
                 raise ValueError(
                     "DATABASE_URL пустой в production. Подключите PostgreSQL и укажите "
-                    "Internal Database URL в переменной DATABASE_URL."
+                    "PostgreSQL connection string в переменной DATABASE_URL."
                 )
             return "sqlite:///./climbing.db"
         if s.startswith("postgres://"):
             s = "postgresql+psycopg2://" + s[len("postgres://") :]
         if s.startswith("postgresql://") and not s.startswith("postgresql+"):
             s = "postgresql+psycopg2://" + s[len("postgresql://") :]
-        host = (urlparse(s).hostname or "").lower()
-        if host.endswith("supabase.co") and "sslmode=" not in s:
-            sep = "&" if "?" in s else "?"
-            s = f"{s}{sep}sslmode=require"
-        # Внешний хост Render Postgres (*.frankfurt-postgres.render.com)
-        if host.endswith(".render.com") and "sslmode=" not in s:
-            sep = "&" if "?" in s else "?"
-            s = f"{s}{sep}sslmode=require"
         return s
 
     @field_validator("database_url", mode="after")
     @classmethod
     def reject_placeholder_database_host(cls, v: str) -> str:
-        """Ловит типичную ошибку: в URL оставили слово host из примера вместо реального хоста Render."""
+        """Ловит типичную ошибку: в URL оставили слово host из примера."""
         if not isinstance(v, str):
             return v
         if v.startswith("sqlite"):
             if cls._is_production_env():
-                hint = (
-                    "На Render задайте POSTGRES_PASSWORD и POSTGRES_* (см. .env.render.example) "
-                    "или Link Database → guidebook (DATABASE_URL)."
-                )
-                if _is_render_runtime():
-                    hint = (
-                        "На Render: Environment → POSTGRES_PASSWORD и POSTGRES_* "
-                        "(хост/пользователь/БД из панели PostgreSQL) или Link Database."
-                    )
                 raise ValueError(
                     "SQLite недопустим в production: данные теряются после рестарта/деплоя. "
-                    + hint
+                    "Укажите PostgreSQL DATABASE_URL или POSTGRES_* переменные."
                 )
             return v
         host = (urlparse(v).hostname or "").lower()
         if host in ("host", "хост"):
             raise ValueError(
                 "DATABASE_URL указывает заглушечный хост «host»/«хост». "
-                "В Render откройте сервис PostgreSQL → Connections → Internal Database URL "
-                "и вставьте эту строку целиком в DATABASE_URL веб-сервиса (или Link database)."
+                "Вставьте реальную PostgreSQL connection string в DATABASE_URL."
             )
         return v
 

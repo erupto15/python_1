@@ -11,5 +11,5 @@ email-validator>=2.2.0
 httpx>=0.28.0
 python-jose[cryptography]>=3.3.0
 
-# PostgreSQL (продакшен, например Render): задайте DATABASE_URL из панели БД
+# PostgreSQL for production.
 psycopg2-binary>=2.9.9

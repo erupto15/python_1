@@ -37,6 +37,7 @@ service-account*.json
 
 # Локальные БД и бэкапы с данными каталога
 *.db
+backups/
 **/data/backups/
 **/data/local_db/
 **/config/settings.yaml
