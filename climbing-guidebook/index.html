@@ -2168,6 +2168,85 @@
         .profile-style-badge.style-flash { background: #f9a825; color: #1a1a1a; }
         .profile-style-badge.style-redpoint { background: #c62828; color: #fff; }
 
+        .profile-climb-list-item.style-project {
+            border-color: #6d4c41;
+            background: color-mix(in srgb, #6d4c41 10%, var(--card-bg));
+        }
+
+        .profile-logbook-day {
+            margin-bottom: 16px;
+        }
+
+        .profile-logbook-day-title {
+            margin: 0 0 8px;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-color);
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .profile-logbook-day .profile-log-item:last-child {
+            border-bottom: none;
+        }
+
+        button.profile-logbook-entry {
+            display: block;
+            width: 100%;
+            text-align: left;
+            border: none;
+            border-bottom: 1px solid var(--border-color);
+            background: transparent;
+            cursor: pointer;
+            font: inherit;
+            color: inherit;
+            padding: 10px 4px;
+        }
+
+        button.profile-logbook-entry:hover,
+        button.profile-logbook-entry:focus-visible {
+            background: color-mix(in srgb, var(--primary-color) 6%, transparent);
+        }
+
+        button.profile-logbook-entry.style-onsight {
+            border-left: 4px solid #2e7d32;
+            padding-left: 10px;
+        }
+
+        button.profile-logbook-entry.style-flash {
+            border-left: 4px solid #f9a825;
+            padding-left: 10px;
+        }
+
+        button.profile-logbook-entry.style-redpoint {
+            border-left: 4px solid #c62828;
+            padding-left: 10px;
+        }
+
+        button.profile-logbook-entry.style-project {
+            border-left: 4px solid #6d4c41;
+            padding-left: 10px;
+        }
+
+        .profile-stats-grid--four {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        @media (min-width: 480px) {
+            .profile-stats-grid--four {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+        }
+
+        .climb-tg-log-proxy {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
         .profile-log-item {
             padding: 10px 0;
             border-bottom: 1px solid var(--border-color);
@@ -2641,7 +2720,8 @@
                     <h2 id="profileDisplayName" style="margin:0 0 4px;font-size:20px;">—</h2>
                     <p id="profileUsername" style="margin:0;color:var(--light-text);font-size:14px;"></p>
                     <div class="profile-stats-grid" id="profileStatsGrid"></div>
-                    <h3 style="font-size:16px;margin:16px 0 8px;">Последние записи в логбуке</h3>
+                    <h3 style="font-size:16px;margin:16px 0 8px;">Логбук по дням</h3>
+                    <p style="font-size:13px;color:var(--light-text);margin:0 0 10px;">Записи из каталога — пролаз существующей трассы, не новая трасса в профиле.</p>
                     <div id="profileLogbookList"></div>
                 </div>
             </div>
@@ -2669,7 +2749,7 @@
         <div class="dialog-content">
             <div class="dialog-header">
                 <div class="dialog-header-text">
-                    <div class="dialog-title">Попытки</div>
+                    <div class="dialog-title">Стили пролаза</div>
                     <div class="dialog-subtitle">Онсайт · флэш · редпоинт</div>
                 </div>
                 <button type="button" class="dialog-close-btn" data-close-dialog="profileStylesDialog" aria-label="Закрыть"><i class="fas fa-times"></i></button>
@@ -2684,6 +2764,24 @@
             </div>
             <div class="dialog-footer">
                 <button type="button" class="btn btn-ghost" data-close-dialog="profileStylesDialog">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="dialog-overlay hidden" id="profileProjectsDialog" style="z-index: 997;">
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <div class="dialog-header-text">
+                    <div class="dialog-title">Проекты</div>
+                    <div class="dialog-subtitle">Трассы и боулдеры в работе — ещё не пролезены</div>
+                </div>
+                <button type="button" class="dialog-close-btn" data-close-dialog="profileProjectsDialog" aria-label="Закрыть"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="dialog-body">
+                <ul class="profile-climb-list" id="profileProjectsList"></ul>
+            </div>
+            <div class="dialog-footer">
+                <button type="button" class="btn btn-ghost" data-close-dialog="profileProjectsDialog">Закрыть</button>
             </div>
         </div>
     </div>
@@ -3082,6 +3180,8 @@
                 </div>
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
+                <button type="button" class="climb-tg-log-proxy" id="climbTgLogSendBtn" tabindex="-1" aria-hidden="true">Пролаз</button>
+                <button type="button" class="climb-tg-log-proxy" id="climbTgLogProjectBtn" tabindex="-1" aria-hidden="true">Проект</button>
                 <button type="button" class="btn btn-ghost" id="climbDetailCloseBtn" data-close-dialog="climbDetailDialog"><i class="fas fa-times"></i> Закрыть</button>
                 <button type="button" class="btn btn-primary" id="climbDetailMarkupBtn"><i class="fas fa-draw-polygon"></i> Схема на фото</button>
             </div>
@@ -3122,6 +3222,16 @@
             },
             climbDetailDialog: {
                 resolve() {
+                    const app = window.app;
+                    const canLog = app && app.isLoggedIn && app.isLoggedIn() && app.isTelegramUser && app.isTelegramUser();
+                    if (canLog) {
+                        return {
+                            text: 'Пролаз',
+                            btnId: 'climbTgLogSendBtn',
+                            secondaryText: 'Проект',
+                            secondaryBtnId: 'climbTgLogProjectBtn'
+                        };
+                    }
                     const mkBtn = document.getElementById('climbDetailMarkupBtn');
                     const saveRow = document.getElementById('climbDetailSaveRow');
                     const hasPhoto = mkBtn && mkBtn.style.display !== 'none';
@@ -6919,6 +7029,12 @@
                 document.getElementById('climbDetailSavePhotoBtn')?.addEventListener('click', () => {
                     void this.saveClimbDetailPhotoFromUserGesture();
                 });
+                document.getElementById('climbTgLogSendBtn')?.addEventListener('click', () => {
+                    void this.logClimbAscentFromDetail('send').catch((e) => this.showToast(e.message, true));
+                });
+                document.getElementById('climbTgLogProjectBtn')?.addEventListener('click', () => {
+                    void this.logClimbAscentFromDetail('attempt').catch((e) => this.showToast(e.message, true));
+                });
 
                 document.getElementById('photoAlbum')?.addEventListener('click', (e) => {
                     const deleteBtn = e.target.closest('[data-action="delete-photo"]');
@@ -7647,7 +7763,11 @@
                 }
 
                 this.showDialog('climbDetailDialog');
-                void this.refreshClimbCommunityPanel(climbType, idStr);
+                void this.refreshClimbCommunityPanel(climbType, idStr).then(() => {
+                    if (typeof window.syncTelegramWebAppButtons === 'function') {
+                        window.syncTelegramWebAppButtons('climbDetailDialog');
+                    }
+                });
             }
 
             openClimbMarkupView(climbType, climbId) {
@@ -8452,6 +8572,55 @@
                 });
             }
 
+            async logClimbAscentFromDetail(status) {
+                const ctx = this._climbDetailContext;
+                if (!ctx) {
+                    throw new Error('Откройте трассу из каталога');
+                }
+                if (!this.isLoggedIn() || !this.isTelegramUser()) {
+                    throw new Error('Войдите через Telegram Mini App');
+                }
+                const climbType = ctx.climbType;
+                const climbId = ctx.climbId;
+                const tries = Math.max(1, parseInt(document.getElementById('climbLogTries')?.value || '1', 10) || 1);
+                const styleEl = document.getElementById('climbSendStyle');
+                const body = {
+                    climb_type: climbType,
+                    status,
+                    tries,
+                    route_id: climbType === 'route' ? Number(climbId) : null,
+                    boulder_id: climbType === 'boulder' ? Number(climbId) : null,
+                    ascent_style: status === 'send' ? (styleEl?.value || 'redpoint') : null
+                };
+                if (typeof window.setTelegramMainButtonLoading === 'function') {
+                    window.setTelegramMainButtonLoading(true);
+                }
+                try {
+                    await apiFetch('/api/ascents', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    await this.loadAscentSummary();
+                    await this.refreshClimbCommunityPanel(climbType, climbId);
+                    if (!APP_BOULDER_ONLY) this.renderRoutes();
+                    this.renderBoulders();
+                    this.renderCatalog();
+                    const tabProfile = document.getElementById('profile');
+                    if (tabProfile?.classList.contains('active')) {
+                        void this.renderProfileTab();
+                    }
+                    this.showToast(status === 'send' ? 'Пролаз записан в логбук' : 'Добавлено в проекты');
+                    if (typeof window.syncTelegramWebAppButtons === 'function') {
+                        window.syncTelegramWebAppButtons('climbDetailDialog');
+                    }
+                } finally {
+                    if (typeof window.setTelegramMainButtonLoading === 'function') {
+                        window.setTelegramMainButtonLoading(false);
+                    }
+                }
+            }
+
             async fetchClimbCommunityStats(climbType, climbId) {
                 const q = climbType === 'route'
                     ? `climb_type=route&route_id=${encodeURIComponent(climbId)}`
@@ -8494,7 +8663,7 @@
                     if (stats.my_status === 'send') {
                         parts.push(' · <span class="climb-sent-badge">вы пролазали</span>');
                     } else if (stats.my_status === 'attempt') {
-                        parts.push(' · у вас есть попытка');
+                        parts.push(' · <span class="climb-sent-badge">в проектах</span>');
                     }
                     if (stats.felt_grades?.length) {
                         parts.push(` · мнения: ${stats.felt_grades.map((g) => this.escapeHtml(g)).join(', ')}`);
@@ -8525,35 +8694,11 @@
                         <button type="button" class="btn btn-primary btn-small" id="climbSaveRatingBtn"><i class="fas fa-star"></i> Оценка</button>
                     `;
 
-                    const logAscent = async (status) => {
-                        const tries = Math.max(1, parseInt(document.getElementById('climbLogTries')?.value || '1', 10) || 1);
-                        const styleEl = document.getElementById('climbSendStyle');
-                        const body = {
-                            climb_type: climbType,
-                            status,
-                            tries,
-                            route_id: climbType === 'route' ? Number(climbId) : null,
-                            boulder_id: climbType === 'boulder' ? Number(climbId) : null,
-                            ascent_style: status === 'send' ? (styleEl?.value || 'redpoint') : null
-                        };
-                        await apiFetch('/api/ascents', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(body)
-                        });
-                        await this.loadAscentSummary();
-                        await this.refreshClimbCommunityPanel(climbType, climbId);
-                        if (!APP_BOULDER_ONLY) this.renderRoutes();
-                        this.renderBoulders();
-                        this.renderCatalog();
-                        this.showToast(status === 'send' ? 'Пролаз записан' : 'Попытка записана');
-                    };
-
                     document.getElementById('climbLogSendBtn')?.addEventListener('click', () => {
-                        void logAscent('send').catch((e) => this.showToast(e.message, true));
+                        void this.logClimbAscentFromDetail('send').catch((e) => this.showToast(e.message, true));
                     });
                     document.getElementById('climbLogAttemptBtn')?.addEventListener('click', () => {
-                        void logAscent('attempt').catch((e) => this.showToast(e.message, true));
+                        void this.logClimbAscentFromDetail('attempt').catch((e) => this.showToast(e.message, true));
                     });
 
                     let pickedStars = stats.my_stars || 0;
@@ -8612,12 +8757,17 @@
                     const profile = await apiFetch('/api/users/me/profile');
                     const grid = document.getElementById('profileStatsGrid');
                     if (grid) {
+                        const stylesCount = profile.styles_count ?? profile.attempts_count ?? 0;
+                        grid.className = 'profile-stats-grid profile-stats-grid--four';
                         grid.innerHTML = `
-                            <button type="button" class="profile-stat-card" data-profile-stat="sends" aria-label="Открыть список пролазов">
+                            <button type="button" class="profile-stat-card" data-profile-stat="sends" aria-label="Список пролазов">
                                 <strong>${profile.sends_count}</strong>пролазов
                             </button>
-                            <button type="button" class="profile-stat-card" data-profile-stat="styles" aria-label="Открыть попытки по типу">
-                                <strong>${profile.attempts_count}</strong>попыток
+                            <button type="button" class="profile-stat-card" data-profile-stat="styles" aria-label="Стили пролаза">
+                                <strong>${stylesCount}</strong>стилей
+                            </button>
+                            <button type="button" class="profile-stat-card" data-profile-stat="projects" aria-label="Проекты">
+                                <strong>${profile.projects_count ?? 0}</strong>проектов
                             </button>
                             <div class="profile-stat-card"><strong>${profile.ratings_count}</strong>рейтинг</div>
                         `;
@@ -8627,27 +8777,15 @@
                         grid.querySelector('[data-profile-stat="styles"]')?.addEventListener('click', () => {
                             void this.openProfileStylesDialog();
                         });
+                        grid.querySelector('[data-profile-stat="projects"]')?.addEventListener('click', () => {
+                            void this.openProfileProjectsDialog();
+                        });
                     }
-                    const ascents = await apiFetch('/api/me/ascents?limit=30');
+                    const ascents = await apiFetch('/api/me/ascents?limit=500');
                     const list = document.getElementById('profileLogbookList');
                     if (!list) return;
-                    if (!ascents.length) {
-                        list.innerHTML = '<p style="color:var(--light-text);">Пока пусто — откройте трассу и нажмите «Пролаз».</p>';
-                        return;
-                    }
-                    list.innerHTML = ascents.map((a) => {
-                        const climbId = a.route_id || a.boulder_id;
-                        const climb =
-                            a.climb_type === 'route'
-                                ? getRoutes().find((r) => Number(r.id) === Number(climbId))
-                                : getBoulders().find((b) => Number(b.id) === Number(climbId));
-                        const name = climb?.name || `#${climbId}`;
-                        const statusRu = a.status === 'send' ? 'пролаз' : 'проект';
-                        const styleRu = a.ascent_style ? this.ascentStyleLabel(a.ascent_style) : '';
-                        const when = a.logged_at ? new Date(a.logged_at).toLocaleString('ru-RU') : '';
-                        const extra = styleRu ? `, ${styleRu}` : '';
-                        return `<div class="profile-log-item"><strong>${this.escapeHtml(name)}</strong> — ${statusRu}${extra}, ${a.tries} поп.<br><span style="color:var(--light-text);font-size:13px;">${when}</span></div>`;
-                    }).join('');
+                    list.innerHTML = this.renderProfileLogbookByDays(ascents);
+                    this.bindProfileLogbookClicks(list);
                 } catch (err) {
                     document.getElementById('profileLogbookList').innerHTML = `<p style="color:var(--danger-color);">${this.escapeHtml(err.message)}</p>`;
                 }
@@ -8667,12 +8805,71 @@
                         if (!climbType || !Number.isFinite(climbId)) return;
                         this.hideDialog('profileSendsDialog');
                         this.hideDialog('profileStylesDialog');
+                        this.hideDialog('profileProjectsDialog');
                         void this.showClimbDetailDialog(climbType, climbId);
                     });
                 });
             }
 
-            renderProfileAscentListItem(a, { showStyle }) {
+            bindProfileLogbookClicks(container) {
+                if (!container) return;
+                container.querySelectorAll('[data-logbook-open]').forEach((el) => {
+                    el.addEventListener('click', () => {
+                        const climbType = el.getAttribute('data-logbook-open');
+                        const climbId = Number(el.getAttribute('data-logbook-id'));
+                        if (!climbType || !Number.isFinite(climbId)) return;
+                        void this.showClimbDetailDialog(climbType, climbId);
+                    });
+                });
+            }
+
+            formatLogbookDayKey(iso) {
+                if (!iso) return 'Без даты';
+                const d = new Date(iso);
+                const today = new Date();
+                const yesterday = new Date(today);
+                yesterday.setDate(today.getDate() - 1);
+                if (d.toDateString() === today.toDateString()) return 'Сегодня';
+                if (d.toDateString() === yesterday.toDateString()) return 'Вчера';
+                return d.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            }
+
+            renderProfileLogbookItem(a) {
+                const climbId = a.route_id || a.boulder_id;
+                const name = a.climb_name || `#${climbId}`;
+                const kind = a.climb_type === 'route' ? 'Трасса' : 'Боулдер';
+                const grade = a.climb_grade ? ` · ${this.escapeHtml(a.climb_grade)}` : '';
+                const statusRu = a.status === 'send' ? 'пролаз' : 'проект';
+                const styleRu = a.ascent_style ? this.ascentStyleLabel(a.ascent_style) : '';
+                const when = a.logged_at ? new Date(a.logged_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
+                const extra = styleRu ? `, ${styleRu}` : '';
+                const styleClass = a.ascent_style ? ` style-${a.ascent_style}` : (a.status === 'attempt' ? ' style-project' : '');
+                return `<button type="button" class="profile-log-item profile-logbook-entry${styleClass}" data-logbook-open="${a.climb_type}" data-logbook-id="${climbId}">
+                    <strong>${this.escapeHtml(name)}</strong> — ${statusRu}${extra}, ${a.tries} поп. · ${when}
+                    <span class="meta" style="display:block;font-size:13px;color:var(--light-text);margin-top:4px;">${kind}${grade}${a.structure_label ? ` · ${this.escapeHtml(a.structure_label)}` : ''}</span>
+                </button>`;
+            }
+
+            renderProfileLogbookByDays(ascents) {
+                if (!ascents.length) {
+                    return '<p style="color:var(--light-text);">Пока пусто — откройте трассу из каталога и нажмите «Пролаз» или «Проект».</p>';
+                }
+                const byDay = new Map();
+                for (const a of ascents) {
+                    const key = this.formatLogbookDayKey(a.logged_at);
+                    if (!byDay.has(key)) byDay.set(key, []);
+                    byDay.get(key).push(a);
+                }
+                let html = '';
+                for (const [day, items] of byDay) {
+                    html += `<section class="profile-logbook-day"><h4 class="profile-logbook-day-title">${this.escapeHtml(day)}</h4>`;
+                    html += items.map((a) => this.renderProfileLogbookItem(a)).join('');
+                    html += '</section>';
+                }
+                return html;
+            }
+
+            renderProfileAscentListItem(a, { showStyle, project }) {
                 const climbId = a.route_id || a.boulder_id;
                 const climbType = a.climb_type;
                 const name = a.climb_name || `#${climbId}`;
@@ -8681,7 +8878,9 @@
                 const struct = a.structure_label ? `<br>${this.escapeHtml(a.structure_label)}` : '';
                 const when = a.logged_at ? new Date(a.logged_at).toLocaleString('ru-RU') : '';
                 const style = a.ascent_style || '';
-                const styleClass = style ? ` style-${style}` : '';
+                let styleClass = '';
+                if (project || a.status === 'attempt') styleClass = ' style-project';
+                else if (style) styleClass = ` style-${style}`;
                 const badge = showStyle && style
                     ? `<span class="profile-style-badge style-${style}">${this.escapeHtml(this.ascentStyleLabel(style))}</span>`
                     : '';
@@ -8736,6 +8935,28 @@
                     const order = { onsight: 0, flash: 1, redpoint: 2 };
                     ascents.sort((x, y) => (order[x.ascent_style] ?? 9) - (order[y.ascent_style] ?? 9));
                     listEl.innerHTML = ascents.map((a) => this.renderProfileAscentListItem(a, { showStyle: true })).join('');
+                    this.bindProfileClimbListClicks(listEl);
+                } catch (err) {
+                    listEl.innerHTML = `<li style="padding:12px;color:var(--danger-color);">${this.escapeHtml(err.message)}</li>`;
+                }
+            }
+
+            async openProfileProjectsDialog() {
+                if (!this.isLoggedIn()) {
+                    this.showToast('Войдите через Telegram', true);
+                    return;
+                }
+                const listEl = document.getElementById('profileProjectsList');
+                if (!listEl) return;
+                listEl.innerHTML = '<li style="padding:12px;color:var(--light-text);">Загрузка…</li>';
+                this.showDialog('profileProjectsDialog');
+                try {
+                    const ascents = await apiFetch('/api/me/ascents?status=attempt&limit=500');
+                    if (!ascents.length) {
+                        listEl.innerHTML = '<li style="padding:12px;color:var(--light-text);">Нет проектов — нажмите «Проект» на карточке трассы.</li>';
+                        return;
+                    }
+                    listEl.innerHTML = ascents.map((a) => this.renderProfileAscentListItem(a, { showStyle: false, project: true })).join('');
                     this.bindProfileClimbListClicks(listEl);
                 } catch (err) {
                     listEl.innerHTML = `<li style="padding:12px;color:var(--danger-color);">${this.escapeHtml(err.message)}</li>`;
