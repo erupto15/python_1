@@ -8486,8 +8486,7 @@
                         grid.innerHTML = `
                             <div class="profile-stat-card"><strong>${profile.sends_count}</strong>пролазов</div>
                             <div class="profile-stat-card"><strong>${profile.attempts_count}</strong>попыток</div>
-                            <div class="profile-stat-card"><strong>${profile.ratings_count}</strong>оценок</div>
-                            <div class="profile-stat-card"><strong>${profile.created_routes_count + profile.created_boulders_count}</strong>создано</div>
+                            <div class="profile-stat-card"><strong>${profile.ratings_count}</strong>рейтинг</div>
                         `;
                     }
                     const ascents = await apiFetch('/api/me/ascents?limit=30');
