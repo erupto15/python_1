@@ -2089,6 +2089,85 @@
             margin-bottom: 4px;
         }
 
+        button.profile-stat-card {
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            font: inherit;
+            color: inherit;
+            transition: border-color 0.15s, background 0.15s;
+        }
+
+        button.profile-stat-card:hover,
+        button.profile-stat-card:focus-visible {
+            border-color: var(--primary-color);
+            background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+        }
+
+        .profile-climb-list {
+            max-height: min(62vh, 480px);
+            overflow-y: auto;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .profile-climb-list-item {
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+            background: var(--card-bg);
+            cursor: pointer;
+            text-align: left;
+            width: 100%;
+            font: inherit;
+            color: inherit;
+        }
+
+        .profile-climb-list-item:hover,
+        .profile-climb-list-item:focus-visible {
+            border-color: var(--primary-color);
+        }
+
+        .profile-climb-list-item.style-onsight {
+            border-color: #2e7d32;
+            background: color-mix(in srgb, #2e7d32 12%, var(--card-bg));
+        }
+
+        .profile-climb-list-item.style-flash {
+            border-color: #f9a825;
+            background: color-mix(in srgb, #f9a825 18%, var(--card-bg));
+        }
+
+        .profile-climb-list-item.style-redpoint {
+            border-color: #c62828;
+            background: color-mix(in srgb, #c62828 10%, var(--card-bg));
+        }
+
+        .profile-climb-list-item h4 {
+            margin: 0 0 4px;
+            font-size: 16px;
+        }
+
+        .profile-climb-list-item .meta {
+            font-size: 13px;
+            color: var(--light-text);
+        }
+
+        .profile-style-badge {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 6px;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .profile-style-badge.style-onsight { background: #2e7d32; color: #fff; }
+        .profile-style-badge.style-flash { background: #f9a825; color: #1a1a1a; }
+        .profile-style-badge.style-redpoint { background: #c62828; color: #fff; }
+
         .profile-log-item {
             padding: 10px 0;
             border-bottom: 1px solid var(--border-color);
@@ -2567,6 +2646,47 @@
                 </div>
             </div>
         </div>
+
+    <div class="dialog-overlay hidden" id="profileSendsDialog" style="z-index: 997;">
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <div class="dialog-header-text">
+                    <div class="dialog-title">Пролазы</div>
+                    <div class="dialog-subtitle">Все пролезенные трассы и боулдеры</div>
+                </div>
+                <button type="button" class="dialog-close-btn" data-close-dialog="profileSendsDialog" aria-label="Закрыть"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="dialog-body">
+                <ul class="profile-climb-list" id="profileSendsList"></ul>
+            </div>
+            <div class="dialog-footer">
+                <button type="button" class="btn btn-ghost" data-close-dialog="profileSendsDialog">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="dialog-overlay hidden" id="profileStylesDialog" style="z-index: 997;">
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <div class="dialog-header-text">
+                    <div class="dialog-title">Попытки</div>
+                    <div class="dialog-subtitle">Онсайт · флэш · редпоинт</div>
+                </div>
+                <button type="button" class="dialog-close-btn" data-close-dialog="profileStylesDialog" aria-label="Закрыть"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="dialog-body">
+                <p style="font-size:13px;color:var(--light-text);margin:0 0 10px;">
+                    <span class="profile-style-badge style-onsight">онсайт</span>
+                    <span class="profile-style-badge style-flash">флэш</span>
+                    <span class="profile-style-badge style-redpoint">редпоинт</span>
+                </p>
+                <ul class="profile-climb-list" id="profileStylesList"></ul>
+            </div>
+            <div class="dialog-footer">
+                <button type="button" class="btn btn-ghost" data-close-dialog="profileStylesDialog">Закрыть</button>
+            </div>
+        </div>
+    </div>
 
         <div class="tab-content" id="photos">
             <div class="card">
@@ -8391,8 +8511,15 @@
                         <label style="font-size:14px;">Попыток
                             <input type="number" class="form-input" id="climbLogTries" min="1" max="99" value="${triesVal}" style="margin-left:6px;">
                         </label>
+                        <label style="font-size:14px;">Тип
+                            <select class="form-input" id="climbSendStyle" style="margin-left:6px;min-width:120px;">
+                                <option value="onsight">Онсайт</option>
+                                <option value="flash">Флэш</option>
+                                <option value="redpoint" selected>Редпоинт</option>
+                            </select>
+                        </label>
                         <button type="button" class="btn btn-success btn-small" id="climbLogSendBtn"><i class="fas fa-check"></i> Пролаз</button>
-                        <button type="button" class="btn btn-secondary btn-small" id="climbLogAttemptBtn"><i class="fas fa-hourglass-half"></i> Попытка</button>
+                        <button type="button" class="btn btn-secondary btn-small" id="climbLogAttemptBtn"><i class="fas fa-hourglass-half"></i> Проект</button>
                         <input type="text" class="form-input" id="climbFeltGrade" placeholder="Ваша категория" value="${this.escapeHtml(stats.my_felt_grade || '')}" maxlength="32" style="min-width:120px;">
                         <span id="climbUserStarsPicker" style="display:inline-flex;align-items:center;"></span>
                         <button type="button" class="btn btn-primary btn-small" id="climbSaveRatingBtn"><i class="fas fa-star"></i> Оценка</button>
@@ -8400,12 +8527,14 @@
 
                     const logAscent = async (status) => {
                         const tries = Math.max(1, parseInt(document.getElementById('climbLogTries')?.value || '1', 10) || 1);
+                        const styleEl = document.getElementById('climbSendStyle');
                         const body = {
                             climb_type: climbType,
                             status,
                             tries,
                             route_id: climbType === 'route' ? Number(climbId) : null,
-                            boulder_id: climbType === 'boulder' ? Number(climbId) : null
+                            boulder_id: climbType === 'boulder' ? Number(climbId) : null,
+                            ascent_style: status === 'send' ? (styleEl?.value || 'redpoint') : null
                         };
                         await apiFetch('/api/ascents', {
                             method: 'POST',
@@ -8484,10 +8613,20 @@
                     const grid = document.getElementById('profileStatsGrid');
                     if (grid) {
                         grid.innerHTML = `
-                            <div class="profile-stat-card"><strong>${profile.sends_count}</strong>пролазов</div>
-                            <div class="profile-stat-card"><strong>${profile.attempts_count}</strong>попыток</div>
+                            <button type="button" class="profile-stat-card" data-profile-stat="sends" aria-label="Открыть список пролазов">
+                                <strong>${profile.sends_count}</strong>пролазов
+                            </button>
+                            <button type="button" class="profile-stat-card" data-profile-stat="styles" aria-label="Открыть попытки по типу">
+                                <strong>${profile.attempts_count}</strong>попыток
+                            </button>
                             <div class="profile-stat-card"><strong>${profile.ratings_count}</strong>рейтинг</div>
                         `;
+                        grid.querySelector('[data-profile-stat="sends"]')?.addEventListener('click', () => {
+                            void this.openProfileSendsDialog();
+                        });
+                        grid.querySelector('[data-profile-stat="styles"]')?.addEventListener('click', () => {
+                            void this.openProfileStylesDialog();
+                        });
                     }
                     const ascents = await apiFetch('/api/me/ascents?limit=30');
                     const list = document.getElementById('profileLogbookList');
@@ -8503,12 +8642,103 @@
                                 ? getRoutes().find((r) => Number(r.id) === Number(climbId))
                                 : getBoulders().find((b) => Number(b.id) === Number(climbId));
                         const name = climb?.name || `#${climbId}`;
-                        const statusRu = a.status === 'send' ? 'пролаз' : 'попытка';
+                        const statusRu = a.status === 'send' ? 'пролаз' : 'проект';
+                        const styleRu = a.ascent_style ? this.ascentStyleLabel(a.ascent_style) : '';
                         const when = a.logged_at ? new Date(a.logged_at).toLocaleString('ru-RU') : '';
-                        return `<div class="profile-log-item"><strong>${this.escapeHtml(name)}</strong> — ${statusRu}, ${a.tries} поп.<br><span style="color:var(--light-text);font-size:13px;">${when}</span></div>`;
+                        const extra = styleRu ? `, ${styleRu}` : '';
+                        return `<div class="profile-log-item"><strong>${this.escapeHtml(name)}</strong> — ${statusRu}${extra}, ${a.tries} поп.<br><span style="color:var(--light-text);font-size:13px;">${when}</span></div>`;
                     }).join('');
                 } catch (err) {
                     document.getElementById('profileLogbookList').innerHTML = `<p style="color:var(--danger-color);">${this.escapeHtml(err.message)}</p>`;
+                }
+            }
+
+            ascentStyleLabel(style) {
+                const map = { onsight: 'Онсайт', flash: 'Флэш', redpoint: 'Редпоинт' };
+                return map[style] || '';
+            }
+
+            bindProfileClimbListClicks(container) {
+                if (!container) return;
+                container.querySelectorAll('[data-open-climb-type]').forEach((el) => {
+                    el.addEventListener('click', () => {
+                        const climbType = el.getAttribute('data-open-climb-type');
+                        const climbId = Number(el.getAttribute('data-open-climb-id'));
+                        if (!climbType || !Number.isFinite(climbId)) return;
+                        this.hideDialog('profileSendsDialog');
+                        this.hideDialog('profileStylesDialog');
+                        void this.showClimbDetailDialog(climbType, climbId);
+                    });
+                });
+            }
+
+            renderProfileAscentListItem(a, { showStyle }) {
+                const climbId = a.route_id || a.boulder_id;
+                const climbType = a.climb_type;
+                const name = a.climb_name || `#${climbId}`;
+                const kind = climbType === 'route' ? 'Трасса' : 'Боулдер';
+                const grade = a.climb_grade ? ` · ${this.escapeHtml(a.climb_grade)}` : '';
+                const struct = a.structure_label ? `<br>${this.escapeHtml(a.structure_label)}` : '';
+                const when = a.logged_at ? new Date(a.logged_at).toLocaleString('ru-RU') : '';
+                const style = a.ascent_style || '';
+                const styleClass = style ? ` style-${style}` : '';
+                const badge = showStyle && style
+                    ? `<span class="profile-style-badge style-${style}">${this.escapeHtml(this.ascentStyleLabel(style))}</span>`
+                    : '';
+                return `
+                    <li>
+                        <button type="button" class="profile-climb-list-item${styleClass}"
+                            data-open-climb-type="${climbType}" data-open-climb-id="${climbId}">
+                            <h4>${this.escapeHtml(name)}</h4>
+                            <div class="meta">${kind}${grade} · ${a.tries} поп. · ${when}${struct}</div>
+                            ${badge}
+                        </button>
+                    </li>`;
+            }
+
+            async openProfileSendsDialog() {
+                if (!this.isLoggedIn()) {
+                    this.showToast('Войдите через Telegram', true);
+                    return;
+                }
+                const listEl = document.getElementById('profileSendsList');
+                if (!listEl) return;
+                listEl.innerHTML = '<li style="padding:12px;color:var(--light-text);">Загрузка…</li>';
+                this.showDialog('profileSendsDialog');
+                try {
+                    const ascents = await apiFetch('/api/me/ascents?status=send&limit=500');
+                    if (!ascents.length) {
+                        listEl.innerHTML = '<li style="padding:12px;color:var(--light-text);">Пока нет пролазов.</li>';
+                        return;
+                    }
+                    listEl.innerHTML = ascents.map((a) => this.renderProfileAscentListItem(a, { showStyle: true })).join('');
+                    this.bindProfileClimbListClicks(listEl);
+                } catch (err) {
+                    listEl.innerHTML = `<li style="padding:12px;color:var(--danger-color);">${this.escapeHtml(err.message)}</li>`;
+                }
+            }
+
+            async openProfileStylesDialog() {
+                if (!this.isLoggedIn()) {
+                    this.showToast('Войдите через Telegram', true);
+                    return;
+                }
+                const listEl = document.getElementById('profileStylesList');
+                if (!listEl) return;
+                listEl.innerHTML = '<li style="padding:12px;color:var(--light-text);">Загрузка…</li>';
+                this.showDialog('profileStylesDialog');
+                try {
+                    const ascents = await apiFetch('/api/me/ascents?styles_only=true&limit=500');
+                    if (!ascents.length) {
+                        listEl.innerHTML = '<li style="padding:12px;color:var(--light-text);">Нет записей с типом онсайт / флэш / редпоинт. Укажите тип при пролазе.</li>';
+                        return;
+                    }
+                    const order = { onsight: 0, flash: 1, redpoint: 2 };
+                    ascents.sort((x, y) => (order[x.ascent_style] ?? 9) - (order[y.ascent_style] ?? 9));
+                    listEl.innerHTML = ascents.map((a) => this.renderProfileAscentListItem(a, { showStyle: true })).join('');
+                    this.bindProfileClimbListClicks(listEl);
+                } catch (err) {
+                    listEl.innerHTML = `<li style="padding:12px;color:var(--danger-color);">${this.escapeHtml(err.message)}</li>`;
                 }
             }
         }

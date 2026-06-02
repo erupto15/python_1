@@ -11,9 +11,11 @@ from sqlalchemy.orm import Session
 from app import schemas
 from app.db import get_db
 from app.deps import get_current_user, get_current_user_optional
-from app.models import Boulder, ClimbAscent, ClimbUserRating, Route, User
+from app.models import Area, Boulder, ClimbAscent, ClimbUserRating, Route, Sector, User
 
 router = APIRouter(tags=["community"])
+
+ASCENT_STYLES = frozenset({"onsight", "flash", "redpoint"})
 
 
 def _climb_ids(climb_type: str, route_id: Optional[int], boulder_id: Optional[int]) -> tuple[str, Optional[int], Optional[int]]:
@@ -37,6 +39,42 @@ def _ensure_climb_exists(db: Session, climb_type: str, route_id: Optional[int], 
     row = db.get(Boulder, boulder_id)
     if not row or row.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Boulder not found")
+
+
+def _structure_label(db: Session, area_id: int | None, sector_id: int | None) -> str | None:
+    parts: list[str] = []
+    if area_id:
+        area = db.get(Area, area_id)
+        if area and area.name:
+            parts.append(area.name)
+    if sector_id:
+        sector = db.get(Sector, sector_id)
+        if sector and sector.name:
+            parts.append(sector.name)
+    return " / ".join(parts) if parts else None
+
+
+def _enrich_ascent(db: Session, row: ClimbAscent) -> schemas.AscentReadEnriched:
+    name, grade, structure = "", "", None
+    if row.climb_type == "route" and row.route_id:
+        route = db.get(Route, row.route_id)
+        if route and route.deleted_at is None:
+            name = route.name
+            grade = route.grade
+            structure = _structure_label(db, route.area_id, route.sector_id)
+    elif row.climb_type == "boulder" and row.boulder_id:
+        boulder = db.get(Boulder, row.boulder_id)
+        if boulder and boulder.deleted_at is None:
+            name = boulder.name
+            grade = boulder.grade
+            structure = _structure_label(db, boulder.area_id, boulder.sector_id)
+    base = schemas.AscentRead.model_validate(row)
+    return schemas.AscentReadEnriched(
+        **base.model_dump(),
+        climb_name=name,
+        climb_grade=grade,
+        structure_label=structure,
+    )
 
 
 @router.get("/me/ascents/summary", response_model=schemas.MyAscentSummary)
@@ -68,19 +106,24 @@ def my_ascent_summary(
     )
 
 
-@router.get("/me/ascents", response_model=list[schemas.AscentRead])
+@router.get("/me/ascents", response_model=list[schemas.AscentReadEnriched])
 def list_my_ascents(
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(200, ge=1, le=500),
+    status: Optional[Literal["send", "attempt"]] = None,
+    styles_only: bool = Query(False, description="Только онсайт / флэш / редпоинт"),
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> list[ClimbAscent]:
-    return (
-        db.query(ClimbAscent)
-        .filter(ClimbAscent.user_id == current.id)
-        .order_by(ClimbAscent.logged_at.desc())
-        .limit(limit)
-        .all()
-    )
+) -> list[schemas.AscentReadEnriched]:
+    q = db.query(ClimbAscent).filter(ClimbAscent.user_id == current.id)
+    if status:
+        q = q.filter(ClimbAscent.status == status)
+    if styles_only:
+        q = q.filter(
+            ClimbAscent.status == "send",
+            ClimbAscent.ascent_style.in_(tuple(ASCENT_STYLES)),
+        )
+    rows = q.order_by(ClimbAscent.logged_at.desc()).limit(limit).all()
+    return [_enrich_ascent(db, row) for row in rows]
 
 
 @router.post("/ascents", response_model=schemas.AscentRead, status_code=201)
@@ -91,12 +134,22 @@ def log_ascent(
 ) -> ClimbAscent:
     climb_type, route_id, boulder_id = _climb_ids(payload.climb_type, payload.route_id, payload.boulder_id)
     _ensure_climb_exists(db, climb_type, route_id, boulder_id)
+    style = (payload.ascent_style or "").strip().lower() or None
+    if payload.status == "send" and not style:
+        style = "redpoint"
+    if style and style not in ASCENT_STYLES:
+        raise HTTPException(status_code=400, detail="Invalid ascent_style")
+    if style and payload.status != "send":
+        raise HTTPException(status_code=400, detail="ascent_style applies only to sends")
+    if payload.status == "attempt":
+        style = None
     row = ClimbAscent(
         user_id=current.id,
         climb_type=climb_type,
         route_id=route_id,
         boulder_id=boulder_id,
         status=payload.status,
+        ascent_style=style,
         tries=payload.tries,
         notes=(payload.notes or "").strip() or None,
     )

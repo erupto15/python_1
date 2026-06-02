@@ -287,13 +287,24 @@ class CommentRead(BaseModel):
     deleted_at: Optional[datetime]
 
 
+AscentStyle = Literal["onsight", "flash", "redpoint"]
+
+
 class AscentCreate(BaseModel):
     climb_type: Literal["route", "boulder"]
     route_id: Optional[int] = None
     boulder_id: Optional[int] = None
     status: Literal["send", "attempt"] = "send"
+    ascent_style: Optional[AscentStyle] = None
     tries: int = Field(default=1, ge=1, le=999)
     notes: Optional[str] = Field(None, max_length=2000)
+
+    @field_validator("ascent_style", mode="before")
+    @classmethod
+    def normalize_style(cls, v: object) -> object:
+        if v is None or v == "":
+            return None
+        return str(v).strip().lower()
 
 
 class AscentRead(BaseModel):
@@ -305,10 +316,17 @@ class AscentRead(BaseModel):
     route_id: Optional[int]
     boulder_id: Optional[int]
     status: str
+    ascent_style: Optional[str] = None
     tries: int
     notes: Optional[str]
     logged_at: datetime
     created_at: datetime
+
+
+class AscentReadEnriched(AscentRead):
+    climb_name: str = ""
+    climb_grade: str = ""
+    structure_label: Optional[str] = None
 
 
 class ClimbRatingUpsert(BaseModel):

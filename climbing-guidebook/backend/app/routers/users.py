@@ -23,9 +23,14 @@ def _profile_counts(db: Session, user_id: str) -> dict[str, int]:
         .scalar()
         or 0
     )
+    # «Попытки» в профиле — пролазы с типом онсайт / флэш / редпоинт
     attempts = (
         db.query(func.count(ClimbAscent.id))
-        .filter(ClimbAscent.user_id == user_id, ClimbAscent.status == "attempt")
+        .filter(
+            ClimbAscent.user_id == user_id,
+            ClimbAscent.status == "send",
+            ClimbAscent.ascent_style.in_(("onsight", "flash", "redpoint")),
+        )
         .scalar()
         or 0
     )

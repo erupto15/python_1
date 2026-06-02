@@ -198,6 +198,10 @@ class ClimbAscent(Base):
             name="climb_ascents_one_climb",
         ),
         CheckConstraint("status IN ('send', 'attempt')", name="climb_ascents_status"),
+        CheckConstraint(
+            "ascent_style IS NULL OR ascent_style IN ('onsight', 'flash', 'redpoint')",
+            name="climb_ascents_style",
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
@@ -206,6 +210,7 @@ class ClimbAscent(Base):
     route_id: Mapped[Optional[int]] = mapped_column(ForeignKey("routes.id", ondelete="CASCADE"), index=True)
     boulder_id: Mapped[Optional[int]] = mapped_column(ForeignKey("boulders.id", ondelete="CASCADE"), index=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="send")
+    ascent_style: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     tries: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     notes: Mapped[Optional[str]] = mapped_column(Text)
     logged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
