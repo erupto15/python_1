@@ -33,6 +33,25 @@ class UserRead(BaseModel):
     telegram_username: Optional[str] = None
 
 
+class UserPublicRead(BaseModel):
+    """Публичный профиль без email."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    display_name: str
+    telegram_username: Optional[str] = None
+    created_at: datetime
+
+
+class UserProfileRead(UserPublicRead):
+    sends_count: int = 0
+    attempts_count: int = 0
+    ratings_count: int = 0
+    created_routes_count: int = 0
+    created_boulders_count: int = 0
+
+
 class TelegramUserUpsertRequest(BaseModel):
     telegram_id: int
     username: Optional[str] = Field(None, max_length=64)
@@ -266,3 +285,71 @@ class CommentRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime]
+
+
+class AscentCreate(BaseModel):
+    climb_type: Literal["route", "boulder"]
+    route_id: Optional[int] = None
+    boulder_id: Optional[int] = None
+    status: Literal["send", "attempt"] = "send"
+    tries: int = Field(default=1, ge=1, le=999)
+    notes: Optional[str] = Field(None, max_length=2000)
+
+
+class AscentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: str
+    climb_type: str
+    route_id: Optional[int]
+    boulder_id: Optional[int]
+    status: str
+    tries: int
+    notes: Optional[str]
+    logged_at: datetime
+    created_at: datetime
+
+
+class ClimbRatingUpsert(BaseModel):
+    climb_type: Literal["route", "boulder"]
+    route_id: Optional[int] = None
+    boulder_id: Optional[int] = None
+    stars: int = Field(ge=1, le=5)
+    felt_grade: Optional[str] = Field(None, max_length=32)
+
+
+class ClimbRatingRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: str
+    climb_type: str
+    route_id: Optional[int]
+    boulder_id: Optional[int]
+    stars: int
+    felt_grade: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ClimbCommunityStats(BaseModel):
+    climb_type: str
+    route_id: Optional[int] = None
+    boulder_id: Optional[int] = None
+    send_count: int = 0
+    attempt_count: int = 0
+    ratings_count: int = 0
+    avg_stars: Optional[float] = None
+    felt_grades: list[str] = Field(default_factory=list)
+    my_status: Optional[str] = None
+    my_tries: Optional[int] = None
+    my_stars: Optional[int] = None
+    my_felt_grade: Optional[str] = None
+
+
+class MyAscentSummary(BaseModel):
+    sent_route_ids: list[int] = Field(default_factory=list)
+    sent_boulder_ids: list[int] = Field(default_factory=list)
+    attempted_route_ids: list[int] = Field(default_factory=list)
+    attempted_boulder_ids: list[int] = Field(default_factory=list)

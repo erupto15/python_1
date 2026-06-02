@@ -38,6 +38,8 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     comments: Mapped[list["Comment"]] = relationship(back_populates="user")
+    ascents: Mapped[list["ClimbAscent"]] = relationship(back_populates="user")
+    climb_ratings: Mapped[list["ClimbUserRating"]] = relationship(back_populates="user")
 
 
 class Area(Base):
@@ -183,3 +185,56 @@ class Comment(Base):
     user: Mapped["User"] = relationship(back_populates="comments")
     route: Mapped[Optional["Route"]] = relationship(back_populates="comments", foreign_keys=[route_id])
     boulder: Mapped[Optional["Boulder"]] = relationship(back_populates="comments", foreign_keys=[boulder_id])
+
+
+class ClimbAscent(Base):
+    """Личный лог пролазов / попыток (как logbook в Kilter)."""
+
+    __tablename__ = "climb_ascents"
+    __table_args__ = (
+        CheckConstraint(
+            "(climb_type = 'route' AND route_id IS NOT NULL AND boulder_id IS NULL) "
+            "OR (climb_type = 'boulder' AND boulder_id IS NOT NULL AND route_id IS NULL)",
+            name="climb_ascents_one_climb",
+        ),
+        CheckConstraint("status IN ('send', 'attempt')", name="climb_ascents_status"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    climb_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    route_id: Mapped[Optional[int]] = mapped_column(ForeignKey("routes.id", ondelete="CASCADE"), index=True)
+    boulder_id: Mapped[Optional[int]] = mapped_column(ForeignKey("boulders.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="send")
+    tries: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    logged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="ascents")
+
+
+class ClimbUserRating(Base):
+    """Оценка качества и «ощущаемая» категория от пользователя."""
+
+    __tablename__ = "climb_user_ratings"
+    __table_args__ = (
+        CheckConstraint(
+            "(climb_type = 'route' AND route_id IS NOT NULL AND boulder_id IS NULL) "
+            "OR (climb_type = 'boulder' AND boulder_id IS NOT NULL AND route_id IS NULL)",
+            name="climb_user_ratings_one_climb",
+        ),
+        CheckConstraint("stars >= 1 AND stars <= 5", name="climb_user_ratings_stars"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    climb_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    route_id: Mapped[Optional[int]] = mapped_column(ForeignKey("routes.id", ondelete="CASCADE"), index=True)
+    boulder_id: Mapped[Optional[int]] = mapped_column(ForeignKey("boulders.id", ondelete="CASCADE"), index=True)
+    stars: Mapped[int] = mapped_column(Integer, nullable=False)
+    felt_grade: Mapped[Optional[str]] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="climb_ratings")

@@ -1,7 +1,7 @@
 from typing import Annotated, Optional
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -10,6 +10,7 @@ from app.models import User
 from app.security import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+optional_bearer = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
@@ -31,6 +32,22 @@ def get_current_user(
             detail="User not found or inactive",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    return user
+
+
+def get_current_user_optional(
+    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(optional_bearer)],
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    if not credentials or not credentials.credentials:
+        return None
+    try:
+        user_id = decode_access_token(credentials.credentials)
+    except ValueError:
+        return None
+    user = db.get(User, user_id)
+    if not user or not user.is_active:
+        return None
     return user
 
 

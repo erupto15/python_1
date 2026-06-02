@@ -8,6 +8,8 @@ from app.config import settings
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import User
+from app.services.telegram_auth import validate_init_data
+from app.services.telegram_user import upsert_telegram_user
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -40,12 +42,20 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 
 @router.post("/telegram", response_model=schemas.Token)
-def login_telegram(_payload: schemas.TelegramAuthRequest) -> dict:
-    """Публичный гайдбук: просмотр без входа; вход через Telegram отключён."""
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Telegram login is disabled; catalog is read-only for visitors",
-    )
+def login_telegram(payload: schemas.TelegramAuthRequest, db: Session = Depends(get_db)) -> dict:
+    """Вход через Telegram Mini App (initData)."""
+    tg_user = validate_init_data(payload.init_data)
+    tg_id = int(tg_user["id"])
+    username = str(tg_user.get("username") or "").strip() or None
+    user = upsert_telegram_user(db, tg_id=tg_id, tg_username=username, user_data=tg_user)
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive")
+    token = security.create_access_token(user.id)
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": schemas.UserRead.model_validate(user),
+    }
 
 
 @router.get("/me", response_model=schemas.UserRead)

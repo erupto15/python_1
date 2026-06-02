@@ -9,7 +9,7 @@ from app.config import settings
 from app.db import Base, SessionLocal, engine, ensure_optional_columns
 
 logger = logging.getLogger(__name__)
-from app.routers import areas, auth, boulders, comments, photos, routes_api, sectors, users
+from app.routers import areas, auth, boulders, comments, community, photos, routes_api, sectors, users
 from app.seed import bootstrap_catalog
 
 
@@ -54,6 +54,7 @@ app.include_router(routes_api.router, prefix="/api")
 app.include_router(boulders.router, prefix="/api")
 app.include_router(photos.router, prefix="/api")
 app.include_router(comments.router, prefix="/api")
+app.include_router(community.router, prefix="/api")
 
 
 @app.get("/health")

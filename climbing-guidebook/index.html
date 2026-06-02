@@ -2028,6 +2028,88 @@
             color: #f5b301;
         }
 
+        .climb-sent-badge {
+            color: #2e7d32;
+            font-weight: 600;
+            margin-right: 6px;
+        }
+
+        .catalog-climb-row.is-sent .climb-row-open h3 {
+            opacity: 0.72;
+        }
+
+        .catalog-climb-row.is-sent .climb-sent-check {
+            color: #2e7d32;
+            margin-right: 6px;
+        }
+
+        .climb-community-panel {
+            margin-bottom: 14px;
+            padding: 12px 14px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+        }
+
+        .climb-community-stats {
+            font-size: 14px;
+            color: var(--light-text);
+            margin-bottom: 10px;
+            line-height: 1.45;
+        }
+
+        .climb-community-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .climb-community-actions .form-input {
+            max-width: 88px;
+        }
+
+        .profile-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin: 12px 0 16px;
+        }
+
+        .profile-stat-card {
+            padding: 12px;
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+            background: var(--card-bg);
+        }
+
+        .profile-stat-card strong {
+            display: block;
+            font-size: 22px;
+            margin-bottom: 4px;
+        }
+
+        .profile-log-item {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 14px;
+        }
+
+        .filter-toggle-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .role-badge.user {
+            background: color-mix(in srgb, var(--primary-color) 18%, transparent);
+            color: var(--text-color);
+        }
+
         /* Действия элемента списка */
         .item-actions {
             display: flex;
@@ -2289,6 +2371,7 @@
                         <button type="button" class="btn btn-primary" id="loginBtn">Войти</button>
                     </div>
                     <div id="authStatus" style="display:none;"></div>
+                    <button type="button" class="btn btn-ghost" id="openProfileBtn" style="display:none;" title="Мой профиль"><i class="fas fa-user"></i></button>
                     <button type="button" class="btn btn-ghost" id="logoutBtn" style="display:none;"><i class="fas fa-sign-out-alt"></i> Выйти</button>
                 </div>
             </div>
@@ -2310,6 +2393,9 @@
             </button>
             <button class="tab-btn" data-tab="photos">
                 <i class="fas fa-images"></i> Фотоальбом
+            </button>
+            <button class="tab-btn" data-tab="profile" id="profileTabBtn">
+                <i class="fas fa-user-circle"></i> Профиль
             </button>
         </div>
 
@@ -2369,6 +2455,9 @@
                         <option value="9b+">9b+</option>
                         <option value="9c">9c</option>
                     </select>
+                    <label class="filter-toggle-label" id="hideSentRoutesWrap" style="display:none;">
+                        <input type="checkbox" id="hideSentRoutes"> Скрыть пролазанные
+                    </label>
                     <div class="grade-picker" id="routeGradePicker">
                         <button type="button" class="grade-picker-toggle" id="routeGradeToggleBtn" aria-expanded="false" aria-controls="routeGradeDropdown">Категория</button>
                         <div class="grade-picker-dropdown" id="routeGradeDropdown">
@@ -2400,6 +2489,9 @@
                 <!-- Поиск и фильтры -->
                 <div class="search-bar search-bar--compound">
                     <input type="text" class="search-input" id="boulderSearch" placeholder="Поиск…" title="Поиск: название, район, сектор, категория">
+                    <label class="filter-toggle-label" id="hideSentBouldersWrap" style="display:none;">
+                        <input type="checkbox" id="hideSentBoulders"> Скрыть пролазанные
+                    </label>
                     <select class="list-grade-select visually-hidden" id="boulderGradeFilter" aria-label="Новое название категории" title="Новое название категории">
                         <option value="">Новое название категории</option>
                         <option value="4">4</option>
@@ -2457,6 +2549,25 @@
         </div>
 
         <!-- Контент вкладки "Фотоальбом" -->
+        <div class="tab-content" id="profile">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title"><i class="fas fa-user-circle"></i> Профиль</div>
+                </div>
+                <div id="profileGuestBlock" class="empty-state">
+                    <h3>Войдите через Telegram</h3>
+                    <p>Откройте гайдбук как Mini App в Telegram — тогда можно логировать пролазы и ставить оценки.</p>
+                </div>
+                <div id="profileUserBlock" class="hidden">
+                    <h2 id="profileDisplayName" style="margin:0 0 4px;font-size:20px;">—</h2>
+                    <p id="profileUsername" style="margin:0;color:var(--light-text);font-size:14px;"></p>
+                    <div class="profile-stats-grid" id="profileStatsGrid"></div>
+                    <h3 style="font-size:16px;margin:16px 0 8px;">Последние записи в логбуке</h3>
+                    <div id="profileLogbookList"></div>
+                </div>
+            </div>
+        </div>
+
         <div class="tab-content" id="photos">
             <div class="card">
                 <div class="card-header">
@@ -2835,6 +2946,11 @@
                     <div id="climbDetailPhotoMount" class="photo-preview-with-markup climb-detail-photo-mount">
                         <img id="climbDetailImage" src="" alt="" style="width:100%;max-height:min(58vh,520px);object-fit:contain;display:block;">
                     </div>
+                </div>
+                <div id="climbDetailCommunity" class="climb-community-panel hidden">
+                    <div class="form-label" style="margin-bottom:6px;">Сообщество</div>
+                    <div class="climb-community-stats" id="climbDetailCommunityStats">Загрузка…</div>
+                    <div class="climb-community-actions" id="climbDetailCommunityActions"></div>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <div class="form-label">Описание</div>
@@ -4654,6 +4770,8 @@
                 /** Просмотр разметки без редактирования (гость / пользователь). */
                 this._markupDialogViewOnly = false;
                 this._climbDetailContext = null;
+                this._ascentSummary = null;
+                this._climbCommunityStats = null;
 
                 this.init();
             }
@@ -4702,6 +4820,7 @@
                 this.renderPhotoAlbum();
                 this.renderCatalog();
                 this.setupEventListeners();
+                this.setupCommunityListeners();
                 this.setupTabSwitching();
                 this.applyRoleUI();
             }
@@ -4775,27 +4894,91 @@
                 if (!auth.accessToken) return;
                 try {
                     const me = await apiFetch('/api/auth/me');
-                    const em = String(me.email || '').toLowerCase();
-                    if (em !== String(ADMIN_EMAIL_HINT).toLowerCase()) {
-                        saveAuthData({ accessToken: null, currentUser: null });
-                        this.auth = getAuthData();
-                        this.renderAuthUI();
-                        this.applyRoleUI();
-                        return;
-                    }
                     auth.currentUser = me;
                     saveAuthData(auth);
                     this.auth = auth;
                     this.renderAuthUI();
                     this.applyRoleUI();
+                    await this.loadAscentSummary();
                     this.refreshListsAfterRoleChange();
                 } catch {
                     saveAuthData({ accessToken: null, currentUser: null });
                     this.auth = getAuthData();
+                    this._ascentSummary = null;
                     this.renderAuthUI();
                     this.applyRoleUI();
                     this.refreshListsAfterRoleChange();
                 }
+            }
+
+            isLoggedIn() {
+                return !!(getAuthData().accessToken && getAuthData().currentUser);
+            }
+
+            isTelegramUser() {
+                const em = String(this.getCurrentUser()?.email || '').toLowerCase();
+                return em.endsWith('@telegram.local');
+            }
+
+            async tryTelegramLogin() {
+                if (!API_BASE_URL || !window.isTelegramMiniApp?.() || !window.__TG_INIT_DATA) return false;
+                if (getAuthData().accessToken) return false;
+                try {
+                    const tokenData = await apiFetch('/api/auth/telegram', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ init_data: window.__TG_INIT_DATA })
+                    });
+                    const auth = {
+                        accessToken: tokenData.access_token,
+                        currentUser: tokenData.user || null
+                    };
+                    if (!auth.currentUser) {
+                        saveAuthData(auth);
+                        auth.currentUser = await apiFetch('/api/auth/me');
+                    }
+                    saveAuthData(auth);
+                    this.auth = auth;
+                    this.renderAuthUI();
+                    this.applyRoleUI();
+                    await this.loadAscentSummary();
+                    this.refreshListsAfterRoleChange();
+                    return true;
+                } catch (err) {
+                    console.warn('telegram login', err);
+                    return false;
+                }
+            }
+
+            async loadAscentSummary() {
+                if (!this.isLoggedIn()) {
+                    this._ascentSummary = null;
+                    return null;
+                }
+                try {
+                    this._ascentSummary = await apiFetch('/api/me/ascents/summary');
+                    return this._ascentSummary;
+                } catch (err) {
+                    console.warn('ascent summary', err);
+                    this._ascentSummary = null;
+                    return null;
+                }
+            }
+
+            hasUserSent(climbType, climbId) {
+                const s = this._ascentSummary;
+                if (!s) return false;
+                const id = Number(climbId);
+                if (climbType === 'route') return (s.sent_route_ids || []).includes(id);
+                return (s.sent_boulder_ids || []).includes(id);
+            }
+
+            climbSentRowAttrs(climbType, climbId) {
+                if (!this.hasUserSent(climbType, climbId)) return { className: '', badge: '' };
+                return {
+                    className: ' is-sent',
+                    badge: '<span class="climb-sent-check" title="Пролазано"><i class="fas fa-check"></i></span>'
+                };
             }
 
             renderAuthUI() {
@@ -4812,14 +4995,20 @@
 
                 const showAdminForm = !user && this.isAdminPasswordFormUnlocked();
 
+                const profileBtn = document.getElementById('openProfileBtn');
                 if (user) {
                     adminBlock?.classList.remove('is-visible');
                     adminBlock?.setAttribute('aria-hidden', 'true');
                     status.style.display = 'inline-flex';
-                    status.innerHTML = `<span class="role-badge admin"><i class="fas fa-user-shield"></i> ${this.escapeHtml(user.display_name || user.email || 'admin')}</span>`;
+                    const isAdmin = this.isAdmin();
+                    const badgeClass = isAdmin ? 'admin' : 'user';
+                    const icon = isAdmin ? 'fa-user-shield' : 'fa-user';
+                    status.innerHTML = `<span class="role-badge ${badgeClass}"><i class="fas ${icon}"></i> ${this.escapeHtml(user.display_name || user.email || 'Пользователь')}</span>`;
                     logoutBtn.style.display = 'inline-flex';
+                    if (profileBtn) profileBtn.style.display = this.isTelegramUser() ? 'inline-flex' : 'none';
                     authPanel?.classList.add('auth-panel--visible');
                 } else {
+                    if (profileBtn) profileBtn.style.display = 'none';
                     if (showAdminForm) {
                         adminBlock?.classList.add('is-visible');
                         adminBlock?.setAttribute('aria-hidden', 'false');
@@ -4991,10 +5180,15 @@
 
             applyRoleUI() {
                 const adminMode = this.isAdmin();
+                const loggedIn = this.isLoggedIn();
                 document.querySelectorAll('.admin-only').forEach(el => {
                     if (adminMode) el.classList.remove('hidden-by-role');
                     else el.classList.add('hidden-by-role');
                 });
+                const showSentFilter = loggedIn && this.isTelegramUser();
+                document.getElementById('hideSentRoutesWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
+                document.getElementById('hideSentBouldersWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
+                document.getElementById('profileTabBtn')?.classList.toggle('hidden-by-role', !loggedIn);
             }
 
             /**
@@ -6140,8 +6334,10 @@
 
                 const searchTerm = document.getElementById('routeSearch')?.value.toLowerCase() || '';
                 const gradeFilter = document.getElementById('routeGradeFilter')?.value || '';
+                const hideSent = document.getElementById('hideSentRoutes')?.checked;
 
                 const filteredRoutes = routes.filter(route => {
+                    if (hideSent && this.hasUserSent('route', route.id)) return false;
                     const sector = getSectors().find(s => Number(s.id) === Number(route.sectorId));
                     const area = sector ? getAreas().find(a => Number(a.id) === Number(sector.areaId)) : null;
                     const catalogStr = [area?.name, sector?.name].filter(Boolean).join(' ').toLowerCase();
@@ -6166,11 +6362,13 @@
                     return;
                 }
 
-                routesList.innerHTML = filteredRoutes.map(route => `
-                    <div class="list-item catalog-climb-row" data-id="${route.id}" data-open-climb="route" data-open-climb-id="${route.id}">
+                routesList.innerHTML = filteredRoutes.map(route => {
+                    const sent = this.climbSentRowAttrs('route', route.id);
+                    return `
+                    <div class="list-item catalog-climb-row${sent.className}" data-id="${route.id}" data-open-climb="route" data-open-climb-id="${route.id}">
                         <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(route.name)}">
                             <div class="item-info">
-                                <h3>${this.escapeHtml(route.name)}</h3>
+                                <h3>${sent.badge}${this.escapeHtml(route.name)}</h3>
                                 <div class="item-meta">
                                     ${route.sectorId != null && this.getStructureLabel(route.sectorId) ? `<span><i class="fas fa-layer-group"></i> ${this.getStructureLabel(route.sectorId)}</span>` : ''}
                                     <span>Категория: <span class="grade-badge grade-route">${this.escapeHtml(route.grade)}</span></span>
@@ -6192,7 +6390,8 @@
                             </button>
                         </div>
                     </div>
-                `).join('');
+                `;
+                }).join('');
             }
 
             renderBoulders() {
@@ -6212,8 +6411,10 @@
 
                 const searchTerm = document.getElementById('boulderSearch')?.value.toLowerCase() || '';
                 const gradeFilter = document.getElementById('boulderGradeFilter')?.value || '';
+                const hideSent = document.getElementById('hideSentBoulders')?.checked;
 
                 const filteredBoulders = boulders.filter(boulder => {
+                    if (hideSent && this.hasUserSent('boulder', boulder.id)) return false;
                     const sector = getSectors().find(s => Number(s.id) === Number(boulder.sectorId));
                     const area = sector ? getAreas().find(a => Number(a.id) === Number(sector.areaId)) : null;
                     const catalogStr = [area?.name, sector?.name].filter(Boolean).join(' ').toLowerCase();
@@ -6237,11 +6438,13 @@
                     return;
                 }
 
-                bouldersList.innerHTML = filteredBoulders.map(boulder => `
-                    <div class="list-item catalog-climb-row" data-id="${boulder.id}" data-open-climb="boulder" data-open-climb-id="${boulder.id}">
+                bouldersList.innerHTML = filteredBoulders.map(boulder => {
+                    const sent = this.climbSentRowAttrs('boulder', boulder.id);
+                    return `
+                    <div class="list-item catalog-climb-row${sent.className}" data-id="${boulder.id}" data-open-climb="boulder" data-open-climb-id="${boulder.id}">
                         <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(boulder.name)}">
                             <div class="item-info">
-                                <h3>${this.escapeHtml(boulder.name)}</h3>
+                                <h3>${sent.badge}${this.escapeHtml(boulder.name)}</h3>
                                 <div class="item-meta">
                                     ${boulder.sectorId != null && this.getStructureLabel(boulder.sectorId) ? `<span><i class="fas fa-layer-group"></i> ${this.getStructureLabel(boulder.sectorId)}</span>` : ''}
                                     <span>Категория: <span class="grade-badge grade-boulder">${this.escapeHtml(boulder.grade)}</span></span>
@@ -6261,7 +6464,8 @@
                             </button>
                         </div>
                     </div>
-                `).join('');
+                `;
+                }).join('');
             }
 
             renderPhotoAlbum() {
@@ -7323,6 +7527,7 @@
                 }
 
                 this.showDialog('climbDetailDialog');
+                void this.refreshClimbCommunityPanel(climbType, idStr);
             }
 
             openClimbMarkupView(climbType, climbId) {
@@ -8114,6 +8319,199 @@
                 this.hideDialog('boulderHoldsMarkupDialog');
                 this.renderPhotoAlbum();
             }
+
+            setupCommunityListeners() {
+                document.getElementById('openProfileBtn')?.addEventListener('click', () => {
+                    document.querySelector('.tab-btn[data-tab="profile"]')?.click();
+                    void this.renderProfileTab();
+                });
+                document.getElementById('hideSentRoutes')?.addEventListener('change', () => this.renderRoutes());
+                document.getElementById('hideSentBoulders')?.addEventListener('change', () => this.renderBoulders());
+                document.querySelector('.tab-btn[data-tab="profile"]')?.addEventListener('click', () => {
+                    void this.renderProfileTab();
+                });
+            }
+
+            async fetchClimbCommunityStats(climbType, climbId) {
+                const q = climbType === 'route'
+                    ? `climb_type=route&route_id=${encodeURIComponent(climbId)}`
+                    : `climb_type=boulder&boulder_id=${encodeURIComponent(climbId)}`;
+                return apiFetch(`/api/climbs/stats?${q}`);
+            }
+
+            renderCommunityStarPicker(container, selectedStars, onPick) {
+                if (!container) return;
+                container.innerHTML = '';
+                const wrap = document.createElement('div');
+                wrap.className = 'star-rating';
+                for (let i = 1; i <= 5; i += 1) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = `star-btn${i <= selectedStars ? ' active' : ''}`;
+                    btn.textContent = '★';
+                    btn.setAttribute('aria-label', `${i} звёзд`);
+                    btn.addEventListener('click', () => onPick(i));
+                    wrap.appendChild(btn);
+                }
+                container.appendChild(wrap);
+            }
+
+            async refreshClimbCommunityPanel(climbType, climbId) {
+                const panel = document.getElementById('climbDetailCommunity');
+                const statsEl = document.getElementById('climbDetailCommunityStats');
+                const actionsEl = document.getElementById('climbDetailCommunityActions');
+                if (!panel || !statsEl || !actionsEl) return;
+                panel.classList.remove('hidden');
+                statsEl.textContent = 'Загрузка…';
+                actionsEl.innerHTML = '';
+                try {
+                    const stats = await this.fetchClimbCommunityStats(climbType, climbId);
+                    this._climbCommunityStats = stats;
+                    const parts = [];
+                    parts.push(`Пролазов: <strong>${stats.send_count || 0}</strong>`);
+                    if (stats.attempt_count) parts.push(`попыток: <strong>${stats.attempt_count}</strong>`);
+                    if (stats.avg_stars != null) parts.push(`оценка: <strong>${stats.avg_stars}★</strong> (${stats.ratings_count})`);
+                    if (stats.my_status === 'send') {
+                        parts.push(' · <span class="climb-sent-badge">вы пролазали</span>');
+                    } else if (stats.my_status === 'attempt') {
+                        parts.push(' · у вас есть попытка');
+                    }
+                    if (stats.felt_grades?.length) {
+                        parts.push(` · мнения: ${stats.felt_grades.map((g) => this.escapeHtml(g)).join(', ')}`);
+                    }
+                    statsEl.innerHTML = parts.join('');
+
+                    if (!this.isLoggedIn() || !this.isTelegramUser()) {
+                        actionsEl.innerHTML = '<span style="color:var(--light-text);font-size:14px;">Войдите через Telegram Mini App, чтобы логировать пролазы.</span>';
+                        return;
+                    }
+
+                    const triesVal = stats.my_tries || 1;
+                    actionsEl.innerHTML = `
+                        <label style="font-size:14px;">Попыток
+                            <input type="number" class="form-input" id="climbLogTries" min="1" max="99" value="${triesVal}" style="margin-left:6px;">
+                        </label>
+                        <button type="button" class="btn btn-success btn-small" id="climbLogSendBtn"><i class="fas fa-check"></i> Пролаз</button>
+                        <button type="button" class="btn btn-secondary btn-small" id="climbLogAttemptBtn"><i class="fas fa-hourglass-half"></i> Попытка</button>
+                        <input type="text" class="form-input" id="climbFeltGrade" placeholder="Ваша категория" value="${this.escapeHtml(stats.my_felt_grade || '')}" maxlength="32" style="min-width:120px;">
+                        <span id="climbUserStarsPicker" style="display:inline-flex;align-items:center;"></span>
+                        <button type="button" class="btn btn-primary btn-small" id="climbSaveRatingBtn"><i class="fas fa-star"></i> Оценка</button>
+                    `;
+
+                    const logAscent = async (status) => {
+                        const tries = Math.max(1, parseInt(document.getElementById('climbLogTries')?.value || '1', 10) || 1);
+                        const body = {
+                            climb_type: climbType,
+                            status,
+                            tries,
+                            route_id: climbType === 'route' ? Number(climbId) : null,
+                            boulder_id: climbType === 'boulder' ? Number(climbId) : null
+                        };
+                        await apiFetch('/api/ascents', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body)
+                        });
+                        await this.loadAscentSummary();
+                        await this.refreshClimbCommunityPanel(climbType, climbId);
+                        if (!APP_BOULDER_ONLY) this.renderRoutes();
+                        this.renderBoulders();
+                        this.renderCatalog();
+                        this.showToast(status === 'send' ? 'Пролаз записан' : 'Попытка записана');
+                    };
+
+                    document.getElementById('climbLogSendBtn')?.addEventListener('click', () => {
+                        void logAscent('send').catch((e) => this.showToast(e.message, true));
+                    });
+                    document.getElementById('climbLogAttemptBtn')?.addEventListener('click', () => {
+                        void logAscent('attempt').catch((e) => this.showToast(e.message, true));
+                    });
+
+                    let pickedStars = stats.my_stars || 0;
+                    const starsWrap = document.getElementById('climbUserStarsPicker');
+                    const starPickHandler = (n) => {
+                        pickedStars = n;
+                        this.renderCommunityStarPicker(starsWrap, pickedStars, starPickHandler);
+                    };
+                    this.renderCommunityStarPicker(starsWrap, pickedStars, starPickHandler);
+
+                    document.getElementById('climbSaveRatingBtn')?.addEventListener('click', () => {
+                        void (async () => {
+                            if (!pickedStars) {
+                                this.showToast('Выберите от 1 до 5 звёзд', true);
+                                return;
+                            }
+                            const felt = (document.getElementById('climbFeltGrade')?.value || '').trim();
+                            await apiFetch('/api/ratings', {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    climb_type: climbType,
+                                    route_id: climbType === 'route' ? Number(climbId) : null,
+                                    boulder_id: climbType === 'boulder' ? Number(climbId) : null,
+                                    stars: pickedStars,
+                                    felt_grade: felt || null
+                                })
+                            });
+                            await this.refreshClimbCommunityPanel(climbType, climbId);
+                            this.showToast('Оценка сохранена');
+                        })().catch((e) => this.showToast(e.message, true));
+                    });
+                } catch (err) {
+                    statsEl.textContent = 'Не удалось загрузить статистику';
+                    console.warn('community stats', err);
+                }
+            }
+
+            async renderProfileTab() {
+                const guest = document.getElementById('profileGuestBlock');
+                const userBlock = document.getElementById('profileUserBlock');
+                if (!guest || !userBlock) return;
+                if (!this.isLoggedIn()) {
+                    guest.classList.remove('hidden');
+                    userBlock.classList.add('hidden');
+                    return;
+                }
+                guest.classList.add('hidden');
+                userBlock.classList.remove('hidden');
+                const user = this.getCurrentUser();
+                document.getElementById('profileDisplayName').textContent = user.display_name || 'Пользователь';
+                const un = user.telegram_username ? `@${user.telegram_username}` : '';
+                document.getElementById('profileUsername').textContent = un;
+
+                try {
+                    const profile = await apiFetch('/api/users/me/profile');
+                    const grid = document.getElementById('profileStatsGrid');
+                    if (grid) {
+                        grid.innerHTML = `
+                            <div class="profile-stat-card"><strong>${profile.sends_count}</strong>пролазов</div>
+                            <div class="profile-stat-card"><strong>${profile.attempts_count}</strong>попыток</div>
+                            <div class="profile-stat-card"><strong>${profile.ratings_count}</strong>оценок</div>
+                            <div class="profile-stat-card"><strong>${profile.created_routes_count + profile.created_boulders_count}</strong>создано</div>
+                        `;
+                    }
+                    const ascents = await apiFetch('/api/me/ascents?limit=30');
+                    const list = document.getElementById('profileLogbookList');
+                    if (!list) return;
+                    if (!ascents.length) {
+                        list.innerHTML = '<p style="color:var(--light-text);">Пока пусто — откройте трассу и нажмите «Пролаз».</p>';
+                        return;
+                    }
+                    list.innerHTML = ascents.map((a) => {
+                        const climbId = a.route_id || a.boulder_id;
+                        const climb =
+                            a.climb_type === 'route'
+                                ? getRoutes().find((r) => Number(r.id) === Number(climbId))
+                                : getBoulders().find((b) => Number(b.id) === Number(climbId));
+                        const name = climb?.name || `#${climbId}`;
+                        const statusRu = a.status === 'send' ? 'пролаз' : 'попытка';
+                        const when = a.logged_at ? new Date(a.logged_at).toLocaleString('ru-RU') : '';
+                        return `<div class="profile-log-item"><strong>${this.escapeHtml(name)}</strong> — ${statusRu}, ${a.tries} поп.<br><span style="color:var(--light-text);font-size:13px;">${when}</span></div>`;
+                    }).join('');
+                } catch (err) {
+                    document.getElementById('profileLogbookList').innerHTML = `<p style="color:var(--danger-color);">${this.escapeHtml(err.message)}</p>`;
+                }
+            }
         }
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -8130,6 +8528,9 @@
                     await warnIfApiStorageNotPersistent();
                     if (window.app) {
                         await window.app.restoreAuthSession();
+                        if (!getAuthData().accessToken) {
+                            await window.app.tryTelegramLogin();
+                        }
                         await window.app.syncLegacyLocalStorageToBackend();
                     }
                     await refreshCatalogFromApi({ initial: true, skipWake: true });
