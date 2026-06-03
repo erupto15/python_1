@@ -4151,20 +4151,11 @@
 
         if (APP_BOULDER_ONLY) {
             document.documentElement.classList.add('app-boulder-only');
-            document.querySelector('.tab-btn[data-tab="routes"]')?.classList.remove('active');
-            document.getElementById('routes')?.classList.remove('active');
-            document.querySelector('.tab-btn[data-tab="boulders"]')?.classList.add('active');
-            document.getElementById('boulders')?.classList.add('active');
-        } else {
-            document.querySelector('.tab-btn[data-tab="boulders"]')?.classList.remove('active');
-            document.getElementById('boulders')?.classList.remove('active');
-            document.querySelector('.tab-btn[data-tab="routes"]')?.classList.add('active');
-            document.getElementById('routes')?.classList.add('active');
         }
+        document.querySelectorAll('.tab-btn').forEach((btn) => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach((panel) => panel.classList.remove('active'));
         document.querySelector('.tab-btn[data-tab="catalog"]')?.classList.add('active');
         document.getElementById('catalog')?.classList.add('active');
-        document.getElementById('routes')?.classList.remove('active');
-        document.getElementById('boulders')?.classList.remove('active');
 
         // Функции для работы с localStorage
         function migrateLegacyData() {
