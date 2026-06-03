@@ -8,6 +8,8 @@
 
 Для разработки на ноутбуке. Если запускать backend из `climbing-guidebook/backend` и использовать `climbing-guidebook/backend/.env`, то по умолчанию он ходит в локальный SQLite-файл `climbing-guidebook/backend/climbing.db`, а не в production PostgreSQL.
 
+Локальный Telegram Mini App должен использовать отдельного тестового бота. Его токен хранится в корневом `.env` как `TELEGRAM_BOT_HTTP_API_TEST`, а локальный backend читает его уже как `TELEGRAM_BOT_TOKEN` из `climbing-guidebook/backend/.env`.
+
 ```js
 window.CLIMBING_API_BASE_URL = '';
 ```
@@ -22,12 +24,39 @@ window.CLIMBING_API_BASE_URL = '';
 
 Нужен Python 3.10+. Системный Python 3.9 на macOS не подходит, потому что в коде используется современный синтаксис типов. Если `python3 --version` показывает 3.9, используйте Homebrew Python: `/opt/homebrew/bin/python3`.
 
+1. Подготовьте корневой `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Минимум для локального Telegram Mini App:
+
+```dotenv
+TELEGRAM_BOT_HTTP_API_TEST=<token-of-test-bot>
+```
+
+2. Сгенерируйте backend `.env`:
+
+```bash
+bash setup-local-env.sh
+```
+
+Этот файл создаёт `climbing-guidebook/backend/.env` из `climbing-guidebook/backend/.env.example` и подставляет:
+
+```dotenv
+TELEGRAM_BOT_TOKEN=<value-from-TELEGRAM_BOT_HTTP_API_TEST>
+```
+
+Production-токен и production PostgreSQL при локальном запуске не используются.
+
+3. Запустите приложение:
+
 ```bash
 cd climbing-guidebook/backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -71,6 +100,8 @@ DEPLOY_KEY=/Users/<you>/.ssh/id_ed25519_vlad
 DEPLOY_BRANCH=main
 APP_DIR=/opt/guide-rus/current
 PUBLIC_URL=https://92.246.76.142.sslip.io
+TELEGRAM_BOT_HTTP_API=<production-bot-token>
+TELEGRAM_BOT_HTTP_API_TEST=<local-test-bot-token>
 ```
 
 ## Git Workflow

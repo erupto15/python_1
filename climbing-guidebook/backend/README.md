@@ -11,9 +11,18 @@ cd climbing-guidebook/backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
+
+Create `backend/.env` from the repository root before running:
+
+```bash
+cd ../..
+bash setup-local-env.sh
+cd climbing-guidebook/backend
+```
+
+For local Telegram Mini App auth, `setup-local-env.sh` maps root `.env` `TELEGRAM_BOT_HTTP_API_TEST` to backend `.env` `TELEGRAM_BOT_TOKEN`.
 
 Check:
 

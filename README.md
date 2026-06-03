@@ -13,16 +13,31 @@ Telegram Mini App со справочником скалолазных райо�
 
 Нужен Python 3.10+. На macOS проверьте `python3 --version`; если это системный 3.9, используйте Homebrew Python (`/opt/homebrew/bin/python3`) или другой Python 3.10+.
 
+1. Заполните корневой `.env` по `.env.example`. Для локального Telegram Mini App нужен отдельный тестовый бот:
+
+```dotenv
+TELEGRAM_BOT_HTTP_API_TEST=<token-of-test-bot>
+```
+
+2. Создайте backend `.env` для локального запуска:
+
+```bash
+bash setup-local-env.sh
+```
+
+Скрипт берёт `TELEGRAM_BOT_HTTP_API_TEST` из корневого `.env` и записывает его в `climbing-guidebook/backend/.env` как `TELEGRAM_BOT_TOKEN`. Production-токен локально не используется.
+
+3. Запустите приложение:
+
 ```bash
 cd climbing-guidebook/backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Откройте `http://127.0.0.1:8000`. Локально backend по умолчанию использует SQLite-файл, не production PostgreSQL.
+Откройте `http://127.0.0.1:8000`. Локально backend использует SQLite-файл `climbing-guidebook/backend/climbing.db`, не production PostgreSQL.
 
 ## Деплой
 
