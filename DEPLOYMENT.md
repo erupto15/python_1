@@ -202,7 +202,7 @@ systemctl reload caddy
 
 ## Деплой Через GitHub Actions
 
-Основной деплой должен запускаться из GitHub Actions. Коворкеру не нужен SSH-доступ к VPS: ему достаточно прав в GitHub, чтобы смержить изменения в `main` или вручную запустить workflow.
+Основной деплой запускается вручную из GitHub Actions. Коворкеру не нужен SSH-доступ к VPS: ему достаточно прав в GitHub, чтобы смержить изменения в `main`, а затем нажать `Run workflow`.
 
 Workflow использует SSH-ключ из GitHub Secrets и на сервере выполняет тот же pull/restart, который раньше запускался с ноутбука.
 
@@ -225,8 +225,8 @@ DEPLOY_KEY_PATH: /root/.ssh/id_ed25519_guide_rus_deploy
 
 После настройки:
 
-- push в `main` запускает деплой автоматически;
-- `workflow_dispatch` позволяет запустить деплой вручную из вкладки GitHub Actions.
+- push/merge в `main` сам по себе не деплоит production;
+- вкладка GitHub Actions позволяет вручную запустить `Deploy to Timeweb` для `main`.
 
 Production runtime env workflow не перезаписывает. `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `JWT_SECRET` остаются в `/etc/guide-rus/backend.env`.
 
