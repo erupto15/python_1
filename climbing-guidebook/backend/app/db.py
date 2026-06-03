@@ -14,10 +14,21 @@ connect_args = {}
 if settings.database_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
+engine_kwargs = {
+    "connect_args": connect_args,
+    "echo": False,
+}
+if not settings.database_url.startswith("sqlite"):
+    # Managed PostgreSQL can close idle SSL sessions; validate pooled connections
+    # before reuse so the first user after idle does not receive a 500.
+    engine_kwargs.update(
+        pool_pre_ping=True,
+        pool_recycle=300,
+    )
+
 engine = create_engine(
     settings.database_url,
-    connect_args=connect_args,
-    echo=False,
+    **engine_kwargs,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
