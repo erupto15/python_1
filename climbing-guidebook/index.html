@@ -4670,6 +4670,31 @@
             };
         }
 
+        function resolvePhotoDisplayUrl(raw) {
+            if (!raw || typeof raw !== 'string') return '';
+            const s = raw.trim();
+            if (!s) return '';
+            if (s.startsWith('data:') || s.startsWith('blob:') || /^https?:\/\//i.test(s)) return s;
+            if (s.startsWith('/')) {
+                return API_BASE_URL ? `${API_BASE_URL.replace(/\/$/, '')}${s}` : s;
+            }
+            return s;
+        }
+
+        function photoHasDisplayImage(photo) {
+            return !!resolvePhotoDisplayUrl(photo?.imageData);
+        }
+
+        function pickClimbDetailPhoto(photos, preferPhotoId) {
+            if (!Array.isArray(photos) || !photos.length) return null;
+            const withImage = photos.filter(photoHasDisplayImage);
+            if (preferPhotoId) {
+                const preferred = withImage.find((p) => String(p.id) === String(preferPhotoId));
+                if (preferred) return preferred;
+            }
+            return withImage.find((p) => p.markup) || withImage[0] || photos[0];
+        }
+
         async function fetchPhotosBatched(routes, boulders) {
             const tasks = [];
             if (!APP_BOULDER_ONLY) {
@@ -7638,11 +7663,7 @@
                 const photos = getPhotos().filter(
                     (p) => p.type === ctx.climbType && String(p.climbId) === idStr
                 );
-                const photo =
-                    (ctx.shownPhotoId && photos.find((p) => String(p.id) === String(ctx.shownPhotoId)))
-                    || (ctx.photoId && photos.find((p) => String(p.id) === String(ctx.photoId)))
-                    || photos.find((p) => p.markup)
-                    || photos[0];
+                const photo = pickClimbDetailPhoto(photos, ctx.shownPhotoId || ctx.photoId);
                 this.schedulePhotoMarkupOverlay(mount, photo?.markup || null, ctx.climbType);
             }
 
@@ -7782,12 +7803,30 @@
                 }
             }
 
+            ensureClimbDetailImageElement() {
+                const mount = document.getElementById('climbDetailPhotoMount');
+                if (!mount) return null;
+                let img = document.getElementById('climbDetailImage');
+                if (!img || !mount.contains(img)) {
+                    img = document.createElement('img');
+                    img.id = 'climbDetailImage';
+                    img.style.width = '100%';
+                    img.style.maxHeight = 'min(58vh, 520px)';
+                    img.style.objectFit = 'contain';
+                    img.style.display = 'block';
+                    mount.insertBefore(img, mount.firstChild);
+                }
+                return img;
+            }
+
             _setClimbDetailImageSrc(img, photo, climbName, onReady) {
-                if (!img || !photo?.imageData) return;
+                const src = resolvePhotoDisplayUrl(photo?.imageData);
+                if (!img || !src) return;
                 const token = (this._climbDetailImgToken = (this._climbDetailImgToken || 0) + 1);
-                const src = photo.imageData;
+                let settled = false;
                 const finish = () => {
-                    if (this._climbDetailImgToken !== token) return;
+                    if (settled || this._climbDetailImgToken !== token) return;
+                    settled = true;
                     onReady();
                 };
                 img.alt = climbName || '';
@@ -7795,18 +7834,20 @@
                     if (this._climbDetailImgToken !== token) return;
                     img.onerror = null;
                     img.onload = null;
+                    finish();
                 };
                 img.onload = () => {
                     img.onload = null;
                     img.onerror = null;
                     finish();
                 };
-                if (img.src !== src) {
-                    img.src = src;
-                }
-                if (img.complete && img.naturalWidth > 0) {
-                    finish();
-                }
+                img.src = src;
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        if (this._climbDetailImgToken !== token) return;
+                        if (img.complete && img.naturalWidth > 0) finish();
+                    });
+                });
             }
 
             async showClimbDetailDialog(climbType, climbId, opts = {}) {
@@ -7831,11 +7872,7 @@
                 const photos = getPhotos().filter(
                     (p) => p.type === climbType && String(p.climbId) === idStr
                 );
-                const photo =
-                    (preferPhotoId && photos.find((p) => String(p.id) === preferPhotoId))
-                    || photos.find((p) => p.markup)
-                    || photos.find((p) => p.imageData)
-                    || photos[0];
+                const photo = pickClimbDetailPhoto(photos, preferPhotoId);
 
                 this._climbDetailContext = {
                     climbType,
@@ -7849,7 +7886,6 @@
                 const metaEl = document.getElementById('climbDetailMeta');
                 const descEl = document.getElementById('climbDetailDescription');
                 const wrap = document.getElementById('climbDetailImageWrap');
-                const img = document.getElementById('climbDetailImage');
                 const noPh = document.getElementById('climbDetailNoPhoto');
                 const mkBtn = document.getElementById('climbDetailMarkupBtn');
                 const saveRow = document.getElementById('climbDetailSaveRow');
@@ -7888,14 +7924,16 @@
 
                 const mount = document.getElementById('climbDetailPhotoMount');
                 const applyDetailMarkup = () => {
-                    if (mount && photo && photo.imageData) {
+                    if (mount && photo && photoHasDisplayImage(photo)) {
                         this.schedulePhotoMarkupOverlay(mount, photo.markup || null, climbType);
                     } else if (mount) {
                         this.applyPhotoPreviewMarkupOverlay(mount, null, climbType);
                     }
                 };
 
-                if (photo && photo.imageData) {
+                this.showDialog('climbDetailDialog');
+
+                if (photo && photoHasDisplayImage(photo)) {
                     saveRow?.classList.remove('hidden');
                     if (saveHint) {
                         const isTg = document.documentElement.classList.contains('tg-mini-app');
@@ -7903,6 +7941,7 @@
                     }
                     wrap?.classList.remove('hidden');
                     noPh?.classList.add('hidden');
+                    const img = this.ensureClimbDetailImageElement();
                     if (img) {
                         this._setClimbDetailImageSrc(img, photo, climb.name || '', applyDetailMarkup);
                     }
@@ -7913,13 +7952,18 @@
                     saveHint?.classList.add('hidden');
                     wrap?.classList.add('hidden');
                     noPh?.classList.remove('hidden');
-                    if (img) img.removeAttribute('src');
+                    const img = document.getElementById('climbDetailImage');
+                    if (img) {
+                        img.onload = null;
+                        img.onerror = null;
+                        img.removeAttribute('src');
+                    }
                     if (mkBtn) mkBtn.style.display = 'none';
                     applyDetailMarkup();
                 }
 
-                this.showDialog('climbDetailDialog');
                 void this.refreshClimbCommunityPanel(climbType, idStr).then(() => {
+                    this.refreshClimbDetailMarkupOverlayIfOpen();
                     if (typeof window.syncTelegramWebAppButtons === 'function') {
                         window.syncTelegramWebAppButtons('climbDetailDialog');
                     }
@@ -7938,7 +7982,7 @@
                     );
                     return;
                 }
-                const photo = photos.find((p) => p.markup) || photos[0];
+                const photo = pickClimbDetailPhoto(photos, null);
                 const viewOnly = !this.isAdmin();
                 if (climbType === 'route') {
                     this.showExistingPhotoRouteLineMarkup(photo, photo.climbId, viewOnly);
