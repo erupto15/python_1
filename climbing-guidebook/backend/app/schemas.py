@@ -133,7 +133,7 @@ class RouteCreate(BaseModel):
     bolts: Optional[int] = None
     sector_label: Optional[str] = Field(None, max_length=255)
     category: Optional[str] = Field(None, max_length=64)
-    rating: Optional[float] = Field(None, ge=0, le=5)
+    rating: Optional[float] = Field(None, ge=0, le=3)
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     created_by: Optional[str] = None
@@ -149,7 +149,7 @@ class RouteUpdate(BaseModel):
     bolts: Optional[int] = None
     sector_label: Optional[str] = Field(None, max_length=255)
     category: Optional[str] = Field(None, max_length=64)
-    rating: Optional[float] = Field(None, ge=0, le=5)
+    rating: Optional[float] = Field(None, ge=0, le=3)
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
@@ -183,7 +183,7 @@ class BoulderCreate(BaseModel):
     description: Optional[str] = None
     grade: str = Field(max_length=32)
     category: Optional[str] = Field(None, max_length=64)
-    rating: Optional[float] = Field(None, ge=0, le=5)
+    rating: Optional[float] = Field(None, ge=0, le=3)
     height_m: Optional[float] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -197,7 +197,7 @@ class BoulderUpdate(BaseModel):
     description: Optional[str] = None
     grade: Optional[str] = Field(None, max_length=32)
     category: Optional[str] = Field(None, max_length=64)
-    rating: Optional[float] = Field(None, ge=0, le=5)
+    rating: Optional[float] = Field(None, ge=0, le=3)
     height_m: Optional[float] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None

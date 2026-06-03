@@ -4573,6 +4573,37 @@
             };
         }
 
+        /** 8a.nu style: mean of 1–3 star votes, one decimal. */
+        function formatStarAverage(rating) {
+            if (rating == null || rating === '') return '';
+            const n = Number(rating);
+            if (!Number.isFinite(n)) return String(rating);
+            return n.toFixed(1);
+        }
+
+        function formatStarAverageLabel(rating, count) {
+            const avg = formatStarAverage(rating);
+            if (!avg) return '';
+            if (count != null && count > 0) return `${avg} ★ (${count})`;
+            return `${avg} ★`;
+        }
+
+        function patchClimbRatingInLocalCache(climbType, climbId, rating) {
+            const data = getClimbingData();
+            if (climbType === 'route') {
+                const arr = data.routes || [];
+                const idx = arr.findIndex((r) => Number(r.id) === Number(climbId));
+                if (idx < 0) return;
+                data.routes = [...arr.slice(0, idx), { ...arr[idx], rating: rating ?? null }, ...arr.slice(idx + 1)];
+            } else {
+                const arr = data.boulders || [];
+                const idx = arr.findIndex((b) => Number(b.id) === Number(climbId));
+                if (idx < 0) return;
+                data.boulders = [...arr.slice(0, idx), { ...arr[idx], rating: rating ?? null }, ...arr.slice(idx + 1)];
+            }
+            saveClimbingData(data);
+        }
+
         function mapApiPhotoToUi(p) {
             return {
                 id: String(p.id),
@@ -6124,7 +6155,7 @@
                                             <div class="item-meta">
                                                 <span>Категория: <span class="grade-badge grade-route">${this.escapeHtml(r.grade)}</span></span>
                                                 ${r.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(r.category)}</span>` : ''}
-                                                ${r.rating != null && r.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(r.rating)}</span>` : ''}
+                                                ${r.rating != null && r.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(r.rating))}</span>` : ''}
                                                 ${r.length ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(r.length)}м</span>` : ''}
                                                 ${r.sector ? `<span><i class="fas fa-map-marker-alt"></i> ${this.escapeHtml(r.sector)}</span>` : ''}
                                             </div>
@@ -6148,7 +6179,7 @@
                                             <div class="item-meta">
                                                 <span>Категория: <span class="grade-badge grade-boulder">${this.escapeHtml(b.grade)}</span></span>
                                                 ${b.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(b.category)}</span>` : ''}
-                                                ${b.rating != null && b.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(b.rating)}</span>` : ''}
+                                                ${b.rating != null && b.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(b.rating))}</span>` : ''}
                                                 ${b.height ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(b.height)}м</span>` : ''}
                                             </div>
                                         </div>
@@ -6681,7 +6712,7 @@
                                     ${route.sectorId != null && this.getStructureLabel(route.sectorId) ? `<span><i class="fas fa-layer-group"></i> ${this.getStructureLabel(route.sectorId)}</span>` : ''}
                                     <span>Категория: <span class="grade-badge grade-route">${this.escapeHtml(route.grade)}</span></span>
                                     ${route.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(route.category)}</span>` : ''}
-                                    ${route.rating != null && route.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(route.rating)}</span>` : ''}
+                                    ${route.rating != null && route.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(route.rating))}</span>` : ''}
                                     ${route.length ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(route.length)}м</span>` : ''}
                                     ${route.bolts ? `<span><i class="fas fa-bolt"></i> ${this.escapeHtml(route.bolts)} болтов</span>` : ''}
                                     ${route.sector ? `<span><i class="fas fa-map-marker-alt"></i> ${this.escapeHtml(route.sector)}</span>` : ''}
@@ -6757,7 +6788,7 @@
                                     ${boulder.sectorId != null && this.getStructureLabel(boulder.sectorId) ? `<span><i class="fas fa-layer-group"></i> ${this.getStructureLabel(boulder.sectorId)}</span>` : ''}
                                     <span>Категория: <span class="grade-badge grade-boulder">${this.escapeHtml(boulder.grade)}</span></span>
                                     ${boulder.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(boulder.category)}</span>` : ''}
-                                    ${boulder.rating != null && boulder.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(boulder.rating)}</span>` : ''}
+                                    ${boulder.rating != null && boulder.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(boulder.rating))}</span>` : ''}
                                     ${boulder.height ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(boulder.height)}м</span>` : ''}
                                 </div>
                                 ${boulder.description ? `<p style="margin-top: 8px; color: var(--light-text);">${this.escapeHtml(boulder.description)}</p>` : ''}
@@ -8773,7 +8804,6 @@
                 const felt = (document.getElementById('climbFeltGrade')?.value || '').trim();
                 if (currentStars === starValue) {
                     await apiFetch(`/api/ratings?${this.climbRatingQuery(climbType, climbId)}`, { method: 'DELETE' });
-                    this.showToast('Оценка снята');
                     return 0;
                 }
                 await apiFetch('/api/ratings', {
@@ -8787,8 +8817,22 @@
                         felt_grade: felt || null
                     })
                 });
-                this.showToast('Оценка сохранена');
                 return starValue;
+            }
+
+            buildClimbCommunityStatsHtml(stats) {
+                const parts = [];
+                parts.push(`Пролазов: <strong>${stats.send_count || 0}</strong>`);
+                if (stats.avg_stars != null) {
+                    parts.push(`оценка: <strong>${this.escapeHtml(formatStarAverageLabel(stats.avg_stars, stats.ratings_count))}</strong>`);
+                }
+                if (stats.my_status === 'send') {
+                    parts.push(' · <span class="climb-sent-badge">вы пролазали</span>');
+                }
+                if (stats.felt_grades?.length) {
+                    parts.push(` · мнения: ${stats.felt_grades.map((g) => this.escapeHtml(g)).join(', ')}`);
+                }
+                return parts.join('');
             }
 
             async refreshClimbCommunityPanel(climbType, climbId) {
@@ -8802,16 +8846,8 @@
                 try {
                     const stats = await this.fetchClimbCommunityStats(climbType, climbId);
                     this._climbCommunityStats = stats;
-                    const parts = [];
-                    parts.push(`Пролазов: <strong>${stats.send_count || 0}</strong>`);
-                    if (stats.avg_stars != null) parts.push(`оценка: <strong>${stats.avg_stars}★</strong> (${stats.ratings_count})`);
-                    if (stats.my_status === 'send') {
-                        parts.push(' · <span class="climb-sent-badge">вы пролазали</span>');
-                    }
-                    if (stats.felt_grades?.length) {
-                        parts.push(` · мнения: ${stats.felt_grades.map((g) => this.escapeHtml(g)).join(', ')}`);
-                    }
-                    statsEl.innerHTML = parts.join('');
+                    patchClimbRatingInLocalCache(climbType, climbId, stats.avg_stars);
+                    statsEl.innerHTML = this.buildClimbCommunityStatsHtml(stats);
 
                     if (!this.isLoggedIn() || !this.isTelegramUser()) {
                         actionsEl.innerHTML = '<span style="color:var(--light-text);font-size:14px;">Войдите через Telegram Mini App, чтобы логировать пролазы.</span>';
@@ -8849,19 +8885,14 @@
                                 this.renderCommunityStarPicker(starsWrap, pickedStars, starPickHandler);
                                 const stats = await this.fetchClimbCommunityStats(climbType, climbId);
                                 this._climbCommunityStats = stats;
+                                patchClimbRatingInLocalCache(climbType, climbId, stats.avg_stars);
                                 const statsEl = document.getElementById('climbDetailCommunityStats');
                                 if (statsEl) {
-                                    const parts = [];
-                                    parts.push(`Пролазов: <strong>${stats.send_count || 0}</strong>`);
-                                    if (stats.avg_stars != null) parts.push(`оценка: <strong>${stats.avg_stars}★</strong> (${stats.ratings_count})`);
-                                    if (stats.my_status === 'send') {
-                                        parts.push(' · <span class="climb-sent-badge">вы пролазали</span>');
-                                    }
-                                    if (stats.felt_grades?.length) {
-                                        parts.push(` · мнения: ${stats.felt_grades.map((g) => this.escapeHtml(g)).join(', ')}`);
-                                    }
-                                    statsEl.innerHTML = parts.join('');
+                                    statsEl.innerHTML = this.buildClimbCommunityStatsHtml(stats);
                                 }
+                                this.renderCatalog();
+                                this.renderRoutes();
+                                this.renderBoulders();
                             } catch (err) {
                                 this.showToast(err.message, true);
                             }

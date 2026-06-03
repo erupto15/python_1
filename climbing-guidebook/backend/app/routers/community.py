@@ -5,13 +5,13 @@ from __future__ import annotations
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app import schemas
 from app.db import get_db
 from app.deps import get_current_user, get_current_user_optional
 from app.models import Area, Boulder, ClimbAscent, ClimbUserRating, Route, Sector, User
+from app.services.climb_rating import star_average, sync_climb_star_average
 
 router = APIRouter(tags=["community"])
 
@@ -203,6 +203,7 @@ def upsert_rating(
         db.add(row)
     db.commit()
     db.refresh(row)
+    sync_climb_star_average(db, climb_type, route_id, boulder_id)
     return row
 
 
@@ -225,6 +226,7 @@ def delete_rating(
         return
     db.delete(row)
     db.commit()
+    sync_climb_star_average(db, climb_type, route_id, boulder_id)
 
 
 @router.get("/climbs/stats", response_model=schemas.ClimbCommunityStats)
@@ -249,11 +251,15 @@ def climb_stats(
 
     send_count = ascent_q.filter(ClimbAscent.status == "send").count()
     attempt_count = ascent_q.filter(ClimbAscent.status == "attempt").count()
-    ratings_count = rating_q.count()
+    star_rows = [int(row[0]) for row in rating_q.with_entities(ClimbUserRating.stars).all()]
+    ratings_count = len(star_rows)
+    avg = star_average(star_rows)
+    climb = db.get(Route, route_id) if climb_type == "route" else db.get(Boulder, boulder_id)
+    if climb is not None and climb.rating != avg:
+        climb.rating = avg
+        db.add(climb)
+        db.commit()
     if climb_type == "route":
-        avg_val = db.query(func.avg(ClimbUserRating.stars)).filter(
-            ClimbUserRating.climb_type == "route", ClimbUserRating.route_id == route_id
-        ).scalar()
         felt_rows = (
             db.query(ClimbUserRating.felt_grade)
             .filter(
@@ -265,9 +271,6 @@ def climb_stats(
             .all()
         )
     else:
-        avg_val = db.query(func.avg(ClimbUserRating.stars)).filter(
-            ClimbUserRating.climb_type == "boulder", ClimbUserRating.boulder_id == boulder_id
-        ).scalar()
         felt_rows = (
             db.query(ClimbUserRating.felt_grade)
             .filter(
@@ -304,7 +307,7 @@ def climb_stats(
         send_count=send_count,
         attempt_count=attempt_count,
         ratings_count=ratings_count,
-        avg_stars=round(float(avg_val), 2) if avg_val is not None else None,
+        avg_stars=avg,
         felt_grades=felt_grades,
         my_status=my_status,
         my_tries=my_tries,
