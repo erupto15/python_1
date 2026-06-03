@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus, urlparse
 
@@ -7,20 +8,14 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, Settings
 
 from app.yaml_settings import YamlSettingsSource
 
-_BACKEND_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_POSTGRES_PASSWORD_FILE = os.path.join(_BACKEND_ROOT, ".postgres_password")
-
-
-def _read_postgres_password_file() -> str:
-    if not os.path.isfile(_POSTGRES_PASSWORD_FILE):
-        return ""
-    value = open(_POSTGRES_PASSWORD_FILE, encoding="utf-8").read().strip()
-    return value
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_ROOT_ENV_FILE = _PROJECT_ROOT / ".env"
+_DEFAULT_SQLITE_URL = f"sqlite:///{(_PROJECT_ROOT / 'climbing-guidebook/backend/climbing.db').resolve()}"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_ROOT_ENV_FILE),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -43,7 +38,7 @@ class Settings(BaseSettings):
             file_secret_settings,
         )
 
-    database_url: str = "sqlite:///./climbing.db"
+    database_url: str = _DEFAULT_SQLITE_URL
 
     # Альтернатива DATABASE_URL: задайте POSTGRES_HOST + POSTGRES_PASSWORD (+ опционально порт/юзер/базу)
     postgres_host: str = ""
@@ -66,7 +61,7 @@ class Settings(BaseSettings):
         password = data.get("postgres_password")
         if password is None:
             password = os.getenv("POSTGRES_PASSWORD", "")
-        password = str(password).strip() or _read_postgres_password_file()
+        password = str(password).strip()
 
         use_parts = bool(host and password)
         if not use_parts:
@@ -105,11 +100,15 @@ class Settings(BaseSettings):
                     "DATABASE_URL пустой в production. Подключите PostgreSQL и укажите "
                     "PostgreSQL connection string в переменной DATABASE_URL."
                 )
-            return "sqlite:///./climbing.db"
+            return _DEFAULT_SQLITE_URL
         if s.startswith("postgres://"):
             s = "postgresql+psycopg2://" + s[len("postgres://") :]
         if s.startswith("postgresql://") and not s.startswith("postgresql+"):
             s = "postgresql+psycopg2://" + s[len("postgresql://") :]
+        if s.startswith("sqlite:///") and not s.startswith("sqlite:////") and s != "sqlite:///:memory:":
+            sqlite_path = s[len("sqlite:///") :]
+            if sqlite_path:
+                s = f"sqlite:///{(_PROJECT_ROOT / sqlite_path).resolve()}"
         return s
 
     @field_validator("database_url", mode="after")

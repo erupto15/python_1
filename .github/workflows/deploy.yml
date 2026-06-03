@@ -1,0 +1,63 @@
+name: Deploy to Timeweb
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: timeweb-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy over SSH
+        env:
+          TIMEWEB_SSH_KEY: ${{ secrets.TIMEWEB_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          HOST="92.246.76.142"
+          USER="root"
+          APP_DIR="/opt/guide-rus/current"
+          DEPLOY_KEY_PATH="/root/.ssh/id_ed25519_guide_rus_deploy"
+
+          if [ -z "${TIMEWEB_SSH_KEY}" ]; then
+            echo "TIMEWEB_SSH_KEY secret is required." >&2
+            exit 1
+          fi
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${TIMEWEB_SSH_KEY}" > ~/.ssh/timeweb_ci_key
+          chmod 600 ~/.ssh/timeweb_ci_key
+          ssh-keyscan -H "${HOST}" >> ~/.ssh/known_hosts
+
+          ssh -i ~/.ssh/timeweb_ci_key -o IdentitiesOnly=yes "${USER}@${HOST}" \
+            "APP_DIR='${APP_DIR}' DEPLOY_KEY_PATH='${DEPLOY_KEY_PATH}' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          cd "$APP_DIR"
+          if [ ! -d .git ]; then
+            echo "$APP_DIR is not a git checkout. Run the one-time VPS git clone step first." >&2
+            exit 1
+          fi
+
+          export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+
+          cd climbing-guidebook/backend
+          python3 -m venv .venv
+          . .venv/bin/activate
+          pip install -r requirements.txt
+          python -m py_compile app/config.py app/db.py app/main.py
+
+          systemctl restart guide-rus-backend
+          systemctl reload caddy
+          REMOTE

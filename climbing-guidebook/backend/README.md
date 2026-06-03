@@ -6,6 +6,15 @@ Single FastAPI app for the climbing guidebook: API, database bootstrap and `inde
 
 Requires Python 3.10+. macOS system Python 3.9 is not enough; use Homebrew Python or another Python 3.10+.
 
+From the repository root:
+
+```bash
+cp .env.example .env
+# Fill TELEGRAM_BOT_TOKEN with a local test bot token.
+```
+
+Then run the app:
+
 ```bash
 cd climbing-guidebook/backend
 python3 -m venv .venv
@@ -13,16 +22,6 @@ source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
-
-Create `backend/.env` from the repository root before running:
-
-```bash
-cd ../..
-bash setup-local-env.sh
-cd climbing-guidebook/backend
-```
-
-For local Telegram Mini App auth, `setup-local-env.sh` maps root `.env` `TELEGRAM_BOT_HTTP_API_TEST` to backend `.env` `TELEGRAM_BOT_TOKEN`.
 
 Check:
 
@@ -37,7 +36,7 @@ open http://127.0.0.1:8000/docs
 Settings priority:
 
 1. Environment variables.
-2. `backend/.env`.
+2. Repository root `.env`.
 3. `backend/config/settings.yaml`, if used.
 
 Important runtime variables:
@@ -54,7 +53,7 @@ TELEGRAM_AUTH_MAX_AGE_SEC=86400
 DISABLE_CATALOG_SEED=1
 ```
 
-Local development can keep `DATABASE_URL=sqlite:///./climbing.db`. In `APP_ENV=production`, SQLite is rejected to avoid accidental data loss.
+Local development can keep `DATABASE_URL=sqlite:///./climbing-guidebook/backend/climbing.db`. In `APP_ENV=production`, SQLite is rejected to avoid accidental data loss.
 
 ## Bootstrap
 

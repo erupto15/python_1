@@ -6,9 +6,9 @@
 
 ### Local
 
-Для разработки на ноутбуке. Если запускать backend из `climbing-guidebook/backend` и использовать `climbing-guidebook/backend/.env`, то по умолчанию он ходит в локальный SQLite-файл `climbing-guidebook/backend/climbing.db`, а не в production PostgreSQL.
+Для разработки на ноутбуке. Backend явно читает корневой `.env`, поэтому локальные настройки лежат в одном месте. По умолчанию он ходит в локальный SQLite-файл `climbing-guidebook/backend/climbing.db`, а не в production PostgreSQL.
 
-Локальный Telegram Mini App должен использовать отдельного тестового бота. Его токен хранится в корневом `.env` как `TELEGRAM_BOT_HTTP_API_TEST`, а локальный backend читает его уже как `TELEGRAM_BOT_TOKEN` из `climbing-guidebook/backend/.env`.
+Локальный Telegram Mini App должен использовать отдельного тестового бота. Его токен хранится в корневом `.env` как `TELEGRAM_BOT_TOKEN`.
 
 ```js
 window.CLIMBING_API_BASE_URL = '';
@@ -33,24 +33,12 @@ cp .env.example .env
 Минимум для локального Telegram Mini App:
 
 ```dotenv
-TELEGRAM_BOT_HTTP_API_TEST=<token-of-test-bot>
-```
-
-2. Сгенерируйте backend `.env`:
-
-```bash
-bash setup-local-env.sh
-```
-
-Этот файл создаёт `climbing-guidebook/backend/.env` из `climbing-guidebook/backend/.env.example` и подставляет:
-
-```dotenv
-TELEGRAM_BOT_TOKEN=<value-from-TELEGRAM_BOT_HTTP_API_TEST>
+TELEGRAM_BOT_TOKEN=<token-of-test-bot>
 ```
 
 Production-токен и production PostgreSQL при локальном запуске не используются.
 
-3. Запустите приложение:
+2. Запустите приложение:
 
 ```bash
 cd climbing-guidebook/backend
@@ -69,7 +57,7 @@ open http://127.0.0.1:8000
 
 ## Переменные Окружения
 
-### Backend Runtime
+### Production Runtime
 
 Эти переменные лежат на сервере в `/etc/guide-rus/backend.env`. В репозиторий реальные значения не коммитятся.
 
@@ -87,21 +75,19 @@ DISABLE_CATALOG_SEED=1
 
 `DISABLE_CATALOG_SEED=1` важен: после миграции каталог должен жить в БД, а не восстанавливаться из seed-файла при рестарте.
 
-### Operator Local `.env`
+### Local `.env`
 
-Локальный корневой `.env` нужен только оператору деплоя и миграций. Он может содержать SSH, Timeweb PostgreSQL/S3 и Telegram токены. Не используйте его как backend `.env` и не коммитьте.
+Локальный корневой `.env` используется приложением при локальном запуске и может содержать операторские переменные для emergency-команд. Приложение игнорирует неизвестные ключи.
 
-Минимальный набор для деплоя:
+Минимальный набор для локальной разработки:
 
 ```dotenv
-DEPLOY_HOST=92.246.76.142
-DEPLOY_USER=root
-DEPLOY_KEY=/Users/<you>/.ssh/id_ed25519_vlad
-DEPLOY_BRANCH=main
-APP_DIR=/opt/guide-rus/current
-PUBLIC_URL=https://92.246.76.142.sslip.io
-TELEGRAM_BOT_HTTP_API=<production-bot-token>
-TELEGRAM_BOT_HTTP_API_TEST=<local-test-bot-token>
+APP_ENV=development
+DATABASE_URL=sqlite:///./climbing-guidebook/backend/climbing.db
+TELEGRAM_BOT_TOKEN=<local-test-bot-token>
+JWT_SECRET=dev-only-change-me
+ADMIN_EMAIL=admin@climbing-guidebook.local
+ADMIN_PASSWORD=change-me-now
 ```
 
 ## Git Workflow
@@ -214,16 +200,46 @@ caddy validate --config /etc/caddy/Caddyfile
 systemctl reload caddy
 ```
 
-## Деплой
+## Деплой Через GitHub Actions
 
-После one-time настройки сервер сам тянет код из Git:
+Основной деплой должен запускаться из GitHub Actions. Коворкеру не нужен SSH-доступ к VPS: ему достаточно прав в GitHub, чтобы смержить изменения в `main` или вручную запустить workflow.
+
+Workflow использует SSH-ключ из GitHub Secrets и на сервере выполняет тот же pull/restart, который раньше запускался с ноутбука.
+
+В workflow намеренно захардкожены несекретные deploy-параметры:
+
+```yaml
+HOST: 92.246.76.142
+USER: root
+APP_DIR: /opt/guide-rus/current
+DEPLOY_KEY_PATH: /root/.ssh/id_ed25519_guide_rus_deploy
+```
+
+`DEPLOY_KEY_PATH` — это путь на VPS к read-only ключу, которым сервер читает GitHub-репозиторий при `git pull`. Это не ключ на машине разработчика и не GitHub Secret.
+
+Нужно один раз добавить только один GitHub repository secret:
+
+| Secret | Значение |
+|--------|----------|
+| `TIMEWEB_SSH_KEY` | private key для подключения GitHub Actions к VPS |
+
+После настройки:
+
+- push в `main` запускает деплой автоматически;
+- `workflow_dispatch` позволяет запустить деплой вручную из вкладки GitHub Actions.
+
+Production runtime env workflow не перезаписывает. `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `JWT_SECRET` остаются в `/etc/guide-rus/backend.env`.
+
+### Emergency Fallback С Ноутбука
+
+Если GitHub Actions недоступен, можно разово задеплоить с операторской машины:
 
 ```bash
 source .env
 bash deploy-timeweb.sh
 ```
 
-Эквивалентные команды вручную:
+Эквивалентные команды на сервере:
 
 ```bash
 ssh root@<server>
@@ -264,7 +280,7 @@ systemctl restart guide-rus-backend
 2. На своей машине обновите корневой `.env`:
 
 ```dotenv
-TELEGRAM_BOT_HTTP_API=<new-real-bot-token>
+PROD_TELEGRAM_BOT_HTTP_API=<new-real-bot-token>
 PUBLIC_URL=https://<domain-or-sslip>
 ```
 
@@ -272,7 +288,7 @@ PUBLIC_URL=https://<domain-or-sslip>
 
 ```bash
 source .env
-curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_HTTP_API}/setChatMenuButton" \
+curl -X POST "https://api.telegram.org/bot${PROD_TELEGRAM_BOT_HTTP_API}/setChatMenuButton" \
   -H "Content-Type: application/json" \
   -d "{
     \"menu_button\": {

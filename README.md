@@ -7,27 +7,27 @@ Telegram Mini App со справочником скалолазных райо�
 - `climbing-guidebook/index.html` — статический frontend.
 - `climbing-guidebook/backend/` — единое FastAPI-приложение: API, bootstrap БД и отдача frontend.
 - `DEPLOYMENT.md` — полный workflow разработки и деплоя на Timeweb.
-- `.env.example` и `climbing-guidebook/backend/.env.example` — шаблоны без секретов.
+- `.env.example` — единый локальный шаблон без секретов.
 
 ## Локальный запуск
 
 Нужен Python 3.10+. На macOS проверьте `python3 --version`; если это системный 3.9, используйте Homebrew Python (`/opt/homebrew/bin/python3`) или другой Python 3.10+.
 
-1. Заполните корневой `.env` по `.env.example`. Для локального Telegram Mini App нужен отдельный тестовый бот:
-
-```dotenv
-TELEGRAM_BOT_HTTP_API_TEST=<token-of-test-bot>
-```
-
-2. Создайте backend `.env` для локального запуска:
+1. Создайте корневой `.env`:
 
 ```bash
-bash setup-local-env.sh
+cp .env.example .env
 ```
 
-Скрипт берёт `TELEGRAM_BOT_HTTP_API_TEST` из корневого `.env` и записывает его в `climbing-guidebook/backend/.env` как `TELEGRAM_BOT_TOKEN`. Production-токен локально не используется.
+Для локального Telegram Mini App используйте отдельного тестового бота:
 
-3. Запустите приложение:
+```dotenv
+TELEGRAM_BOT_TOKEN=<token-of-test-bot>
+```
+
+Production-токен локально не используется.
+
+2. Запустите приложение:
 
 ```bash
 cd climbing-guidebook/backend
