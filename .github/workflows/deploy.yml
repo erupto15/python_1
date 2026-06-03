@@ -15,18 +15,63 @@ jobs:
       - name: Deploy over SSH
         env:
           TIMEWEB_SSH_KEY: ${{ secrets.TIMEWEB_SSH_KEY }}
+          TIMEWEB_HOST: ${{ vars.TIMEWEB_HOST }}
+          TIMEWEB_USER: ${{ vars.TIMEWEB_USER }}
+          TIMEWEB_APP_DIR: ${{ vars.TIMEWEB_APP_DIR }}
+          APP_ENV: ${{ vars.APP_ENV }}
+          PUBLIC_URL: ${{ vars.PUBLIC_URL }}
+          ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
+          ADMIN_DISPLAY_NAME: ${{ vars.ADMIN_DISPLAY_NAME }}
+          TELEGRAM_AUTH_MAX_AGE_SEC: ${{ vars.TELEGRAM_AUTH_MAX_AGE_SEC }}
+          DISABLE_CATALOG_SEED: ${{ vars.DISABLE_CATALOG_SEED }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
         run: |
           set -euo pipefail
 
-          HOST="92.246.76.142"
-          USER="root"
-          APP_DIR="/opt/guide-rus/current"
+          HOST="${TIMEWEB_HOST:-92.246.76.142}"
+          USER="${TIMEWEB_USER:-root}"
+          APP_DIR="${TIMEWEB_APP_DIR:-/opt/guide-rus/current}"
           DEPLOY_KEY_PATH="/root/.ssh/id_ed25519_guide_rus_deploy"
+          PUBLIC_URL="${PUBLIC_URL:-https://92.246.76.142.sslip.io}"
+          APP_ENV="${APP_ENV:-production}"
+          ADMIN_DISPLAY_NAME="${ADMIN_DISPLAY_NAME:-Administrator}"
+          TELEGRAM_AUTH_MAX_AGE_SEC="${TELEGRAM_AUTH_MAX_AGE_SEC:-86400}"
+          DISABLE_CATALOG_SEED="${DISABLE_CATALOG_SEED:-1}"
 
-          if [ -z "${TIMEWEB_SSH_KEY}" ]; then
-            echo "TIMEWEB_SSH_KEY secret is required." >&2
-            exit 1
-          fi
+          for required in TIMEWEB_SSH_KEY DATABASE_URL JWT_SECRET ADMIN_EMAIL ADMIN_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_WEBHOOK_SECRET; do
+            if [ -z "${!required:-}" ]; then
+              echo "$required is required." >&2
+              exit 1
+            fi
+          done
+
+          BACKEND_ENV="$(mktemp)"
+          chmod 600 "$BACKEND_ENV"
+          {
+            printf 'APP_ENV=%s\n' "$APP_ENV"
+            printf 'DATABASE_URL=%s\n' "$DATABASE_URL"
+            printf 'JWT_SECRET=%s\n' "$JWT_SECRET"
+            printf 'ADMIN_EMAIL=%s\n' "$ADMIN_EMAIL"
+            printf 'ADMIN_PASSWORD=%s\n' "$ADMIN_PASSWORD"
+            printf 'ADMIN_DISPLAY_NAME=%s\n' "$ADMIN_DISPLAY_NAME"
+            printf 'TELEGRAM_BOT_TOKEN=%s\n' "$TELEGRAM_BOT_TOKEN"
+            printf 'TELEGRAM_AUTH_MAX_AGE_SEC=%s\n' "$TELEGRAM_AUTH_MAX_AGE_SEC"
+            printf 'TELEGRAM_WEBHOOK_SECRET=%s\n' "$TELEGRAM_WEBHOOK_SECRET"
+            printf 'PUBLIC_URL=%s\n' "$PUBLIC_URL"
+            printf 'DISABLE_CATALOG_SEED=%s\n' "$DISABLE_CATALOG_SEED"
+          } > "$BACKEND_ENV"
+
+          case "$DATABASE_URL" in
+            postgresql*) ;;
+            *)
+              echo "DATABASE_URL must point to PostgreSQL for production." >&2
+              exit 1
+              ;;
+          esac
 
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
@@ -34,9 +79,15 @@ jobs:
           chmod 600 ~/.ssh/timeweb_ci_key
           ssh-keyscan -H "${HOST}" >> ~/.ssh/known_hosts
 
+          scp -i ~/.ssh/timeweb_ci_key -o IdentitiesOnly=yes "$BACKEND_ENV" "${USER}@${HOST}:/tmp/guide-rus-backend.env"
+
           ssh -i ~/.ssh/timeweb_ci_key -o IdentitiesOnly=yes "${USER}@${HOST}" \
             "APP_DIR='${APP_DIR}' DEPLOY_KEY_PATH='${DEPLOY_KEY_PATH}' bash -s" <<'REMOTE'
           set -euo pipefail
+
+          install -d -m 700 /etc/guide-rus
+          install -m 600 /tmp/guide-rus-backend.env /etc/guide-rus/backend.env
+          rm -f /tmp/guide-rus-backend.env
 
           cd "$APP_DIR"
           if [ ! -d .git ]; then
@@ -53,8 +104,17 @@ jobs:
           python3 -m venv .venv
           . .venv/bin/activate
           pip install -r requirements.txt
-          python -m py_compile app/config.py app/db.py app/main.py
+          python -m py_compile app/config.py app/db.py app/main.py app/routers/telegram.py
 
           systemctl restart guide-rus-backend
           systemctl reload caddy
           REMOTE
+
+          curl -fsS --max-time 30 -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setChatMenuButton" \
+            -H "Content-Type: application/json" \
+            -d '{"menu_button":{"type":"default"}}' >/dev/null
+
+          curl -fsS --max-time 30 -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+            --data-urlencode "url=${PUBLIC_URL%/}/api/telegram/webhook" \
+            --data-urlencode "secret_token=${TELEGRAM_WEBHOOK_SECRET}" \
+            -d "drop_pending_updates=true" >/dev/null

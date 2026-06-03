@@ -59,7 +59,7 @@ open http://127.0.0.1:8000
 
 ### Production Runtime
 
-Эти переменные лежат на сервере в `/etc/guide-rus/backend.env`. В репозиторий реальные значения не коммитятся.
+Эти переменные задаются в GitHub Actions Variables/Secrets и при каждом deploy синхронизируются на сервер в `/etc/guide-rus/backend.env`. В репозиторий реальные значения не коммитятся.
 
 ```dotenv
 APP_ENV=production
@@ -70,10 +70,12 @@ ADMIN_PASSWORD=<admin-password>
 ADMIN_DISPLAY_NAME=Administrator
 TELEGRAM_BOT_TOKEN=<bot-token>
 TELEGRAM_AUTH_MAX_AGE_SEC=86400
+TELEGRAM_WEBHOOK_SECRET=<long-random-secret>
+PUBLIC_URL=https://92.246.76.142.sslip.io
 DISABLE_CATALOG_SEED=1
 ```
 
-`DISABLE_CATALOG_SEED=1` важен: после миграции каталог должен жить в БД, а не восстанавливаться из seed-файла при рестарте.
+`DISABLE_CATALOG_SEED=1` важен: после миграции каталог должен жить в БД, а не восстанавливаться из seed-файла при рестарте. `TELEGRAM_WEBHOOK_SECRET` используется Telegram webhook-ом для проверки заголовка `X-Telegram-Bot-Api-Secret-Token`.
 
 ### Local `.env`
 
@@ -204,31 +206,47 @@ systemctl reload caddy
 
 Основной деплой запускается вручную из GitHub Actions. Коворкеру не нужен SSH-доступ к VPS: ему достаточно прав в GitHub, чтобы смержить изменения в `main`, а затем нажать `Run workflow`.
 
-Workflow использует SSH-ключ из GitHub Secrets и на сервере выполняет тот же pull/restart, который раньше запускался с ноутбука.
+Workflow использует SSH-ключ из GitHub Secrets, собирает production env-файл из GitHub Variables/Secrets, кладёт его на VPS в `/etc/guide-rus/backend.env`, затем выполняет pull/restart.
 
-В workflow намеренно захардкожены несекретные deploy-параметры:
+В workflow намеренно захардкожен только путь к read-only deploy key на VPS:
 
 ```yaml
-HOST: 92.246.76.142
-USER: root
-APP_DIR: /opt/guide-rus/current
 DEPLOY_KEY_PATH: /root/.ssh/id_ed25519_guide_rus_deploy
 ```
 
 `DEPLOY_KEY_PATH` — это путь на VPS к read-only ключу, которым сервер читает GitHub-репозиторий при `git pull`. Это не ключ на машине разработчика и не GitHub Secret.
 
-Нужно один раз добавить только один GitHub repository secret:
+GitHub repository variables:
+
+| Variable | Значение |
+|----------|----------|
+| `TIMEWEB_HOST` | `92.246.76.142` |
+| `TIMEWEB_USER` | `root` |
+| `TIMEWEB_APP_DIR` | `/opt/guide-rus/current` |
+| `APP_ENV` | `production` |
+| `PUBLIC_URL` | `https://92.246.76.142.sslip.io` |
+| `ADMIN_EMAIL` | email админа |
+| `ADMIN_DISPLAY_NAME` | `Administrator` |
+| `TELEGRAM_AUTH_MAX_AGE_SEC` | `86400` |
+| `DISABLE_CATALOG_SEED` | `1` |
+
+GitHub repository secrets:
 
 | Secret | Значение |
 |--------|----------|
 | `TIMEWEB_SSH_KEY` | private key для подключения GitHub Actions к VPS |
+| `DATABASE_URL` | PostgreSQL URL Timeweb |
+| `JWT_SECRET` | JWT secret |
+| `ADMIN_PASSWORD` | пароль админа |
+| `TELEGRAM_BOT_TOKEN` | токен production Telegram bot |
+| `TELEGRAM_WEBHOOK_SECRET` | случайный secret для Telegram webhook |
 
 После настройки:
 
 - push/merge в `main` сам по себе не деплоит production;
 - вкладка GitHub Actions позволяет вручную запустить `Deploy to Timeweb` для `main`.
 
-Production runtime env workflow не перезаписывает. `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `JWT_SECRET` остаются в `/etc/guide-rus/backend.env`.
+После restart workflow вызывает Telegram Bot API: убирает custom menu button из списка чатов и ставит webhook на `${PUBLIC_URL}/api/telegram/webhook`.
 
 ### Emergency Fallback С Ноутбука
 
@@ -266,38 +284,13 @@ journalctl -u guide-rus-backend -n 100 --no-pager
 
 ## Telegram Bot
 
-После замены Telegram token или домена нужно прописать frontend URL в меню бота:
+Новая модель входа: кнопки из списка чатов нет. Пользователь пишет `/start`, backend получает webhook и отправляет сообщение с inline Web App кнопкой на актуальный `PUBLIC_URL`.
 
-1. На VPS обновите runtime token backend:
+После замены Telegram token:
 
-```bash
-ssh root@<server>
-nano /etc/guide-rus/backend.env
-# TELEGRAM_BOT_TOKEN=<new-real-bot-token>
-systemctl restart guide-rus-backend
-```
-
-2. На своей машине обновите корневой `.env`:
-
-```dotenv
-PROD_TELEGRAM_BOT_HTTP_API=<new-real-bot-token>
-PUBLIC_URL=https://<domain-or-sslip>
-```
-
-3. Обновите кнопку Mini App у Telegram-бота:
-
-```bash
-source .env
-curl -X POST "https://api.telegram.org/bot${PROD_TELEGRAM_BOT_HTTP_API}/setChatMenuButton" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"menu_button\": {
-      \"type\": \"web_app\",
-      \"text\": \"Открыть гайд\",
-      \"web_app\": { \"url\": \"${PUBLIC_URL}/?v=$(date +%s)\" }
-    }
-  }"
-```
+1. Обновите GitHub secret `TELEGRAM_BOT_TOKEN`.
+2. Запустите `Deploy to Timeweb` вручную из GitHub Actions.
+3. Workflow сам обновит `/etc/guide-rus/backend.env`, уберёт custom menu button и настроит webhook.
 
 `?v=<deploy-id>` помогает Telegram WebView не открыть старый кешированный `index.html`.
 

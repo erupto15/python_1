@@ -11,7 +11,7 @@ from app.config import settings
 from app.db import Base, SessionLocal, engine, ensure_optional_columns
 
 logger = logging.getLogger(__name__)
-from app.routers import areas, auth, boulders, comments, community, photos, routes_api, sectors, users
+from app.routers import areas, auth, boulders, comments, community, photos, routes_api, sectors, telegram, users
 from app.seed import bootstrap_catalog
 
 FRONTEND_ROOT = Path(__file__).resolve().parents[2]
@@ -59,6 +59,7 @@ app.include_router(boulders.router, prefix="/api")
 app.include_router(photos.router, prefix="/api")
 app.include_router(comments.router, prefix="/api")
 app.include_router(community.router, prefix="/api")
+app.include_router(telegram.router, prefix="/api")
 
 
 @app.get("/health")

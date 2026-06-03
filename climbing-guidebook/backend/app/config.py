@@ -145,6 +145,8 @@ class Settings(BaseSettings):
     admin_display_name: str = "Administrator"
     telegram_bot_token: str = ""
     telegram_auth_max_age_sec: int = 86400
+    telegram_webhook_secret: str = ""
+    public_url: str = ""
 
 
 settings = Settings()
