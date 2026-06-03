@@ -206,6 +206,27 @@ def upsert_rating(
     return row
 
 
+@router.delete("/ratings", status_code=204)
+def delete_rating(
+    climb_type: Literal["route", "boulder"],
+    route_id: Optional[int] = None,
+    boulder_id: Optional[int] = None,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    climb_type, route_id, boulder_id = _climb_ids(climb_type, route_id, boulder_id)
+    q = db.query(ClimbUserRating).filter(ClimbUserRating.user_id == current.id, ClimbUserRating.climb_type == climb_type)
+    if climb_type == "route":
+        q = q.filter(ClimbUserRating.route_id == route_id)
+    else:
+        q = q.filter(ClimbUserRating.boulder_id == boulder_id)
+    row = q.first()
+    if not row:
+        return
+    db.delete(row)
+    db.commit()
+
+
 @router.get("/climbs/stats", response_model=schemas.ClimbCommunityStats)
 def climb_stats(
     climb_type: Literal["route", "boulder"],

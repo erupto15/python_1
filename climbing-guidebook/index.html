@@ -8650,16 +8650,47 @@
                 container.innerHTML = '';
                 const wrap = document.createElement('div');
                 wrap.className = 'star-rating';
+                wrap.setAttribute('role', 'group');
+                wrap.setAttribute('aria-label', 'Ваша оценка');
                 for (let i = 1; i <= 3; i += 1) {
                     const btn = document.createElement('button');
                     btn.type = 'button';
                     btn.className = `star-btn${i <= selectedStars ? ' active' : ''}`;
                     btn.textContent = '★';
-                    btn.setAttribute('aria-label', `${i} звёзд`);
+                    btn.setAttribute('aria-label', `${i} ${i === 1 ? 'звезда' : 'звезды'}`);
+                    btn.setAttribute('aria-pressed', i <= selectedStars ? 'true' : 'false');
                     btn.addEventListener('click', () => onPick(i));
                     wrap.appendChild(btn);
                 }
                 container.appendChild(wrap);
+            }
+
+            climbRatingQuery(climbType, climbId) {
+                return climbType === 'route'
+                    ? `climb_type=route&route_id=${encodeURIComponent(climbId)}`
+                    : `climb_type=boulder&boulder_id=${encodeURIComponent(climbId)}`;
+            }
+
+            async saveCommunityStarRating(climbType, climbId, starValue, currentStars) {
+                const felt = (document.getElementById('climbFeltGrade')?.value || '').trim();
+                if (currentStars === starValue) {
+                    await apiFetch(`/api/ratings?${this.climbRatingQuery(climbType, climbId)}`, { method: 'DELETE' });
+                    this.showToast('Оценка снята');
+                    return 0;
+                }
+                await apiFetch('/api/ratings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        climb_type: climbType,
+                        route_id: climbType === 'route' ? Number(climbId) : null,
+                        boulder_id: climbType === 'boulder' ? Number(climbId) : null,
+                        stars: starValue,
+                        felt_grade: felt || null
+                    })
+                });
+                this.showToast('Оценка сохранена');
+                return starValue;
             }
 
             async refreshClimbCommunityPanel(climbType, climbId) {
@@ -8702,40 +8733,40 @@
                             </select>
                         </label>
                         <input type="text" class="form-input" id="climbFeltGrade" placeholder="Ваша категория" value="${this.escapeHtml(stats.my_felt_grade || '')}" maxlength="32" style="min-width:120px;">
-                        <span id="climbUserStarsPicker" style="display:inline-flex;align-items:center;"></span>
-                        <button type="button" class="btn btn-primary btn-small" id="climbSaveRatingBtn"><i class="fas fa-star"></i> Оценка</button>
+                        <label style="font-size:14px;display:inline-flex;align-items:center;gap:6px;">Оценка
+                            <span id="climbUserStarsPicker" style="display:inline-flex;align-items:center;"></span>
+                        </label>
                     `;
 
                     let pickedStars = Math.min(3, stats.my_stars || 0);
                     const starsWrap = document.getElementById('climbUserStarsPicker');
                     const starPickHandler = (n) => {
-                        pickedStars = n;
-                        this.renderCommunityStarPicker(starsWrap, pickedStars, starPickHandler);
+                        void (async () => {
+                            try {
+                                const next = await this.saveCommunityStarRating(climbType, climbId, n, pickedStars);
+                                pickedStars = next;
+                                this.renderCommunityStarPicker(starsWrap, pickedStars, starPickHandler);
+                                const stats = await this.fetchClimbCommunityStats(climbType, climbId);
+                                this._climbCommunityStats = stats;
+                                const statsEl = document.getElementById('climbDetailCommunityStats');
+                                if (statsEl) {
+                                    const parts = [];
+                                    parts.push(`Пролазов: <strong>${stats.send_count || 0}</strong>`);
+                                    if (stats.avg_stars != null) parts.push(`оценка: <strong>${stats.avg_stars}★</strong> (${stats.ratings_count})`);
+                                    if (stats.my_status === 'send') {
+                                        parts.push(' · <span class="climb-sent-badge">вы пролазали</span>');
+                                    }
+                                    if (stats.felt_grades?.length) {
+                                        parts.push(` · мнения: ${stats.felt_grades.map((g) => this.escapeHtml(g)).join(', ')}`);
+                                    }
+                                    statsEl.innerHTML = parts.join('');
+                                }
+                            } catch (err) {
+                                this.showToast(err.message, true);
+                            }
+                        })();
                     };
                     this.renderCommunityStarPicker(starsWrap, pickedStars, starPickHandler);
-
-                    document.getElementById('climbSaveRatingBtn')?.addEventListener('click', () => {
-                        void (async () => {
-                            if (!pickedStars) {
-                                this.showToast('Выберите от 1 до 3 звёзд', true);
-                                return;
-                            }
-                            const felt = (document.getElementById('climbFeltGrade')?.value || '').trim();
-                            await apiFetch('/api/ratings', {
-                                method: 'PUT',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    climb_type: climbType,
-                                    route_id: climbType === 'route' ? Number(climbId) : null,
-                                    boulder_id: climbType === 'boulder' ? Number(climbId) : null,
-                                    stars: pickedStars,
-                                    felt_grade: felt || null
-                                })
-                            });
-                            await this.refreshClimbCommunityPanel(climbType, climbId);
-                            this.showToast('Оценка сохранена');
-                        })().catch((e) => this.showToast(e.message, true));
-                    });
                 } catch (err) {
                     statsEl.textContent = 'Не удалось загрузить статистику';
                     console.warn('community stats', err);
