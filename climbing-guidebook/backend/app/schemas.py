@@ -337,7 +337,7 @@ class ClimbRatingUpsert(BaseModel):
     climb_type: Literal["route", "boulder"]
     route_id: Optional[int] = None
     boulder_id: Optional[int] = None
-    stars: int = Field(ge=1, le=5)
+    stars: int = Field(ge=1, le=3)
     felt_grade: Optional[str] = Field(None, max_length=32)
 
 

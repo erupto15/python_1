@@ -230,7 +230,7 @@ class ClimbUserRating(Base):
             "OR (climb_type = 'boulder' AND boulder_id IS NOT NULL AND route_id IS NULL)",
             name="climb_user_ratings_one_climb",
         ),
-        CheckConstraint("stars >= 1 AND stars <= 5", name="climb_user_ratings_stars"),
+        CheckConstraint("stars >= 1 AND stars <= 3", name="climb_user_ratings_stars"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)

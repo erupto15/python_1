@@ -8650,7 +8650,7 @@
                 container.innerHTML = '';
                 const wrap = document.createElement('div');
                 wrap.className = 'star-rating';
-                for (let i = 1; i <= 5; i += 1) {
+                for (let i = 1; i <= 3; i += 1) {
                     const btn = document.createElement('button');
                     btn.type = 'button';
                     btn.className = `star-btn${i <= selectedStars ? ' active' : ''}`;
@@ -8701,17 +8701,12 @@
                                 <option value="redpoint" selected>Редпоинт</option>
                             </select>
                         </label>
-                        <button type="button" class="btn btn-success btn-small" id="climbLogSendBtn"><i class="fas fa-check"></i> Пролаз</button>
                         <input type="text" class="form-input" id="climbFeltGrade" placeholder="Ваша категория" value="${this.escapeHtml(stats.my_felt_grade || '')}" maxlength="32" style="min-width:120px;">
                         <span id="climbUserStarsPicker" style="display:inline-flex;align-items:center;"></span>
                         <button type="button" class="btn btn-primary btn-small" id="climbSaveRatingBtn"><i class="fas fa-star"></i> Оценка</button>
                     `;
 
-                    document.getElementById('climbLogSendBtn')?.addEventListener('click', () => {
-                        void this.logClimbAscentFromDetail('send').catch((e) => this.showToast(e.message, true));
-                    });
-
-                    let pickedStars = stats.my_stars || 0;
+                    let pickedStars = Math.min(3, stats.my_stars || 0);
                     const starsWrap = document.getElementById('climbUserStarsPicker');
                     const starPickHandler = (n) => {
                         pickedStars = n;
@@ -8722,7 +8717,7 @@
                     document.getElementById('climbSaveRatingBtn')?.addEventListener('click', () => {
                         void (async () => {
                             if (!pickedStars) {
-                                this.showToast('Выберите от 1 до 5 звёзд', true);
+                                this.showToast('Выберите от 1 до 3 звёзд', true);
                                 return;
                             }
                             const felt = (document.getElementById('climbFeltGrade')?.value || '').trim();
