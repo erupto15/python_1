@@ -79,7 +79,7 @@ DISABLE_CATALOG_SEED=1
 
 ### Local `.env`
 
-Локальный корневой `.env` используется приложением при локальном запуске и может содержать операторские переменные для emergency-команд. Приложение игнорирует неизвестные ключи.
+Локальный корневой `.env` используется только приложением при локальном запуске. Production/deploy значения живут в GitHub Variables/Secrets.
 
 Минимальный набор для локальной разработки:
 
@@ -98,7 +98,7 @@ ADMIN_PASSWORD=change-me-now
 2. Для infra-переезда используется ветка `infra/timeweb-migration`.
 3. Изменения проверяются локально.
 4. После проверки ветка мержится в `main`.
-5. Сервер деплоит `main`.
+5. Production деплоится вручную через GitHub Actions `Deploy to Timeweb`.
 
 Базовые команды:
 
@@ -253,7 +253,10 @@ GitHub repository secrets:
 Если GitHub Actions недоступен, можно разово задеплоить с операторской машины:
 
 ```bash
-source .env
+DEPLOY_HOST=92.246.76.142 \
+DEPLOY_USER=root \
+DEPLOY_KEY=/path/to/private/key \
+APP_DIR=/opt/guide-rus/current \
 bash deploy-timeweb.sh
 ```
 
@@ -318,7 +321,7 @@ systemctl restart guide-rus-backend
 ## Секреты
 
 - Реальные `.env`, private keys, DB dumps и backups не коммитятся.
-- Backend secrets живут в `/etc/guide-rus/backend.env`.
-- Операторские secrets живут в локальном корневом `.env`.
+- Production secrets живут в GitHub Secrets и синхронизируются в `/etc/guide-rus/backend.env` при deploy.
+- Локальный корневой `.env` содержит только значения для локального запуска.
 - Deploy key на VPS должен быть read-only.
-- Telegram bot token меняется вручную в `/etc/guide-rus/backend.env`; обычный deploy кода его не трогает.
+- Telegram bot token меняется через GitHub Secret `TELEGRAM_BOT_TOKEN`; deploy применяет его на VPS.

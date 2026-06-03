@@ -8,7 +8,7 @@
 |------|------------|
 | `backend/config/settings.yaml` | YAML-настройки |
 | `backend/SECRETS.local.md` | Шпаргалка со всеми секретами (копия из `SECRETS.local.md.example`) |
-| `.env` в корне | Локальные app-переменные, test bot token и emergency ops-переменные |
+| `.env` в корне | Только локальные app-переменные и test bot token |
 | DB dumps / backups | Локальные или S3-бэкапы с данными |
 
 ## Что задавать на сервере
@@ -18,7 +18,7 @@
 - `APP_ENV=production`
 - `DISABLE_CATALOG_SEED=1`
 
-Runtime-секреты хранятся на VPS в `/etc/guide-rus/backend.env`. CI deploy-секреты хранятся в GitHub Secrets. Локальные секреты для разработки держите только в корневом `.env`.
+Production runtime-секреты хранятся в GitHub Secrets и при deploy синхронизируются в `/etc/guide-rus/backend.env`. Локальные секреты для разработки держите только в корневом `.env`.
 
 Для локального Telegram Mini App используйте отдельного бота: его токен кладётся в корневой `.env` как `TELEGRAM_BOT_TOKEN`.
 
