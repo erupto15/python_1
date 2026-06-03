@@ -8664,8 +8664,11 @@
                     tries,
                     route_id: climbType === 'route' ? Number(climbId) : null,
                     boulder_id: climbType === 'boulder' ? Number(climbId) : null,
-                    ascent_style: status === 'send' ? this.getSelectedAscentStyle() : null
+                    ascent_style: status === 'send' ? (this.getSelectedAscentStyle() || null) : null
                 };
+                if (status === 'send' && !body.ascent_style) {
+                    throw new Error('Выберите тип пролаза: онсайт, флэш или редпоинт');
+                }
                 if (typeof window.setTelegramMainButtonLoading === 'function') {
                     window.setTelegramMainButtonLoading(true);
                 }
@@ -8704,30 +8707,38 @@
 
             getSelectedAscentStyle() {
                 const active = document.querySelector('#climbSendStylePicker .ascent-style-btn.active');
-                return active?.dataset.style || document.getElementById('climbSendStyle')?.value || 'redpoint';
+                const fromBtn = active?.dataset.style || '';
+                const fromHidden = document.getElementById('climbSendStyle')?.value || '';
+                const style = fromBtn || fromHidden;
+                return ['onsight', 'flash', 'redpoint'].includes(style) ? style : '';
+            }
+
+            setAscentStyleSelection(picker, hidden, style) {
+                const normalized = ['onsight', 'flash', 'redpoint'].includes(style) ? style : '';
+                picker.querySelectorAll('.ascent-style-btn').forEach((btn) => {
+                    const isActive = normalized && btn.dataset.style === normalized;
+                    btn.classList.toggle('active', isActive);
+                    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+                });
+                if (hidden) hidden.value = normalized;
             }
 
             bindAscentStylePicker(initialStyle = 'redpoint') {
                 const picker = document.getElementById('climbSendStylePicker');
                 const hidden = document.getElementById('climbSendStyle');
                 if (!picker) return;
-                const style = ['onsight', 'flash', 'redpoint'].includes(initialStyle) ? initialStyle : 'redpoint';
-                picker.querySelectorAll('.ascent-style-btn').forEach((btn) => {
-                    const isActive = btn.dataset.style === style;
-                    btn.classList.toggle('active', isActive);
-                    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-                });
-                if (hidden) hidden.value = style;
+                const style = ['onsight', 'flash', 'redpoint'].includes(initialStyle) ? initialStyle : '';
+                this.setAscentStyleSelection(picker, hidden, style);
                 picker.querySelectorAll('.ascent-style-btn').forEach((btn) => {
                     btn.addEventListener('click', () => {
                         const next = btn.dataset.style;
                         if (!next) return;
-                        picker.querySelectorAll('.ascent-style-btn').forEach((b) => {
-                            const on = b === btn;
-                            b.classList.toggle('active', on);
-                            b.setAttribute('aria-pressed', on ? 'true' : 'false');
-                        });
-                        if (hidden) hidden.value = next;
+                        const current = this.getSelectedAscentStyle();
+                        if (current === next) {
+                            this.setAscentStyleSelection(picker, hidden, '');
+                            return;
+                        }
+                        this.setAscentStyleSelection(picker, hidden, next);
                     });
                 });
             }
