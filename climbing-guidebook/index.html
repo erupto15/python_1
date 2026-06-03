@@ -2070,6 +2070,64 @@
             max-width: 88px;
         }
 
+        .ascent-style-picker {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-left: 6px;
+        }
+
+        .ascent-style-btn {
+            border: 1px solid var(--tg-btn-border);
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.2;
+            cursor: pointer;
+            background: var(--tg-btn-bg);
+            color: var(--text-color);
+            transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.1s ease;
+        }
+
+        .ascent-style-btn:active {
+            transform: scale(var(--tg-btn-press));
+        }
+
+        .ascent-style-btn[data-style="onsight"] {
+            border-color: color-mix(in srgb, #2e7d32 55%, var(--tg-btn-border));
+        }
+
+        .ascent-style-btn[data-style="flash"] {
+            border-color: color-mix(in srgb, #f9a825 55%, var(--tg-btn-border));
+        }
+
+        .ascent-style-btn[data-style="redpoint"] {
+            border-color: color-mix(in srgb, #c62828 55%, var(--tg-btn-border));
+        }
+
+        .ascent-style-btn[data-style="onsight"].active {
+            background: #2e7d32;
+            color: #fff;
+            border-color: #2e7d32;
+            box-shadow: var(--btn-primary-glow);
+        }
+
+        .ascent-style-btn[data-style="flash"].active {
+            background: #f9a825;
+            color: #1a1a1a;
+            border-color: #f9a825;
+            box-shadow: var(--btn-primary-glow);
+        }
+
+        .ascent-style-btn[data-style="redpoint"].active {
+            background: #c62828;
+            color: #fff;
+            border-color: #c62828;
+            box-shadow: var(--btn-primary-glow);
+        }
+
         .profile-stats-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -8600,14 +8658,13 @@
                 const climbType = ctx.climbType;
                 const climbId = ctx.climbId;
                 const tries = Math.max(1, parseInt(document.getElementById('climbLogTries')?.value || '1', 10) || 1);
-                const styleEl = document.getElementById('climbSendStyle');
                 const body = {
                     climb_type: climbType,
                     status,
                     tries,
                     route_id: climbType === 'route' ? Number(climbId) : null,
                     boulder_id: climbType === 'boulder' ? Number(climbId) : null,
-                    ascent_style: status === 'send' ? (styleEl?.value || 'redpoint') : null
+                    ascent_style: status === 'send' ? this.getSelectedAscentStyle() : null
                 };
                 if (typeof window.setTelegramMainButtonLoading === 'function') {
                     window.setTelegramMainButtonLoading(true);
@@ -8643,6 +8700,36 @@
                     ? `climb_type=route&route_id=${encodeURIComponent(climbId)}`
                     : `climb_type=boulder&boulder_id=${encodeURIComponent(climbId)}`;
                 return apiFetch(`/api/climbs/stats?${q}`);
+            }
+
+            getSelectedAscentStyle() {
+                const active = document.querySelector('#climbSendStylePicker .ascent-style-btn.active');
+                return active?.dataset.style || document.getElementById('climbSendStyle')?.value || 'redpoint';
+            }
+
+            bindAscentStylePicker(initialStyle = 'redpoint') {
+                const picker = document.getElementById('climbSendStylePicker');
+                const hidden = document.getElementById('climbSendStyle');
+                if (!picker) return;
+                const style = ['onsight', 'flash', 'redpoint'].includes(initialStyle) ? initialStyle : 'redpoint';
+                picker.querySelectorAll('.ascent-style-btn').forEach((btn) => {
+                    const isActive = btn.dataset.style === style;
+                    btn.classList.toggle('active', isActive);
+                    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+                });
+                if (hidden) hidden.value = style;
+                picker.querySelectorAll('.ascent-style-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        const next = btn.dataset.style;
+                        if (!next) return;
+                        picker.querySelectorAll('.ascent-style-btn').forEach((b) => {
+                            const on = b === btn;
+                            b.classList.toggle('active', on);
+                            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+                        });
+                        if (hidden) hidden.value = next;
+                    });
+                });
             }
 
             renderCommunityStarPicker(container, selectedStars, onPick) {
@@ -8725,18 +8812,21 @@
                         <label style="font-size:14px;">Попыток
                             <input type="number" class="form-input" id="climbLogTries" min="1" max="99" value="${triesVal}" style="margin-left:6px;">
                         </label>
-                        <label style="font-size:14px;">Тип
-                            <select class="form-input" id="climbSendStyle" style="margin-left:6px;min-width:120px;">
-                                <option value="onsight">Онсайт</option>
-                                <option value="flash">Флэш</option>
-                                <option value="redpoint" selected>Редпоинт</option>
-                            </select>
+                        <label style="font-size:14px;display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px;">Тип
+                            <div class="ascent-style-picker" id="climbSendStylePicker" role="radiogroup" aria-label="Тип пролаза">
+                                <button type="button" class="ascent-style-btn" data-style="onsight" aria-pressed="false">Онсайт</button>
+                                <button type="button" class="ascent-style-btn" data-style="flash" aria-pressed="false">Флэш</button>
+                                <button type="button" class="ascent-style-btn active" data-style="redpoint" aria-pressed="true">Редпоинт</button>
+                            </div>
+                            <input type="hidden" id="climbSendStyle" value="redpoint">
                         </label>
                         <input type="text" class="form-input" id="climbFeltGrade" placeholder="Ваша категория" value="${this.escapeHtml(stats.my_felt_grade || '')}" maxlength="32" style="min-width:120px;">
                         <label style="font-size:14px;display:inline-flex;align-items:center;gap:6px;">Оценка
                             <span id="climbUserStarsPicker" style="display:inline-flex;align-items:center;"></span>
                         </label>
                     `;
+
+                    this.bindAscentStylePicker('redpoint');
 
                     let pickedStars = Math.min(3, stats.my_stars || 0);
                     const starsWrap = document.getElementById('climbUserStarsPicker');
