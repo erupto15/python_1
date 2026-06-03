@@ -185,6 +185,7 @@
         .role-badge.user { background: #5d9cff; }
 
         .hidden-by-role { display: none !important; }
+        .hidden { display: none !important; }
 
         header h1 {
             color: var(--primary-color);
@@ -2081,19 +2082,22 @@
             flex-direction: column;
             align-items: center;
             text-align: center;
-            gap: 12px;
-            margin-bottom: 4px;
+            gap: 10px;
+            margin-bottom: 8px;
         }
 
         .profile-avatar-wrap {
+            position: relative;
             width: 60px;
             height: 60px;
             flex-shrink: 0;
+            overflow: hidden;
+            border-radius: 50%;
         }
 
         .profile-avatar {
-            width: 60px;
-            height: 60px;
+            width: 100%;
+            height: 100%;
             border-radius: 50%;
             object-fit: cover;
             display: block;
@@ -2111,16 +2115,29 @@
             user-select: none;
         }
 
+        .profile-identity {
+            min-width: 0;
+            width: 100%;
+        }
+
         .profile-identity h2 {
-            margin: 0 0 4px;
+            margin: 0;
             font-size: 20px;
             font-weight: 600;
+            line-height: 1.25;
+            word-break: break-word;
         }
 
         .profile-identity p {
-            margin: 0;
+            margin: 4px 0 0;
             color: var(--light-text);
             font-size: 14px;
+            line-height: 1.3;
+            word-break: break-word;
+        }
+
+        .profile-identity p:empty {
+            display: none;
         }
 
         .profile-stat-card {
@@ -8780,16 +8797,44 @@
             }
 
             profileAvatarInitials(name) {
-                const cleaned = String(name || '').replace(/\(@[\w.]+\)\s*$/, '').trim();
+                const cleaned = this.formatProfileDisplayName({ display_name: name });
                 const parts = cleaned.split(/\s+/).filter(Boolean);
                 if (!parts.length) return '?';
                 if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
                 return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
             }
 
+            formatProfileDisplayName(user) {
+                const raw = String(user?.display_name || '').trim();
+                const cleaned = raw.replace(/\s*\(@[\w.]+\)\s*$/u, '').trim();
+                return cleaned || 'Пользователь';
+            }
+
             getTelegramUserPhotoUrl() {
                 const photo = window.Telegram?.WebApp?.initDataUnsafe?.user?.photo_url;
                 return photo ? String(photo).trim() : '';
+            }
+
+            async refreshTelegramProfile() {
+                if (!window.isTelegramMiniApp?.() || !window.__TG_INIT_DATA) return null;
+                try {
+                    const tokenData = await apiFetch('/api/auth/telegram', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ init_data: window.__TG_INIT_DATA })
+                    });
+                    const auth = getAuthData();
+                    auth.accessToken = tokenData.access_token || auth.accessToken;
+                    auth.currentUser = tokenData.user || auth.currentUser;
+                    if (!auth.currentUser && auth.accessToken) {
+                        auth.currentUser = await apiFetch('/api/auth/me');
+                    }
+                    saveAuthData(auth);
+                    this.auth = auth;
+                    return auth.currentUser;
+                } catch {
+                    return null;
+                }
             }
 
             updateProfileAvatar(user, profile) {
@@ -8798,9 +8843,9 @@
                 if (!img || !fallback) return;
 
                 const photoUrl = (
-                    this.getTelegramUserPhotoUrl()
-                    || profile?.telegram_photo_url
+                    profile?.telegram_photo_url
                     || user?.telegram_photo_url
+                    || this.getTelegramUserPhotoUrl()
                     || ''
                 ).trim();
                 const initials = this.profileAvatarInitials(user?.display_name || 'П');
@@ -8816,8 +8861,10 @@
                 if (photoUrl) {
                     fallback.classList.add('hidden');
                     fallback.setAttribute('aria-hidden', 'true');
-                    img.alt = user?.display_name || 'Аватар';
-                    img.src = photoUrl;
+                    img.alt = this.formatProfileDisplayName(user);
+                    if (img.src !== photoUrl) {
+                        img.src = photoUrl;
+                    }
                     img.classList.remove('hidden');
                 } else {
                     img.classList.add('hidden');
@@ -8826,6 +8873,15 @@
                     fallback.classList.remove('hidden');
                     fallback.setAttribute('aria-hidden', 'false');
                 }
+            }
+
+            renderProfileIdentity(user) {
+                const nameEl = document.getElementById('profileDisplayName');
+                const usernameEl = document.getElementById('profileUsername');
+                if (!nameEl || !usernameEl) return;
+                nameEl.textContent = this.formatProfileDisplayName(user);
+                const un = user?.telegram_username ? `@${user.telegram_username}` : '';
+                usernameEl.textContent = un;
             }
 
             async renderProfileTab() {
@@ -8839,10 +8895,13 @@
                 }
                 guest.classList.add('hidden');
                 userBlock.classList.remove('hidden');
-                const user = this.getCurrentUser();
-                document.getElementById('profileDisplayName').textContent = user.display_name || 'Пользователь';
-                const un = user.telegram_username ? `@${user.telegram_username}` : '';
-                document.getElementById('profileUsername').textContent = un;
+
+                let user = this.getCurrentUser();
+                if (this.isTelegramUser()) {
+                    const refreshed = await this.refreshTelegramProfile();
+                    if (refreshed) user = refreshed;
+                }
+                this.renderProfileIdentity(user);
 
                 try {
                     const profile = await apiFetch('/api/users/me/profile');
