@@ -55,6 +55,7 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE photos ADD COLUMN IF NOT EXISTS climb_category VARCHAR(64)",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_id BIGINT",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_username VARCHAR(64)",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_photo_url VARCHAR(512)",
             "ALTER TABLE climb_ascents ADD COLUMN IF NOT EXISTS ascent_style VARCHAR(16)",
         ]
     else:
@@ -67,6 +68,7 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE photos ADD COLUMN climb_category VARCHAR(64)",
             "ALTER TABLE users ADD COLUMN telegram_id INTEGER",
             "ALTER TABLE users ADD COLUMN telegram_username VARCHAR(64)",
+            "ALTER TABLE users ADD COLUMN telegram_photo_url VARCHAR(512)",
             "ALTER TABLE climb_ascents ADD COLUMN ascent_style VARCHAR(16)",
         ]
     with engine.begin() as conn:

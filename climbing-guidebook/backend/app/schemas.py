@@ -31,6 +31,7 @@ class UserRead(BaseModel):
     created_at: datetime
     telegram_id: Optional[int] = None
     telegram_username: Optional[str] = None
+    telegram_photo_url: Optional[str] = None
 
 
 class UserPublicRead(BaseModel):
@@ -41,6 +42,7 @@ class UserPublicRead(BaseModel):
     id: str
     display_name: str
     telegram_username: Optional[str] = None
+    telegram_photo_url: Optional[str] = None
     created_at: datetime
 
 

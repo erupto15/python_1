@@ -2076,6 +2076,53 @@
             margin: 12px 0 16px;
         }
 
+        .profile-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 12px;
+            margin-bottom: 4px;
+        }
+
+        .profile-avatar-wrap {
+            width: 60px;
+            height: 60px;
+            flex-shrink: 0;
+        }
+
+        .profile-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .profile-avatar--fallback {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: 600;
+            line-height: 1;
+            color: #fff;
+            background: var(--tg-blue);
+            user-select: none;
+        }
+
+        .profile-identity h2 {
+            margin: 0 0 4px;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .profile-identity p {
+            margin: 0;
+            color: var(--light-text);
+            font-size: 14px;
+        }
+
         .profile-stat-card {
             padding: 12px;
             border-radius: 8px;
@@ -2717,8 +2764,16 @@
                     <p>Откройте гайдбук как Mini App в Telegram — тогда можно логировать пролазы и ставить оценки.</p>
                 </div>
                 <div id="profileUserBlock" class="hidden">
-                    <h2 id="profileDisplayName" style="margin:0 0 4px;font-size:20px;">—</h2>
-                    <p id="profileUsername" style="margin:0;color:var(--light-text);font-size:14px;"></p>
+                    <div class="profile-header">
+                        <div class="profile-avatar-wrap">
+                            <img id="profileAvatarImg" class="profile-avatar hidden" alt="" width="60" height="60" decoding="async">
+                            <div id="profileAvatarFallback" class="profile-avatar profile-avatar--fallback hidden" aria-hidden="true"></div>
+                        </div>
+                        <div class="profile-identity">
+                            <h2 id="profileDisplayName">—</h2>
+                            <p id="profileUsername"></p>
+                        </div>
+                    </div>
                     <div class="profile-stats-grid" id="profileStatsGrid"></div>
                     <h3 style="font-size:16px;margin:16px 0 8px;">Логбук по дням</h3>
                     <p style="font-size:13px;color:var(--light-text);margin:0 0 10px;">Записи из каталога — пролаз существующей трассы, не новая трасса в профиле.</p>
@@ -8724,6 +8779,55 @@
                 }
             }
 
+            profileAvatarInitials(name) {
+                const cleaned = String(name || '').replace(/\(@[\w.]+\)\s*$/, '').trim();
+                const parts = cleaned.split(/\s+/).filter(Boolean);
+                if (!parts.length) return '?';
+                if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+                return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+            }
+
+            getTelegramUserPhotoUrl() {
+                const photo = window.Telegram?.WebApp?.initDataUnsafe?.user?.photo_url;
+                return photo ? String(photo).trim() : '';
+            }
+
+            updateProfileAvatar(user, profile) {
+                const img = document.getElementById('profileAvatarImg');
+                const fallback = document.getElementById('profileAvatarFallback');
+                if (!img || !fallback) return;
+
+                const photoUrl = (
+                    this.getTelegramUserPhotoUrl()
+                    || profile?.telegram_photo_url
+                    || user?.telegram_photo_url
+                    || ''
+                ).trim();
+                const initials = this.profileAvatarInitials(user?.display_name || 'П');
+
+                img.onerror = () => {
+                    img.classList.add('hidden');
+                    img.removeAttribute('src');
+                    fallback.textContent = initials;
+                    fallback.classList.remove('hidden');
+                    fallback.setAttribute('aria-hidden', 'false');
+                };
+
+                if (photoUrl) {
+                    fallback.classList.add('hidden');
+                    fallback.setAttribute('aria-hidden', 'true');
+                    img.alt = user?.display_name || 'Аватар';
+                    img.src = photoUrl;
+                    img.classList.remove('hidden');
+                } else {
+                    img.classList.add('hidden');
+                    img.removeAttribute('src');
+                    fallback.textContent = initials;
+                    fallback.classList.remove('hidden');
+                    fallback.setAttribute('aria-hidden', 'false');
+                }
+            }
+
             async renderProfileTab() {
                 const guest = document.getElementById('profileGuestBlock');
                 const userBlock = document.getElementById('profileUserBlock');
@@ -8742,6 +8846,7 @@
 
                 try {
                     const profile = await apiFetch('/api/users/me/profile');
+                    this.updateProfileAvatar(user, profile);
                     const grid = document.getElementById('profileStatsGrid');
                     if (grid) {
                         const stylesCount = profile.styles_count ?? profile.attempts_count ?? 0;

@@ -31,6 +31,7 @@ def telegram_display_name(user_data: dict) -> str:
 def upsert_telegram_user(db: Session, tg_id: int, tg_username: str | None, user_data: dict | None = None) -> User:
     email = telegram_email(tg_id)
     display_name = telegram_display_name(user_data or {"id": tg_id, "username": tg_username})
+    photo_url = str((user_data or {}).get("photo_url") or "").strip() or None
 
     user = db.query(User).filter(User.telegram_id == tg_id).first()
     if not user:
@@ -39,6 +40,8 @@ def upsert_telegram_user(db: Session, tg_id: int, tg_username: str | None, user_
     if user:
         user.telegram_id = tg_id
         user.telegram_username = tg_username
+        if photo_url:
+            user.telegram_photo_url = photo_url[:512]
         if display_name:
             user.display_name = display_name[:120]
         db.add(user)
@@ -52,6 +55,7 @@ def upsert_telegram_user(db: Session, tg_id: int, tg_username: str | None, user_
         display_name=display_name[:120] if display_name else "",
         telegram_id=tg_id,
         telegram_username=tg_username,
+        telegram_photo_url=photo_url[:512] if photo_url else None,
         is_active=True,
     )
     db.add(user)

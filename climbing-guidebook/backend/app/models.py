@@ -34,6 +34,7 @@ class User(Base):
         BigInteger().with_variant(Integer, "sqlite"), unique=True, nullable=True, index=True
     )
     telegram_username: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    telegram_photo_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
