@@ -2059,6 +2059,55 @@
             line-height: 1.45;
         }
 
+        .climb-community-sends {
+            margin-bottom: 12px;
+        }
+
+        .climb-community-sends-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin: 0 0 8px;
+        }
+
+        .climb-community-sends-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 180px;
+            overflow-y: auto;
+        }
+
+        .climb-community-sends-list li {
+            font-size: 13px;
+            line-height: 1.4;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--border-color) 35%, var(--card-bg));
+            border: 1px solid var(--border-color);
+        }
+
+        .climb-community-sends-list li.style-onsight {
+            border-left: 3px solid #2e7d32;
+        }
+
+        .climb-community-sends-list li.style-flash {
+            border-left: 3px solid #f9a825;
+        }
+
+        .climb-community-sends-list li.style-redpoint {
+            border-left: 3px solid #c62828;
+        }
+
+        .climb-community-sends-empty {
+            font-size: 13px;
+            color: var(--light-text);
+            margin: 0;
+        }
+
         .climb-community-actions {
             display: flex;
             flex-wrap: wrap;
@@ -3260,6 +3309,7 @@
                 <div id="climbDetailCommunity" class="climb-community-panel hidden">
                     <div class="form-label" style="margin-bottom:6px;">Сообщество</div>
                     <div class="climb-community-stats" id="climbDetailCommunityStats">Загрузка…</div>
+                    <div class="climb-community-sends" id="climbDetailCommunitySends"></div>
                     <div class="climb-community-actions" id="climbDetailCommunityActions"></div>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
@@ -8711,13 +8761,10 @@
                     });
                     await this.loadAscentSummary();
                     await this.refreshClimbCommunityPanel(climbType, climbId);
+                    await this.refreshProfileLogbookSection();
                     if (!APP_BOULDER_ONLY) this.renderRoutes();
                     this.renderBoulders();
                     this.renderCatalog();
-                    const tabProfile = document.getElementById('profile');
-                    if (tabProfile?.classList.contains('active')) {
-                        void this.renderProfileTab();
-                    }
                     this.showToast('Пролаз записан в логбук');
                     if (typeof window.syncTelegramWebAppButtons === 'function') {
                         window.syncTelegramWebAppButtons('climbDetailDialog');
@@ -8822,7 +8869,6 @@
 
             buildClimbCommunityStatsHtml(stats) {
                 const parts = [];
-                parts.push(`Пролазов: <strong>${stats.send_count || 0}</strong>`);
                 if (stats.avg_stars != null) {
                     parts.push(`оценка: <strong>${this.escapeHtml(formatStarAverageLabel(stats.avg_stars, stats.ratings_count))}</strong>`);
                 }
@@ -8832,22 +8878,85 @@
                 if (stats.felt_grades?.length) {
                     parts.push(` · мнения: ${stats.felt_grades.map((g) => this.escapeHtml(g)).join(', ')}`);
                 }
-                return parts.join('');
+                return parts.length ? parts.join('') : '<span style="color:var(--light-text);">Пока нет оценок и мнений.</span>';
+            }
+
+            buildClimbCommunitySendsHtml(stats) {
+                const count = stats.send_count || 0;
+                const recent = stats.recent_sends || [];
+                if (!count) {
+                    return '<p class="climb-community-sends-title">Пролазы</p><p class="climb-community-sends-empty">Пока никто не залогировал пролаз.</p>';
+                }
+                const items = recent.map((s) => {
+                    const style = s.ascent_style || '';
+                    const styleClass = style ? ` style-${style}` : '';
+                    const styleRu = style ? this.ascentStyleLabel(style) : '';
+                    const when = s.logged_at
+                        ? new Date(s.logged_at).toLocaleString('ru-RU', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })
+                        : '';
+                    const extra = styleRu ? ` · ${this.escapeHtml(styleRu)}` : '';
+                    return `<li class="${styleClass}"><strong>${this.escapeHtml(s.user_display_name)}</strong>${extra} · ${s.tries} поп. · ${when}</li>`;
+                }).join('');
+                const more = count > recent.length
+                    ? `<p class="climb-community-sends-empty" style="margin-top:6px;">и ещё ${count - recent.length}…</p>`
+                    : '';
+                return `<p class="climb-community-sends-title">Пролазы (${count})</p><ul class="climb-community-sends-list">${items}</ul>${more}`;
+            }
+
+            async refreshProfileLogbookSection() {
+                if (!this.isLoggedIn()) return;
+                const list = document.getElementById('profileLogbookList');
+                try {
+                    const [profile, ascents] = await Promise.all([
+                        apiFetch('/api/users/me/profile'),
+                        apiFetch('/api/me/ascents?status=send&limit=500')
+                    ]);
+                    const sendsCountEl = document.querySelector('#profileStatsGrid [data-profile-stat="sends"] strong');
+                    if (sendsCountEl) sendsCountEl.textContent = String(profile.sends_count ?? 0);
+                    const stylesCountEl = document.querySelector('#profileStatsGrid [data-profile-stat="styles"] strong');
+                    if (stylesCountEl) {
+                        stylesCountEl.textContent = String(profile.styles_count ?? profile.attempts_count ?? 0);
+                    }
+                    if (list) {
+                        list.innerHTML = this.renderProfileLogbookByDays(ascents);
+                        this.bindProfileLogbookClicks(list);
+                    }
+                    const sendsDialog = document.getElementById('profileSendsDialog');
+                    if (sendsDialog && !sendsDialog.classList.contains('hidden')) {
+                        const listEl = document.getElementById('profileSendsList');
+                        if (listEl) {
+                            listEl.innerHTML = ascents.length
+                                ? ascents.map((a) => this.renderProfileAscentListItem(a, { showStyle: true })).join('')
+                                : '<li style="padding:12px;color:var(--light-text);">Пока нет пролазов.</li>';
+                            this.bindProfileClimbListClicks(listEl);
+                        }
+                    }
+                } catch (err) {
+                    console.warn('profile logbook refresh', err);
+                }
             }
 
             async refreshClimbCommunityPanel(climbType, climbId) {
                 const panel = document.getElementById('climbDetailCommunity');
                 const statsEl = document.getElementById('climbDetailCommunityStats');
+                const sendsEl = document.getElementById('climbDetailCommunitySends');
                 const actionsEl = document.getElementById('climbDetailCommunityActions');
                 if (!panel || !statsEl || !actionsEl) return;
                 panel.classList.remove('hidden');
                 statsEl.textContent = 'Загрузка…';
+                if (sendsEl) sendsEl.innerHTML = '';
                 actionsEl.innerHTML = '';
                 try {
                     const stats = await this.fetchClimbCommunityStats(climbType, climbId);
                     this._climbCommunityStats = stats;
                     patchClimbRatingInLocalCache(climbType, climbId, stats.avg_stars);
                     statsEl.innerHTML = this.buildClimbCommunityStatsHtml(stats);
+                    if (sendsEl) sendsEl.innerHTML = this.buildClimbCommunitySendsHtml(stats);
 
                     if (!this.isLoggedIn() || !this.isTelegramUser()) {
                         actionsEl.innerHTML = '<span style="color:var(--light-text);font-size:14px;">Войдите через Telegram Mini App, чтобы логировать пролазы.</span>';

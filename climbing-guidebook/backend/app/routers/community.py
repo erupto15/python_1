@@ -54,6 +54,18 @@ def _structure_label(db: Session, area_id: int | None, sector_id: int | None) ->
     return " / ".join(parts) if parts else None
 
 
+def _user_display(user: User | None) -> str:
+    if user is None:
+        return "Скалолаз"
+    name = (user.display_name or "").strip()
+    if name:
+        return name
+    if user.telegram_username:
+        return f"@{user.telegram_username}"
+    email = (user.email or "").split("@", 1)[0].strip()
+    return email or "Скалолаз"
+
+
 def _enrich_ascent(db: Session, row: ClimbAscent) -> schemas.AscentReadEnriched:
     name, grade, structure = "", "", None
     if row.climb_type == "route" and row.route_id:
@@ -300,6 +312,22 @@ def climb_stats(
 
     felt_grades = [str(g[0]) for g in felt_rows if g and g[0]]
 
+    recent_rows = (
+        ascent_q.filter(ClimbAscent.status == "send")
+        .order_by(ClimbAscent.logged_at.desc())
+        .limit(20)
+        .all()
+    )
+    recent_sends = [
+        schemas.ClimbSendEntry(
+            user_display_name=_user_display(db.get(User, row.user_id)),
+            ascent_style=row.ascent_style,
+            tries=row.tries,
+            logged_at=row.logged_at,
+        )
+        for row in recent_rows
+    ]
+
     return schemas.ClimbCommunityStats(
         climb_type=climb_type,
         route_id=route_id,
@@ -309,6 +337,7 @@ def climb_stats(
         ratings_count=ratings_count,
         avg_stars=avg,
         felt_grades=felt_grades,
+        recent_sends=recent_sends,
         my_status=my_status,
         my_tries=my_tries,
         my_stars=my_stars,

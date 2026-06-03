@@ -355,6 +355,13 @@ class ClimbRatingRead(BaseModel):
     updated_at: datetime
 
 
+class ClimbSendEntry(BaseModel):
+    user_display_name: str
+    ascent_style: Optional[str] = None
+    tries: int = 1
+    logged_at: datetime
+
+
 class ClimbCommunityStats(BaseModel):
     climb_type: str
     route_id: Optional[int] = None
@@ -364,6 +371,7 @@ class ClimbCommunityStats(BaseModel):
     ratings_count: int = 0
     avg_stars: Optional[float] = None
     felt_grades: list[str] = Field(default_factory=list)
+    recent_sends: list[ClimbSendEntry] = Field(default_factory=list)
     my_status: Optional[str] = None
     my_tries: Optional[int] = None
     my_stars: Optional[int] = None
