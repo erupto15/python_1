@@ -2232,11 +2232,6 @@
         .profile-style-badge.style-flash { background: #f9a825; color: #1a1a1a; }
         .profile-style-badge.style-redpoint { background: #c62828; color: #fff; }
 
-        .profile-climb-list-item.style-project {
-            border-color: #6d4c41;
-            background: color-mix(in srgb, #6d4c41 10%, var(--card-bg));
-        }
-
         .profile-logbook-day {
             margin-bottom: 16px;
         }
@@ -2285,21 +2280,6 @@
         button.profile-logbook-entry.style-redpoint {
             border-left: 4px solid #c62828;
             padding-left: 10px;
-        }
-
-        button.profile-logbook-entry.style-project {
-            border-left: 4px solid #6d4c41;
-            padding-left: 10px;
-        }
-
-        .profile-stats-grid--four {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        @media (min-width: 480px) {
-            .profile-stats-grid--four {
-                grid-template-columns: repeat(4, minmax(0, 1fr));
-            }
         }
 
         .climb-tg-log-proxy {
@@ -2840,24 +2820,6 @@
         </div>
     </div>
 
-    <div class="dialog-overlay hidden" id="profileProjectsDialog" style="z-index: 997;">
-        <div class="dialog-content">
-            <div class="dialog-header">
-                <div class="dialog-header-text">
-                    <div class="dialog-title">Проекты</div>
-                    <div class="dialog-subtitle">Трассы и боулдеры в работе — ещё не пролезены</div>
-                </div>
-                <button type="button" class="dialog-close-btn" data-close-dialog="profileProjectsDialog" aria-label="Закрыть"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="dialog-body">
-                <ul class="profile-climb-list" id="profileProjectsList"></ul>
-            </div>
-            <div class="dialog-footer">
-                <button type="button" class="btn btn-ghost" data-close-dialog="profileProjectsDialog">Закрыть</button>
-            </div>
-        </div>
-    </div>
-
         <div class="tab-content" id="photos">
             <div class="card">
                 <div class="card-header">
@@ -3253,7 +3215,6 @@
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
                 <button type="button" class="climb-tg-log-proxy" id="climbTgLogSendBtn" tabindex="-1" aria-hidden="true">Пролаз</button>
-                <button type="button" class="climb-tg-log-proxy" id="climbTgLogProjectBtn" tabindex="-1" aria-hidden="true">Проект</button>
                 <button type="button" class="btn btn-ghost" id="climbDetailCloseBtn" data-close-dialog="climbDetailDialog"><i class="fas fa-times"></i> Закрыть</button>
                 <button type="button" class="btn btn-primary" id="climbDetailMarkupBtn"><i class="fas fa-draw-polygon"></i> Схема на фото</button>
             </div>
@@ -3300,8 +3261,8 @@
                         return {
                             text: 'Пролаз',
                             btnId: 'climbTgLogSendBtn',
-                            secondaryText: 'Проект',
-                            secondaryBtnId: 'climbTgLogProjectBtn'
+                            secondaryText: 'Закрыть',
+                            secondaryBtnId: 'climbDetailCloseBtn'
                         };
                     }
                     const mkBtn = document.getElementById('climbDetailMarkupBtn');
@@ -7091,9 +7052,6 @@
                 document.getElementById('climbTgLogSendBtn')?.addEventListener('click', () => {
                     void this.logClimbAscentFromDetail('send').catch((e) => this.showToast(e.message, true));
                 });
-                document.getElementById('climbTgLogProjectBtn')?.addEventListener('click', () => {
-                    void this.logClimbAscentFromDetail('attempt').catch((e) => this.showToast(e.message, true));
-                });
 
                 document.getElementById('photoAlbum')?.addEventListener('click', (e) => {
                     const deleteBtn = e.target.closest('[data-action="delete-photo"]');
@@ -8669,7 +8627,7 @@
                     if (tabProfile?.classList.contains('active')) {
                         void this.renderProfileTab();
                     }
-                    this.showToast(status === 'send' ? 'Пролаз записан в логбук' : 'Добавлено в проекты');
+                    this.showToast('Пролаз записан в логбук');
                     if (typeof window.syncTelegramWebAppButtons === 'function') {
                         window.syncTelegramWebAppButtons('climbDetailDialog');
                     }
@@ -8717,12 +8675,9 @@
                     this._climbCommunityStats = stats;
                     const parts = [];
                     parts.push(`Пролазов: <strong>${stats.send_count || 0}</strong>`);
-                    if (stats.attempt_count) parts.push(`попыток: <strong>${stats.attempt_count}</strong>`);
                     if (stats.avg_stars != null) parts.push(`оценка: <strong>${stats.avg_stars}★</strong> (${stats.ratings_count})`);
                     if (stats.my_status === 'send') {
                         parts.push(' · <span class="climb-sent-badge">вы пролазали</span>');
-                    } else if (stats.my_status === 'attempt') {
-                        parts.push(' · <span class="climb-sent-badge">в проектах</span>');
                     }
                     if (stats.felt_grades?.length) {
                         parts.push(` · мнения: ${stats.felt_grades.map((g) => this.escapeHtml(g)).join(', ')}`);
@@ -8747,7 +8702,6 @@
                             </select>
                         </label>
                         <button type="button" class="btn btn-success btn-small" id="climbLogSendBtn"><i class="fas fa-check"></i> Пролаз</button>
-                        <button type="button" class="btn btn-secondary btn-small" id="climbLogAttemptBtn"><i class="fas fa-hourglass-half"></i> Проект</button>
                         <input type="text" class="form-input" id="climbFeltGrade" placeholder="Ваша категория" value="${this.escapeHtml(stats.my_felt_grade || '')}" maxlength="32" style="min-width:120px;">
                         <span id="climbUserStarsPicker" style="display:inline-flex;align-items:center;"></span>
                         <button type="button" class="btn btn-primary btn-small" id="climbSaveRatingBtn"><i class="fas fa-star"></i> Оценка</button>
@@ -8755,9 +8709,6 @@
 
                     document.getElementById('climbLogSendBtn')?.addEventListener('click', () => {
                         void this.logClimbAscentFromDetail('send').catch((e) => this.showToast(e.message, true));
-                    });
-                    document.getElementById('climbLogAttemptBtn')?.addEventListener('click', () => {
-                        void this.logClimbAscentFromDetail('attempt').catch((e) => this.showToast(e.message, true));
                     });
 
                     let pickedStars = stats.my_stars || 0;
@@ -8909,16 +8860,13 @@
                     const grid = document.getElementById('profileStatsGrid');
                     if (grid) {
                         const stylesCount = profile.styles_count ?? profile.attempts_count ?? 0;
-                        grid.className = 'profile-stats-grid profile-stats-grid--four';
+                        grid.className = 'profile-stats-grid';
                         grid.innerHTML = `
                             <button type="button" class="profile-stat-card" data-profile-stat="sends" aria-label="Список пролазов">
                                 <strong>${profile.sends_count}</strong>пролазов
                             </button>
                             <button type="button" class="profile-stat-card" data-profile-stat="styles" aria-label="Стили пролаза">
                                 <strong>${stylesCount}</strong>стилей
-                            </button>
-                            <button type="button" class="profile-stat-card" data-profile-stat="projects" aria-label="Проекты">
-                                <strong>${profile.projects_count ?? 0}</strong>проектов
                             </button>
                             <div class="profile-stat-card"><strong>${profile.ratings_count}</strong>рейтинг</div>
                         `;
@@ -8928,11 +8876,8 @@
                         grid.querySelector('[data-profile-stat="styles"]')?.addEventListener('click', () => {
                             void this.openProfileStylesDialog();
                         });
-                        grid.querySelector('[data-profile-stat="projects"]')?.addEventListener('click', () => {
-                            void this.openProfileProjectsDialog();
-                        });
                     }
-                    const ascents = await apiFetch('/api/me/ascents?limit=500');
+                    const ascents = await apiFetch('/api/me/ascents?status=send&limit=500');
                     const list = document.getElementById('profileLogbookList');
                     if (!list) return;
                     list.innerHTML = this.renderProfileLogbookByDays(ascents);
@@ -8956,7 +8901,6 @@
                         if (!climbType || !Number.isFinite(climbId)) return;
                         this.hideDialog('profileSendsDialog');
                         this.hideDialog('profileStylesDialog');
-                        this.hideDialog('profileProjectsDialog');
                         void this.showClimbDetailDialog(climbType, climbId);
                     });
                 });
@@ -8990,11 +8934,11 @@
                 const name = a.climb_name || `#${climbId}`;
                 const kind = a.climb_type === 'route' ? 'Трасса' : 'Боулдер';
                 const grade = a.climb_grade ? ` · ${this.escapeHtml(a.climb_grade)}` : '';
-                const statusRu = a.status === 'send' ? 'пролаз' : 'проект';
+                const statusRu = 'пролаз';
                 const styleRu = a.ascent_style ? this.ascentStyleLabel(a.ascent_style) : '';
                 const when = a.logged_at ? new Date(a.logged_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
                 const extra = styleRu ? `, ${styleRu}` : '';
-                const styleClass = a.ascent_style ? ` style-${a.ascent_style}` : (a.status === 'attempt' ? ' style-project' : '');
+                const styleClass = a.ascent_style ? ` style-${a.ascent_style}` : '';
                 return `<button type="button" class="profile-log-item profile-logbook-entry${styleClass}" data-logbook-open="${a.climb_type}" data-logbook-id="${climbId}">
                     <strong>${this.escapeHtml(name)}</strong> — ${statusRu}${extra}, ${a.tries} поп. · ${when}
                     <span class="meta" style="display:block;font-size:13px;color:var(--light-text);margin-top:4px;">${kind}${grade}${a.structure_label ? ` · ${this.escapeHtml(a.structure_label)}` : ''}</span>
@@ -9003,7 +8947,7 @@
 
             renderProfileLogbookByDays(ascents) {
                 if (!ascents.length) {
-                    return '<p style="color:var(--light-text);">Пока пусто — откройте трассу из каталога и нажмите «Пролаз» или «Проект».</p>';
+                    return '<p style="color:var(--light-text);">Пока пусто — откройте трассу из каталога и нажмите «Пролаз».</p>';
                 }
                 const byDay = new Map();
                 for (const a of ascents) {
@@ -9020,7 +8964,7 @@
                 return html;
             }
 
-            renderProfileAscentListItem(a, { showStyle, project }) {
+            renderProfileAscentListItem(a, { showStyle }) {
                 const climbId = a.route_id || a.boulder_id;
                 const climbType = a.climb_type;
                 const name = a.climb_name || `#${climbId}`;
@@ -9029,9 +8973,7 @@
                 const struct = a.structure_label ? `<br>${this.escapeHtml(a.structure_label)}` : '';
                 const when = a.logged_at ? new Date(a.logged_at).toLocaleString('ru-RU') : '';
                 const style = a.ascent_style || '';
-                let styleClass = '';
-                if (project || a.status === 'attempt') styleClass = ' style-project';
-                else if (style) styleClass = ` style-${style}`;
+                const styleClass = style ? ` style-${style}` : '';
                 const badge = showStyle && style
                     ? `<span class="profile-style-badge style-${style}">${this.escapeHtml(this.ascentStyleLabel(style))}</span>`
                     : '';
@@ -9086,28 +9028,6 @@
                     const order = { onsight: 0, flash: 1, redpoint: 2 };
                     ascents.sort((x, y) => (order[x.ascent_style] ?? 9) - (order[y.ascent_style] ?? 9));
                     listEl.innerHTML = ascents.map((a) => this.renderProfileAscentListItem(a, { showStyle: true })).join('');
-                    this.bindProfileClimbListClicks(listEl);
-                } catch (err) {
-                    listEl.innerHTML = `<li style="padding:12px;color:var(--danger-color);">${this.escapeHtml(err.message)}</li>`;
-                }
-            }
-
-            async openProfileProjectsDialog() {
-                if (!this.isLoggedIn()) {
-                    this.showToast('Войдите через Telegram', true);
-                    return;
-                }
-                const listEl = document.getElementById('profileProjectsList');
-                if (!listEl) return;
-                listEl.innerHTML = '<li style="padding:12px;color:var(--light-text);">Загрузка…</li>';
-                this.showDialog('profileProjectsDialog');
-                try {
-                    const ascents = await apiFetch('/api/me/ascents?status=attempt&limit=500');
-                    if (!ascents.length) {
-                        listEl.innerHTML = '<li style="padding:12px;color:var(--light-text);">Нет проектов — нажмите «Проект» на карточке трассы.</li>';
-                        return;
-                    }
-                    listEl.innerHTML = ascents.map((a) => this.renderProfileAscentListItem(a, { showStyle: false, project: true })).join('');
                     this.bindProfileClimbListClicks(listEl);
                 } catch (err) {
                     listEl.innerHTML = `<li style="padding:12px;color:var(--danger-color);">${this.escapeHtml(err.message)}</li>`;

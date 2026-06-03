@@ -49,7 +49,6 @@ class UserPublicRead(BaseModel):
 class UserProfileRead(UserPublicRead):
     sends_count: int = 0
     styles_count: int = 0
-    projects_count: int = 0
     ratings_count: int = 0
     created_routes_count: int = 0
     created_boulders_count: int = 0

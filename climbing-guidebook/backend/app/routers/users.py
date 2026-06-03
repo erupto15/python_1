@@ -33,12 +33,6 @@ def _profile_counts(db: Session, user_id: str) -> dict[str, int]:
         .scalar()
         or 0
     )
-    projects = (
-        db.query(func.count(ClimbAscent.id))
-        .filter(ClimbAscent.user_id == user_id, ClimbAscent.status == "attempt")
-        .scalar()
-        or 0
-    )
     ratings = db.query(func.count(ClimbUserRating.id)).filter(ClimbUserRating.user_id == user_id).scalar() or 0
     routes = db.query(func.count(Route.id)).filter(Route.created_by == user_id, Route.deleted_at.is_(None)).scalar() or 0
     boulders = (
@@ -47,7 +41,6 @@ def _profile_counts(db: Session, user_id: str) -> dict[str, int]:
     return {
         "sends_count": int(sends),
         "styles_count": int(styles),
-        "projects_count": int(projects),
         "attempts_count": int(styles),
         "ratings_count": int(ratings),
         "created_routes_count": int(routes),
