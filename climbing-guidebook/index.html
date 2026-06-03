@@ -2893,7 +2893,7 @@
                     <div class="dialog-title">Пролазы</div>
                     <div class="dialog-subtitle">Все пролезенные трассы и боулдеры</div>
                 </div>
-                <button type="button" class="dialog-close-btn" data-close-dialog="profileSendsDialog" aria-label="Закрыть"><i class="fas fa-times"></i></button>
+                <button type="button" class="dialog-close-btn" id="profileSendsDialogCloseBtn" data-close-dialog="profileSendsDialog" aria-label="Закрыть"><i class="fas fa-times"></i></button>
             </div>
             <div class="dialog-body">
                 <ul class="profile-climb-list" id="profileSendsList"></ul>
@@ -2911,7 +2911,7 @@
                     <div class="dialog-title">Стили пролаза</div>
                     <div class="dialog-subtitle">Онсайт · флэш · редпоинт</div>
                 </div>
-                <button type="button" class="dialog-close-btn" data-close-dialog="profileStylesDialog" aria-label="Закрыть"><i class="fas fa-times"></i></button>
+                <button type="button" class="dialog-close-btn" id="profileStylesDialogCloseBtn" data-close-dialog="profileStylesDialog" aria-label="Закрыть"><i class="fas fa-times"></i></button>
             </div>
             <div class="dialog-body">
                 <p style="font-size:13px;color:var(--light-text);margin:0 0 10px;">
@@ -3422,6 +3422,18 @@
                         secondaryBtnId: 'cancelBoulderHoldsMarkupBtn'
                     };
                 }
+            },
+            profileSendsDialog: {
+                text: 'Закрыть',
+                btnId: 'profileSendsDialogCloseBtn',
+                secondaryText: 'Закрыть',
+                secondaryBtnId: 'profileSendsDialogCloseBtn'
+            },
+            profileStylesDialog: {
+                text: 'Закрыть',
+                btnId: 'profileStylesDialogCloseBtn',
+                secondaryText: 'Закрыть',
+                secondaryBtnId: 'profileStylesDialogCloseBtn'
             }
         };
 
@@ -3432,7 +3444,9 @@
             quickBoulderDialog: 'closeQuickBoulderDialogBtn',
             climbDetailDialog: 'closeClimbDetailDialogBtn',
             routeLineMarkupDialog: 'closeRouteLineMarkupDialogBtn',
-            boulderHoldsMarkupDialog: 'closeBoulderHoldsMarkupDialogBtn'
+            boulderHoldsMarkupDialog: 'closeBoulderHoldsMarkupDialogBtn',
+            profileSendsDialog: 'profileSendsDialogCloseBtn',
+            profileStylesDialog: 'profileStylesDialogCloseBtn'
         };
 
         (function initTelegramWebApp() {
@@ -3546,7 +3560,13 @@
                 }
             });
 
+            let _telegramBackLockUntil = 0;
+
             const handleTelegramBack = () => {
+                const now = Date.now();
+                if (now < _telegramBackLockUntil) return;
+                _telegramBackLockUntil = now + 280;
+
                 if (typeof window.closeTopTelegramOverlay === 'function' && window.closeTopTelegramOverlay()) {
                     return;
                 }
@@ -3618,10 +3638,12 @@
         window.findOpenTelegramDialogId = function findOpenTelegramDialogId() {
             const overlays = Array.from(document.querySelectorAll('.dialog-overlay:not(.hidden)'));
             if (!overlays.length) return null;
+            const domOrder = Array.from(document.querySelectorAll('.dialog-overlay'));
             overlays.sort((a, b) => {
                 const za = parseInt(window.getComputedStyle(a).zIndex, 10) || 0;
                 const zb = parseInt(window.getComputedStyle(b).zIndex, 10) || 0;
-                return zb - za;
+                if (zb !== za) return zb - za;
+                return domOrder.indexOf(b) - domOrder.indexOf(a);
             });
             return overlays[0]?.id || null;
         };
@@ -3631,17 +3653,17 @@
             const openId = window.findOpenTelegramDialogId();
             if (!openId) return false;
 
-            const closeBtn =
-                document.querySelector(`[data-close-dialog="${openId}"]`)
-                || document.getElementById(window.__TG_DIALOG_CANCEL?.[openId]);
-            if (closeBtn) {
-                closeBtn.click();
-                return true;
-            }
-
             const app = window.app;
             if (app && typeof app.hideDialog === 'function') {
                 app.hideDialog(openId);
+                return true;
+            }
+
+            const cancelId = window.__TG_DIALOG_CANCEL?.[openId];
+            const closeBtn = (cancelId && document.getElementById(cancelId))
+                || document.querySelector(`[data-close-dialog="${openId}"]`);
+            if (closeBtn) {
+                closeBtn.click();
                 return true;
             }
 
@@ -7108,7 +7130,13 @@
                     this._closeAllGradePickers();
                 });
                 document.addEventListener('keydown', (e) => {
-                    if (e.key === 'Escape') this._closeAllGradePickers();
+                    if (e.key === 'Escape') {
+                        if (typeof window.closeTopTelegramOverlay === 'function' && window.closeTopTelegramOverlay()) {
+                            e.preventDefault();
+                            return;
+                        }
+                        this._closeAllGradePickers();
+                    }
                 });
 
                 // Фильтры фотоальбома
@@ -7255,7 +7283,9 @@
             }
 
             showDialog(dialogId) {
-                document.getElementById(dialogId).classList.remove('hidden');
+                const el = document.getElementById(dialogId);
+                if (!el) return;
+                el.classList.remove('hidden');
                 this.syncBodyDialogScreenLock();
                 if (typeof window.applyTelegramMainButtonForDialog === 'function') {
                     window.applyTelegramMainButtonForDialog(dialogId);
@@ -7266,7 +7296,9 @@
             }
 
             hideDialog(dialogId) {
-                document.getElementById(dialogId).classList.add('hidden');
+                const el = document.getElementById(dialogId);
+                if (!el || el.classList.contains('hidden')) return;
+                el.classList.add('hidden');
                 this.syncBodyDialogScreenLock();
                 this.currentPhotoPreview = null;
                 if (dialogId === 'routeLineMarkupDialog') {
@@ -7297,9 +7329,6 @@
                     document.getElementById('climbDetailNoPhoto')?.classList.add('hidden');
                     document.getElementById('climbDetailSaveRow')?.classList.add('hidden');
                     document.getElementById('climbDetailSaveHint')?.classList.add('hidden');
-                }
-                if (typeof window.hideTelegramMainButton === 'function') {
-                    window.hideTelegramMainButton();
                 }
                 if (typeof window.syncTelegramMiniAppUi === 'function') {
                     window.syncTelegramMiniAppUi();
