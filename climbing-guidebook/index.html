@@ -4535,7 +4535,28 @@
             if (auth.accessToken) {
                 headers.Authorization = `Bearer ${auth.accessToken}`;
             }
-            const res = await fetch(url, Object.assign({}, options, { headers }));
+            const method = String(options.method || 'GET').toUpperCase();
+            const timeoutMs = options.timeoutMs ?? (method === 'GET' ? 20000 : 60000);
+            const controller = !options.signal && typeof AbortController !== 'undefined'
+                ? new AbortController()
+                : null;
+            const timeoutId = controller
+                ? setTimeout(() => controller.abort(), timeoutMs)
+                : null;
+            const fetchOptions = Object.assign({}, options, { headers });
+            delete fetchOptions.timeoutMs;
+            if (controller) fetchOptions.signal = controller.signal;
+            let res;
+            try {
+                res = await fetch(url, fetchOptions);
+            } catch (err) {
+                if (err?.name === 'AbortError') {
+                    throw new Error('Превышено время ожидания сети');
+                }
+                throw err;
+            } finally {
+                if (timeoutId) clearTimeout(timeoutId);
+            }
             if (!res.ok) {
                 let msg = `HTTP ${res.status}`;
                 try {

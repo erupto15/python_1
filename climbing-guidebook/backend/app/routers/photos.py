@@ -44,13 +44,15 @@ def _resolve_climb_metadata(
 
 @router.get("", response_model=list[schemas.PhotoRead])
 def list_photos(db: Session = Depends(get_db)) -> list[Photo]:
-    return db.query(Photo).order_by(Photo.id).all()
+    # Compatibility endpoint for stale Mini App clients. Keep it cheap so an old
+    # startup path cannot block catalog rendering on a large photo payload.
+    return []
 
 
 @router.get("/by-route/{route_id}", response_model=list[schemas.PhotoRead])
 def list_photos_for_route(route_id: int, db: Session = Depends(get_db)) -> list[Photo]:
     if not db.get(Route, route_id):
-        raise HTTPException(status_code=404, detail="Route not found")
+        return []
     return (
         db.query(Photo)
         .filter(Photo.climb_type == "route", Photo.route_id == route_id)
@@ -62,7 +64,7 @@ def list_photos_for_route(route_id: int, db: Session = Depends(get_db)) -> list[
 @router.get("/by-boulder/{boulder_id}", response_model=list[schemas.PhotoRead])
 def list_photos_for_boulder(boulder_id: int, db: Session = Depends(get_db)) -> list[Photo]:
     if not db.get(Boulder, boulder_id):
-        raise HTTPException(status_code=404, detail="Boulder not found")
+        return []
     return (
         db.query(Photo)
         .filter(Photo.climb_type == "boulder", Photo.boulder_id == boulder_id)
