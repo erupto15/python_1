@@ -37,6 +37,9 @@ jobs:
           APP_DIR="${TIMEWEB_APP_DIR:-/opt/guide-rus/current}"
           DEPLOY_KEY_PATH="/root/.ssh/id_ed25519_guide_rus_deploy"
           PUBLIC_URL="${PUBLIC_URL:-https://92.246.76.142.sslip.io}"
+          CADDY_HOST="${PUBLIC_URL#https://}"
+          CADDY_HOST="${CADDY_HOST#http://}"
+          CADDY_HOST="${CADDY_HOST%%/*}"
           APP_ENV="${APP_ENV:-production}"
           ADMIN_DISPLAY_NAME="${ADMIN_DISPLAY_NAME:-Administrator}"
           TELEGRAM_AUTH_MAX_AGE_SEC="${TELEGRAM_AUTH_MAX_AGE_SEC:-86400}"
@@ -82,7 +85,7 @@ jobs:
           scp -i ~/.ssh/timeweb_ci_key -o IdentitiesOnly=yes "$BACKEND_ENV" "${USER}@${HOST}:/tmp/guide-rus-backend.env"
 
           ssh -i ~/.ssh/timeweb_ci_key -o IdentitiesOnly=yes "${USER}@${HOST}" \
-            "APP_DIR='${APP_DIR}' DEPLOY_KEY_PATH='${DEPLOY_KEY_PATH}' bash -s" <<'REMOTE'
+            "APP_DIR='${APP_DIR}' DEPLOY_KEY_PATH='${DEPLOY_KEY_PATH}' CADDY_HOST='${CADDY_HOST}' bash -s" <<'REMOTE'
           set -euo pipefail
 
           install -d -m 700 /etc/guide-rus
@@ -104,7 +107,30 @@ jobs:
           python3 -m venv .venv
           . .venv/bin/activate
           pip install -r requirements.txt
-          python -m py_compile app/config.py app/db.py app/main.py app/routers/telegram.py
+          python -m py_compile app/config.py app/db.py app/main.py app/routers/*.py
+
+          cat >/etc/caddy/Caddyfile <<CADDY
+          ${CADDY_HOST} {
+            encode gzip
+
+            handle /api/* {
+              reverse_proxy 127.0.0.1:8000
+            }
+
+            handle /health {
+              reverse_proxy 127.0.0.1:8000
+            }
+
+            handle {
+              header Cache-Control "no-store, max-age=0"
+              header Pragma "no-cache"
+              root * ${APP_DIR}/climbing-guidebook
+              try_files {path} /index.html
+              file_server
+            }
+          }
+          CADDY
+          caddy validate --config /etc/caddy/Caddyfile
 
           systemctl restart guide-rus-backend
           systemctl reload caddy
