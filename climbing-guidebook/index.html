@@ -1200,18 +1200,21 @@
         /* Диалог «Просмотр»: линии и кружки разметки поверх фото (как в превью) */
         .climb-detail-photo-mount.photo-preview-with-markup {
             width: 100%;
-            height: auto;
+            height: auto !important;
             min-height: 160px;
-            max-height: min(52vh, 360px);
+            max-height: none;
             border-width: 0;
+            overflow: visible;
         }
 
         .climb-detail-photo-mount.photo-preview-with-markup img {
             width: 100%;
-            height: auto;
-            max-height: min(52vh, 360px);
+            height: auto !important;
+            max-height: min(58vh, 520px);
             object-fit: contain;
             display: block;
+            visibility: visible;
+            opacity: 1;
         }
 
         /* Карточка трассы/боулдера: сохранение после описания, визуально отделено */
@@ -4707,6 +4710,52 @@
             return !!resolvePhotoDisplayUrl(photo?.imageData);
         }
 
+        function loadImageIntoElement(img, photo, onReady) {
+            const src = resolvePhotoDisplayUrl(photo?.imageData);
+            if (!img) {
+                if (onReady) onReady();
+                return;
+            }
+            if (!src) {
+                img.removeAttribute('src');
+                if (onReady) onReady();
+                return;
+            }
+            const done = () => {
+                if (onReady) onReady();
+            };
+            img.onload = () => {
+                img.onload = null;
+                img.onerror = null;
+                done();
+            };
+            img.onerror = () => {
+                img.onerror = null;
+                void (async () => {
+                    try {
+                        const dataUrl = await resolvePhotoImageDataUrlForExport(photo);
+                        if (dataUrl) {
+                            img.onload = () => {
+                                img.onload = null;
+                                done();
+                            };
+                            if (img.src) img.removeAttribute('src');
+                            img.src = dataUrl;
+                            if (img.complete && img.naturalWidth > 0) done();
+                            return;
+                        }
+                    } catch (_) {
+                        /* ignore */
+                    }
+                    done();
+                })();
+            };
+            if (img.src) img.removeAttribute('src');
+            void img.offsetWidth;
+            img.src = src;
+            if (img.complete && img.naturalWidth > 0) done();
+        }
+
         function pickClimbDetailPhoto(photos, preferPhotoId) {
             if (!Array.isArray(photos) || !photos.length) return null;
             const withImage = photos.filter(photoHasDisplayImage);
@@ -4775,8 +4824,8 @@
             return climbingDataCache;
         }
 
-        async function ensurePhotosLoadedFromApi() {
-            if (_photosLoadedFromApi) return;
+        async function ensurePhotosLoadedFromApi(options = {}) {
+            if (_photosLoadedFromApi && !options.force) return;
             const routes = getRoutes();
             const boulders = getBoulders();
             const photos = await fetchPhotosBatched(routes, boulders);
@@ -4785,6 +4834,42 @@
             data.nextPhotoId = Math.max(1, ...photos.map(p => Number(p.id) || 0)) + 1;
             saveClimbingData(data);
             _photosLoadedFromApi = true;
+        }
+
+        async function fetchClimbPhotosFromApi(climbType, climbId) {
+            const id = Number(climbId);
+            if (!Number.isFinite(id)) return [];
+            const path = climbType === 'route'
+                ? `/api/photos/by-route/${id}`
+                : `/api/photos/by-boulder/${id}`;
+            const rows = await apiFetch(path).catch(() => []);
+            const mapped = (rows || []).map(mapApiPhotoToUi);
+            const idStr = String(climbId);
+            const data = getClimbingData();
+            const rest = (data.photos || []).filter(
+                (p) => !(p.type === climbType && String(p.climbId) === idStr)
+            );
+            data.photos = [...rest, ...mapped];
+            recomputeNextPhotoId(data);
+            saveClimbingData(data);
+            _photosLoadedFromApi = true;
+            return mapped;
+        }
+
+        async function ensureClimbPhotosForDetail(climbType, climbId) {
+            await ensurePhotosLoadedFromApi();
+            const idStr = String(climbId);
+            let photos = getPhotos().filter(
+                (p) => p.type === climbType && String(p.climbId) === idStr
+            );
+            if (!photos.some(photoHasDisplayImage)) {
+                try {
+                    photos = await fetchClimbPhotosFromApi(climbType, climbId);
+                } catch (err) {
+                    console.warn('climb photos fetch', err);
+                }
+            }
+            return photos;
         }
 
         /** Геометрия видимой области фото внутри контейнера (object-fit: contain). */
@@ -5164,7 +5249,7 @@
                 this.auth = getAuthData();
                 /** Форма входа админа — только после 4 тапов по логотипу в этой вкладке. */
                 this._adminFormUnlocked = false;
-                this._climbDetailImgToken = 0;
+                this._climbDetailImgGen = 0;
                 this.map = null;
                 this.currentPhotoPreview = null;
                 this.quickRoutePhotoData = null;
@@ -7274,6 +7359,9 @@
 
                 window.addEventListener('resize', () => {
                     if (this.map) this.map.invalidateSize({ animate: false });
+                    if (window.app && typeof window.app.refreshClimbDetailMarkupOverlayIfOpen === 'function') {
+                        window.app.refreshClimbDetailMarkupOverlayIfOpen();
+                    }
                 });
             }
 
@@ -7314,7 +7402,7 @@
                     this.refreshClimbDetailMarkupOverlayIfOpen();
                 }
                 if (dialogId === 'climbDetailDialog') {
-                    this._climbDetailImgToken = (this._climbDetailImgToken || 0) + 1;
+                    this._climbDetailImgGen = (this._climbDetailImgGen || 0) + 1;
                     const detailType = this._climbDetailContext?.climbType || 'route';
                     this._climbDetailContext = null;
                     const img = document.getElementById('climbDetailImage');
@@ -7849,32 +7937,17 @@
             }
 
             _setClimbDetailImageSrc(img, photo, climbName, onReady) {
-                const src = resolvePhotoDisplayUrl(photo?.imageData);
-                if (!img || !src) return;
-                const token = (this._climbDetailImgToken = (this._climbDetailImgToken || 0) + 1);
-                let settled = false;
-                const finish = () => {
-                    if (settled || this._climbDetailImgToken !== token) return;
-                    settled = true;
-                    onReady();
-                };
+                if (!img || !photoHasDisplayImage(photo)) return;
+                const gen = ++this._climbDetailImgGen;
                 img.alt = climbName || '';
-                img.onerror = () => {
-                    if (this._climbDetailImgToken !== token) return;
-                    img.onerror = null;
-                    img.onload = null;
-                    finish();
-                };
-                img.onload = () => {
-                    img.onload = null;
-                    img.onerror = null;
-                    finish();
-                };
-                img.src = src;
-                requestAnimationFrame(() => {
+                img.style.display = 'block';
+                img.style.visibility = 'visible';
+                loadImageIntoElement(img, photo, () => {
+                    if (this._climbDetailImgGen !== gen) return;
                     requestAnimationFrame(() => {
-                        if (this._climbDetailImgToken !== token) return;
-                        if (img.complete && img.naturalWidth > 0) finish();
+                        requestAnimationFrame(() => {
+                            if (this._climbDetailImgGen === gen) onReady();
+                        });
                     });
                 });
             }
@@ -7882,8 +7955,9 @@
             async showClimbDetailDialog(climbType, climbId, opts = {}) {
                 const idStr = String(climbId);
                 const preferPhotoId = opts.preferPhotoId != null ? String(opts.preferPhotoId) : null;
+                let photos = [];
                 try {
-                    await ensurePhotosLoadedFromApi();
+                    photos = await ensureClimbPhotosForDetail(climbType, climbId);
                 } catch (err) {
                     console.warn('climb detail photos load', err);
                 }
@@ -7898,9 +7972,6 @@
                     );
                     return;
                 }
-                const photos = getPhotos().filter(
-                    (p) => p.type === climbType && String(p.climbId) === idStr
-                );
                 const photo = pickClimbDetailPhoto(photos, preferPhotoId);
 
                 this._climbDetailContext = {
@@ -8197,18 +8268,7 @@
                     requestAnimationFrame(() => requestAnimationFrame(applyLoadedMarkup));
                 };
 
-                img.onload = () => {
-                    img.onload = null;
-                    scheduleApply();
-                };
-                if (photo.imageData && img.src === photo.imageData && img.complete && img.naturalWidth > 0) {
-                    scheduleApply();
-                } else {
-                    img.src = photo.imageData || '';
-                    if (img.complete && img.naturalWidth > 0) {
-                        scheduleApply();
-                    }
-                }
+                loadImageIntoElement(img, photo, scheduleApply);
             }
 
             updateRouteLinePolyline() {
@@ -8521,18 +8581,7 @@
                     requestAnimationFrame(() => requestAnimationFrame(applyLoadedMarkup));
                 };
 
-                img.onload = () => {
-                    img.onload = null;
-                    scheduleApply();
-                };
-                if (photo.imageData && img.src === photo.imageData && img.complete && img.naturalWidth > 0) {
-                    scheduleApply();
-                } else {
-                    img.src = photo.imageData || '';
-                    if (img.complete && img.naturalWidth > 0) {
-                        scheduleApply();
-                    }
-                }
+                loadImageIntoElement(img, photo, scheduleApply);
             }
 
             deleteNearestBoulderMarkupAt(x, y, geom) {
