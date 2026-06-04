@@ -2796,8 +2796,8 @@
                 <div class="auth-panel" id="authPanel">
                     <div id="adminPasswordLoginBlock" class="admin-password-login-block" aria-hidden="true">
                         <div class="auth-field">
-                            <label class="auth-label" for="loginUsername">Email</label>
-                            <input type="email" class="form-input" id="loginUsername" placeholder="you@example.com" title="Вход администратора" autocomplete="email" maxlength="255">
+                            <label class="auth-label" for="loginUsername">Логин</label>
+                            <input type="text" class="form-input" id="loginUsername" placeholder="admin" title="Логин: admin или email администратора" autocomplete="username" maxlength="255" inputmode="email">
                         </div>
                         <div class="auth-field">
                             <label class="auth-label" for="loginPassword">Пароль</label>
@@ -4505,6 +4505,10 @@
                     }
                 }
                 await window.app.syncLegacyLocalStorageToBackend();
+                if (window.app?.isLoggedIn?.()) {
+                    window.app.refreshListsAfterRoleChange();
+                    void window.app.renderProfileTab?.();
+                }
             } catch (err) {
                 console.warn('auth bootstrap', err);
             }
@@ -5630,40 +5634,109 @@
                 return em === String(ADMIN_EMAIL_HINT).toLowerCase();
             }
 
-            /** Показ полей email/пароль только после 4 тапов по логотипу в текущей вкладке. */
+            /** Показ полей логина/пароля только после 4 тапов по логотипу. */
             isAdminPasswordFormUnlocked() {
                 return this._adminFormUnlocked === true;
+            }
+
+            clearAdminLoginFields() {
+                const userInput = document.getElementById('loginUsername');
+                const pwd = document.getElementById('loginPassword');
+                if (userInput) userInput.value = '';
+                if (pwd) pwd.value = '';
+            }
+
+            logoutAdminSession(message = 'Режим администратора выключен') {
+                this._adminFormUnlocked = false;
+                saveAuthData({ accessToken: null, currentUser: null });
+                this.auth = getAuthData();
+                this._ascentSummary = null;
+                this.clearAdminLoginFields();
+                this.renderAuthUI();
+                this.applyRoleUI();
+                this.refreshListsAfterRoleChange();
+                this.showToast(message);
+            }
+
+            async exitAdminAndRestoreUserMode() {
+                this.logoutAdminSession('Выход из админа');
+                if (window.isTelegramMiniApp?.() && window.__TG_INIT_DATA) {
+                    const ok = await this.tryTelegramLogin();
+                    if (ok) {
+                        this.showToast('Вход как пользователь Telegram');
+                    }
+                }
+            }
+
+            openAdminPasswordForm() {
+                if (this.isLoggedIn() && !this.isAdmin()) {
+                    saveAuthData({ accessToken: null, currentUser: null });
+                    this.auth = getAuthData();
+                    this._ascentSummary = null;
+                }
+                this._adminFormUnlocked = true;
+                const userInput = document.getElementById('loginUsername');
+                if (userInput && !userInput.value.trim()) {
+                    userInput.value = ADMIN_EMAIL_HINT;
+                }
+                this.renderAuthUI();
+                this.showToast(`Вход администратора: логин «admin» или ${ADMIN_EMAIL_HINT}`);
+                setTimeout(() => userInput?.focus(), 0);
+            }
+
+            closeAdminPasswordForm() {
+                this._adminFormUnlocked = false;
+                this.clearAdminLoginFields();
+                this.renderAuthUI();
+                this.showToast('Форма входа администратора скрыта');
             }
 
             setupHiddenAdminAccess() {
                 const logo = document.querySelector('.site-logo');
                 if (!logo) return;
+                const TAPS_OPEN_ADMIN = 4;
+                const TAPS_EXIT_ADMIN = 2;
+                const TAP_WINDOW_MS = 4000;
                 let clicks = 0;
                 let lastClickTs = 0;
-                logo.addEventListener('click', () => {
+                const onLogoTap = (e) => {
+                    e.preventDefault();
                     const now = Date.now();
-                    if (now - lastClickTs > 4000) clicks = 0;
+                    if (now - lastClickTs > TAP_WINDOW_MS) clicks = 0;
                     lastClickTs = now;
                     clicks += 1;
-                    if (clicks < 4) return;
-                    clicks = 0;
 
                     if (this.isAdmin()) {
-                        this._adminFormUnlocked = false;
-                        saveAuthData({ accessToken: null, currentUser: null });
-                        this.auth = getAuthData();
-                        this.renderAuthUI();
-                        this.applyRoleUI();
-                        this.refreshListsAfterRoleChange();
-                        this.showToast('Режим администратора выключен');
+                        if (clicks < TAPS_EXIT_ADMIN) return;
+                        clicks = 0;
+                        void this.exitAdminAndRestoreUserMode();
                         return;
                     }
 
-                    this._adminFormUnlocked = true;
-                    this.renderAuthUI();
-                    this.showToast('Режим входа администратора включён');
-                    setTimeout(() => document.getElementById('loginUsername')?.focus(), 0);
-                });
+                    if (clicks < TAPS_OPEN_ADMIN) return;
+                    clicks = 0;
+
+                    if (this._adminFormUnlocked) {
+                        this.closeAdminPasswordForm();
+                        return;
+                    }
+                    this.openAdminPasswordForm();
+                };
+                logo.addEventListener('click', onLogoTap);
+            }
+
+            formatAdminLoginError(loginRes, errBody) {
+                const detail = formatApiErrorDetail(errBody?.detail);
+                if (loginRes.status === 403) {
+                    return detail || 'Вход разрешён только для учётной записи администратора';
+                }
+                if (loginRes.status === 401) {
+                    if (detail && /incorrect email or password/i.test(detail)) {
+                        return 'Неверный логин или пароль. Используйте «admin» или email администратора и пароль из ADMIN_PASSWORD на сервере.';
+                    }
+                    return detail || 'Неверный логин или пароль';
+                }
+                return detail || `Ошибка входа (HTTP ${loginRes.status})`;
             }
 
             async restoreAuthSession() {
@@ -5804,11 +5877,13 @@
             setupAuthEventListeners() {
                 document.getElementById('loginBtn')?.addEventListener('click', async () => {
                     const username = (document.getElementById('loginUsername')?.value || '').trim().toLowerCase();
-                    const password = (document.getElementById('loginPassword')?.value || '').trim();
+                    const password = document.getElementById('loginPassword')?.value || '';
                     if (!username || !password) {
-                        this.showToast('Введите email и пароль', true);
+                        this.showToast('Введите логин и пароль', true);
                         return;
                     }
+                    const loginBtn = document.getElementById('loginBtn');
+                    if (loginBtn) loginBtn.disabled = true;
                     try {
                         const formBody = new URLSearchParams({ username, password }).toString();
                         const loginRes = await fetch(`${API_BASE_URL}/api/auth/login`, {
@@ -5816,8 +5891,14 @@
                             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                             body: formBody
                         });
+                        let errBody = null;
                         if (!loginRes.ok) {
-                            throw new Error('Неверный email или пароль');
+                            try {
+                                errBody = await loginRes.json();
+                            } catch (_) {
+                                /* ignore */
+                            }
+                            throw new Error(this.formatAdminLoginError(loginRes, errBody));
                         }
                         const tokenData = await loginRes.json();
                         let me = tokenData.user || null;
@@ -5826,27 +5907,29 @@
                             saveAuthData(authProbe);
                             me = await apiFetch('/api/auth/me');
                         }
+                        const adminEmail = String(ADMIN_EMAIL_HINT).toLowerCase();
+                        if (String(me?.email || '').toLowerCase() !== adminEmail) {
+                            throw new Error('Вошли не как администратор. Используйте логин admin или email администратора.');
+                        }
                         const auth = { accessToken: tokenData.access_token, currentUser: me };
                         saveAuthData(auth);
                         this.auth = auth;
                         this._adminFormUnlocked = false;
+                        this.clearAdminLoginFields();
                         this.renderAuthUI();
                         this.applyRoleUI();
+                        await this.loadAscentSummary();
                         this.refreshListsAfterRoleChange();
                         this.showToast(`Вход выполнен: ${me.display_name || me.email}`);
                     } catch (err) {
                         this.showToast(err.message || 'Ошибка входа', true);
+                    } finally {
+                        if (loginBtn) loginBtn.disabled = false;
                     }
                 });
 
                 document.getElementById('logoutBtn')?.addEventListener('click', () => {
-                    saveAuthData({ accessToken: null, currentUser: null });
-                    this.auth = getAuthData();
-                    this._adminFormUnlocked = false;
-                    this.renderAuthUI();
-                    this.applyRoleUI();
-                    this.refreshListsAfterRoleChange();
-                    this.showToast('Вы вышли из системы');
+                    void this.exitAdminAndRestoreUserMode();
                 });
 
                 document.getElementById('loginPassword')?.addEventListener('keydown', (e) => {
