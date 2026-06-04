@@ -3034,6 +3034,18 @@
                     </div>
                 </div>
 
+                <div class="search-bar search-bar--compound">
+                    <input
+                        type="search"
+                        class="search-input"
+                        id="photoAlbumSearch"
+                        placeholder="Поиск по названию трассы или боулдера…"
+                        autocomplete="off"
+                        enterkeyhint="search"
+                        title="Поиск по названию трассы или боулдера"
+                    >
+                </div>
+
                 <div class="filters">
                     <button class="filter-btn active" data-type="all">Все фото</button>
                     <button class="filter-btn photo-filter-routes" data-type="route">Трудность</button>
@@ -7113,10 +7125,19 @@
                 }).join('');
             }
 
+            getPhotoClimbRecord(photo) {
+                const cid = String(photo?.climbId ?? '');
+                if (!cid) return null;
+                return photo.type === 'route'
+                    ? getRoutes().find((r) => String(r.id) === cid)
+                    : getBoulders().find((b) => String(b.id) === cid);
+            }
+
             renderPhotoAlbum() {
                 const photoAlbum = document.getElementById('photoAlbum');
                 const photos = getPhotos();
                 const filterType = document.querySelector('#photos .filter-btn.active')?.dataset.type || 'all';
+                const searchTerm = (document.getElementById('photoAlbumSearch')?.value || '').trim().toLowerCase();
 
                 let filteredPhotos = photos;
                 if (filterType === 'route' && !APP_BOULDER_ONLY) {
@@ -7127,22 +7148,35 @@
                     filteredPhotos = photos.filter(p => p.markup);
                 }
 
+                if (searchTerm) {
+                    filteredPhotos = filteredPhotos.filter((photo) => {
+                        const climb = this.getPhotoClimbRecord(photo);
+                        const name = (climb?.name || '').toLowerCase();
+                        return name.includes(searchTerm);
+                    });
+                }
+
                 if (filteredPhotos.length === 0) {
+                    let emptyHint = APP_BOULDER_ONLY
+                        ? 'Добавьте фотографии к боулдерингам'
+                        : 'Добавьте фотографии к маршрутам или боулдерингам';
+                    if (searchTerm) {
+                        emptyHint = 'По этому названию ничего не найдено. Попробуйте другой запрос или сбросьте фильтры.';
+                    } else if (filterType !== 'all') {
+                        emptyHint = 'Для выбранного фильтра фотографии не найдены';
+                    }
                     photoAlbum.innerHTML = `
                         <div class="empty-state">
-                            <i class="fas fa-images"></i>
-                            <h3>Нет фотографий</h3>
-                            <p>${filterType !== 'all' ? 'Для выбранного фильтра фотографии не найдены' : (APP_BOULDER_ONLY ? 'Добавьте фотографии к боулдерингам' : 'Добавьте фотографии к маршрутам или боулдерингам')}</p>
+                            <i class="fas fa-${searchTerm ? 'search' : 'images'}"></i>
+                            <h3>${searchTerm ? 'Ничего не найдено' : 'Нет фотографий'}</h3>
+                            <p>${emptyHint}</p>
                         </div>
                     `;
                     return;
                 }
 
                 photoAlbum.innerHTML = filteredPhotos.map(photo => {
-                    const cid = String(photo.climbId ?? '');
-                    const climb = photo.type === 'route'
-                        ? getRoutes().find((r) => String(r.id) === cid)
-                        : getBoulders().find((b) => String(b.id) === cid);
+                    const climb = this.getPhotoClimbRecord(photo);
                     const struct = climb && climb.sectorId != null && this.getStructureLabel(climb.sectorId)
                         ? this.getStructureLabel(climb.sectorId)
                         : '';
@@ -7348,7 +7382,12 @@
                     }
                 });
 
-                // Фильтры фотоальбома
+                // Поиск и фильтры фотоальбома
+                const searchDebounceMs = 200;
+                document.getElementById('photoAlbumSearch')?.addEventListener('input', () => {
+                    clearTimeout(this._photoAlbumSearchDebounceTimer);
+                    this._photoAlbumSearchDebounceTimer = setTimeout(() => this.renderPhotoAlbum(), searchDebounceMs);
+                });
                 document.querySelectorAll('#photos .filter-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
                         document.querySelectorAll('#photos .filter-btn').forEach(b => b.classList.remove('active'));
