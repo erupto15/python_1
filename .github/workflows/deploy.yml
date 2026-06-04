@@ -118,3 +118,38 @@ jobs:
             --data-urlencode "url=${PUBLIC_URL%/}/api/telegram/webhook" \
             --data-urlencode "secret_token=${TELEGRAM_WEBHOOK_SECRET}" \
             -d "drop_pending_updates=true" >/dev/null
+
+      - name: Verify production health and database
+        env:
+          PUBLIC_URL: ${{ vars.PUBLIC_URL }}
+        run: |
+          set -euo pipefail
+          BASE="${PUBLIC_URL:-https://92.246.76.142.sslip.io}"
+          BODY="$(curl -fsS --max-time 30 "${BASE%/}/health")"
+          echo "$BODY"
+          export HEALTH_JSON="$BODY"
+          python3 - <<'PY'
+          import json, os, sys
+          body = json.loads(os.environ["HEALTH_JSON"])
+          if body.get("status") != "ok":
+              sys.exit("health status is not ok")
+          if body.get("database") != "postgresql":
+              sys.exit(f"expected postgresql, got {body.get('database')!r}")
+          if not body.get("persistent_storage"):
+              sys.exit("persistent_storage is false — API uses SQLite, not production DB")
+          counts = body.get("catalog_counts") or {}
+          total = sum(int(counts.get(k) or 0) for k in ("areas", "sectors", "routes", "boulders"))
+          print(
+              "catalog rows:",
+              f"areas={counts.get('areas')}",
+              f"sectors={counts.get('sectors')}",
+              f"routes={counts.get('routes')}",
+              f"boulders={counts.get('boulders')}",
+              f"photos={counts.get('photos')}",
+          )
+          if total == 0:
+              print(
+                  "WARNING: catalog is empty in PostgreSQL — check GitHub secret DATABASE_URL",
+                  file=sys.stderr,
+              )
+          PY

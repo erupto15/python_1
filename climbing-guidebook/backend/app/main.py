@@ -7,10 +7,13 @@ from fastapi.responses import FileResponse
 
 import logging
 
+from sqlalchemy import func, select
+
 from app.config import settings
 from app.db import Base, SessionLocal, engine, ensure_optional_columns
 
 logger = logging.getLogger(__name__)
+from app.models import Area, Boulder, Photo, Route, Sector
 from app.routers import areas, auth, boulders, comments, community, photos, routes_api, sectors, telegram, users
 from app.seed import bootstrap_catalog
 
@@ -63,13 +66,31 @@ app.include_router(telegram.router, prefix="/api")
 
 
 @app.get("/health")
-def health() -> dict[str, str | bool]:
+def health() -> dict[str, str | bool | int | dict[str, int]]:
     dialect = engine.dialect.name
     persistent = dialect != "sqlite"
+    counts = {"areas": 0, "sectors": 0, "routes": 0, "boulders": 0, "photos": 0}
+    try:
+        db = SessionLocal()
+        try:
+            counts = {
+                "areas": db.scalar(select(func.count()).select_from(Area)) or 0,
+                "sectors": db.scalar(select(func.count()).select_from(Sector)) or 0,
+                "routes": db.scalar(select(func.count()).select_from(Route)) or 0,
+                "boulders": db.scalar(select(func.count()).select_from(Boulder)) or 0,
+                "photos": db.scalar(select(func.count()).select_from(Photo)) or 0,
+            }
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.warning("health catalog counts failed: %s", exc)
+    db_host = engine.url.host or ""
     return {
         "status": "ok",
         "database": dialect,
         "persistent_storage": persistent,
+        "database_host": db_host,
+        "catalog_counts": counts,
     }
 
 

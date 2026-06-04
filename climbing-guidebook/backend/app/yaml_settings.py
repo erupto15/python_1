@@ -66,7 +66,11 @@ def load_yaml_settings(path: Path | None = None) -> dict[str, Any]:
         raw = yaml.safe_load(handle) or {}
     if not isinstance(raw, dict):
         raise ValueError(f"Корень {config_path} должен быть объектом YAML (mapping).")
-    return flatten_yaml_config(raw)
+    out = flatten_yaml_config(raw)
+    # DATABASE_URL из systemd / GitHub deploy всегда важнее settings.yaml
+    if os.getenv("DATABASE_URL", "").strip():
+        out.pop("database_url", None)
+    return out
 
 
 class YamlSettingsSource(PydanticBaseSettingsSource):
