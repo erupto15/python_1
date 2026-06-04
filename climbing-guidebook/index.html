@@ -2801,7 +2801,7 @@
                         </div>
                         <div class="auth-field">
                             <label class="auth-label" for="loginPassword">Пароль</label>
-                            <input type="password" class="form-input" id="loginPassword" placeholder="" autocomplete="current-password">
+                            <input type="password" class="form-input" id="loginPassword" placeholder="Пароль" autocomplete="off" autocapitalize="off" spellcheck="false">
                         </div>
                         <button type="button" class="btn btn-primary" id="loginBtn">Войти</button>
                     </div>
@@ -5677,10 +5677,10 @@
                 this._adminFormUnlocked = true;
                 const userInput = document.getElementById('loginUsername');
                 if (userInput && !userInput.value.trim()) {
-                    userInput.value = ADMIN_EMAIL_HINT;
+                    userInput.value = 'admin';
                 }
                 this.renderAuthUI();
-                this.showToast(`Вход администратора: логин «admin» или ${ADMIN_EMAIL_HINT}`);
+                this.showToast('Вход администратора: логин admin');
                 setTimeout(() => userInput?.focus(), 0);
             }
 
@@ -5731,10 +5731,7 @@
                     return detail || 'Вход разрешён только для учётной записи администратора';
                 }
                 if (loginRes.status === 401) {
-                    if (detail && /incorrect email or password/i.test(detail)) {
-                        return 'Неверный логин или пароль. Используйте «admin» или email администратора и пароль из ADMIN_PASSWORD на сервере.';
-                    }
-                    return detail || 'Неверный логин или пароль';
+                    return 'Неверный логин или пароль. Логин: admin (без пробелов). Пароль вводите вручную, без автозаполнения.';
                 }
                 return detail || `Ошибка входа (HTTP ${loginRes.status})`;
             }
@@ -5877,7 +5874,7 @@
             setupAuthEventListeners() {
                 document.getElementById('loginBtn')?.addEventListener('click', async () => {
                     const username = (document.getElementById('loginUsername')?.value || '').trim().toLowerCase();
-                    const password = document.getElementById('loginPassword')?.value || '';
+                    const password = (document.getElementById('loginPassword')?.value || '').trim();
                     if (!username || !password) {
                         this.showToast('Введите логин и пароль', true);
                         return;

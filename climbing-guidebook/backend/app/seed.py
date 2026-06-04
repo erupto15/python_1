@@ -1,5 +1,6 @@
 """Однократное создание администратора при старте, если пользователя с таким email ещё нет."""
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app import security
@@ -11,7 +12,7 @@ from app.models import User
 def ensure_admin_user(db: Session) -> User:
     email = settings.admin_email.strip().lower()
     password = (settings.admin_password or "").strip()
-    existing = db.query(User).filter(User.email == email).first()
+    existing = db.query(User).filter(func.lower(User.email) == email).first()
     if existing:
         if password:
             existing.password_hash = security.hash_password(password)
