@@ -2073,6 +2073,64 @@
             margin: 0 0 8px;
         }
 
+        .climb-sends-block {
+            margin-top: 4px;
+        }
+
+        .climb-sends-toggle {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 14px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: left;
+            border-radius: 10px;
+        }
+
+        .climb-sends-toggle-icon {
+            flex-shrink: 0;
+            opacity: 0.75;
+            transition: transform 0.2s ease;
+        }
+
+        .climb-sends-toggle.is-open .climb-sends-toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .climb-sends-panel {
+            margin-top: 8px;
+        }
+
+        .climb-sends-panel.hidden {
+            display: none;
+        }
+
+        .climb-sends-swipe {
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            scroll-snap-type: x mandatory;
+            overscroll-behavior-x: contain;
+            scrollbar-width: none;
+            touch-action: pan-x;
+            margin: 0 -4px;
+            padding: 2px 4px 6px;
+        }
+
+        .climb-sends-swipe::-webkit-scrollbar {
+            display: none;
+        }
+
+        .climb-sends-swipe-hint {
+            font-size: 12px;
+            color: var(--light-text);
+            margin: 4px 0 0;
+            text-align: center;
+        }
+
         .climb-community-sends-list {
             list-style: none;
             margin: 0;
@@ -2080,17 +2138,27 @@
             display: flex;
             flex-direction: column;
             gap: 6px;
-            max-height: 180px;
-            overflow-y: auto;
+        }
+
+        .climb-community-sends-list.climb-sends-swipe-track {
+            flex-direction: row;
+            gap: 10px;
         }
 
         .climb-community-sends-list li {
             font-size: 13px;
             line-height: 1.4;
-            padding: 8px 10px;
-            border-radius: 8px;
+            padding: 10px 12px;
+            border-radius: 10px;
             background: color-mix(in srgb, var(--border-color) 35%, var(--card-bg));
             border: 1px solid var(--border-color);
+        }
+
+        .climb-community-sends-list.climb-sends-swipe-track li {
+            flex: 0 0 min(88%, 300px);
+            scroll-snap-align: center;
+            scroll-snap-stop: always;
+            box-sizing: border-box;
         }
 
         .climb-community-sends-list li.style-onsight {
@@ -2116,6 +2184,34 @@
             flex-wrap: wrap;
             gap: 8px;
             align-items: center;
+        }
+
+        .climb-log-form {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .climb-log-form .climb-log-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 14px;
+        }
+
+        .climb-log-form .climb-log-field-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .climb-detail-log-cta {
+            margin-top: 12px;
+        }
+
+        .climb-detail-log-cta .btn {
+            width: 100%;
         }
 
         .climb-community-actions .form-input {
@@ -3313,7 +3409,7 @@
                     <div class="form-label" style="margin-bottom:6px;">Сообщество</div>
                     <div class="climb-community-stats" id="climbDetailCommunityStats">Загрузка…</div>
                     <div class="climb-community-sends" id="climbDetailCommunitySends"></div>
-                    <div class="climb-community-actions" id="climbDetailCommunityActions"></div>
+                    <div id="climbDetailLogCta" class="climb-detail-log-cta hidden"></div>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <div class="form-label">Описание</div>
@@ -3325,9 +3421,31 @@
                 </div>
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
-                <button type="button" class="climb-tg-log-proxy" id="climbTgLogSendBtn" tabindex="-1" aria-hidden="true">Пролаз</button>
+                <button type="button" class="climb-tg-log-proxy" id="climbDetailOpenLogBtn" tabindex="-1" aria-hidden="true">Пролаз</button>
                 <button type="button" class="btn btn-ghost" id="climbDetailCloseBtn" data-close-dialog="climbDetailDialog"><i class="fas fa-times"></i> Закрыть</button>
                 <button type="button" class="btn btn-primary" id="climbDetailMarkupBtn"><i class="fas fa-draw-polygon"></i> Схема на фото</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Логирование пролаза (второй шаг после просмотра трассы) -->
+    <div class="dialog-overlay hidden" id="climbLogDialog" style="z-index: 999;">
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <div class="dialog-header-text">
+                    <div class="dialog-title" id="climbLogTitle">Пролаз</div>
+                    <div class="dialog-subtitle" id="climbLogMeta"></div>
+                </div>
+                <button type="button" class="dialog-close-btn" id="closeClimbLogDialogBtn" data-close-dialog="climbLogDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
+            </div>
+            <div class="dialog-body">
+                <p style="font-size:14px;color:var(--light-text);margin:0 0 14px;">Запишите пролаз в логбук: тип, попытки и оценку качества.</p>
+                <div id="climbLogForm" class="climb-log-form"></div>
+            </div>
+            <div class="dialog-footer dialog-footer--tg-native">
+                <button type="button" class="climb-tg-log-proxy" id="climbTgLogConfirmBtn" tabindex="-1" aria-hidden="true">Записать пролаз</button>
+                <button type="button" class="btn btn-ghost" id="climbLogCloseBtn" data-close-dialog="climbLogDialog"><i class="fas fa-arrow-left"></i> Назад</button>
+                <button type="button" class="btn btn-primary" id="climbLogConfirmBtn"><i class="fas fa-check"></i> Записать пролаз</button>
             </div>
         </div>
     </div>
@@ -3371,7 +3489,7 @@
                     if (canLog) {
                         return {
                             text: 'Пролаз',
-                            btnId: 'climbTgLogSendBtn',
+                            btnId: 'climbDetailOpenLogBtn',
                             secondaryText: 'Закрыть',
                             secondaryBtnId: 'climbDetailCloseBtn'
                         };
@@ -3437,6 +3555,12 @@
                 btnId: 'profileStylesDialogCloseBtn',
                 secondaryText: 'Закрыть',
                 secondaryBtnId: 'profileStylesDialogCloseBtn'
+            },
+            climbLogDialog: {
+                text: 'Записать пролаз',
+                btnId: 'climbTgLogConfirmBtn',
+                secondaryText: 'Назад',
+                secondaryBtnId: 'climbLogCloseBtn'
             }
         };
 
@@ -3446,6 +3570,7 @@
             quickRouteDialog: 'closeQuickRouteDialogBtn',
             quickBoulderDialog: 'closeQuickBoulderDialogBtn',
             climbDetailDialog: 'closeClimbDetailDialogBtn',
+            climbLogDialog: 'closeClimbLogDialogBtn',
             routeLineMarkupDialog: 'closeRouteLineMarkupDialogBtn',
             boulderHoldsMarkupDialog: 'closeBoulderHoldsMarkupDialogBtn',
             profileSendsDialog: 'profileSendsDialogCloseBtn',
@@ -7326,8 +7451,19 @@
                 document.getElementById('climbDetailSavePhotoBtn')?.addEventListener('click', () => {
                     void this.saveClimbDetailPhotoFromUserGesture();
                 });
-                document.getElementById('climbTgLogSendBtn')?.addEventListener('click', () => {
-                    void this.logClimbAscentFromDetail('send').catch((e) => this.showToast(e.message, true));
+                document.getElementById('climbDetailOpenLogBtn')?.addEventListener('click', () => {
+                    void this.openClimbLogDialog();
+                });
+                document.getElementById('climbDetailLogCta')?.addEventListener('click', (e) => {
+                    if (e.target.closest('[data-open-climb-log]')) {
+                        void this.openClimbLogDialog();
+                    }
+                });
+                document.getElementById('climbTgLogConfirmBtn')?.addEventListener('click', () => {
+                    void this.logClimbAscentFromDetail('send').catch((err) => this.showToast(err.message, true));
+                });
+                document.getElementById('climbLogConfirmBtn')?.addEventListener('click', () => {
+                    void this.logClimbAscentFromDetail('send').catch((err) => this.showToast(err.message, true));
                 });
 
                 document.getElementById('photoAlbum')?.addEventListener('click', (e) => {
@@ -7401,7 +7537,15 @@
                     this.resetBoulderMarkupDialogChrome();
                     this.refreshClimbDetailMarkupOverlayIfOpen();
                 }
+                if (dialogId === 'climbLogDialog') {
+                    const formEl = document.getElementById('climbLogForm');
+                    if (formEl) formEl.innerHTML = '';
+                }
                 if (dialogId === 'climbDetailDialog') {
+                    const logDlg = document.getElementById('climbLogDialog');
+                    if (logDlg && !logDlg.classList.contains('hidden')) {
+                        this.hideDialog('climbLogDialog');
+                    }
                     this._climbDetailImgGen = (this._climbDetailImgGen || 0) + 1;
                     const detailType = this._climbDetailContext?.climbType || 'route';
                     this._climbDetailContext = null;
@@ -8062,7 +8206,7 @@
                     applyDetailMarkup();
                 }
 
-                void this.refreshClimbCommunityPanel(climbType, idStr).then(() => {
+                void this.refreshClimbDetailViewPanel(climbType, idStr).then(() => {
                     this.refreshClimbDetailMarkupOverlayIfOpen();
                     if (typeof window.syncTelegramWebAppButtons === 'function') {
                         window.syncTelegramWebAppButtons('climbDetailDialog');
@@ -8882,7 +9026,8 @@
                         body: JSON.stringify(body)
                     });
                     await this.loadAscentSummary();
-                    await this.refreshClimbCommunityPanel(climbType, climbId);
+                    this.hideDialog('climbLogDialog');
+                    await this.refreshClimbDetailViewPanel(climbType, climbId);
                     await this.refreshProfileLogbookSection();
                     if (!APP_BOULDER_ONLY) this.renderRoutes();
                     this.renderBoulders();
@@ -8906,9 +9051,9 @@
             }
 
             getSelectedAscentStyle() {
-                const active = document.querySelector('#climbSendStylePicker .ascent-style-btn.active');
+                const active = document.querySelector('#climbLogSendStylePicker .ascent-style-btn.active');
                 const fromBtn = active?.dataset.style || '';
-                const fromHidden = document.getElementById('climbSendStyle')?.value || '';
+                const fromHidden = document.getElementById('climbLogSendStyle')?.value || '';
                 const style = fromBtn || fromHidden;
                 return ['onsight', 'flash', 'redpoint'].includes(style) ? style : '';
             }
@@ -8924,8 +9069,8 @@
             }
 
             bindAscentStylePicker(initialStyle = 'redpoint') {
-                const picker = document.getElementById('climbSendStylePicker');
-                const hidden = document.getElementById('climbSendStyle');
+                const picker = document.getElementById('climbLogSendStylePicker');
+                const hidden = document.getElementById('climbLogSendStyle');
                 if (!picker) return;
                 const style = ['onsight', 'flash', 'redpoint'].includes(initialStyle) ? initialStyle : '';
                 this.setAscentStyleSelection(picker, hidden, style);
@@ -8970,7 +9115,7 @@
             }
 
             async saveCommunityStarRating(climbType, climbId, starValue, currentStars) {
-                const felt = (document.getElementById('climbFeltGrade')?.value || '').trim();
+                const felt = (document.getElementById('climbLogFeltGrade')?.value || '').trim();
                 if (currentStars === starValue) {
                     await apiFetch(`/api/ratings?${this.climbRatingQuery(climbType, climbId)}`, { method: 'DELETE' });
                     return 0;
@@ -8991,16 +9136,29 @@
 
             buildClimbCommunityStatsHtml(stats) {
                 const parts = [];
-                if (stats.avg_stars != null) {
-                    parts.push(`оценка: <strong>${this.escapeHtml(formatStarAverageLabel(stats.avg_stars, stats.ratings_count))}</strong>`);
-                }
                 if (stats.my_status === 'send') {
-                    parts.push(' · <span class="climb-sent-badge">вы пролазали</span>');
+                    parts.push('<span class="climb-sent-badge">вы пролазали</span>');
                 }
                 if (stats.felt_grades?.length) {
-                    parts.push(` · мнения: ${stats.felt_grades.map((g) => this.escapeHtml(g)).join(', ')}`);
+                    parts.push(`${parts.length ? ' · ' : ''}мнения: ${stats.felt_grades.map((g) => this.escapeHtml(g)).join(', ')}`);
                 }
-                return parts.length ? parts.join('') : '<span style="color:var(--light-text);">Пока нет оценок и мнений.</span>';
+                return parts.length ? parts.join('') : '<span style="color:var(--light-text);">Пока нет данных от сообщества.</span>';
+            }
+
+            buildClimbCommunitySendItemHtml(s) {
+                const style = s.ascent_style || '';
+                const styleClass = style ? ` style-${style}` : '';
+                const styleRu = style ? this.ascentStyleLabel(style) : '';
+                const when = s.logged_at
+                    ? new Date(s.logged_at).toLocaleString('ru-RU', {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    })
+                    : '';
+                const extra = styleRu ? ` · ${this.escapeHtml(styleRu)}` : '';
+                return `<li class="${styleClass}"><strong>${this.escapeHtml(s.user_display_name)}</strong>${extra}<br><span style="color:var(--light-text);">${s.tries} поп. · ${when}</span></li>`;
             }
 
             buildClimbCommunitySendsHtml(stats) {
@@ -9009,25 +9167,40 @@
                 if (!count) {
                     return '<p class="climb-community-sends-title">Пролазы</p><p class="climb-community-sends-empty">Пока никто не залогировал пролаз.</p>';
                 }
-                const items = recent.map((s) => {
-                    const style = s.ascent_style || '';
-                    const styleClass = style ? ` style-${style}` : '';
-                    const styleRu = style ? this.ascentStyleLabel(style) : '';
-                    const when = s.logged_at
-                        ? new Date(s.logged_at).toLocaleString('ru-RU', {
-                            day: 'numeric',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        })
-                        : '';
-                    const extra = styleRu ? ` · ${this.escapeHtml(styleRu)}` : '';
-                    return `<li class="${styleClass}"><strong>${this.escapeHtml(s.user_display_name)}</strong>${extra} · ${s.tries} поп. · ${when}</li>`;
-                }).join('');
+                const items = recent.map((s) => this.buildClimbCommunitySendItemHtml(s)).join('');
                 const more = count > recent.length
-                    ? `<p class="climb-community-sends-empty" style="margin-top:6px;">и ещё ${count - recent.length}…</p>`
+                    ? `<p class="climb-community-sends-empty" style="margin-top:8px;text-align:center;">и ещё ${count - recent.length}…</p>`
                     : '';
-                return `<p class="climb-community-sends-title">Пролазы (${count})</p><ul class="climb-community-sends-list">${items}</ul>${more}`;
+                const swipeHint = recent.length > 1
+                    ? '<p class="climb-sends-swipe-hint">Свайп влево и вправо</p>'
+                    : '';
+                return `
+                    <div class="climb-sends-block">
+                        <button type="button" class="climb-sends-toggle btn btn-secondary" aria-expanded="false">
+                            <span>Пролазы (${count})</span>
+                            <i class="fas fa-chevron-down climb-sends-toggle-icon" aria-hidden="true"></i>
+                        </button>
+                        <div class="climb-sends-panel hidden">
+                            <div class="climb-sends-swipe">
+                                <ul class="climb-community-sends-list climb-sends-swipe-track">${items}</ul>
+                            </div>
+                            ${swipeHint}
+                            ${more}
+                        </div>
+                    </div>
+                `;
+            }
+
+            bindClimbSendsPanel(container) {
+                const toggle = container?.querySelector('.climb-sends-toggle');
+                const panel = container?.querySelector('.climb-sends-panel');
+                if (!toggle || !panel) return;
+                toggle.addEventListener('click', () => {
+                    const willOpen = panel.classList.contains('hidden');
+                    panel.classList.toggle('hidden');
+                    toggle.classList.toggle('is-open', willOpen);
+                    toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+                });
             }
 
             async refreshProfileLogbookSection() {
@@ -9063,66 +9236,130 @@
                 }
             }
 
-            async refreshClimbCommunityPanel(climbType, climbId) {
+            async refreshClimbDetailViewPanel(climbType, climbId) {
                 const panel = document.getElementById('climbDetailCommunity');
                 const statsEl = document.getElementById('climbDetailCommunityStats');
                 const sendsEl = document.getElementById('climbDetailCommunitySends');
-                const actionsEl = document.getElementById('climbDetailCommunityActions');
-                if (!panel || !statsEl || !actionsEl) return;
+                const logCta = document.getElementById('climbDetailLogCta');
+                if (!panel || !statsEl) return;
                 panel.classList.remove('hidden');
                 statsEl.textContent = 'Загрузка…';
                 if (sendsEl) sendsEl.innerHTML = '';
-                actionsEl.innerHTML = '';
+                if (logCta) {
+                    logCta.classList.add('hidden');
+                    logCta.innerHTML = '';
+                }
                 try {
                     const stats = await this.fetchClimbCommunityStats(climbType, climbId);
                     this._climbCommunityStats = stats;
                     patchClimbRatingInLocalCache(climbType, climbId, stats.avg_stars);
                     statsEl.innerHTML = this.buildClimbCommunityStatsHtml(stats);
-                    if (sendsEl) sendsEl.innerHTML = this.buildClimbCommunitySendsHtml(stats);
-
-                    if (!this.isLoggedIn() || !this.isTelegramUser()) {
-                        actionsEl.innerHTML = '<span style="color:var(--light-text);font-size:14px;">Войдите через Telegram Mini App, чтобы логировать пролазы.</span>';
-                        return;
+                    if (sendsEl) {
+                        sendsEl.innerHTML = this.buildClimbCommunitySendsHtml(stats);
+                        this.bindClimbSendsPanel(sendsEl);
                     }
 
+                    if (!logCta) return;
+                    logCta.classList.remove('hidden');
+                    if (!this.isLoggedIn() || !this.isTelegramUser()) {
+                        logCta.innerHTML = '<span style="color:var(--light-text);font-size:14px;">Войдите через Telegram Mini App, чтобы логировать пролазы.</span>';
+                        return;
+                    }
+                    logCta.innerHTML = '<button type="button" class="btn btn-primary" data-open-climb-log><i class="fas fa-check"></i> Пролаз</button>';
+                } catch (err) {
+                    statsEl.textContent = 'Не удалось загрузить статистику';
+                    console.warn('community stats', err);
+                }
+            }
+
+            fillClimbLogDialogHeader(climbType, climb) {
+                const titleEl = document.getElementById('climbLogTitle');
+                const metaEl = document.getElementById('climbLogMeta');
+                if (!climb) return;
+                const name = climb.name || (climbType === 'route' ? 'Трасса' : 'Боулдеринг');
+                if (titleEl) titleEl.textContent = name;
+                if (!metaEl) return;
+                const grade = climb.grade != null && climb.grade !== '' ? String(climb.grade) : '—';
+                const kindRu = climbType === 'route' ? 'Трасса' : 'Боулдеринг';
+                metaEl.textContent = `${kindRu} · ${grade}`;
+            }
+
+            async openClimbLogDialog() {
+                const ctx = this._climbDetailContext;
+                if (!ctx) {
+                    this.showToast('Откройте трассу из каталога', true);
+                    return;
+                }
+                if (!this.isLoggedIn() || !this.isTelegramUser()) {
+                    this.showToast('Войдите через Telegram Mini App', true);
+                    return;
+                }
+                const climbType = ctx.climbType;
+                const climbId = ctx.climbId;
+                const climb = climbType === 'route'
+                    ? getRoutes().find((r) => String(r.id) === String(climbId))
+                    : getBoulders().find((b) => String(b.id) === String(climbId));
+                this.fillClimbLogDialogHeader(climbType, climb);
+                this.showDialog('climbLogDialog');
+                await this.refreshClimbLogPanel(climbType, climbId);
+                if (typeof window.syncTelegramWebAppButtons === 'function') {
+                    window.syncTelegramWebAppButtons('climbLogDialog');
+                }
+            }
+
+            async refreshClimbLogPanel(climbType, climbId) {
+                const formEl = document.getElementById('climbLogForm');
+                if (!formEl) return;
+                formEl.innerHTML = '<p style="color:var(--light-text);margin:0;">Загрузка…</p>';
+                try {
+                    const stats = this._climbCommunityStats
+                        || await this.fetchClimbCommunityStats(climbType, climbId);
+                    this._climbCommunityStats = stats;
                     const triesVal = stats.my_tries || 1;
-                    actionsEl.innerHTML = `
-                        <label style="font-size:14px;">Попыток
-                            <input type="number" class="form-input" id="climbLogTries" min="1" max="99" value="${triesVal}" style="margin-left:6px;">
-                        </label>
-                        <label style="font-size:14px;display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px;">Тип
-                            <div class="ascent-style-picker" id="climbSendStylePicker" role="radiogroup" aria-label="Тип пролаза">
-                                <button type="button" class="ascent-style-btn" data-style="onsight" aria-pressed="false">Онсайт</button>
-                                <button type="button" class="ascent-style-btn" data-style="flash" aria-pressed="false">Флэш</button>
-                                <button type="button" class="ascent-style-btn active" data-style="redpoint" aria-pressed="true">Редпоинт</button>
+                    formEl.innerHTML = `
+                        <div class="climb-log-field">
+                            <span class="form-label">Попыток</span>
+                            <div class="climb-log-field-row">
+                                <input type="number" class="form-input" id="climbLogTries" min="1" max="99" value="${triesVal}">
                             </div>
-                            <input type="hidden" id="climbSendStyle" value="redpoint">
-                        </label>
-                        <input type="text" class="form-input" id="climbFeltGrade" placeholder="Ваша категория" value="${this.escapeHtml(stats.my_felt_grade || '')}" maxlength="32" style="min-width:120px;">
-                        <label style="font-size:14px;display:inline-flex;align-items:center;gap:6px;">Оценка
-                            <span id="climbUserStarsPicker" style="display:inline-flex;align-items:center;"></span>
-                        </label>
+                        </div>
+                        <div class="climb-log-field">
+                            <span class="form-label">Тип пролаза</span>
+                            <div class="climb-log-field-row">
+                                <div class="ascent-style-picker" id="climbLogSendStylePicker" role="radiogroup" aria-label="Тип пролаза">
+                                    <button type="button" class="ascent-style-btn" data-style="onsight" aria-pressed="false">Онсайт</button>
+                                    <button type="button" class="ascent-style-btn" data-style="flash" aria-pressed="false">Флэш</button>
+                                    <button type="button" class="ascent-style-btn active" data-style="redpoint" aria-pressed="true">Редпоинт</button>
+                                </div>
+                                <input type="hidden" id="climbLogSendStyle" value="redpoint">
+                            </div>
+                        </div>
+                        <div class="climb-log-field">
+                            <span class="form-label">Ваша категория</span>
+                            <input type="text" class="form-input" id="climbLogFeltGrade" placeholder="Например, 7a" value="${this.escapeHtml(stats.my_felt_grade || '')}" maxlength="32">
+                        </div>
+                        <div class="climb-log-field">
+                            <span class="form-label">Оценка качества</span>
+                            <span id="climbLogUserStarsPicker"></span>
+                        </div>
                     `;
 
                     this.bindAscentStylePicker('redpoint');
 
                     let pickedStars = Math.min(3, stats.my_stars || 0);
-                    const starsWrap = document.getElementById('climbUserStarsPicker');
+                    const starsWrap = document.getElementById('climbLogUserStarsPicker');
                     const starPickHandler = (n) => {
                         void (async () => {
                             try {
                                 const next = await this.saveCommunityStarRating(climbType, climbId, n, pickedStars);
                                 pickedStars = next;
                                 this.renderCommunityStarPicker(starsWrap, pickedStars, starPickHandler);
-                                const stats = await this.fetchClimbCommunityStats(climbType, climbId);
-                                this._climbCommunityStats = stats;
-                                patchClimbRatingInLocalCache(climbType, climbId, stats.avg_stars);
-                                const statsEl = document.getElementById('climbDetailCommunityStats');
-                                if (statsEl) {
-                                    statsEl.innerHTML = this.buildClimbCommunityStatsHtml(stats);
-                                }
+                                const fresh = await this.fetchClimbCommunityStats(climbType, climbId);
+                                this._climbCommunityStats = fresh;
+                                patchClimbRatingInLocalCache(climbType, climbId, fresh.avg_stars);
+                                await this.refreshClimbDetailViewPanel(climbType, climbId);
                                 this.renderCatalog();
-                                this.renderRoutes();
+                                if (!APP_BOULDER_ONLY) this.renderRoutes();
                                 this.renderBoulders();
                             } catch (err) {
                                 this.showToast(err.message, true);
@@ -9131,9 +9368,14 @@
                     };
                     this.renderCommunityStarPicker(starsWrap, pickedStars, starPickHandler);
                 } catch (err) {
-                    statsEl.textContent = 'Не удалось загрузить статистику';
-                    console.warn('community stats', err);
+                    formEl.innerHTML = '<p style="color:var(--light-text);margin:0;">Не удалось загрузить форму.</p>';
+                    console.warn('climb log form', err);
                 }
+            }
+
+            /** @deprecated use refreshClimbDetailViewPanel */
+            async refreshClimbCommunityPanel(climbType, climbId) {
+                return this.refreshClimbDetailViewPanel(climbType, climbId);
             }
 
             profileAvatarInitials(name) {
