@@ -7479,7 +7479,6 @@
                 });
 
                 // Поиск и фильтры фотоальбома
-                const searchDebounceMs = 200;
                 document.getElementById('photoAlbumSearch')?.addEventListener('input', () => {
                     clearTimeout(this._photoAlbumSearchDebounceTimer);
                     this._photoAlbumSearchDebounceTimer = setTimeout(() => this.renderPhotoAlbum(), searchDebounceMs);
