@@ -2503,6 +2503,33 @@
             font-size: 14px;
         }
 
+        .app-data-status {
+            margin: 0 0 12px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 14px;
+            line-height: 1.4;
+            border: 1px solid var(--border-color);
+            background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+        }
+
+        .app-data-status.hidden {
+            display: none;
+        }
+
+        .app-data-status--loading {
+            color: var(--light-text);
+        }
+
+        .app-data-status--error {
+            border-color: color-mix(in srgb, var(--danger-color) 45%, var(--border-color));
+            background: color-mix(in srgb, var(--danger-color) 10%, var(--card-bg));
+        }
+
+        .app-data-status .btn {
+            margin-top: 8px;
+        }
+
         .filter-toggle-label {
             display: inline-flex;
             align-items: center;
@@ -2814,6 +2841,9 @@
                     <div class="card-title">
                         <i class="fas fa-sitemap"></i> Районы и секторы
                     </div>
+                </div>
+                <div id="appDataStatus" class="app-data-status app-data-status--loading" role="status" aria-live="polite">
+                    Загрузка данных с сервера…
                 </div>
                 <div class="catalog-breadcrumb" id="catalogBreadcrumb"></div>
                 <div class="catalog-toolbar" id="catalogToolbar"></div>
@@ -4387,6 +4417,7 @@
                     await loadClimbingDataFromApi({ includePhotos: options.includePhotos === true });
                     _appRemoteDataReady = true;
                     _lastCatalogReloadFinishedAt = Date.now();
+                    setAppDataStatus('hidden');
                     window.app?.refreshUiAfterRemoteLoad?.();
                     if (options.refreshPhotos) {
                         await ensurePhotosLoadedFromApi();
@@ -4409,6 +4440,71 @@
         function scheduleCatalogRefreshOnAppVisible() {
             if (!_appRemoteDataReady) return;
             void refreshCatalogFromApi().catch(() => {});
+        }
+
+        function setAppDataStatus(mode, message, { showRetry } = {}) {
+            const el = document.getElementById('appDataStatus');
+            if (!el) return;
+            el.classList.remove('hidden', 'app-data-status--loading', 'app-data-status--error');
+            if (mode === 'hidden') {
+                el.classList.add('hidden');
+                el.innerHTML = '';
+                return;
+            }
+            if (mode === 'error') el.classList.add('app-data-status--error');
+            else el.classList.add('app-data-status--loading');
+            const retryBtn = showRetry
+                ? '<button type="button" class="btn btn-primary btn-small" id="appDataRetryBtn">Повторить загрузку</button>'
+                : '';
+            el.innerHTML = `${message}${retryBtn}`;
+            if (showRetry) {
+                document.getElementById('appDataRetryBtn')?.addEventListener('click', () => {
+                    void retryAppDataLoad();
+                }, { once: true });
+            }
+        }
+
+        async function retryAppDataLoad() {
+            setAppDataStatus('loading', 'Загрузка данных с сервера…');
+            try {
+                const awake = await wakeApiServer({ attempts: 8 });
+                if (!awake) throw new Error('Сервер не отвечает');
+                await refreshCatalogFromApi({ force: true, skipWake: true });
+                if (window.app) {
+                    await window.app.restoreAuthSession();
+                    if (!getAuthData().accessToken) {
+                        await window.app.tryTelegramLogin();
+                    }
+                }
+                void ensurePhotosLoadedFromApi().then(() => {
+                    window.app?.renderPhotoAlbum?.();
+                }).catch((err) => console.warn('photos prefetch', err));
+                setAppDataStatus('hidden');
+            } catch (err) {
+                console.error('retry data load', err);
+                setAppDataStatus(
+                    'error',
+                    `Не удалось загрузить данные: ${err.message || 'ошибка сети'}.`,
+                    { showRetry: true }
+                );
+                window.app?.showToast?.('Не удалось загрузить данные', true);
+            }
+        }
+
+        async function runTelegramAuthBootstrap() {
+            if (!window.app) return;
+            try {
+                await window.app.restoreAuthSession();
+                if (!getAuthData().accessToken) {
+                    const loggedIn = await window.app.tryTelegramLogin();
+                    if (!loggedIn && window.isTelegramMiniApp?.()) {
+                        console.warn('Telegram login skipped or failed; catalog still available');
+                    }
+                }
+                await window.app.syncLegacyLocalStorageToBackend();
+            } catch (err) {
+                console.warn('auth bootstrap', err);
+            }
         }
 
         /** Предупреждение, если API на SQLite (данные пропадают после рестарта). */
@@ -9701,20 +9797,16 @@
                 window.syncTelegramMiniAppUi();
             }
             void (async () => {
+                setAppDataStatus('loading', 'Загрузка данных с сервера…');
                 try {
                     const awake = await wakeApiServer();
                     if (!awake) {
                         throw new Error('Сервер не отвечает');
                     }
                     await warnIfApiStorageNotPersistent();
-                    if (window.app) {
-                        await window.app.restoreAuthSession();
-                        if (!getAuthData().accessToken) {
-                            await window.app.tryTelegramLogin();
-                        }
-                        await window.app.syncLegacyLocalStorageToBackend();
-                    }
+                    // Сначала каталог с API — не ждём Telegram-авторизацию (иначе пустой экран при сбое login).
                     await refreshCatalogFromApi({ initial: true, skipWake: true });
+                    void runTelegramAuthBootstrap();
                     void ensurePhotosLoadedFromApi().then(() => {
                         window.app?.renderPhotoAlbum?.();
                     }).catch((err) => console.warn('background photos prefetch', err));
@@ -9723,6 +9815,11 @@
                     }
                 } catch (err) {
                     console.error('API load error', err);
+                    setAppDataStatus(
+                        'error',
+                        `Не удалось загрузить данные: ${err.message || 'ошибка сети'}. Откройте бота заново через /start или нажмите «Повторить».`,
+                        { showRetry: true }
+                    );
                     window.app?.showToast?.(
                         'Не удалось загрузить данные. Проверьте сеть и откройте приложение ещё раз.',
                         true
