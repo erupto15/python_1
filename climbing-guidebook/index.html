@@ -2206,12 +2206,12 @@
             gap: 8px;
         }
 
-        .climb-detail-log-cta {
-            margin-top: 12px;
-        }
-
-        .climb-detail-log-cta .btn {
+        #climbDetailDialog .dialog-footer .climb-detail-open-log-btn {
+            flex: 1 1 100%;
             width: 100%;
+            justify-content: center;
+            font-size: 16px;
+            padding: 14px 18px;
         }
 
         .climb-community-actions .form-input {
@@ -3409,7 +3409,6 @@
                     <div class="form-label" style="margin-bottom:6px;">Сообщество</div>
                     <div class="climb-community-stats" id="climbDetailCommunityStats">Загрузка…</div>
                     <div class="climb-community-sends" id="climbDetailCommunitySends"></div>
-                    <div id="climbDetailLogCta" class="climb-detail-log-cta hidden"></div>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <div class="form-label">Описание</div>
@@ -3421,9 +3420,9 @@
                 </div>
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
-                <button type="button" class="climb-tg-log-proxy" id="climbDetailOpenLogBtn" tabindex="-1" aria-hidden="true">Пролаз</button>
                 <button type="button" class="btn btn-ghost" id="climbDetailCloseBtn" data-close-dialog="climbDetailDialog"><i class="fas fa-times"></i> Закрыть</button>
                 <button type="button" class="btn btn-primary" id="climbDetailMarkupBtn"><i class="fas fa-draw-polygon"></i> Схема на фото</button>
+                <button type="button" class="btn btn-primary climb-detail-open-log-btn hidden" id="climbDetailOpenLogBtn"><i class="fas fa-check"></i> Пролаз</button>
             </div>
         </div>
     </div>
@@ -7454,11 +7453,6 @@
                 document.getElementById('climbDetailOpenLogBtn')?.addEventListener('click', () => {
                     void this.openClimbLogDialog();
                 });
-                document.getElementById('climbDetailLogCta')?.addEventListener('click', (e) => {
-                    if (e.target.closest('[data-open-climb-log]')) {
-                        void this.openClimbLogDialog();
-                    }
-                });
                 document.getElementById('climbTgLogConfirmBtn')?.addEventListener('click', () => {
                     void this.logClimbAscentFromDetail('send').catch((err) => this.showToast(err.message, true));
                 });
@@ -8207,11 +8201,19 @@
                 }
 
                 void this.refreshClimbDetailViewPanel(climbType, idStr).then(() => {
+                    this.syncClimbDetailFooterActions();
                     this.refreshClimbDetailMarkupOverlayIfOpen();
                     if (typeof window.syncTelegramWebAppButtons === 'function') {
                         window.syncTelegramWebAppButtons('climbDetailDialog');
                     }
                 });
+            }
+
+            syncClimbDetailFooterActions() {
+                const logBtn = document.getElementById('climbDetailOpenLogBtn');
+                if (!logBtn) return;
+                const canLog = this.isLoggedIn() && this.isTelegramUser();
+                logBtn.classList.toggle('hidden', !canLog);
             }
 
             openClimbMarkupView(climbType, climbId) {
@@ -9240,15 +9242,10 @@
                 const panel = document.getElementById('climbDetailCommunity');
                 const statsEl = document.getElementById('climbDetailCommunityStats');
                 const sendsEl = document.getElementById('climbDetailCommunitySends');
-                const logCta = document.getElementById('climbDetailLogCta');
                 if (!panel || !statsEl) return;
                 panel.classList.remove('hidden');
                 statsEl.textContent = 'Загрузка…';
                 if (sendsEl) sendsEl.innerHTML = '';
-                if (logCta) {
-                    logCta.classList.add('hidden');
-                    logCta.innerHTML = '';
-                }
                 try {
                     const stats = await this.fetchClimbCommunityStats(climbType, climbId);
                     this._climbCommunityStats = stats;
@@ -9258,14 +9255,7 @@
                         sendsEl.innerHTML = this.buildClimbCommunitySendsHtml(stats);
                         this.bindClimbSendsPanel(sendsEl);
                     }
-
-                    if (!logCta) return;
-                    logCta.classList.remove('hidden');
-                    if (!this.isLoggedIn() || !this.isTelegramUser()) {
-                        logCta.innerHTML = '<span style="color:var(--light-text);font-size:14px;">Войдите через Telegram Mini App, чтобы логировать пролазы.</span>';
-                        return;
-                    }
-                    logCta.innerHTML = '<button type="button" class="btn btn-primary" data-open-climb-log><i class="fas fa-check"></i> Пролаз</button>';
+                    this.syncClimbDetailFooterActions();
                 } catch (err) {
                     statsEl.textContent = 'Не удалось загрузить статистику';
                     console.warn('community stats', err);
