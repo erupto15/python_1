@@ -1210,11 +1210,143 @@
         .climb-detail-photo-mount.photo-preview-with-markup img {
             width: 100%;
             height: auto !important;
-            max-height: min(58vh, 520px);
+            max-height: min(82vh, 720px);
             object-fit: contain;
             display: block;
             visibility: visible;
             opacity: 1;
+        }
+
+        .climb-detail-image-wrap {
+            position: relative;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            background: #0d0d0d;
+        }
+
+        .climb-detail-photo-mount.climb-detail-photo-swipe {
+            width: 100%;
+            min-height: min(48vh, 380px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: pan-y;
+            cursor: zoom-in;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .climb-detail-photo-counter {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 8;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.62);
+            pointer-events: none;
+        }
+
+        .climb-detail-photo-swipe-hint {
+            margin: 0;
+            padding: 8px 12px 10px;
+            font-size: 12px;
+            line-height: 1.35;
+            text-align: center;
+            color: var(--light-text);
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .climb-photo-viewer {
+            position: fixed;
+            inset: 0;
+            z-index: 1105;
+            display: flex;
+            flex-direction: column;
+            background: rgba(0, 0, 0, 0.94);
+            touch-action: none;
+        }
+
+        .climb-photo-viewer.hidden {
+            display: none !important;
+        }
+
+        .climb-photo-viewer-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .climb-photo-viewer-title {
+            flex: 1;
+            min-width: 0;
+            font-size: 15px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .climb-photo-viewer-counter {
+            font-size: 13px;
+            opacity: 0.88;
+            flex-shrink: 0;
+        }
+
+        .climb-photo-viewer-close {
+            flex-shrink: 0;
+            border: 0;
+            background: rgba(255, 255, 255, 0.14);
+            color: #fff;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .climb-photo-viewer-stage {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 0;
+            touch-action: pan-y;
+        }
+
+        .climb-photo-viewer-mount {
+            width: 100%;
+            height: 100%;
+            max-height: calc(100dvh - 120px - env(safe-area-inset-bottom, 0px));
+            min-height: min(70vh, 520px);
+            border: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .climb-photo-viewer-mount img {
+            width: 100%;
+            height: auto;
+            max-height: calc(100dvh - 120px - env(safe-area-inset-bottom, 0px));
+            object-fit: contain;
+            display: block;
+        }
+
+        .climb-photo-viewer-footer {
+            flex-shrink: 0;
+            padding: 8px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+            text-align: center;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.72);
         }
 
         /* Карточка трассы/боулдера: сохранение после описания, визуально отделено */
@@ -1292,11 +1424,16 @@
 
         #photoAlbum > .photo-album-tile-wrap.photo-preview-with-markup {
             width: 100%;
-            max-width: 220px;
+            max-width: 240px;
             margin-inline: auto;
             height: auto;
             min-height: 0;
-            aspect-ratio: 1;
+            aspect-ratio: 4 / 3;
+        }
+
+        #photoAlbum > .photo-album-tile-wrap .photo-album-open-btn img {
+            object-fit: contain;
+            background: #0d0d0d;
         }
 
         #photoAlbum > .photo-album-tile-wrap .photo-album-caption {
@@ -3442,10 +3579,12 @@
                 <div id="climbDetailNoPhoto" class="hidden" style="padding:16px;text-align:center;color:var(--light-text);border:1px dashed var(--border-color);border-radius:8px;margin-bottom:12px;">
                     Фото ещё не добавлено — его можно прикрепить при редактировании или во вкладке «Фотоальбом».
                 </div>
-                <div id="climbDetailImageWrap" class="hidden" style="border-radius:8px;overflow:hidden;border:1px solid var(--border-color);margin-bottom:12px;background:#0d0d0d;">
-                    <div id="climbDetailPhotoMount" class="photo-preview-with-markup climb-detail-photo-mount">
-                        <img id="climbDetailImage" src="" alt="" style="width:100%;max-height:min(58vh,520px);object-fit:contain;display:block;">
+                <div id="climbDetailImageWrap" class="climb-detail-image-wrap hidden">
+                    <div id="climbDetailPhotoCounter" class="climb-detail-photo-counter hidden" aria-hidden="true"></div>
+                    <div id="climbDetailPhotoMount" class="photo-preview-with-markup climb-detail-photo-mount climb-detail-photo-swipe" role="button" tabindex="0" aria-label="Фото: свайп для переключения, нажатие для полного экрана">
+                        <img id="climbDetailImage" src="" alt="">
                     </div>
+                    <p id="climbDetailPhotoSwipeHint" class="climb-detail-photo-swipe-hint hidden">Свайп влево/вправо · нажмите для полного экрана</p>
                 </div>
                 <div id="climbDetailCommunity" class="climb-community-panel hidden">
                     <div class="form-label" style="margin-bottom:6px;">Сообщество</div>
@@ -3467,6 +3606,21 @@
                 <button type="button" class="btn btn-primary climb-detail-open-log-btn hidden" id="climbDetailOpenLogBtn"><i class="fas fa-check"></i> Пролаз</button>
             </div>
         </div>
+    </div>
+
+    <!-- Полноэкранный просмотр фото трассы / боулдера -->
+    <div class="climb-photo-viewer hidden" id="climbPhotoViewer" aria-hidden="true">
+        <div class="climb-photo-viewer-header">
+            <div class="climb-photo-viewer-title" id="climbPhotoViewerTitle">—</div>
+            <span class="climb-photo-viewer-counter" id="climbPhotoViewerCounter"></span>
+            <button type="button" class="climb-photo-viewer-close" id="closeClimbPhotoViewerBtn" aria-label="Закрыть просмотр"><i class="fas fa-times" aria-hidden="true"></i></button>
+        </div>
+        <div class="climb-photo-viewer-stage" id="climbPhotoViewerStage">
+            <div id="climbPhotoViewerMount" class="photo-preview-with-markup climb-detail-photo-mount climb-photo-viewer-mount climb-detail-photo-swipe" role="button" tabindex="0" aria-label="Фото: свайп для переключения">
+                <img id="climbPhotoViewerImage" src="" alt="">
+            </div>
+        </div>
+        <p class="climb-photo-viewer-footer">Свайп влево/вправо между фото · нажмите, чтобы закрыть</p>
     </div>
 
     <!-- Логирование пролаза (второй шаг после просмотра трассы) -->
@@ -5028,6 +5182,65 @@
             return withImage.find((p) => p.markup) || withImage[0] || photos[0];
         }
 
+        /** Тап по фото и горизонтальный свайп (touch / pointer). */
+        function bindPhotoTapAndSwipe(element, handlers) {
+            if (!element || element._photoTapSwipeBound) return;
+            element._photoTapSwipeBound = true;
+            const threshold = handlers.threshold ?? 48;
+            const tapMaxMove = handlers.tapMaxMove ?? 14;
+            let startX = 0;
+            let startY = 0;
+            let tracking = false;
+            let moved = false;
+
+            const pointFrom = (e) => {
+                const t = e.changedTouches?.[0] || e.touches?.[0] || e;
+                return { x: t.clientX, y: t.clientY };
+            };
+
+            const onStart = (e) => {
+                if (e.pointerType === 'mouse' && e.button !== 0) return;
+                const p = pointFrom(e);
+                startX = p.x;
+                startY = p.y;
+                tracking = true;
+                moved = false;
+            };
+
+            const onMove = (e) => {
+                if (!tracking) return;
+                const p = pointFrom(e);
+                if (Math.abs(p.x - startX) > tapMaxMove || Math.abs(p.y - startY) > tapMaxMove) {
+                    moved = true;
+                }
+            };
+
+            const onEnd = (e) => {
+                if (!tracking) return;
+                tracking = false;
+                const p = pointFrom(e);
+                const dx = p.x - startX;
+                const dy = p.y - startY;
+                if (!moved && Math.abs(dx) <= tapMaxMove && Math.abs(dy) <= tapMaxMove) {
+                    handlers.onTap?.();
+                    return;
+                }
+                if (Math.abs(dx) < threshold || Math.abs(dx) < Math.abs(dy) * 1.15) return;
+                if (dx < 0) handlers.onSwipeLeft?.();
+                else handlers.onSwipeRight?.();
+            };
+
+            element.addEventListener('touchstart', onStart, { passive: true });
+            element.addEventListener('touchmove', onMove, { passive: true });
+            element.addEventListener('touchend', onEnd, { passive: true });
+            element.addEventListener('pointerdown', onStart);
+            element.addEventListener('pointermove', onMove);
+            element.addEventListener('pointerup', onEnd);
+            element.addEventListener('pointercancel', () => {
+                tracking = false;
+            });
+        }
+
         async function fetchPhotosBatched(routes, boulders) {
             const tasks = [];
             if (!APP_BOULDER_ONLY) {
@@ -5512,6 +5725,8 @@
                 /** Форма входа админа — только после 4 тапов по логотипу в этой вкладке. */
                 this._adminFormUnlocked = false;
                 this._climbDetailImgGen = 0;
+                this._photoGallery = null;
+                this._photoAlbumNavList = [];
                 this.map = null;
                 this.currentPhotoPreview = null;
                 this.quickRoutePhotoData = null;
@@ -7421,6 +7636,14 @@
                         this.schedulePhotoMarkupOverlay(tile, photo.markup, photo.type);
                     }
                 });
+
+                this._photoAlbumNavList = filteredPhotos
+                    .filter(photoHasDisplayImage)
+                    .map((p) => ({
+                        photoId: String(p.id),
+                        climbType: p.type,
+                        climbId: String(p.climbId)
+                    }));
             }
 
             setupTabSwitching() {
@@ -7695,6 +7918,8 @@
                 document.getElementById('climbDetailSavePhotoBtn')?.addEventListener('click', () => {
                     void this.saveClimbDetailPhotoFromUserGesture();
                 });
+                this.setupClimbPhotoViewerListeners();
+
                 document.getElementById('climbDetailOpenLogBtn')?.addEventListener('click', () => {
                     void this.openClimbLogDialog();
                 });
@@ -7725,7 +7950,10 @@
                         e.preventDefault();
                         const ph = getPhotos().find((p) => String(p.id) === String(tile.dataset.openPhotoId));
                         if (ph && ph.climbId != null && ph.climbId !== '') {
-                            this.showClimbDetailDialog(ph.type, ph.climbId, { preferPhotoId: ph.id });
+                            this.showClimbDetailDialog(ph.type, ph.climbId, {
+                                preferPhotoId: ph.id,
+                                albumNav: true
+                            });
                         } else {
                             this.openPhotoMarkupView(tile.dataset.openPhotoId);
                         }
@@ -7736,6 +7964,22 @@
                     if (this.map) this.map.invalidateSize({ animate: false });
                     if (window.app && typeof window.app.refreshClimbDetailMarkupOverlayIfOpen === 'function') {
                         window.app.refreshClimbDetailMarkupOverlayIfOpen();
+                    }
+                    const viewerMount = document.getElementById('climbPhotoViewerMount');
+                    const viewer = document.getElementById('climbPhotoViewer');
+                    if (
+                        viewer &&
+                        !viewer.classList.contains('hidden') &&
+                        window.app?._photoGallery?.entries?.length
+                    ) {
+                        const entry = window.app._photoGallery.entries[window.app._photoGallery.index];
+                        if (entry && viewerMount) {
+                            window.app.schedulePhotoMarkupOverlay(
+                                viewerMount,
+                                entry.photo.markup || null,
+                                entry.climbType
+                            );
+                        }
                     }
                 });
             }
@@ -7781,10 +8025,12 @@
                     if (formEl) formEl.innerHTML = '';
                 }
                 if (dialogId === 'climbDetailDialog') {
+                    this.closeClimbPhotoViewer();
                     const logDlg = document.getElementById('climbLogDialog');
                     if (logDlg && !logDlg.classList.contains('hidden')) {
                         this.hideDialog('climbLogDialog');
                     }
+                    this._photoGallery = null;
                     this._climbDetailImgGen = (this._climbDetailImgGen || 0) + 1;
                     const detailType = this._climbDetailContext?.climbType || 'route';
                     this._climbDetailContext = null;
@@ -8159,11 +8405,16 @@
                 if (!dlg || dlg.classList.contains('hidden') || !ctx) return;
                 const mount = document.getElementById('climbDetailPhotoMount');
                 if (!mount) return;
-                const idStr = String(ctx.climbId);
-                const photos = getPhotos().filter(
-                    (p) => p.type === ctx.climbType && String(p.climbId) === idStr
-                );
-                const photo = pickClimbDetailPhoto(photos, ctx.shownPhotoId || ctx.photoId);
+                const g = this._photoGallery;
+                const fromGallery = g?.entries?.[g.index]?.photo;
+                let photo = fromGallery;
+                if (!photo) {
+                    const idStr = String(ctx.climbId);
+                    const photos = getPhotos().filter(
+                        (p) => p.type === ctx.climbType && String(p.climbId) === idStr
+                    );
+                    photo = pickClimbDetailPhoto(photos, ctx.shownPhotoId || ctx.photoId);
+                }
                 this.schedulePhotoMarkupOverlay(mount, photo?.markup || null, ctx.climbType);
             }
 
@@ -8303,6 +8554,280 @@
                 }
             }
 
+            buildPhotoGalleryEntries(climbType, climbId, climbPhotos, opts = {}) {
+                if (opts.albumNav && this._photoAlbumNavList?.length) {
+                    return this._photoAlbumNavList
+                        .map((nav) => {
+                            const photo = getPhotos().find(
+                                (p) =>
+                                    String(p.id) === String(nav.photoId) &&
+                                    photoHasDisplayImage(p)
+                            );
+                            return photo
+                                ? {
+                                      photo,
+                                      climbType: nav.climbType,
+                                      climbId: String(nav.climbId)
+                                  }
+                                : null;
+                        })
+                        .filter(Boolean);
+                }
+                return (climbPhotos || [])
+                    .filter(photoHasDisplayImage)
+                    .map((photo) => ({
+                        photo,
+                        climbType,
+                        climbId: String(climbId)
+                    }));
+            }
+
+            initPhotoGallery(entries, startPhotoId, source) {
+                if (!entries?.length) return null;
+                let index = 0;
+                if (startPhotoId != null) {
+                    const i = entries.findIndex(
+                        (e) => String(e.photo.id) === String(startPhotoId)
+                    );
+                    if (i >= 0) index = i;
+                }
+                return { entries, index, source: source || 'climb' };
+            }
+
+            updateClimbDetailPhotoCounter() {
+                const g = this._photoGallery;
+                const counter = document.getElementById('climbDetailPhotoCounter');
+                const hint = document.getElementById('climbDetailPhotoSwipeHint');
+                const total = g?.entries?.length || 0;
+                const multi = total > 1;
+                if (counter) {
+                    counter.classList.toggle('hidden', !multi);
+                    counter.setAttribute('aria-hidden', multi ? 'false' : 'true');
+                    counter.textContent = multi ? `${g.index + 1} / ${total}` : '';
+                }
+                if (hint) hint.classList.toggle('hidden', !multi);
+            }
+
+            updatePhotoViewerChrome() {
+                const g = this._photoGallery;
+                const entry = g?.entries?.[g.index];
+                const titleEl = document.getElementById('climbPhotoViewerTitle');
+                const counterEl = document.getElementById('climbPhotoViewerCounter');
+                const climb = entry ? this.getPhotoClimbRecord(entry.photo) : null;
+                if (titleEl) {
+                    titleEl.textContent =
+                        climb?.name || this._climbDetailContext?.climbName || '—';
+                }
+                const total = g?.entries?.length || 0;
+                if (counterEl) {
+                    counterEl.textContent = total > 1 ? `${g.index + 1} / ${total}` : '';
+                }
+            }
+
+            setupClimbPhotoViewerListeners() {
+                document
+                    .getElementById('closeClimbPhotoViewerBtn')
+                    ?.addEventListener('click', () => this.closeClimbPhotoViewer());
+
+                const bindMount = (mount) => {
+                    if (!mount) return;
+                    bindPhotoTapAndSwipe(mount, {
+                        onTap: () => {
+                            const viewer = document.getElementById('climbPhotoViewer');
+                            if (viewer && !viewer.classList.contains('hidden')) {
+                                this.closeClimbPhotoViewer();
+                            } else {
+                                this.openClimbPhotoViewer();
+                            }
+                        },
+                        onSwipeLeft: () => this.navigatePhotoGallery(1),
+                        onSwipeRight: () => this.navigatePhotoGallery(-1)
+                    });
+                };
+                bindMount(document.getElementById('climbDetailPhotoMount'));
+                bindMount(document.getElementById('climbPhotoViewerMount'));
+            }
+
+            openClimbPhotoViewer() {
+                const g = this._photoGallery;
+                if (!g?.entries?.length) return;
+                const viewer = document.getElementById('climbPhotoViewer');
+                if (!viewer) return;
+                const entry = g.entries[g.index];
+                viewer.classList.remove('hidden');
+                viewer.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('dialog-screen-open');
+                this.updatePhotoViewerChrome();
+                this.showClimbDetailPhotoInMount(
+                    'viewer',
+                    entry.photo,
+                    this._climbDetailContext?.climbName || ''
+                );
+            }
+
+            closeClimbPhotoViewer() {
+                const viewer = document.getElementById('climbPhotoViewer');
+                if (!viewer || viewer.classList.contains('hidden')) return;
+                viewer.classList.add('hidden');
+                viewer.setAttribute('aria-hidden', 'true');
+                const img = document.getElementById('climbPhotoViewerImage');
+                if (img) {
+                    img.onload = null;
+                    img.onerror = null;
+                    img.removeAttribute('src');
+                }
+                const mount = document.getElementById('climbPhotoViewerMount');
+                if (mount) {
+                    this.applyPhotoPreviewMarkupOverlay(
+                        mount,
+                        null,
+                        this._climbDetailContext?.climbType || 'route'
+                    );
+                }
+                const detailHidden = document
+                    .getElementById('climbDetailDialog')
+                    ?.classList.contains('hidden');
+                if (detailHidden) {
+                    document.body.classList.remove('dialog-screen-open');
+                } else {
+                    this.syncBodyDialogScreenLock();
+                }
+            }
+
+            navigatePhotoGallery(delta) {
+                const g = this._photoGallery;
+                if (!g?.entries?.length || g.entries.length < 2) return;
+                const n = g.entries.length;
+                g.index = (g.index + delta + n) % n;
+                void this.applyPhotoGalleryIndex(g.index);
+            }
+
+            showClimbDetailPhotoInMount(which, photo, climbName) {
+                const mountId =
+                    which === 'viewer' ? 'climbPhotoViewerMount' : 'climbDetailPhotoMount';
+                const mount = document.getElementById(mountId);
+                const img =
+                    which === 'viewer'
+                        ? document.getElementById('climbPhotoViewerImage') ||
+                          (() => {
+                              const el = document.createElement('img');
+                              el.id = 'climbPhotoViewerImage';
+                              mount?.insertBefore(el, mount.firstChild);
+                              return el;
+                          })()
+                        : this.ensureClimbDetailImageElement();
+                if (!img || !mount || !photoHasDisplayImage(photo)) return;
+                const climbType =
+                    this._climbDetailContext?.climbType || photo.type || 'route';
+                const applyMarkup = () => {
+                    this.schedulePhotoMarkupOverlay(mount, photo.markup || null, climbType);
+                };
+                this._setClimbDetailImageSrc(img, photo, climbName, applyMarkup);
+            }
+
+            async applyPhotoGalleryIndex(index) {
+                const g = this._photoGallery;
+                if (!g?.entries?.[index]) return;
+                g.index = index;
+                const entry = g.entries[index];
+                const dlg = document.getElementById('climbDetailDialog');
+                const detailOpen = dlg && !dlg.classList.contains('hidden');
+
+                if (detailOpen) {
+                    const ctx = this._climbDetailContext;
+                    const sameClimb =
+                        ctx &&
+                        ctx.climbType === entry.climbType &&
+                        String(ctx.climbId) === String(entry.climbId);
+                    if (!sameClimb) {
+                        await this.updateClimbDetailForGalleryItem(entry);
+                    } else {
+                        if (ctx) ctx.shownPhotoId = String(entry.photo.id);
+                        this.showClimbDetailPhotoInMount(
+                            'detail',
+                            entry.photo,
+                            ctx?.climbName || ''
+                        );
+                        this.refreshClimbDetailMarkupOverlayIfOpen();
+                    }
+                }
+
+                const viewer = document.getElementById('climbPhotoViewer');
+                if (viewer && !viewer.classList.contains('hidden')) {
+                    this.updatePhotoViewerChrome();
+                    this.showClimbDetailPhotoInMount(
+                        'viewer',
+                        entry.photo,
+                        this._climbDetailContext?.climbName || ''
+                    );
+                }
+                this.updateClimbDetailPhotoCounter();
+            }
+
+            async updateClimbDetailForGalleryItem(entry) {
+                const { photo, climbType, climbId } = entry;
+                const idStr = String(climbId);
+                const climb =
+                    climbType === 'route'
+                        ? getRoutes().find((r) => String(r.id) === idStr)
+                        : getBoulders().find((b) => String(b.id) === idStr);
+                if (!climb) return;
+
+                this._climbDetailContext = {
+                    climbType,
+                    climbId: idStr,
+                    photoId: String(photo.id),
+                    shownPhotoId: String(photo.id),
+                    climbName: climb.name || ''
+                };
+
+                const titleEl = document.getElementById('climbDetailTitle');
+                const metaEl = document.getElementById('climbDetailMeta');
+                const descEl = document.getElementById('climbDetailDescription');
+                if (titleEl) titleEl.textContent = climb.name || '—';
+                const structLabel =
+                    climb.sectorId != null ? this.getStructureLabel(climb.sectorId) : '';
+                const structHtml = structLabel
+                    ? `<br><span style="opacity:.92;font-size:13px">${this.escapeHtml(structLabel)}</span>`
+                    : '';
+                const grade =
+                    climb.grade != null && climb.grade !== ''
+                        ? this.escapeHtml(String(climb.grade))
+                        : '—';
+                const kindRu = climbType === 'route' ? 'Трасса' : 'Боулдеринг';
+                let extraBits = '';
+                if (climbType === 'route') {
+                    if (climb.length != null && climb.length !== '') {
+                        extraBits += ` · ${this.escapeHtml(String(climb.length))} м`;
+                    }
+                    if (climb.bolts != null && climb.bolts !== '') {
+                        extraBits += ` · ${this.escapeHtml(String(climb.bolts))} болт.`;
+                    }
+                } else {
+                    if (climb.height != null && climb.height !== '') {
+                        extraBits += ` · выс. ${this.escapeHtml(String(climb.height))} м`;
+                    }
+                    if (climb.category) {
+                        extraBits += ` · ${this.escapeHtml(String(climb.category))}`;
+                    }
+                }
+                if (metaEl) {
+                    metaEl.innerHTML = `${kindRu} · Категория: <strong>${grade}</strong>${extraBits}${structHtml}`;
+                }
+                const descRaw = climb.description != null ? String(climb.description).trim() : '';
+                if (descEl) {
+                    descEl.textContent = descRaw || 'Описание пока не указано.';
+                }
+
+                const wrap = document.getElementById('climbDetailImageWrap');
+                wrap?.classList.remove('hidden');
+                document.getElementById('climbDetailNoPhoto')?.classList.add('hidden');
+                this.showClimbDetailPhotoInMount('detail', photo, climb.name || '');
+                void this.refreshClimbDetailViewPanel(climbType, idStr).then(() => {
+                    this.syncClimbDetailFooterActions();
+                });
+            }
+
             ensureClimbDetailImageElement() {
                 const mount = document.getElementById('climbDetailPhotoMount');
                 if (!mount) return null;
@@ -8310,10 +8835,6 @@
                 if (!img || !mount.contains(img)) {
                     img = document.createElement('img');
                     img.id = 'climbDetailImage';
-                    img.style.width = '100%';
-                    img.style.maxHeight = 'min(58vh, 520px)';
-                    img.style.objectFit = 'contain';
-                    img.style.display = 'block';
                     mount.insertBefore(img, mount.firstChild);
                 }
                 return img;
@@ -8364,6 +8885,15 @@
                     shownPhotoId: photo && photo.id != null && String(photo.id) !== '' ? String(photo.id) : '',
                     climbName: climb.name || ''
                 };
+
+                const galleryEntries = this.buildPhotoGalleryEntries(climbType, idStr, photos, {
+                    albumNav: !!opts.albumNav
+                });
+                this._photoGallery = this.initPhotoGallery(
+                    galleryEntries,
+                    photo?.id,
+                    opts.albumNav ? 'album' : 'climb'
+                );
 
                 const titleEl = document.getElementById('climbDetailTitle');
                 const metaEl = document.getElementById('climbDetailMeta');
@@ -8444,6 +8974,7 @@
                     if (mkBtn) mkBtn.style.display = 'none';
                     applyDetailMarkup();
                 }
+                this.updateClimbDetailPhotoCounter();
 
                 void this.refreshClimbDetailViewPanel(climbType, idStr).then(() => {
                     this.syncClimbDetailFooterActions();
