@@ -4017,7 +4017,9 @@
             const c = typeof window.CLIMBING_API_BASE_URL === 'string' ? window.CLIMBING_API_BASE_URL.trim() : '';
             if (c) return c.replace(/\/$/, '');
             if (window.location.protocol === 'file:') return 'http://127.0.0.1:8000';
-            if (window.location.port && window.location.port !== '8000') return 'http://127.0.0.1:8000';
+            const host = (window.location.hostname || '').toLowerCase();
+            const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+            if (isLocalHost && window.location.port !== '8000') return 'http://127.0.0.1:8000';
             return '';
         })();
         const AUTH_STORAGE_KEY = 'climbingApp_auth';
@@ -5731,7 +5733,7 @@
                     return detail || 'Вход разрешён только для учётной записи администратора';
                 }
                 if (loginRes.status === 401) {
-                    return 'Неверный логин или пароль. Логин: admin (без пробелов). Пароль вводите вручную, без автозаполнения.';
+                    return 'Неверный логин или пароль. Логин: admin. Пароль — как в ADMIN_PASSWORD (латиница, без пробелов в начале/конце).';
                 }
                 return detail || `Ошибка входа (HTTP ${loginRes.status})`;
             }
@@ -5874,7 +5876,7 @@
             setupAuthEventListeners() {
                 document.getElementById('loginBtn')?.addEventListener('click', async () => {
                     const username = (document.getElementById('loginUsername')?.value || '').trim().toLowerCase();
-                    const password = (document.getElementById('loginPassword')?.value || '').trim();
+                    const password = document.getElementById('loginPassword')?.value || '';
                     if (!username || !password) {
                         this.showToast('Введите логин и пароль', true);
                         return;
@@ -5919,7 +5921,12 @@
                         this.refreshListsAfterRoleChange();
                         this.showToast(`Вход выполнен: ${me.display_name || me.email}`);
                     } catch (err) {
-                        this.showToast(err.message || 'Ошибка входа', true);
+                        const msg = err?.message || '';
+                        if (!msg || msg === 'Failed to fetch' || msg.includes('NetworkError')) {
+                            this.showToast('Нет связи с сервером. Закройте Mini App и откройте снова через /start.', true);
+                        } else {
+                            this.showToast(msg || 'Ошибка входа', true);
+                        }
                     } finally {
                         if (loginBtn) loginBtn.disabled = false;
                     }
