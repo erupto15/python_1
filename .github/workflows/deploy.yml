@@ -125,7 +125,18 @@ jobs:
         run: |
           set -euo pipefail
           BASE="${PUBLIC_URL:-https://92.246.76.142.sslip.io}"
-          BODY="$(curl -fsS --max-time 30 "${BASE%/}/health")"
+          BODY=""
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if BODY="$(curl -fsS --max-time 20 "${BASE%/}/health" 2>/dev/null)"; then
+              break
+            fi
+            echo "health check attempt ${attempt}/10 failed, retry in 3s…" >&2
+            sleep 3
+          done
+          if [ -z "$BODY" ]; then
+            echo "API /health did not become ready after deploy" >&2
+            exit 1
+          fi
           echo "$BODY"
           export HEALTH_JSON="$BODY"
           python3 - <<'PY'
