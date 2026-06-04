@@ -155,7 +155,7 @@ jobs:
           # shellcheck disable=SC1091
           source /etc/guide-rus/backend.env
           set +a
-          cd climbing-guidebook/backend
+          cd "$APP_DIR/climbing-guidebook/backend"
           . .venv/bin/activate
           python3 - <<'PY'
           from sqlalchemy import func
