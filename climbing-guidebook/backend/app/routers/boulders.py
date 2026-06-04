@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app import schemas
 from app.db import get_db
 from app.deps import assert_admin, assert_owner, get_current_user
-from app.models import Boulder, User
+from app.models import Boulder, Photo, User
 
 router = APIRouter(prefix="/boulders", tags=["boulders"])
 
@@ -48,6 +48,18 @@ def get_boulder(boulder_id: int, db: Session = Depends(get_db)) -> Boulder:
     if not b or b.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Boulder not found")
     return b
+
+
+@router.get("/{boulder_id}/photos", response_model=list[schemas.PhotoRead])
+def list_boulder_photos_legacy(boulder_id: int, db: Session = Depends(get_db)) -> list[Photo]:
+    if not db.get(Boulder, boulder_id):
+        return []
+    return (
+        db.query(Photo)
+        .filter(Photo.climb_type == "boulder", Photo.boulder_id == boulder_id)
+        .order_by(Photo.id)
+        .all()
+    )
 
 
 @router.patch("/{boulder_id}", response_model=schemas.BoulderRead)

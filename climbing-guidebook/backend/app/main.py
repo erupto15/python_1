@@ -19,6 +19,10 @@ from app.seed import bootstrap_catalog
 
 FRONTEND_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_INDEX = FRONTEND_ROOT / "index.html"
+FRONTEND_HEADERS = {
+    "Cache-Control": "no-store, max-age=0",
+    "Pragma": "no-cache",
+}
 
 
 @asynccontextmanager
@@ -96,11 +100,11 @@ def health() -> dict[str, str | bool | int | dict[str, int]]:
 
 @app.get("/", include_in_schema=False)
 def frontend_index() -> FileResponse:
-    return FileResponse(FRONTEND_INDEX)
+    return FileResponse(FRONTEND_INDEX, headers=FRONTEND_HEADERS)
 
 
 @app.get("/{path:path}", include_in_schema=False)
 def frontend_fallback(path: str) -> FileResponse:
     if path.startswith("api/"):
         raise HTTPException(status_code=404, detail="Not found")
-    return FileResponse(FRONTEND_INDEX)
+    return FileResponse(FRONTEND_INDEX, headers=FRONTEND_HEADERS)

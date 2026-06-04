@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app import schemas
 from app.db import get_db
 from app.deps import assert_admin, assert_owner, get_current_user
-from app.models import Route, User
+from app.models import Photo, Route, User
 
 router = APIRouter(prefix="/routes", tags=["routes"])
 
@@ -48,6 +48,18 @@ def get_route(route_id: int, db: Session = Depends(get_db)) -> Route:
     if not route or route.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Route not found")
     return route
+
+
+@router.get("/{route_id}/photos", response_model=list[schemas.PhotoRead])
+def list_route_photos_legacy(route_id: int, db: Session = Depends(get_db)) -> list[Photo]:
+    if not db.get(Route, route_id):
+        return []
+    return (
+        db.query(Photo)
+        .filter(Photo.climb_type == "route", Photo.route_id == route_id)
+        .order_by(Photo.id)
+        .all()
+    )
 
 
 @router.patch("/{route_id}", response_model=schemas.RouteRead)

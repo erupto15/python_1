@@ -42,6 +42,11 @@ def _resolve_climb_metadata(
     return route, boulder, climb_name, climb_category
 
 
+@router.get("", response_model=list[schemas.PhotoRead])
+def list_photos(db: Session = Depends(get_db)) -> list[Photo]:
+    return db.query(Photo).order_by(Photo.id).all()
+
+
 @router.get("/by-route/{route_id}", response_model=list[schemas.PhotoRead])
 def list_photos_for_route(route_id: int, db: Session = Depends(get_db)) -> list[Photo]:
     if not db.get(Route, route_id):

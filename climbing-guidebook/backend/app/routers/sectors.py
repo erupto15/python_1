@@ -9,6 +9,11 @@ from app.models import Area, Sector, User
 router = APIRouter(tags=["sectors"])
 
 
+@router.get("/sectors", response_model=list[schemas.SectorRead])
+def list_all_sectors(db: Session = Depends(get_db)) -> list[Sector]:
+    return db.query(Sector).order_by(Sector.id).all()
+
+
 @router.get("/areas/{area_id}/sectors", response_model=list[schemas.SectorRead])
 def list_sectors(area_id: int, db: Session = Depends(get_db)) -> list[Sector]:
     if not db.get(Area, area_id):
