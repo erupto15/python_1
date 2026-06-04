@@ -3491,7 +3491,7 @@
         </div>
     </div>
 
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script async src="https://telegram.org/js/telegram-web-app.js" onload="window.initTelegramWebApp && window.initTelegramWebApp()" onerror="console.warn('Telegram WebApp script failed to load')"></script>
     <script>
         /**
          * Telegram Mini App: высота viewport, тема, MainButton / BackButton.
@@ -3618,9 +3618,11 @@
             profileStylesDialog: 'profileStylesDialogCloseBtn'
         };
 
-        (function initTelegramWebApp() {
+        window.initTelegramWebApp = function initTelegramWebApp() {
             const tg = window.Telegram && window.Telegram.WebApp;
             if (!tg) return;
+            if (window.__TG_WEB_APP_INITIALIZED) return;
+            window.__TG_WEB_APP_INITIALIZED = true;
 
             document.documentElement.classList.add('tg-mini-app');
             window.__TG_INIT_DATA = tg.initData || '';
@@ -3794,7 +3796,8 @@
                 });
             }
 
-        })();
+        };
+        window.initTelegramWebApp();
 
         window.getTelegramWebApp = function getTelegramWebApp() {
             return (window.Telegram && window.Telegram.WebApp) || null;
