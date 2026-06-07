@@ -1014,24 +1014,24 @@
             background-color: #5ac8fa;
         }
 
-        /* Диалог разметки линий для трасс */
+        /* Точки линии хода (трасса): мелкие маркеры, отличные от стартовых кружков */
         .line-marker {
             position: absolute;
-            width: 12px;
-            height: 12px;
-            background-color: red;
-            border: 2px solid white;
+            width: 8px;
+            height: 8px;
+            background-color: #d32f2f;
+            border: 1.5px solid rgba(255, 255, 255, 0.92);
             border-radius: 50%;
             transform: translate(-50%, -50%);
             cursor: move;
-            z-index: 10;
-            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+            z-index: 9;
+            box-shadow: none;
         }
 
         .line-marker.active {
-            background-color: #ff0000;
-            border-color: #ffff00;
-            transform: translate(-50%, -50%) scale(1.3);
+            background-color: #b71c1c;
+            border-color: #fff;
+            transform: translate(-50%, -50%) scale(1.25);
         }
 
         .line-number {
@@ -5459,8 +5459,8 @@
         /** Тап vs проведение пальцем/мышью (px). */
         const MARKUP_TAP_MAX_MOVE_PX = 14;
 
-        /** Стиль разметки боулдеринга: тонкая линия, аккуратные пронумерованные кружки (как на топо). */
-        const BOULDER_MARKUP = {
+        /** Общий стиль топо-разметки: тонкая линия, пронумерованные стартовые кружки. */
+        const TOPO_MARKUP = {
             holdDiameterPx: 28,
             holdRadiusPx: 14,
             holdStrokePx: 2,
@@ -5469,15 +5469,17 @@
             holdNumberColor: '#c62828',
             lineStrokePx: 2,
             lineColor: '#d32f2f',
-            hitRadiusPx: 16
+            hitRadiusPx: 16,
+            linePointDiameterPx: 8
         };
+        const BOULDER_MARKUP = TOPO_MARKUP;
 
-        function boulderHoldRadiusNorm(geom) {
+        function topoHoldRadiusNorm(geom) {
             const iw = geom?.iw > 0 ? geom.iw : 400;
-            return BOULDER_MARKUP.holdRadiusPx / iw;
+            return TOPO_MARKUP.holdRadiusPx / iw;
         }
 
-        function appendBoulderLineSvg(svg, NS, linePts) {
+        function appendTopoLineSvg(svg, NS, linePts) {
             if (!linePts || linePts.length < 2) return;
             const pairs = linePts
                 .map((p) => {
@@ -5491,26 +5493,26 @@
             const pl = document.createElementNS(NS, 'polyline');
             pl.setAttribute('points', pairs.join(' '));
             pl.setAttribute('fill', 'none');
-            pl.setAttribute('stroke', BOULDER_MARKUP.lineColor);
-            pl.setAttribute('stroke-width', String(BOULDER_MARKUP.lineStrokePx));
+            pl.setAttribute('stroke', TOPO_MARKUP.lineColor);
+            pl.setAttribute('stroke-width', String(TOPO_MARKUP.lineStrokePx));
             pl.setAttribute('stroke-linecap', 'round');
             pl.setAttribute('stroke-linejoin', 'round');
             pl.setAttribute('vector-effect', 'non-scaling-stroke');
             svg.appendChild(pl);
         }
 
-        function appendBoulderHoldSvg(svg, NS, hold, index, geom) {
+        function appendTopoHoldSvg(svg, NS, hold, index, geom) {
             const nx = Number(hold.x);
             const ny = Number(hold.y);
             if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
-            const r = boulderHoldRadiusNorm(geom);
+            const r = topoHoldRadiusNorm(geom);
             const c = document.createElementNS(NS, 'circle');
             c.setAttribute('cx', String(nx));
             c.setAttribute('cy', String(ny));
             c.setAttribute('r', String(r));
-            c.setAttribute('fill', BOULDER_MARKUP.holdFill);
-            c.setAttribute('stroke', BOULDER_MARKUP.holdStroke);
-            c.setAttribute('stroke-width', String(BOULDER_MARKUP.holdStrokePx));
+            c.setAttribute('fill', TOPO_MARKUP.holdFill);
+            c.setAttribute('stroke', TOPO_MARKUP.holdStroke);
+            c.setAttribute('stroke-width', String(TOPO_MARKUP.holdStrokePx));
             c.setAttribute('vector-effect', 'non-scaling-stroke');
             svg.appendChild(c);
 
@@ -5519,14 +5521,18 @@
             label.setAttribute('y', String(ny));
             label.setAttribute('text-anchor', 'middle');
             label.setAttribute('dominant-baseline', 'central');
-            label.setAttribute('fill', BOULDER_MARKUP.holdNumberColor);
-            label.setAttribute('font-size', `${Math.max(10, Math.round(BOULDER_MARKUP.holdRadiusPx * 0.88))}px`);
+            label.setAttribute('fill', TOPO_MARKUP.holdNumberColor);
+            label.setAttribute('font-size', `${Math.max(10, Math.round(TOPO_MARKUP.holdRadiusPx * 0.88))}px`);
             label.setAttribute('font-weight', '700');
             label.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, sans-serif');
             label.setAttribute('pointer-events', 'none');
             label.textContent = String(index + 1);
             svg.appendChild(label);
         }
+
+        const appendBoulderLineSvg = appendTopoLineSvg;
+        const appendBoulderHoldSvg = appendTopoHoldSvg;
+        const boulderHoldRadiusNorm = topoHoldRadiusNorm;
 
         function appendMarkupLinePoint(points, x, y, force = false) {
             if (!Array.isArray(points)) return false;
@@ -8296,62 +8302,16 @@
 
                 if (!markup) return svg;
 
-                const addPolyline = (points, strokePx = 0.014, color = '#d32f2f') => {
-                    if (!points || points.length < 2) return;
-                    const pairs = points
-                        .map(p => {
-                            const x = Number(p.x);
-                            const y = Number(p.y);
-                            if (Number.isFinite(x) && Number.isFinite(y)) return `${x},${y}`;
-                            return null;
-                        })
-                        .filter(Boolean);
-                    if (pairs.length < 2) return;
-
-                    const pl = document.createElementNS(NS, 'polyline');
-                    pl.setAttribute('points', pairs.join(' '));
-                    pl.setAttribute('fill', 'none');
-                    pl.setAttribute('stroke', color);
-                    pl.setAttribute('stroke-width', String(strokePx));
-                    pl.setAttribute('stroke-linecap', 'round');
-                    pl.setAttribute('stroke-linejoin', 'round');
-                    svg.appendChild(pl);
-                };
-
-                const addCircle = (x, y, r = 0.022, fill = '#e53935') => {
-                    const nx = Number(x);
-                    const ny = Number(y);
-                    if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
-                    const c = document.createElementNS(NS, 'circle');
-                    c.setAttribute('cx', String(nx));
-                    c.setAttribute('cy', String(ny));
-                    c.setAttribute('r', String(r));
-                    c.setAttribute('fill', fill);
-                    c.setAttribute('stroke', '#7f0000');
-                    c.setAttribute('stroke-width', '0.004');
-                    svg.appendChild(c);
-                };
-
                 if (climbType === 'route' && markup.type === 'route-line') {
                     const pts = markup.points || [];
                     const starts = markup.startHolds || [];
-                    addPolyline(pts);
-                    starts.forEach((p) => addCircle(p.x, p.y, 0.028));
-                    if (pts.length >= 1) {
-                        addCircle(pts[0].x, pts[0].y, 0.02);
-                    }
-                    if (pts.length >= 2) {
-                        addCircle(pts[pts.length - 1].x, pts[pts.length - 1].y, 0.024);
-                        const step = pts.length > 28 ? Math.ceil(pts.length / 14) : 1;
-                        for (let i = step; i < pts.length - 1; i += step) {
-                            addCircle(pts[i].x, pts[i].y, 0.014);
-                        }
-                    }
+                    appendTopoLineSvg(svg, NS, pts);
+                    starts.forEach((p, index) => appendTopoHoldSvg(svg, NS, p, index, geom));
                 } else if (climbType === 'boulder' && markup.type === 'boulder-holds') {
                     const holds = markup.holds || [];
                     const linePts = markup.linePoints || [];
-                    appendBoulderLineSvg(svg, NS, linePts);
-                    holds.forEach((h, index) => appendBoulderHoldSvg(svg, NS, h, index, geom));
+                    appendTopoLineSvg(svg, NS, linePts);
+                    holds.forEach((h, index) => appendTopoHoldSvg(svg, NS, h, index, geom));
                 }
 
                 return svg;
@@ -9263,22 +9223,11 @@
                 svg.setAttribute('preserveAspectRatio', 'none');
 
                 const pts = this.currentRouteLineMarkup?.points || [];
-                if (pts.length < 2) return;
-
-                const pointsAttr = pts.map((p) => `${p.x},${p.y}`).join(' ');
-                const ns = 'http://www.w3.org/2000/svg';
-                const line = document.createElementNS(ns, 'polyline');
-                line.setAttribute('points', pointsAttr);
-                line.setAttribute('fill', 'none');
-                line.setAttribute('stroke', '#d32f2f');
-                line.setAttribute('stroke-width', '0.012');
-                line.setAttribute('stroke-linecap', 'round');
-                line.setAttribute('stroke-linejoin', 'round');
-                svg.appendChild(line);
+                appendTopoLineSvg(svg, 'http://www.w3.org/2000/svg', pts);
             }
 
             deleteNearestRouteMarkupAt(x, y, geom) {
-                const hitNorm = 22 / geom.iw;
+                const hitNorm = TOPO_MARKUP.hitRadiusPx / (geom.iw || 400);
                 let best = { kind: null, index: -1, d: hitNorm };
 
                 (this.currentRouteLineMarkup.points || []).forEach((point, index) => {
@@ -9319,7 +9268,7 @@
 
                 container.addEventListener('click', (e) => {
                     if (this._markupDialogViewOnly) return;
-                    if (e.target.closest('.hold-marker')) return;
+                    if (e.target.closest('.hold-marker') || e.target.closest('.line-marker')) return;
 
                     const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
 
@@ -9365,7 +9314,7 @@
                 if (!container || !this.currentRouteLineMarkup) return;
 
                 const geom = getMarkupStageGeometry(container);
-                container.querySelectorAll('.hold-marker').forEach((marker) => marker.remove());
+                container.querySelectorAll('.hold-marker, .line-marker').forEach((marker) => marker.remove());
 
                 const starts = this.currentRouteLineMarkup.startHolds || [];
                 starts.forEach((hold, index) => {
@@ -9375,6 +9324,12 @@
                     marker.style.left = `${pos.x}px`;
                     marker.style.top = `${pos.y}px`;
                     marker.dataset.index = String(index);
+
+                    const number = document.createElement('div');
+                    number.className = 'hold-number';
+                    number.textContent = String(index + 1);
+                    marker.appendChild(number);
+
                     container.appendChild(marker);
                 });
 
@@ -9382,7 +9337,7 @@
                 pts.forEach((point, index) => {
                     const pos = markupPxFromNorm(point.x, point.y, geom);
                     const marker = document.createElement('div');
-                    marker.className = 'hold-marker';
+                    marker.className = 'line-marker';
                     marker.style.left = `${pos.x}px`;
                     marker.style.top = `${pos.y}px`;
                     marker.dataset.index = String(index);
@@ -9397,7 +9352,7 @@
                     this.currentRouteLineMarkup.points = [];
                     this.currentRouteLineMarkup.startHolds = [];
                     const container = document.getElementById('routeLineMarkupContainer');
-                    container?.querySelectorAll('.hold-marker').forEach((marker) => marker.remove());
+                    container?.querySelectorAll('.hold-marker, .line-marker').forEach((marker) => marker.remove());
                     this.updateRouteLinePolyline();
                 }
             }
@@ -9559,7 +9514,7 @@
             }
 
             deleteNearestBoulderMarkupAt(x, y, geom) {
-                const hitNorm = BOULDER_MARKUP.hitRadiusPx / (geom.iw || 400);
+                const hitNorm = TOPO_MARKUP.hitRadiusPx / (geom.iw || 400);
                 let best = { kind: null, index: -1, d: hitNorm };
 
                 (this.currentBoulderHoldsMarkup.holds || []).forEach((hold, index) => {
