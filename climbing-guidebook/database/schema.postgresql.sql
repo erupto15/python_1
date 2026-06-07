@@ -41,7 +41,8 @@ CREATE TABLE areas (
     longitude       DOUBLE PRECISION,
     created_by      UUID REFERENCES users (id) ON DELETE SET NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at      TIMESTAMPTZ
 );
 
 CREATE TABLE sectors (
@@ -51,7 +52,8 @@ CREATE TABLE sectors (
     description     TEXT,
     created_by      UUID REFERENCES users (id) ON DELETE SET NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at      TIMESTAMPTZ
 );
 
 CREATE INDEX idx_sectors_area ON sectors (area_id);

@@ -1,18 +1,24 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app import schemas
 from app.db import get_db
 from app.deps import assert_admin, assert_owner, get_current_user
 from app.models import Area, User
-from app.services.catalog_delete import delete_area_with_contents
+from app.services.catalog_delete import soft_delete_area_with_contents
 
 router = APIRouter(prefix="/areas", tags=["areas"])
 
 
 @router.get("", response_model=list[schemas.AreaRead])
-def list_areas(db: Session = Depends(get_db)) -> list[Area]:
-    return db.query(Area).order_by(Area.id).all()
+def list_areas(
+    include_deleted: bool = Query(False),
+    db: Session = Depends(get_db),
+) -> list[Area]:
+    q = db.query(Area)
+    if not include_deleted:
+        q = q.filter(Area.deleted_at.is_(None))
+    return q.order_by(Area.id).all()
 
 
 @router.post("", response_model=schemas.AreaRead, status_code=201)
@@ -35,7 +41,7 @@ def create_area(
 @router.get("/{area_id}", response_model=schemas.AreaRead)
 def get_area(area_id: int, db: Session = Depends(get_db)) -> Area:
     area = db.get(Area, area_id)
-    if not area:
+    if not area or area.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Area not found")
     return area
 
@@ -48,7 +54,7 @@ def update_area(
     user: User = Depends(get_current_user),
 ) -> Area:
     area = db.get(Area, area_id)
-    if not area:
+    if not area or area.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Area not found")
     assert_admin(user)
     assert_owner(user, area.created_by)
@@ -62,8 +68,8 @@ def update_area(
 @router.delete("/{area_id}", status_code=204)
 def delete_area(area_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> None:
     area = db.get(Area, area_id)
-    if not area:
+    if not area or area.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Area not found")
     assert_admin(user)
-    delete_area_with_contents(db, area)
+    soft_delete_area_with_contents(db, area)
     db.commit()

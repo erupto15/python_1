@@ -1,39 +1,74 @@
-"""Каскадное удаление районов и секторов вместе с содержимым."""
+"""Мягкое каскадное удаление районов и секторов (как у трасс и боулдеров)."""
 
 from __future__ import annotations
+
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from app.models import Area, Boulder, Route, Sector
 
 
-def _hard_delete_routes(db: Session, *, sector_id: int | None = None, area_id: int | None = None) -> None:
-    q = db.query(Route)
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _soft_delete_routes(
+    db: Session,
+    *,
+    sector_id: int | None = None,
+    area_id: int | None = None,
+    at: datetime | None = None,
+) -> None:
+    ts = at or _now()
+    q = db.query(Route).filter(Route.deleted_at.is_(None))
     if sector_id is not None:
         q = q.filter(Route.sector_id == sector_id)
     if area_id is not None:
         q = q.filter(Route.area_id == area_id)
     for route in q.all():
-        db.delete(route)
+        route.deleted_at = ts
 
 
-def _hard_delete_boulders(db: Session, *, sector_id: int | None = None, area_id: int | None = None) -> None:
-    q = db.query(Boulder)
+def _soft_delete_boulders(
+    db: Session,
+    *,
+    sector_id: int | None = None,
+    area_id: int | None = None,
+    at: datetime | None = None,
+) -> None:
+    ts = at or _now()
+    q = db.query(Boulder).filter(Boulder.deleted_at.is_(None))
     if sector_id is not None:
         q = q.filter(Boulder.sector_id == sector_id)
     if area_id is not None:
         q = q.filter(Boulder.area_id == area_id)
     for boulder in q.all():
-        db.delete(boulder)
+        boulder.deleted_at = ts
 
 
-def delete_sector_with_contents(db: Session, sector: Sector) -> None:
-    _hard_delete_routes(db, sector_id=sector.id)
-    _hard_delete_boulders(db, sector_id=sector.id)
-    db.delete(sector)
+def soft_delete_sector_with_contents(db: Session, sector: Sector) -> None:
+    if sector.deleted_at is not None:
+        return
+    ts = _now()
+    _soft_delete_routes(db, sector_id=sector.id, at=ts)
+    _soft_delete_boulders(db, sector_id=sector.id, at=ts)
+    sector.deleted_at = ts
 
 
-def delete_area_with_contents(db: Session, area: Area) -> None:
-    _hard_delete_routes(db, area_id=area.id)
-    _hard_delete_boulders(db, area_id=area.id)
-    db.delete(area)
+def soft_delete_area_with_contents(db: Session, area: Area) -> None:
+    if area.deleted_at is not None:
+        return
+    ts = _now()
+    sectors = (
+        db.query(Sector)
+        .filter(Sector.area_id == area.id, Sector.deleted_at.is_(None))
+        .all()
+    )
+    for sector in sectors:
+        _soft_delete_routes(db, sector_id=sector.id, at=ts)
+        _soft_delete_boulders(db, sector_id=sector.id, at=ts)
+        sector.deleted_at = ts
+    _soft_delete_routes(db, area_id=area.id, at=ts)
+    _soft_delete_boulders(db, area_id=area.id, at=ts)
+    area.deleted_at = ts

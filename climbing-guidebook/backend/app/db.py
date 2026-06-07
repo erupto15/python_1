@@ -57,6 +57,8 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_username VARCHAR(64)",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_photo_url VARCHAR(512)",
             "ALTER TABLE climb_ascents ADD COLUMN IF NOT EXISTS ascent_style VARCHAR(16)",
+            "ALTER TABLE areas ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ",
+            "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ",
         ]
     else:
         statements = [
@@ -70,6 +72,8 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE users ADD COLUMN telegram_username VARCHAR(64)",
             "ALTER TABLE users ADD COLUMN telegram_photo_url VARCHAR(512)",
             "ALTER TABLE climb_ascents ADD COLUMN ascent_style VARCHAR(16)",
+            "ALTER TABLE areas ADD COLUMN deleted_at TEXT",
+            "ALTER TABLE sectors ADD COLUMN deleted_at TEXT",
         ]
     with engine.begin() as conn:
         for stmt in statements:

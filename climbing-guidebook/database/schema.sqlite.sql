@@ -21,7 +21,8 @@ CREATE TABLE areas (
     longitude       REAL,
     created_by      TEXT REFERENCES users (id) ON DELETE SET NULL,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at      TEXT
 );
 
 CREATE TABLE sectors (
@@ -31,7 +32,8 @@ CREATE TABLE sectors (
     description     TEXT,
     created_by      TEXT REFERENCES users (id) ON DELETE SET NULL,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at      TEXT
 );
 
 CREATE INDEX idx_sectors_area ON sectors (area_id);

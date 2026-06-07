@@ -98,6 +98,7 @@ class AreaRead(BaseModel):
     created_by: Optional[str]
     created_at: datetime
     updated_at: datetime
+    deleted_at: Optional[datetime] = None
 
 
 class SectorCreate(BaseModel):
@@ -121,6 +122,7 @@ class SectorRead(BaseModel):
     created_by: Optional[str]
     created_at: datetime
     updated_at: datetime
+    deleted_at: Optional[datetime] = None
 
 
 class RouteCreate(BaseModel):

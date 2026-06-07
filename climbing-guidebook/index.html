@@ -7261,9 +7261,10 @@
 
             async deleteArea(areaId) {
                 if (!this.requireAdmin('Удаление района')) return;
-                if (!(await confirmDestructive(APP_BOULDER_ONLY
-                    ? 'Удалить район и все секторы и боулдеры внутри? Данные будут удалены без восстановления.'
-                    : 'Удалить район и все секторы, трассы и боулдеры внутри? Данные будут удалены без восстановления.'))) return;
+                const msg = APP_BOULDER_ONLY
+                    ? 'Удалить этот район? Секторы и боулдеры внутри будут скрыты из каталога.'
+                    : 'Удалить этот район? Секторы, трассы и боулдеры внутри будут скрыты из каталога.';
+                if (!(await confirmDestructive(msg))) return;
                 try {
                     await apiFetch(`/api/areas/${Number(areaId)}`, { method: 'DELETE' });
                     removeAreaFromLocalCache(areaId);
@@ -7277,8 +7278,13 @@
                 this.renderCatalog();
                 this.renderRoutes();
                 this.renderBoulders();
-                this.renderPhotoAlbum();
                 this.updateMapMarkers();
+                if (document.getElementById('photos')?.classList.contains('active')) {
+                    const run = () => this.renderPhotoAlbum();
+                    if (typeof requestAnimationFrame === 'function') {
+                        requestAnimationFrame(() => requestAnimationFrame(run));
+                    } else run();
+                }
                 this.showToast('Район удалён');
             }
 
@@ -7580,9 +7586,10 @@
 
             async deleteSector(sectorId) {
                 if (!this.requireAdmin('Удаление сектора')) return;
-                if (!(await confirmDestructive(APP_BOULDER_ONLY
-                    ? 'Удалить сектор и все боулдеры в нём?'
-                    : 'Удалить сектор и все трассы/боулдеры в нём?'))) return;
+                const msg = APP_BOULDER_ONLY
+                    ? 'Удалить этот сектор? Боулдеры в нём будут скрыты из каталога.'
+                    : 'Удалить этот сектор? Трассы и боулдеры в нём будут скрыты из каталога.';
+                if (!(await confirmDestructive(msg))) return;
                 try {
                     await apiFetch(`/api/sectors/${Number(sectorId)}`, { method: 'DELETE' });
                     removeSectorFromLocalCache(sectorId);
@@ -7596,8 +7603,13 @@
                 this.renderCatalog();
                 this.renderRoutes();
                 this.renderBoulders();
-                this.renderPhotoAlbum();
                 this.updateMapMarkers();
+                if (document.getElementById('photos')?.classList.contains('active')) {
+                    const run = () => this.renderPhotoAlbum();
+                    if (typeof requestAnimationFrame === 'function') {
+                        requestAnimationFrame(() => requestAnimationFrame(run));
+                    } else run();
+                }
                 this.showToast('Сектор удалён');
             }
 
