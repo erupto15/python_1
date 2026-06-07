@@ -2419,6 +2419,96 @@
             margin: 12px 0 16px;
         }
 
+        .ranking-hint {
+            margin: 0 0 12px;
+            padding: 0 4px;
+            font-size: 13px;
+            line-height: 1.45;
+            color: var(--light-text);
+        }
+
+        .ranking-my-place {
+            margin: 0 0 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(42, 171, 238, 0.12);
+            border: 1px solid rgba(42, 171, 238, 0.35);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .ranking-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .ranking-table {
+            width: 100%;
+            min-width: 320px;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .ranking-table th,
+        .ranking-table td {
+            padding: 10px 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color, rgba(0, 0, 0, 0.08));
+            vertical-align: middle;
+        }
+
+        .ranking-table th {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            color: var(--light-text);
+            white-space: nowrap;
+        }
+
+        .ranking-table td.ranking-num,
+        .ranking-table th.ranking-num {
+            width: 2.5rem;
+            text-align: center;
+            color: var(--light-text);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ranking-table td.ranking-points,
+        .ranking-table th.ranking-points {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .ranking-table tr.ranking-row--me {
+            background: rgba(42, 171, 238, 0.08);
+        }
+
+        .ranking-table tr.ranking-row--top1 td.ranking-num {
+            color: #d4a017;
+            font-weight: 700;
+        }
+
+        .ranking-user-name {
+            font-weight: 500;
+            word-break: break-word;
+        }
+
+        .ranking-user-handle {
+            display: block;
+            font-size: 12px;
+            color: var(--light-text);
+            font-weight: 400;
+        }
+
+        .ranking-empty {
+            padding: 24px 12px;
+            text-align: center;
+            color: var(--light-text);
+        }
+
         .profile-header {
             display: flex;
             flex-direction: column;
@@ -2965,6 +3055,9 @@
             <button class="tab-btn" data-tab="photos">
                 <i class="fas fa-images"></i> Фотоальбом
             </button>
+            <button class="tab-btn" data-tab="ranking" id="rankingTabBtn">
+                <i class="fas fa-trophy"></i> Рейтинг
+            </button>
             <button class="tab-btn" data-tab="profile" id="profileTabBtn">
                 <i class="fas fa-user-circle"></i> Профиль
             </button>
@@ -3225,6 +3318,28 @@
                         <i class="fas fa-images"></i>
                         <h3>Нет фотографий</h3>
                         <p>Добавьте фотографии к маршрутам или боулдерингам</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Контент вкладки «Рейтинг» (баллы 8a.nu) -->
+        <div class="tab-content" id="ranking">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fas fa-trophy"></i> Рейтинг скалолазов
+                    </div>
+                </div>
+                <p class="ranking-hint" id="rankingHint">
+                    Баллы по модели 8a.nu: сумма лучших пролазов за 12 месяцев (до 10 в каждой дисциплине).
+                    8a = 1000, +50 за «+», бонусы: онсайт +147, флэш +53, второй заход +2.
+                </p>
+                <div id="rankingMyPlace" class="ranking-my-place hidden" aria-live="polite"></div>
+                <div id="rankingTableWrap" class="ranking-table-wrap">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <p>Загрузка рейтинга…</p>
                     </div>
                 </div>
             </div>
@@ -7757,6 +7872,8 @@
                                 this.renderRoutes();
                             } else if (tabId === 'boulders') {
                                 this.renderBoulders();
+                            } else if (tabId === 'ranking') {
+                                void this.renderRankingTab();
                             }
                             if (typeof window.syncTelegramMiniAppUi === 'function') {
                                 window.syncTelegramMiniAppUi();
@@ -9770,6 +9887,9 @@
                 document.querySelector('.tab-btn[data-tab="profile"]')?.addEventListener('click', () => {
                     void this.renderProfileTab();
                 });
+                document.querySelector('.tab-btn[data-tab="ranking"]')?.addEventListener('click', () => {
+                    void this.renderRankingTab();
+                });
             }
 
             async logClimbAscentFromDetail(status) {
@@ -10230,6 +10350,83 @@
                 nameEl.textContent = this.formatProfileDisplayName(user);
                 const un = user?.telegram_username ? `@${user.telegram_username}` : '';
                 usernameEl.textContent = un;
+            }
+
+            formatRankingPoints(n) {
+                const v = Number(n);
+                if (!Number.isFinite(v)) return '—';
+                return v.toLocaleString('ru-RU');
+            }
+
+            async renderRankingTab() {
+                const wrap = document.getElementById('rankingTableWrap');
+                const hint = document.getElementById('rankingHint');
+                const myPlace = document.getElementById('rankingMyPlace');
+                if (!wrap) return;
+                wrap.innerHTML = `
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <p>Загрузка рейтинга…</p>
+                    </div>`;
+                try {
+                    const data = await apiFetch('/api/ranking/leaderboard?top=10&months=12');
+                    if (hint) {
+                        hint.textContent = `Баллы по модели 8a.nu: сумма ${data.top_performances} лучших пролазов за ${data.months} мес. в каждой дисциплине. 8a = 1000, +50 за «+», бонусы: онсайт +147, флэш +53, второй заход +2.`;
+                    }
+                    if (myPlace) {
+                        if (this.isLoggedIn() && data.my_row) {
+                            myPlace.classList.remove('hidden');
+                            myPlace.innerHTML = `Ваше место: <strong>#${data.my_rank}</strong> — трудность <strong>${this.formatRankingPoints(data.my_row.route_points)}</strong>, боулдеринг <strong>${this.formatRankingPoints(data.my_row.boulder_points)}</strong>, итого <strong>${this.formatRankingPoints(data.my_row.total_points)}</strong>`;
+                        } else {
+                            myPlace.classList.add('hidden');
+                            myPlace.innerHTML = '';
+                        }
+                    }
+                    if (!data.rows?.length) {
+                        wrap.innerHTML = `
+                            <div class="ranking-empty">
+                                <i class="fas fa-trophy" style="font-size:28px;opacity:0.35;margin-bottom:8px;"></i>
+                                <p>Пока никто не занёс пролазы в логбук.</p>
+                                <p style="font-size:13px;margin-top:6px;">Отметьте пролаз на трассе или боулдере — и появитесь в рейтинге.</p>
+                            </div>`;
+                        return;
+                    }
+                    const currentId = this.getCurrentUser()?.id || '';
+                    const rowsHtml = data.rows.map((row) => {
+                        const isMe = currentId && row.user_id === currentId;
+                        const topClass = row.rank === 1 ? ' ranking-row--top1' : '';
+                        const meClass = isMe ? ' ranking-row--me' : '';
+                        const handle = row.telegram_username
+                            ? `<span class="ranking-user-handle">@${this.escapeHtml(row.telegram_username)}</span>`
+                            : '';
+                        return `
+                            <tr class="ranking-row${topClass}${meClass}">
+                                <td class="ranking-num">${row.rank}</td>
+                                <td>
+                                    <span class="ranking-user-name">${this.escapeHtml(row.display_name)}</span>
+                                    ${handle}
+                                </td>
+                                <td class="ranking-points">${this.formatRankingPoints(row.route_points)}</td>
+                                <td class="ranking-points">${this.formatRankingPoints(row.boulder_points)}</td>
+                                <td class="ranking-points">${this.formatRankingPoints(row.total_points)}</td>
+                            </tr>`;
+                    }).join('');
+                    wrap.innerHTML = `
+                        <table class="ranking-table" aria-label="Рейтинг скалолазов по баллам">
+                            <thead>
+                                <tr>
+                                    <th class="ranking-num" scope="col">#</th>
+                                    <th scope="col">Скалолаз</th>
+                                    <th class="ranking-points" scope="col">Трудность</th>
+                                    <th class="ranking-points" scope="col">Боулдеринг</th>
+                                    <th class="ranking-points" scope="col">Итого</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rowsHtml}</tbody>
+                        </table>`;
+                } catch (err) {
+                    wrap.innerHTML = `<p style="color:var(--danger-color);padding:12px;">${this.escapeHtml(err.message || 'Не удалось загрузить рейтинг')}</p>`;
+                }
             }
 
             async renderProfileTab() {

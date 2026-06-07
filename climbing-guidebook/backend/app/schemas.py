@@ -383,3 +383,23 @@ class MyAscentSummary(BaseModel):
     sent_boulder_ids: list[int] = Field(default_factory=list)
     attempted_route_ids: list[int] = Field(default_factory=list)
     attempted_boulder_ids: list[int] = Field(default_factory=list)
+
+
+class LeaderboardRow(BaseModel):
+    rank: int
+    user_id: str
+    display_name: str
+    telegram_username: Optional[str] = None
+    route_points: int = 0
+    boulder_points: int = 0
+    total_points: int = 0
+    route_top_count: int = 0
+    boulder_top_count: int = 0
+
+
+class LeaderboardRead(BaseModel):
+    top_performances: int = 10
+    months: int = 12
+    rows: list[LeaderboardRow] = Field(default_factory=list)
+    my_rank: Optional[int] = None
+    my_row: Optional[LeaderboardRow] = None

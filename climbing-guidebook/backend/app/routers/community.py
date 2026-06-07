@@ -12,6 +12,7 @@ from app.db import get_db
 from app.deps import get_current_user, get_current_user_optional
 from app.models import Area, Boulder, ClimbAscent, ClimbUserRating, Route, Sector, User
 from app.services.climb_rating import star_average, sync_climb_star_average
+from app.services.climb_score import build_leaderboard
 
 router = APIRouter(tags=["community"])
 
@@ -239,6 +240,32 @@ def delete_rating(
     db.delete(row)
     db.commit()
     sync_climb_star_average(db, climb_type, route_id, boulder_id)
+
+
+@router.get("/ranking/leaderboard", response_model=schemas.LeaderboardRead)
+def ranking_leaderboard(
+    top: int = Query(10, ge=1, le=20, description="Сколько лучших пролазов учитывать в каждой дисциплине"),
+    months: int = Query(12, ge=1, le=36, description="За сколько месяцев считать пролазы"),
+    current: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+) -> schemas.LeaderboardRead:
+    payload = build_leaderboard(db, top_performances=top, months=months)
+    rows = [schemas.LeaderboardRow(**row) for row in payload["rows"]]
+    my_rank = None
+    my_row = None
+    if current:
+        for row in rows:
+            if row.user_id == current.id:
+                my_rank = row.rank
+                my_row = row
+                break
+    return schemas.LeaderboardRead(
+        top_performances=payload["top_performances"],
+        months=payload["months"],
+        rows=rows,
+        my_rank=my_rank,
+        my_row=my_row,
+    )
 
 
 @router.get("/climbs/stats", response_model=schemas.ClimbCommunityStats)
