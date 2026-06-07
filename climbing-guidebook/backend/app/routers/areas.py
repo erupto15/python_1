@@ -5,6 +5,7 @@ from app import schemas
 from app.db import get_db
 from app.deps import assert_admin, assert_owner, get_current_user
 from app.models import Area, User
+from app.services.catalog_delete import delete_area_with_contents
 
 router = APIRouter(prefix="/areas", tags=["areas"])
 
@@ -64,6 +65,5 @@ def delete_area(area_id: int, db: Session = Depends(get_db), user: User = Depend
     if not area:
         raise HTTPException(status_code=404, detail="Area not found")
     assert_admin(user)
-    assert_owner(user, area.created_by)
-    db.delete(area)
+    delete_area_with_contents(db, area)
     db.commit()

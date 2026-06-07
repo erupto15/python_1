@@ -4805,6 +4805,18 @@
             }
         }
 
+        /** Подтверждение удаления: в Telegram Mini App window.confirm часто не работает. */
+        function confirmDestructive(message) {
+            return new Promise((resolve) => {
+                const tg = window.Telegram?.WebApp;
+                if (tg && typeof tg.showConfirm === 'function') {
+                    tg.showConfirm(message, (ok) => resolve(!!ok));
+                    return;
+                }
+                resolve(window.confirm(message));
+            });
+        }
+
         async function apiFetch(path, options = {}) {
             const url = `${API_BASE_URL}${path}`;
             const headers = Object.assign({}, options.headers || {});
@@ -7007,7 +7019,7 @@
                                     <div class="catalog-row-title">${this.escapeHtml(a.name)}</div>
                                     <div class="catalog-row-meta">${meta}</div>
                                 </button>
-                                <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" onclick="event.stopPropagation()" style="align-self:center;padding-right:12px">
+                                <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" style="align-self:center;padding-right:12px">
                                     <button type="button" class="btn btn-ghost btn-small" data-catalog-act="edit-area" data-id="${a.id}"><i class="fas fa-edit"></i></button>
                                     <button type="button" class="btn btn-danger btn-small" data-catalog-act="delete-area" data-id="${a.id}"><i class="fas fa-trash"></i></button>
                                 </div>
@@ -7042,7 +7054,7 @@
                                     <div class="catalog-row-title">${this.escapeHtml(s.name)}</div>
                                     <div class="catalog-row-meta">${meta}</div>
                                 </button>
-                                <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" onclick="event.stopPropagation()" style="align-self:center;padding-right:12px">
+                                <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" style="align-self:center;padding-right:12px">
                                     <button type="button" class="btn btn-ghost btn-small" data-catalog-act="edit-sector" data-id="${s.id}"><i class="fas fa-edit"></i></button>
                                     <button type="button" class="btn btn-danger btn-small" data-catalog-act="delete-sector" data-id="${s.id}"><i class="fas fa-trash"></i></button>
                                 </div>
@@ -7145,10 +7157,10 @@
                     const action = act.dataset.catalogAct;
                     if (action === 'add-area') { if (!this.requireAdmin('Добавление района')) return; this.showAddAreaDialog(); }
                     if (action === 'edit-area') { if (!this.requireAdmin('Редактирование района')) return; this.showEditAreaDialog(id); }
-                    if (action === 'delete-area') { if (!this.requireAdmin('Удаление района')) return; this.deleteArea(id); }
+                    if (action === 'delete-area') { if (!this.requireAdmin('Удаление района')) return; void this.deleteArea(id); }
                     if (action === 'add-sector') { if (!this.requireAdmin('Добавление сектора')) return; this.showAddSectorDialog(Number(act.dataset.id)); }
                     if (action === 'edit-sector') { if (!this.requireAdmin('Редактирование сектора')) return; this.showEditSectorDialog(id); }
-                    if (action === 'delete-sector') { if (!this.requireAdmin('Удаление сектора')) return; this.deleteSector(id); }
+                    if (action === 'delete-sector') { if (!this.requireAdmin('Удаление сектора')) return; void this.deleteSector(id); }
                     if (action === 'add-route') { if (!this.requireAdmin('Добавление трассы')) return; this.quickAddRouteInSector(id); }
                     if (action === 'add-boulder') { if (!this.requireAdmin('Добавление боулдеринга')) return; this.quickAddBoulderInSector(id); }
                     if (action === 'nav-areas') {
@@ -7249,9 +7261,9 @@
 
             async deleteArea(areaId) {
                 if (!this.requireAdmin('Удаление района')) return;
-                if (!confirm(APP_BOULDER_ONLY
+                if (!(await confirmDestructive(APP_BOULDER_ONLY
                     ? 'Удалить район и все секторы и боулдеры внутри? Данные будут удалены без восстановления.'
-                    : 'Удалить район и все секторы, трассы и боулдеры внутри? Данные будут удалены без восстановления.')) return;
+                    : 'Удалить район и все секторы, трассы и боулдеры внутри? Данные будут удалены без восстановления.'))) return;
                 try {
                     await apiFetch(`/api/areas/${Number(areaId)}`, { method: 'DELETE' });
                     removeAreaFromLocalCache(areaId);
@@ -7568,9 +7580,9 @@
 
             async deleteSector(sectorId) {
                 if (!this.requireAdmin('Удаление сектора')) return;
-                if (!confirm(APP_BOULDER_ONLY
+                if (!(await confirmDestructive(APP_BOULDER_ONLY
                     ? 'Удалить сектор и все боулдеры в нём?'
-                    : 'Удалить сектор и все трассы/боулдеры в нём?')) return;
+                    : 'Удалить сектор и все трассы/боулдеры в нём?'))) return;
                 try {
                     await apiFetch(`/api/sectors/${Number(sectorId)}`, { method: 'DELETE' });
                     removeSectorFromLocalCache(sectorId);

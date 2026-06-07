@@ -5,6 +5,7 @@ from app import schemas
 from app.db import get_db
 from app.deps import assert_admin, assert_owner, get_current_user
 from app.models import Area, Sector, User
+from app.services.catalog_delete import delete_sector_with_contents
 
 router = APIRouter(tags=["sectors"])
 
@@ -74,6 +75,5 @@ def delete_sector(sector_id: int, db: Session = Depends(get_db), user: User = De
     if not sector:
         raise HTTPException(status_code=404, detail="Sector not found")
     assert_admin(user)
-    assert_owner(user, sector.created_by)
-    db.delete(sector)
+    delete_sector_with_contents(db, sector)
     db.commit()
