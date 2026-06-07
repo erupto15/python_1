@@ -6,7 +6,6 @@ from app import schemas
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import Boulder, ClimbAscent, ClimbUserRating, Route, User
-from app.services.telegram_user import upsert_telegram_user
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -84,14 +83,8 @@ def get_user(user_id: str, db: Session = Depends(get_db)) -> User:
 
 
 @router.post("/upsert-telegram", response_model=schemas.TelegramUserUpsertResponse)
-def upsert_telegram_user(payload: schemas.TelegramUserUpsertRequest, db: Session = Depends(get_db)) -> dict:
-    """
-    Аналог примера Express+pg:
-    INSERT ... ON CONFLICT (telegram_id) DO UPDATE SET telegram_username=...
-    """
-    user = upsert_telegram_user(
-        db,
-        tg_id=int(payload.telegram_id),
-        tg_username=(str(payload.username or "").strip() or None),
+def upsert_telegram_user(_: schemas.TelegramUserUpsertRequest) -> None:
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy Telegram upsert is disabled; use /api/auth/telegram with signed initData",
     )
-    return {"ok": True, "user": schemas.UserRead.model_validate(user)}
