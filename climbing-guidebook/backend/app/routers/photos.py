@@ -125,6 +125,7 @@ def update_photo(
     photo = db.get(Photo, photo_id)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
+    assert_admin(user)
     assert_owner(user, photo.uploaded_by)
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(photo, k, v)

@@ -88,6 +88,7 @@ def update_boulder(
     b = db.get(Boulder, boulder_id)
     if not b or b.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Boulder not found")
+    assert_admin(user)
     assert_owner(user, b.created_by)
     data = payload.model_dump(exclude_unset=True)
     if "sector_id" in data or "area_id" in data:

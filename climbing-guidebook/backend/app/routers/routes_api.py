@@ -88,6 +88,7 @@ def update_route(
     route = db.get(Route, route_id)
     if not route or route.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Route not found")
+    assert_admin(user)
     assert_owner(user, route.created_by)
     data = payload.model_dump(exclude_unset=True)
     if "sector_id" in data or "area_id" in data:
