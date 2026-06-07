@@ -1185,10 +1185,11 @@
             top: 0;
             width: 0;
             height: 0;
-            overflow: visible;
+            overflow: hidden;
             pointer-events: none;
             z-index: 3;
             border-radius: inherit;
+            background: transparent;
         }
 
         .photo-preview-with-markup .photo-preview-actions {
@@ -4333,16 +4334,19 @@
                             const pts = Array.isArray(routeMarkup.points) ? routeMarkup.points : [];
                             const starts = Array.isArray(routeMarkup.startHolds) ? routeMarkup.startHolds : [];
                             drawLine(pts);
-                            const r1 = Math.max(4, Math.round(Math.min(w, h) * 0.018));
-                            const r2 = Math.max(5, Math.round(Math.min(w, h) * 0.024));
-                            pts.forEach((p) => drawCircle(p, r1, '#e53935', '#7f0000', Math.max(1, Math.round(r1 * 0.28))));
-                            starts.forEach((p) => drawCircle(p, r2, '#e53935', '#7f0000', Math.max(1, Math.round(r2 * 0.28))));
+                            const rHold = Math.max(5, Math.round(Math.min(w, h) * 0.018));
+                            starts.forEach((p, i) => {
+                                drawCircle(p, rHold, TOPO_MARKUP.holdFill, TOPO_MARKUP.holdStroke, TOPO_MARKUP.holdStrokePx);
+                            });
                         } else {
-                            const holds = Array.isArray(markup.holds) ? markup.holds : [];
-                            const linePts = Array.isArray(markup.linePoints) ? markup.linePoints : [];
+                            const boulderMarkup = normalizePhotoMarkup(markup, 'boulder') || markup;
+                            const holds = Array.isArray(boulderMarkup.holds) ? boulderMarkup.holds : [];
+                            const linePts = Array.isArray(boulderMarkup.linePoints) ? boulderMarkup.linePoints : [];
                             drawLine(linePts);
-                            const r = Math.max(6, Math.round(Math.min(w, h) * 0.028));
-                            holds.forEach((p) => drawCircle(p, r, 'rgba(255,255,255,0.12)', '#d32f2f', Math.max(1, Math.round(r * 0.22))));
+                            const r = Math.max(5, Math.round(Math.min(w, h) * 0.018));
+                            holds.forEach((p, i) => {
+                                drawCircle(p, r, TOPO_MARKUP.holdFill, TOPO_MARKUP.holdStroke, TOPO_MARKUP.holdStrokePx);
+                            });
                         }
 
                         resolve(canvas.toDataURL('image/jpeg', 0.92));
@@ -5345,37 +5349,31 @@
             return photos;
         }
 
-        /** Геометрия видимой области фото внутри контейнера (object-fit: contain). */
+        /** Геометрия видимой области фото (object-fit: contain) — всегда по naturalWidth/Height. */
         function getMarkupStageGeometry(container) {
             const img = container?.querySelector('img');
-            const cw = container?.clientWidth || container?.offsetWidth || 1;
-            const ch = container?.clientHeight || container?.offsetHeight || 1;
-            if (!img) {
-                return { cw, ch, left: 0, top: 0, iw: cw, ih: ch };
-            }
-            const cr = container.getBoundingClientRect();
-            const ir = img.getBoundingClientRect();
-            const iw = ir.width > 0 ? ir.width : cw;
-            const ih = ir.height > 0 ? ir.height : ch;
-            const left = ir.width > 0 ? ir.left - cr.left : 0;
-            const top = ir.height > 0 ? ir.top - cr.top : 0;
-            if (iw > 0 && ih > 0) {
-                return { cw, ch, left, top, iw, ih };
-            }
-            if (!img.naturalWidth || !img.naturalHeight) {
-                return { cw, ch, left: 0, top: 0, iw: cw, ih: ch };
+            const cw = Math.max(1, container?.clientWidth || container?.offsetWidth || 1);
+            const ch = Math.max(1, container?.clientHeight || container?.offsetHeight || 1);
+            const base = { cw, ch, left: 0, top: 0, iw: cw, ih: ch, ready: false };
+            if (!img || !img.naturalWidth || !img.naturalHeight) {
+                return base;
             }
             const scale = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
-            const fiw = img.naturalWidth * scale;
-            const fih = img.naturalHeight * scale;
+            const iw = img.naturalWidth * scale;
+            const ih = img.naturalHeight * scale;
             return {
                 cw,
                 ch,
-                left: (cw - fiw) / 2,
-                top: (ch - fih) / 2,
-                iw: fiw,
-                ih: fih
+                left: (cw - iw) / 2,
+                top: (ch - ih) / 2,
+                iw,
+                ih,
+                ready: iw >= 8 && ih >= 8
             };
+        }
+
+        function isMarkupStageReady(geom) {
+            return !!(geom && geom.ready && geom.iw >= 8 && geom.ih >= 8);
         }
 
         function normalizePhotoMarkup(raw, climbType) {
@@ -5476,16 +5474,24 @@
 
         function topoHoldRadiusNorm(geom) {
             const iw = geom?.iw > 0 ? geom.iw : 400;
-            return TOPO_MARKUP.holdRadiusPx / iw;
+            return Math.min(TOPO_MARKUP.holdRadiusPx / iw, 0.08);
         }
 
-        function appendTopoLineSvg(svg, NS, linePts) {
+        function topoStrokeNorm(geom, px) {
+            const iw = geom?.iw > 0 ? geom.iw : 400;
+            return px / iw;
+        }
+
+        function appendTopoLineSvg(svg, NS, linePts, geom) {
+            if (!isMarkupStageReady(geom)) return;
             if (!linePts || linePts.length < 2) return;
             const pairs = linePts
                 .map((p) => {
                     const x = Number(p.x);
                     const y = Number(p.y);
-                    if (Number.isFinite(x) && Number.isFinite(y)) return `${x},${y}`;
+                    if (Number.isFinite(x) && Number.isFinite(y)) {
+                        return `${Math.max(0, Math.min(1, x))},${Math.max(0, Math.min(1, y))}`;
+                    }
                     return null;
                 })
                 .filter(Boolean);
@@ -5494,26 +5500,26 @@
             pl.setAttribute('points', pairs.join(' '));
             pl.setAttribute('fill', 'none');
             pl.setAttribute('stroke', TOPO_MARKUP.lineColor);
-            pl.setAttribute('stroke-width', String(TOPO_MARKUP.lineStrokePx));
+            pl.setAttribute('stroke-width', String(topoStrokeNorm(geom, TOPO_MARKUP.lineStrokePx)));
             pl.setAttribute('stroke-linecap', 'round');
             pl.setAttribute('stroke-linejoin', 'round');
-            pl.setAttribute('vector-effect', 'non-scaling-stroke');
             svg.appendChild(pl);
         }
 
         function appendTopoHoldSvg(svg, NS, hold, index, geom) {
-            const nx = Number(hold.x);
-            const ny = Number(hold.y);
+            if (!isMarkupStageReady(geom)) return;
+            const nx = Math.max(0, Math.min(1, Number(hold.x)));
+            const ny = Math.max(0, Math.min(1, Number(hold.y)));
             if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
             const r = topoHoldRadiusNorm(geom);
+            const sw = topoStrokeNorm(geom, TOPO_MARKUP.holdStrokePx);
             const c = document.createElementNS(NS, 'circle');
             c.setAttribute('cx', String(nx));
             c.setAttribute('cy', String(ny));
             c.setAttribute('r', String(r));
             c.setAttribute('fill', TOPO_MARKUP.holdFill);
             c.setAttribute('stroke', TOPO_MARKUP.holdStroke);
-            c.setAttribute('stroke-width', String(TOPO_MARKUP.holdStrokePx));
-            c.setAttribute('vector-effect', 'non-scaling-stroke');
+            c.setAttribute('stroke-width', String(sw));
             svg.appendChild(c);
 
             const label = document.createElementNS(NS, 'text');
@@ -5522,7 +5528,7 @@
             label.setAttribute('text-anchor', 'middle');
             label.setAttribute('dominant-baseline', 'central');
             label.setAttribute('fill', TOPO_MARKUP.holdNumberColor);
-            label.setAttribute('font-size', `${Math.max(10, Math.round(TOPO_MARKUP.holdRadiusPx * 0.88))}px`);
+            label.setAttribute('font-size', String(topoStrokeNorm(geom, TOPO_MARKUP.holdRadiusPx * 0.88)));
             label.setAttribute('font-weight', '700');
             label.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, sans-serif');
             label.setAttribute('pointer-events', 'none');
@@ -8305,12 +8311,12 @@
                 if (climbType === 'route' && markup.type === 'route-line') {
                     const pts = markup.points || [];
                     const starts = markup.startHolds || [];
-                    appendTopoLineSvg(svg, NS, pts);
+                    appendTopoLineSvg(svg, NS, pts, geom);
                     starts.forEach((p, index) => appendTopoHoldSvg(svg, NS, p, index, geom));
                 } else if (climbType === 'boulder' && markup.type === 'boulder-holds') {
                     const holds = markup.holds || [];
                     const linePts = markup.linePoints || [];
-                    appendTopoLineSvg(svg, NS, linePts);
+                    appendTopoLineSvg(svg, NS, linePts, geom);
                     holds.forEach((h, index) => appendTopoHoldSvg(svg, NS, h, index, geom));
                 }
 
@@ -8348,8 +8354,6 @@
                 img.addEventListener('load', run);
                 if (img.complete && img.naturalWidth > 0) {
                     run();
-                } else {
-                    apply();
                 }
             }
 
@@ -8364,6 +8368,9 @@
                 }
 
                 const geom = getMarkupStageGeometry(previewItem);
+                if (!isMarkupStageReady(geom)) {
+                    return;
+                }
                 let markupForSvg = normalized;
                 if (climbType === 'route' && normalized.coordSpace !== 'image') {
                     markupForSvg = {
@@ -9223,7 +9230,7 @@
                 svg.setAttribute('preserveAspectRatio', 'none');
 
                 const pts = this.currentRouteLineMarkup?.points || [];
-                appendTopoLineSvg(svg, 'http://www.w3.org/2000/svg', pts);
+                appendTopoLineSvg(svg, 'http://www.w3.org/2000/svg', pts, geom);
             }
 
             deleteNearestRouteMarkupAt(x, y, geom) {
@@ -9619,7 +9626,7 @@
                 svg.setAttribute('preserveAspectRatio', 'none');
 
                 const pts = this.currentBoulderHoldsMarkup?.linePoints || [];
-                appendBoulderLineSvg(svg, 'http://www.w3.org/2000/svg', pts);
+                appendBoulderLineSvg(svg, 'http://www.w3.org/2000/svg', pts, geom);
             }
 
             renderBoulderHoldsMarkup() {
