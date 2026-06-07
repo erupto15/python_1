@@ -52,7 +52,8 @@ def get_route(route_id: int, db: Session = Depends(get_db)) -> Route:
 
 @router.get("/{route_id}/photos", response_model=list[schemas.PhotoRead])
 def list_route_photos_legacy(route_id: int, db: Session = Depends(get_db)) -> list[Photo]:
-    if not db.get(Route, route_id):
+    route = db.get(Route, route_id)
+    if not route or route.deleted_at is not None:
         return []
     return (
         db.query(Photo)

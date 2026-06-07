@@ -11,6 +11,20 @@ from app.models import Boulder, Comment, Route, User
 router = APIRouter(prefix="/comments", tags=["comments"])
 
 
+def _active_route(db: Session, route_id: int | None) -> Route | None:
+    route = db.get(Route, route_id) if route_id is not None else None
+    if not route or route.deleted_at is not None:
+        return None
+    return route
+
+
+def _active_boulder(db: Session, boulder_id: int | None) -> Boulder | None:
+    boulder = db.get(Boulder, boulder_id) if boulder_id is not None else None
+    if not boulder or boulder.deleted_at is not None:
+        return None
+    return boulder
+
+
 def _validate_comment_payload(payload: schemas.CommentCreate) -> None:
     if payload.climb_type == "route":
         if payload.route_id is None or payload.boulder_id is not None:
@@ -22,7 +36,7 @@ def _validate_comment_payload(payload: schemas.CommentCreate) -> None:
 
 @router.get("/by-route/{route_id}", response_model=list[schemas.CommentRead])
 def list_comments_route(route_id: int, db: Session = Depends(get_db)) -> list[Comment]:
-    if not db.get(Route, route_id):
+    if not _active_route(db, route_id):
         raise HTTPException(status_code=404, detail="Route not found")
     return (
         db.query(Comment)
@@ -34,7 +48,7 @@ def list_comments_route(route_id: int, db: Session = Depends(get_db)) -> list[Co
 
 @router.get("/by-boulder/{boulder_id}", response_model=list[schemas.CommentRead])
 def list_comments_boulder(boulder_id: int, db: Session = Depends(get_db)) -> list[Comment]:
-    if not db.get(Boulder, boulder_id):
+    if not _active_boulder(db, boulder_id):
         raise HTTPException(status_code=404, detail="Boulder not found")
     return (
         db.query(Comment)
@@ -51,9 +65,9 @@ def create_comment(
     user: User = Depends(get_current_user),
 ) -> Comment:
     _validate_comment_payload(payload)
-    if payload.climb_type == "route" and not db.get(Route, payload.route_id):
+    if payload.climb_type == "route" and not _active_route(db, payload.route_id):
         raise HTTPException(status_code=404, detail="Route not found")
-    if payload.climb_type == "boulder" and not db.get(Boulder, payload.boulder_id):
+    if payload.climb_type == "boulder" and not _active_boulder(db, payload.boulder_id):
         raise HTTPException(status_code=404, detail="Boulder not found")
     data = payload.model_dump()
     data["user_id"] = user.id

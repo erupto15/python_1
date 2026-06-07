@@ -52,7 +52,8 @@ def get_boulder(boulder_id: int, db: Session = Depends(get_db)) -> Boulder:
 
 @router.get("/{boulder_id}/photos", response_model=list[schemas.PhotoRead])
 def list_boulder_photos_legacy(boulder_id: int, db: Session = Depends(get_db)) -> list[Photo]:
-    if not db.get(Boulder, boulder_id):
+    boulder = db.get(Boulder, boulder_id)
+    if not boulder or boulder.deleted_at is not None:
         return []
     return (
         db.query(Photo)

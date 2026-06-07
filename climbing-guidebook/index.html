@@ -1606,19 +1606,6 @@
             background-color: rgba(255, 255, 255, 0.03);
         }
 
-        .inline-dialog-actions {
-            display: flex;
-            justify-content: flex-end;
-            margin-top: 12px;
-        }
-
-        @media (max-width: 400px) {
-            .inline-dialog-actions .btn {
-                width: 100%;
-                justify-content: center;
-            }
-        }
-
         .markup-actions {
             display: flex;
             gap: 10px;
@@ -3488,9 +3475,6 @@
                         </div>
                     </div>
                 </form>
-                <div class="inline-dialog-actions">
-                    <button type="button" class="btn btn-primary" id="areaSubmitInlineBtn"><i class="fas fa-save"></i> Сохранить</button>
-                </div>
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
                 <button type="button" class="btn btn-secondary" id="cancelAreaBtn"><i class="fas fa-times"></i> Закрыть</button>
@@ -3522,9 +3506,6 @@
                         <textarea class="form-textarea" id="sectorDescription" rows="2"></textarea>
                     </div>
                 </form>
-                <div class="inline-dialog-actions">
-                    <button type="button" class="btn btn-primary" id="sectorSubmitInlineBtn"><i class="fas fa-save"></i> Сохранить</button>
-                </div>
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
                 <button type="button" class="btn btn-secondary" id="cancelSectorBtn"><i class="fas fa-times"></i> Закрыть</button>
@@ -3596,9 +3577,6 @@
                             <button type="button" class="btn btn-danger btn-small" id="quickRoutePhotoClearBtn"><i class="fas fa-trash"></i> Убрать фото</button>
                         </div>
                     </div>
-                    <div class="inline-dialog-actions">
-                        <button type="button" class="btn btn-primary" id="quickRouteSubmitInlineBtn"><i class="fas fa-save"></i> Сохранить</button>
-                    </div>
                 </form>
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
@@ -3666,9 +3644,6 @@
                             <button type="button" class="btn btn-secondary btn-small" id="quickBoulderMarkupBtn"><i class="fas fa-draw-polygon"></i> Разметить</button>
                             <button type="button" class="btn btn-danger btn-small" id="quickBoulderPhotoClearBtn"><i class="fas fa-trash"></i> Убрать фото</button>
                         </div>
-                    </div>
-                    <div class="inline-dialog-actions">
-                        <button type="button" class="btn btn-primary" id="quickBoulderSubmitInlineBtn"><i class="fas fa-save"></i> Сохранить</button>
                     </div>
                 </form>
             </div>
@@ -6615,9 +6590,7 @@
             }
 
             _setQuickSaveLoading(kind, busy) {
-                const ids = kind === 'route'
-                    ? ['saveQuickRouteBtn', 'quickRouteSubmitInlineBtn']
-                    : ['saveQuickBoulderBtn', 'quickBoulderSubmitInlineBtn'];
+                const ids = kind === 'route' ? ['saveQuickRouteBtn'] : ['saveQuickBoulderBtn'];
                 ids.forEach((id) => {
                     const btn = document.getElementById(id);
                     if (!btn) return;
@@ -7319,7 +7292,6 @@
                 document.getElementById('quickRouteDialogTitle').textContent = 'Добавить трассу';
                 document.getElementById('quickRouteDialogSubtitle').textContent = 'Новая трасса в выбранном секторе';
                 document.getElementById('saveQuickRouteBtn').innerHTML = '<i class="fas fa-save"></i> Добавить трассу';
-                document.getElementById('quickRouteSubmitInlineBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить';
                 this.setStarRating('quickRouteRating', '');
                 this.clearQuickDialogPhoto('route');
                 this.showDialog('quickRouteDialog');
@@ -7334,7 +7306,6 @@
                 document.getElementById('quickBoulderDialogTitle').textContent = 'Добавить боулдеринг';
                 document.getElementById('quickBoulderDialogSubtitle').textContent = 'Новый боулдеринг в выбранном секторе';
                 document.getElementById('saveQuickBoulderBtn').innerHTML = '<i class="fas fa-save"></i> Добавить боулдеринг';
-                document.getElementById('quickBoulderSubmitInlineBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить';
                 this.setStarRating('quickBoulderRating', '');
                 this.clearQuickDialogPhoto('boulder');
                 this.showDialog('quickBoulderDialog');
@@ -7360,7 +7331,6 @@
                 document.getElementById('quickRouteDialogTitle').textContent = 'Редактировать трассу';
                 document.getElementById('quickRouteDialogSubtitle').textContent = 'Измените параметры трассы';
                 document.getElementById('saveQuickRouteBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить изменения';
-                document.getElementById('quickRouteSubmitInlineBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить изменения';
                 this.clearQuickDialogPhoto('route');
                 this.showDialog('quickRouteDialog');
             }
@@ -7384,7 +7354,6 @@
                 document.getElementById('quickBoulderDialogTitle').textContent = 'Редактировать боулдеринг';
                 document.getElementById('quickBoulderDialogSubtitle').textContent = 'Измените параметры боулдеринга';
                 document.getElementById('saveQuickBoulderBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить изменения';
-                document.getElementById('quickBoulderSubmitInlineBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить изменения';
                 this.clearQuickDialogPhoto('boulder');
                 this.showDialog('quickBoulderDialog');
             }
@@ -7931,25 +7900,15 @@
                     if (!this.requireAdmin('Сохранение района')) return;
                     this.saveArea();
                 });
-                document.getElementById('areaSubmitInlineBtn')?.addEventListener('click', () => {
-                    if (!this.requireAdmin('Сохранение района')) return;
-                    this.saveArea();
-                });
                 document.getElementById('cancelSectorBtn')?.addEventListener('click', () => this.hideDialog('sectorDialog'));
                 document.getElementById('sectorSubmitBtn')?.addEventListener('click', () => {
                     if (!this.requireAdmin('Сохранение сектора')) return;
                     this.saveSector();
                 });
-                document.getElementById('sectorSubmitInlineBtn')?.addEventListener('click', () => {
-                    if (!this.requireAdmin('Сохранение сектора')) return;
-                    this.saveSector();
-                });
                 document.getElementById('cancelQuickRouteBtn')?.addEventListener('click', () => this.hideDialog('quickRouteDialog'));
                 document.getElementById('saveQuickRouteBtn')?.addEventListener('click', () => this.saveQuickRoute());
-                document.getElementById('quickRouteSubmitInlineBtn')?.addEventListener('click', () => this.saveQuickRoute());
                 document.getElementById('cancelQuickBoulderBtn')?.addEventListener('click', () => this.hideDialog('quickBoulderDialog'));
                 document.getElementById('saveQuickBoulderBtn')?.addEventListener('click', () => this.saveQuickBoulder());
-                document.getElementById('quickBoulderSubmitInlineBtn')?.addEventListener('click', () => this.saveQuickBoulder());
                 document.getElementById('quickRoutePhoto')?.addEventListener('change', (e) => this.onQuickDialogPhotoSelected('route', e));
                 document.getElementById('quickBoulderPhoto')?.addEventListener('change', (e) => this.onQuickDialogPhotoSelected('boulder', e));
                 document.getElementById('quickRouteMarkupBtn')?.addEventListener('click', () => this.openQuickDialogPhotoMarkup('route'));

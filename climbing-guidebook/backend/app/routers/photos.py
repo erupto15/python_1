@@ -9,6 +9,20 @@ from app.models import Boulder, Photo, Route, User
 router = APIRouter(prefix="/photos", tags=["photos"])
 
 
+def _active_route(db: Session, route_id: int | None) -> Route | None:
+    route = db.get(Route, route_id) if route_id is not None else None
+    if not route or route.deleted_at is not None:
+        return None
+    return route
+
+
+def _active_boulder(db: Session, boulder_id: int | None) -> Boulder | None:
+    boulder = db.get(Boulder, boulder_id) if boulder_id is not None else None
+    if not boulder or boulder.deleted_at is not None:
+        return None
+    return boulder
+
+
 def _validate_photo_payload(payload: schemas.PhotoCreate) -> None:
     if payload.climb_type == "route":
         if payload.route_id is None or payload.boulder_id is not None:
@@ -27,13 +41,13 @@ def _resolve_climb_metadata(
     climb_category: str | None = None
 
     if payload.climb_type == "route":
-        route = db.get(Route, payload.route_id)
+        route = _active_route(db, payload.route_id)
         if not route:
             raise HTTPException(status_code=404, detail="Route not found")
         climb_name = route.name
         climb_category = route.category
     else:
-        boulder = db.get(Boulder, payload.boulder_id)
+        boulder = _active_boulder(db, payload.boulder_id)
         if not boulder:
             raise HTTPException(status_code=404, detail="Boulder not found")
         climb_name = boulder.name
@@ -51,7 +65,7 @@ def list_photos(db: Session = Depends(get_db)) -> list[Photo]:
 
 @router.get("/by-route/{route_id}", response_model=list[schemas.PhotoRead])
 def list_photos_for_route(route_id: int, db: Session = Depends(get_db)) -> list[Photo]:
-    if not db.get(Route, route_id):
+    if not _active_route(db, route_id):
         return []
     return (
         db.query(Photo)
@@ -63,7 +77,7 @@ def list_photos_for_route(route_id: int, db: Session = Depends(get_db)) -> list[
 
 @router.get("/by-boulder/{boulder_id}", response_model=list[schemas.PhotoRead])
 def list_photos_for_boulder(boulder_id: int, db: Session = Depends(get_db)) -> list[Photo]:
-    if not db.get(Boulder, boulder_id):
+    if not _active_boulder(db, boulder_id):
         return []
     return (
         db.query(Photo)
