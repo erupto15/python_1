@@ -2739,6 +2739,12 @@
             background: color-mix(in srgb, var(--danger-color) 10%, var(--card-bg));
         }
 
+        .app-data-status--offline {
+            border-color: color-mix(in srgb, var(--warning-color) 45%, var(--border-color));
+            background: color-mix(in srgb, var(--warning-color) 12%, var(--card-bg));
+            color: var(--text-color);
+        }
+
         .app-data-status .btn {
             margin-top: 8px;
         }
@@ -4266,6 +4272,8 @@
             return '';
         })();
         const AUTH_STORAGE_KEY = 'climbingApp_auth';
+        const CLIMBING_DATA_STORAGE_KEY = 'climbingApp_catalog_v2';
+        const CLIMBING_OFFLINE_META_KEY = 'climbingApp_offline_meta_v1';
         const ADMIN_EMAIL_HINT = window.CLIMBING_ADMIN_EMAIL || 'admin@climbing-guidebook.local';
         const MAX_PHOTO_SIZE_MB = 25;
         const MAX_PHOTO_SIZE_BYTES = MAX_PHOTO_SIZE_MB * 1024 * 1024;
@@ -4282,6 +4290,8 @@
         let _catalogReloadPromise = null;
         let _lastCatalogReloadFinishedAt = 0;
         let _appRemoteDataReady = false;
+        let _offlineMode = false;
+        let _persistCatalogTimer = null;
 
         /** Перед отправкой на API: уменьшаем base64 (быстрее JSON и отклик «Добавить»). */
         const QUICK_PHOTO_MAX_EDGE = 1920;
@@ -4668,7 +4678,7 @@
                     await loadClimbingDataFromApi({ includePhotos: options.includePhotos === true });
                     _appRemoteDataReady = true;
                     _lastCatalogReloadFinishedAt = Date.now();
-                    setAppDataStatus('hidden');
+                    leaveOfflineMode();
                     window.app?.refreshUiAfterRemoteLoad?.();
                     if (options.refreshPhotos) {
                         await ensurePhotosLoadedFromApi();
@@ -4677,6 +4687,10 @@
                     return true;
                 } catch (err) {
                     console.warn('catalog refresh', err);
+                    if (catalogHasContent(getClimbingData())) {
+                        enterOfflineMode('Не удалось обновить данные. Показана сохранённая копия каталога.');
+                        return true;
+                    }
                     if (_appRemoteDataReady) {
                         window.app?.showToast?.('Не удалось обновить данные. Проверьте сеть.', true);
                     }
@@ -4690,19 +4704,21 @@
 
         function scheduleCatalogRefreshOnAppVisible() {
             if (!_appRemoteDataReady) return;
+            if (typeof navigator.onLine === 'boolean' && !navigator.onLine) return;
             void refreshCatalogFromApi().catch(() => {});
         }
 
         function setAppDataStatus(mode, message, { showRetry } = {}) {
             const el = document.getElementById('appDataStatus');
             if (!el) return;
-            el.classList.remove('hidden', 'app-data-status--loading', 'app-data-status--error');
+            el.classList.remove('hidden', 'app-data-status--loading', 'app-data-status--error', 'app-data-status--offline');
             if (mode === 'hidden') {
                 el.classList.add('hidden');
                 el.innerHTML = '';
                 return;
             }
             if (mode === 'error') el.classList.add('app-data-status--error');
+            else if (mode === 'offline') el.classList.add('app-data-status--offline');
             else el.classList.add('app-data-status--loading');
             const retryBtn = showRetry
                 ? '<button type="button" class="btn btn-primary btn-small" id="appDataRetryBtn">Повторить загрузку</button>'
@@ -4721,6 +4737,7 @@
                 const awake = await wakeApiServer({ attempts: 8 });
                 if (!awake) throw new Error('Сервер не отвечает');
                 await refreshCatalogFromApi({ force: true, skipWake: true });
+                leaveOfflineMode();
                 if (window.app) {
                     await window.app.restoreAuthSession();
                     if (!getAuthData().accessToken) {
@@ -5090,12 +5107,111 @@
         }
 
         /**
-         * Каталог: один кэш в памяти. Поток step-by-step:
+         * Каталог: кэш в памяти + localStorage для офлайн.
+         * Поток step-by-step:
          * 1) API (POST/PATCH/DELETE)
          * 2) merge*FromApiResponse / remove*FromLocalCache (без полной перезагрузки)
          * 3) render* UI
-         * Полная загрузка loadClimbingDataFromApi — только при старте приложения.
+         * Полная загрузка loadClimbingDataFromApi — при старте и при появлении сети.
          */
+        function catalogHasContent(data) {
+            if (!data) return false;
+            return (
+                (Array.isArray(data.areas) && data.areas.length > 0) ||
+                (Array.isArray(data.sectors) && data.sectors.length > 0) ||
+                (Array.isArray(data.routes) && data.routes.length > 0) ||
+                (Array.isArray(data.boulders) && data.boulders.length > 0)
+            );
+        }
+
+        function slimCatalogForStorage(data) {
+            const photos = (data.photos || []).map((p) => {
+                const imageData = p.imageData;
+                const keepInline = typeof imageData === 'string'
+                    && imageData.startsWith('data:')
+                    && imageData.length < 120000;
+                return {
+                    ...p,
+                    imageData: keepInline ? imageData : (imageData || '')
+                };
+            });
+            return { ...data, photos };
+        }
+
+        function persistClimbingDataToStorage(data) {
+            if (!data) return;
+            clearTimeout(_persistCatalogTimer);
+            _persistCatalogTimer = setTimeout(() => {
+                const payload = slimCatalogForStorage(data);
+                try {
+                    localStorage.setItem(CLIMBING_DATA_STORAGE_KEY, JSON.stringify(payload));
+                    localStorage.setItem(CLIMBING_OFFLINE_META_KEY, JSON.stringify({
+                        savedAt: Date.now(),
+                        areas: payload.areas?.length || 0,
+                        sectors: payload.sectors?.length || 0,
+                        routes: payload.routes?.length || 0,
+                        boulders: payload.boulders?.length || 0,
+                        photos: payload.photos?.length || 0
+                    }));
+                } catch (err) {
+                    console.warn('catalog persist (full)', err);
+                    try {
+                        const slim = slimCatalogForStorage({
+                            ...data,
+                            photos: (data.photos || []).map((p) => ({ ...p, imageData: '' }))
+                        });
+                        localStorage.setItem(CLIMBING_DATA_STORAGE_KEY, JSON.stringify(slim));
+                    } catch (err2) {
+                        console.warn('catalog persist (slim)', err2);
+                    }
+                }
+            }, 350);
+        }
+
+        function loadClimbingDataFromStorage() {
+            try {
+                const raw = localStorage.getItem(CLIMBING_DATA_STORAGE_KEY);
+                if (!raw) return null;
+                return ensureCatalogArrays(JSON.parse(raw));
+            } catch (err) {
+                console.warn('catalog load from storage', err);
+                return null;
+            }
+        }
+
+        function enterOfflineMode(message) {
+            _offlineMode = true;
+            setAppDataStatus(
+                'offline',
+                message || 'Офлайн — показаны сохранённые данные. Подключите сеть для обновления.',
+                { showRetry: true }
+            );
+        }
+
+        function leaveOfflineMode() {
+            _offlineMode = false;
+            setAppDataStatus('hidden');
+        }
+
+        function bootstrapCatalogFromStorage() {
+            const cached = loadClimbingDataFromStorage();
+            if (!catalogHasContent(cached)) return false;
+            climbingDataCache = cached;
+            _appRemoteDataReady = true;
+            _photosLoadedFromApi = (cached.photos || []).some(photoHasDisplayImage);
+            return true;
+        }
+
+        function registerOfflineServiceWorker() {
+            if (!('serviceWorker' in navigator) || window.location.protocol === 'file:') return;
+            navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((err) => {
+                console.warn('service worker register', err);
+            });
+            if (navigator.storage && typeof navigator.storage.persist === 'function') {
+                void navigator.storage.persist().catch(() => {});
+            }
+        }
+
         let climbingDataCache = {
             areas: [],
             sectors: [],
@@ -5393,14 +5509,14 @@
                 _photosLoadedFromApi = true;
             }
 
-            climbingDataCache = ensureCatalogArrays({
+            saveClimbingData(ensureCatalogArrays({
                 areas,
                 sectors,
                 routes,
                 boulders,
                 photos
-            });
-            return climbingDataCache;
+            }));
+            return getClimbingData();
         }
 
         async function ensurePhotosLoadedFromApi(options = {}) {
@@ -5689,6 +5805,7 @@
 
         function saveClimbingData(data) {
             climbingDataCache = data;
+            persistClimbingDataToStorage(data);
         }
 
         function getRoutes() {
@@ -10613,19 +10730,36 @@
         }
 
         window.addEventListener('DOMContentLoaded', () => {
+            registerOfflineServiceWorker();
+            const hadLocalCatalog = bootstrapCatalogFromStorage();
             window.app = new ClimbingApp();
             if (typeof window.syncTelegramMiniAppUi === 'function') {
                 window.syncTelegramMiniAppUi();
             }
             void (async () => {
-                setAppDataStatus('loading', 'Загрузка данных с сервера…');
+                setAppDataStatus(
+                    'loading',
+                    hadLocalCatalog
+                        ? 'Проверка сети и обновление каталога…'
+                        : 'Загрузка данных с сервера…'
+                );
                 try {
-                    const awake = await wakeApiServer();
+                    const online = navigator.onLine !== false;
+                    let awake = false;
+                    if (online) {
+                        awake = await wakeApiServer({
+                            attempts: hadLocalCatalog ? 4 : API_WAKE_ATTEMPTS
+                        });
+                    }
+                    if (!awake && hadLocalCatalog) {
+                        enterOfflineMode();
+                        void runTelegramAuthBootstrap();
+                        return;
+                    }
                     if (!awake) {
                         throw new Error('Сервер не отвечает');
                     }
                     await warnIfApiStorageNotPersistent();
-                    // Сначала каталог с API — не ждём Telegram-авторизацию (иначе пустой экран при сбое login).
                     await refreshCatalogFromApi({ initial: true, skipWake: true });
                     void runTelegramAuthBootstrap();
                     void ensurePhotosLoadedFromApi().then(() => {
@@ -10636,6 +10770,13 @@
                     }
                 } catch (err) {
                     console.error('API load error', err);
+                    if (hadLocalCatalog || catalogHasContent(getClimbingData())) {
+                        enterOfflineMode(
+                            'Офлайн — показаны сохранённые данные. Подключите сеть и нажмите «Повторить».'
+                        );
+                        void runTelegramAuthBootstrap();
+                        return;
+                    }
                     setAppDataStatus(
                         'error',
                         `Не удалось загрузить данные: ${err.message || 'ошибка сети'}. Откройте бота заново через /start или нажмите «Повторить».`,
@@ -10645,6 +10786,23 @@
                         'Не удалось загрузить данные. Проверьте сеть и откройте приложение ещё раз.',
                         true
                     );
+                }
+            })();
+        });
+
+        window.addEventListener('online', () => {
+            if (!window.app || !_appRemoteDataReady) return;
+            void (async () => {
+                try {
+                    const awake = await wakeApiServer({ attempts: 3, timeoutMs: 12000, pauseMs: 800 });
+                    if (!awake) return;
+                    setAppDataStatus('loading', 'Сеть восстановлена — обновление каталога…');
+                    await refreshCatalogFromApi({ force: true, skipWake: true });
+                    void ensurePhotosLoadedFromApi()
+                        .then(() => window.app?.renderPhotoAlbum?.())
+                        .catch((err) => console.warn('photos refresh after online', err));
+                } catch (err) {
+                    console.warn('online catalog refresh', err);
                 }
             })();
         });
