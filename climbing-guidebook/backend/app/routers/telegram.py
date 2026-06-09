@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import time
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, status
 
 from app.config import Settings, settings
+from app.services.telegram_bot import send_message
 
 router = APIRouter(prefix="/telegram", tags=["telegram"])
 
@@ -22,29 +22,33 @@ def _mini_app_url() -> str:
     return f"{base}/"
 
 
-def _start_message_payload(chat_id: int) -> dict[str, Any]:
+def _start_reply_markup() -> dict[str, Any]:
     return {
-        "method": "sendMessage",
-        "chat_id": chat_id,
-        "text": "Открывай скалолазный гайд:",
-        "reply_markup": {
-            "inline_keyboard": [
-                [
-                    {
-                        "text": "Открыть гайд",
-                        "web_app": {"url": _mini_app_url()},
-                    }
-                ]
+        "inline_keyboard": [
+            [
+                {
+                    "text": "Открыть гайд",
+                    "web_app": {"url": _mini_app_url()},
+                }
             ]
-        },
+        ]
     }
+
+
+async def _deliver_start_message(chat_id: int) -> None:
+    await send_message(
+        chat_id=chat_id,
+        text="Открывай скалолазный гайд:",
+        reply_markup=_start_reply_markup(),
+    )
 
 
 @router.post("/webhook")
 async def telegram_webhook(
     update: dict[str, Any],
+    background_tasks: BackgroundTasks,
     x_telegram_bot_api_secret_token: str | None = Header(default=None),
-) -> dict[str, Any]:
+) -> dict[str, bool]:
     expected_secret = (settings.telegram_webhook_secret or "").strip()
     if expected_secret and x_telegram_bot_api_secret_token != expected_secret:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid Telegram webhook secret")
@@ -65,4 +69,5 @@ async def telegram_webhook(
     if not isinstance(chat_id, int):
         return {"ok": True}
 
-    return _start_message_payload(chat_id)
+    background_tasks.add_task(_deliver_start_message, chat_id)
+    return {"ok": True}

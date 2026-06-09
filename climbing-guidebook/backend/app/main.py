@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 from app.models import Area, Boulder, Photo, Route, Sector
 from app.routers import areas, auth, boulders, comments, community, photos, routes_api, sectors, telegram, users
 from app.seed import bootstrap_catalog
+from app.services.telegram_bot import call_telegram_api, close_telegram_client
 
 FRONTEND_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_INDEX = FRONTEND_ROOT / "index.html"
@@ -44,7 +45,10 @@ async def lifespan(_: FastAPI):
         bootstrap_catalog(db)
     finally:
         db.close()
+    if (settings.telegram_bot_token or "").strip():
+        await call_telegram_api("getMe")
     yield
+    await close_telegram_client()
 
 
 app = FastAPI(title=settings.app_title, lifespan=lifespan)

@@ -151,6 +151,9 @@ jobs:
           systemctl restart guide-rus-backend
           systemctl reload caddy
 
+          KEEPALIVE_CRON='*/3 * * * * curl -fsS --max-time 8 http://127.0.0.1:8000/health >/dev/null 2>&1'
+          (crontab -l 2>/dev/null | grep -v '127.0.0.1:8000/health' || true; echo "$KEEPALIVE_CRON") | crontab -
+
           set -a
           # shellcheck disable=SC1091
           source /etc/guide-rus/backend.env
