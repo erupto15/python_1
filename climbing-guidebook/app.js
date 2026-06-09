@@ -526,6 +526,8 @@
         const AUTH_STORAGE_KEY = 'climbingApp_auth';
         const CLIMBING_DATA_STORAGE_KEY = 'climbingApp_catalog_v2';
         const CLIMBING_OFFLINE_META_KEY = 'climbingApp_offline_meta_v1';
+        const OFFLINE_OUTBOX_KEY = 'climbingApp_sync_outbox_v1';
+        const OFFLINE_OUTBOX_LIMIT = 50;
         const ADMIN_EMAIL_HINT = window.CLIMBING_ADMIN_EMAIL || 'admin@climbing-guidebook.local';
         const MAX_PHOTO_SIZE_MB = 25;
         const MAX_PHOTO_SIZE_BYTES = MAX_PHOTO_SIZE_MB * 1024 * 1024;
@@ -1033,6 +1035,7 @@
             try {
                 const awake = await wakeApiServer({ attempts: 8 });
                 if (!awake) throw new Error('Сервер не отвечает');
+                await flushOfflineOutbox();
                 await refreshCatalogFromApi({ force: true, skipWake: true });
                 leaveOfflineMode();
                 if (window.app) {
@@ -1106,7 +1109,7 @@
             });
         }
 
-        async function apiFetch(path, options = {}) {
+        async function apiFetchDirect(path, options = {}) {
             const url = `${API_BASE_URL}${path}`;
             const headers = Object.assign({}, options.headers || {});
             const auth = getAuthData();
@@ -1147,6 +1150,24 @@
             if (res.status === 204) return null;
             const text = await res.text();
             return text ? JSON.parse(text) : null;
+        }
+
+        async function apiFetch(path, options = {}) {
+            const method = String(options.method || 'GET').toUpperCase();
+            const isMutation = !['GET', 'HEAD'].includes(method);
+            if (isMutation && shouldUseOfflineQueue()) {
+                const entry = enqueueOfflineMutation(path, options);
+                throw new OfflineQueuedError('Нет сети — действие сохранено и отправится при появлении сети', entry);
+            }
+            try {
+                return await apiFetchDirect(path, options);
+            } catch (err) {
+                if (isMutation && isFetchNetworkError(err)) {
+                    const entry = enqueueOfflineMutation(path, options);
+                    throw new OfflineQueuedError('Нет сети — действие сохранено и отправится при появлении сети', entry);
+                }
+                throw err;
+            }
         }
 
         if (APP_BOULDER_ONLY) {
@@ -1476,13 +1497,182 @@
             }
         }
 
+        function getOfflineMeta() {
+            try {
+                const raw = localStorage.getItem(CLIMBING_OFFLINE_META_KEY);
+                return raw ? JSON.parse(raw) : null;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        function formatCacheAge(ts) {
+            if (!ts) return '';
+            const min = Math.round((Date.now() - Number(ts)) / 60000);
+            if (min < 1) return 'только что';
+            if (min < 60) return `${min} мин назад`;
+            const hours = Math.round(min / 60);
+            if (hours < 48) return `${hours} ч назад`;
+            return new Date(ts).toLocaleDateString('ru-RU');
+        }
+
+        function loadOfflineOutbox() {
+            try {
+                const raw = localStorage.getItem(OFFLINE_OUTBOX_KEY);
+                const parsed = raw ? JSON.parse(raw) : [];
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (_) {
+                return [];
+            }
+        }
+
+        function saveOfflineOutbox(queue) {
+            try {
+                localStorage.setItem(OFFLINE_OUTBOX_KEY, JSON.stringify(queue.slice(0, OFFLINE_OUTBOX_LIMIT)));
+            } catch (err) {
+                console.warn('offline outbox persist', err);
+            }
+        }
+
+        function offlineOutboxSize() {
+            return loadOfflineOutbox().length;
+        }
+
+        function offlineMutationLabel(path, method) {
+            const m = String(method || 'GET').toUpperCase();
+            if (path.startsWith('/api/ascents')) return 'пролаз';
+            if (path.startsWith('/api/ratings')) return 'оценка';
+            if (path.includes('/photos')) return 'фото';
+            if (path.includes('/areas')) return m === 'DELETE' ? 'удаление района' : 'район';
+            if (path.includes('/sectors')) return m === 'DELETE' ? 'удаление сектора' : 'сектор';
+            if (path.includes('/routes')) return m === 'DELETE' ? 'удаление трассы' : 'трасса';
+            if (path.includes('/boulders')) return m === 'DELETE' ? 'удаление боулдера' : 'боулдер';
+            return 'изменение';
+        }
+
+        function enqueueOfflineMutation(path, options = {}) {
+            const method = String(options.method || 'GET').toUpperCase();
+            const headers = Object.assign({}, options.headers || {});
+            const body = typeof options.body === 'string' ? options.body : '';
+            const entry = {
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                createdAt: Date.now(),
+                path,
+                method,
+                headers,
+                body,
+                label: offlineMutationLabel(path, method)
+            };
+            const queue = loadOfflineOutbox();
+            queue.push(entry);
+            saveOfflineOutbox(queue);
+            updateOfflineStatusBanner();
+            window.app?.showToast?.('Сохранено локально — отправится при появлении сети', false);
+            return entry;
+        }
+
+        function buildOfflineStatusMessage(baseMessage) {
+            const parts = [baseMessage || 'Офлайн — показаны сохранённые данные.'];
+            const meta = getOfflineMeta();
+            if (meta?.savedAt) {
+                parts.push(`Кэш каталога: ${formatCacheAge(meta.savedAt)}.`);
+            }
+            const pending = offlineOutboxSize();
+            if (pending > 0) {
+                parts.push(`В очереди на отправку: ${pending}.`);
+            }
+            parts.push('При появлении сети данные синхронизируются автоматически.');
+            return parts.join(' ');
+        }
+
+        function updateOfflineStatusBanner() {
+            if (!_offlineMode) return;
+            setAppDataStatus('offline', buildOfflineStatusMessage(), { showRetry: true });
+        }
+
+        function shouldUseOfflineQueue() {
+            return typeof navigator.onLine === 'boolean' && !navigator.onLine;
+        }
+
+        function isFetchNetworkError(err) {
+            const msg = String(err?.message || err || '');
+            return err?.name === 'AbortError'
+                || msg.includes('Превышено время ожидания сети')
+                || msg.includes('Failed to fetch')
+                || msg.includes('Load failed')
+                || msg.includes('NetworkError')
+                || msg.includes('Сервер не отвечает');
+        }
+
+        class OfflineQueuedError extends Error {
+            constructor(message, entry) {
+                super(message);
+                this.name = 'OfflineQueuedError';
+                this.queued = true;
+                this.entry = entry;
+            }
+        }
+
+        let _flushOutboxPromise = null;
+
+        async function flushOfflineOutbox() {
+            if (_flushOutboxPromise) return _flushOutboxPromise;
+            const queue = loadOfflineOutbox();
+            if (!queue.length) return { sent: 0, failed: 0 };
+
+            _flushOutboxPromise = (async () => {
+                const awake = await wakeApiServer({ attempts: 2, timeoutMs: 4000, pauseMs: 300 });
+                if (!awake) return { sent: 0, failed: 0, skipped: true };
+
+                let sent = 0;
+                const remaining = [];
+                for (let i = 0; i < queue.length; i++) {
+                    const entry = queue[i];
+                    try {
+                        await apiFetchDirect(entry.path, {
+                            method: entry.method,
+                            headers: entry.headers,
+                            body: entry.body || undefined
+                        });
+                        sent += 1;
+                    } catch (err) {
+                        if (shouldUseOfflineQueue() || isFetchNetworkError(err)) {
+                            remaining.push(...queue.slice(i));
+                            break;
+                        }
+                        const msg = String(err?.message || '');
+                        if (msg.includes('HTTP 401') || msg.includes('HTTP 403') || msg.includes('HTTP 500') || msg.includes('HTTP 502') || msg.includes('HTTP 503')) {
+                            remaining.push(entry);
+                            continue;
+                        }
+                        console.warn('offline outbox drop', entry, err);
+                    }
+                }
+                saveOfflineOutbox(remaining);
+                updateOfflineStatusBanner();
+                if (sent > 0) {
+                    window.app?.showToast?.(`Синхронизировано: ${sent}`, false);
+                    try {
+                        await refreshCatalogFromApi({ force: true, skipWake: true });
+                        leaveOfflineMode();
+                    } catch (err) {
+                        console.warn('catalog refresh after outbox flush', err);
+                    }
+                    if (window.app?.isLoggedIn?.()) {
+                        void window.app.loadAscentSummary?.();
+                        void window.app.renderProfileTab?.();
+                    }
+                }
+                return { sent, failed: queue.length - sent - remaining.length, remaining: remaining.length };
+            })().finally(() => {
+                _flushOutboxPromise = null;
+            });
+            return _flushOutboxPromise;
+        }
+
         function enterOfflineMode(message) {
             _offlineMode = true;
-            setAppDataStatus(
-                'offline',
-                message || 'Офлайн — показаны сохранённые данные. Подключите сеть для обновления.',
-                { showRetry: true }
-            );
+            setAppDataStatus('offline', buildOfflineStatusMessage(message), { showRetry: true });
         }
 
         function leaveOfflineMode() {
@@ -6332,6 +6522,13 @@
                     if (typeof window.syncTelegramWebAppButtons === 'function') {
                         window.syncTelegramWebAppButtons('climbDetailDialog');
                     }
+                } catch (err) {
+                    if (err?.queued) {
+                        this.hideDialog('climbLogDialog');
+                        this.showToast('Пролаз сохранён локально — отправится при появлении сети', false);
+                        return;
+                    }
+                    throw err;
                 } finally {
                     if (typeof window.setTelegramMainButtonLoading === 'function') {
                         window.setTelegramMainButtonLoading(false);
@@ -7063,6 +7260,7 @@
                 await warnIfApiStorageNotPersistent();
                 await refreshCatalogFromApi({ initial: true, skipWake: true });
                 leaveOfflineMode();
+                void flushOfflineOutbox();
                 void runTelegramAuthBootstrap();
                 void ensurePhotosLoadedFromApi().then(() => {
                     window.app?.renderPhotoAlbum?.();
@@ -7099,7 +7297,11 @@
             if (typeof window.syncTelegramMiniAppUi === 'function') {
                 window.syncTelegramMiniAppUi();
             }
-            leaveOfflineMode();
+            if (hadLocalCatalog && shouldUseOfflineQueue()) {
+                enterOfflineMode('Офлайн — показан сохранённый каталог.');
+            } else if (!hadLocalCatalog) {
+                setAppDataStatus('loading', 'Загрузка каталога…');
+            }
             void bootstrapRemoteCatalog(hadLocalCatalog);
         }
 
@@ -7110,13 +7312,18 @@
         }
 
         window.addEventListener('online', () => {
-            if (!window.app || !_appRemoteDataReady) return;
             void (async () => {
                 try {
                     const awake = await wakeApiServer({ attempts: 3, timeoutMs: 12000, pauseMs: 800 });
                     if (!awake) return;
+                    if (offlineOutboxSize() > 0) {
+                        setAppDataStatus('loading', 'Сеть восстановлена — синхронизация…');
+                        await flushOfflineOutbox();
+                    }
+                    if (!window.app || !_appRemoteDataReady) return;
                     setAppDataStatus('loading', 'Сеть восстановлена — обновление каталога…');
                     await refreshCatalogFromApi({ force: true, skipWake: true });
+                    leaveOfflineMode();
                     void ensurePhotosLoadedFromApi()
                         .then(() => window.app?.renderPhotoAlbum?.())
                         .catch((err) => console.warn('photos refresh after online', err));
@@ -7124,4 +7331,16 @@
                     console.warn('online catalog refresh', err);
                 }
             })();
+        });
+
+        window.addEventListener('offline', () => {
+            if (catalogHasContent(getClimbingData())) {
+                enterOfflineMode('Связь потеряна — показан сохранённый каталог.');
+            }
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState !== 'visible') return;
+            if (shouldUseOfflineQueue() || offlineOutboxSize() === 0) return;
+            void flushOfflineOutbox();
         });
