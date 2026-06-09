@@ -3064,9 +3064,7 @@
                         <i class="fas fa-sitemap"></i> Районы и секторы
                     </div>
                 </div>
-                <div id="appDataStatus" class="app-data-status app-data-status--loading" role="status" aria-live="polite">
-                    Загрузка данных с сервера…
-                </div>
+                <div id="appDataStatus" class="app-data-status hidden" role="status" aria-live="polite"></div>
                 <div class="catalog-breadcrumb" id="catalogBreadcrumb"></div>
                 <div class="catalog-toolbar" id="catalogToolbar"></div>
                 <div id="catalogList"></div>
@@ -5204,7 +5202,7 @@
 
         function registerOfflineServiceWorker() {
             if (!('serviceWorker' in navigator) || window.location.protocol === 'file:') return;
-            navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((err) => {
+            navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch((err) => {
                 console.warn('service worker register', err);
             });
             if (navigator.storage && typeof navigator.storage.persist === 'function') {
@@ -10729,6 +10727,77 @@
             }
         }
 
+        async function bootstrapRemoteCatalog(hadLocalCatalog) {
+            const showBlockingLoader = !hadLocalCatalog;
+            if (showBlockingLoader) {
+                setAppDataStatus('loading', 'Загрузка данных с сервера…');
+            }
+
+            const bootWatchdog = setTimeout(() => {
+                const statusEl = document.getElementById('appDataStatus');
+                if (!statusEl || statusEl.classList.contains('hidden')) return;
+                if (hadLocalCatalog || catalogHasContent(getClimbingData())) {
+                    enterOfflineMode('Медленная сеть — показаны сохранённые данные.');
+                } else if (showBlockingLoader) {
+                    setAppDataStatus(
+                        'error',
+                        'Сервер долго не отвечает. Проверьте сеть или нажмите «Повторить».',
+                        { showRetry: true }
+                    );
+                }
+            }, hadLocalCatalog ? 12000 : 25000);
+
+            try {
+                const online = navigator.onLine !== false;
+                let awake = false;
+                if (online) {
+                    awake = await wakeApiServer({
+                        attempts: hadLocalCatalog ? 2 : 5,
+                        timeoutMs: hadLocalCatalog ? 8000 : 15000,
+                        pauseMs: hadLocalCatalog ? 600 : 1500
+                    });
+                }
+                if (!awake && (hadLocalCatalog || catalogHasContent(getClimbingData()))) {
+                    enterOfflineMode('Офлайн — показаны сохранённые данные. Подключите сеть для обновления.');
+                    void runTelegramAuthBootstrap();
+                    return;
+                }
+                if (!awake) {
+                    throw new Error('Сервер не отвечает');
+                }
+                await warnIfApiStorageNotPersistent();
+                await refreshCatalogFromApi({ initial: true, skipWake: true });
+                leaveOfflineMode();
+                void runTelegramAuthBootstrap();
+                void ensurePhotosLoadedFromApi().then(() => {
+                    window.app?.renderPhotoAlbum?.();
+                }).catch((err) => console.warn('background photos prefetch', err));
+                if (typeof window.syncTelegramMiniAppUi === 'function') {
+                    window.syncTelegramMiniAppUi();
+                }
+            } catch (err) {
+                console.error('API load error', err);
+                if (hadLocalCatalog || catalogHasContent(getClimbingData())) {
+                    enterOfflineMode(
+                        'Офлайн — показаны сохранённые данные. Подключите сеть и нажмите «Повторить».'
+                    );
+                    void runTelegramAuthBootstrap();
+                    return;
+                }
+                setAppDataStatus(
+                    'error',
+                    `Не удалось загрузить данные: ${err.message || 'ошибка сети'}. Откройте бота заново через /start или нажмите «Повторить».`,
+                    { showRetry: true }
+                );
+                window.app?.showToast?.(
+                    'Не удалось загрузить данные. Проверьте сеть и откройте приложение ещё раз.',
+                    true
+                );
+            } finally {
+                clearTimeout(bootWatchdog);
+            }
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             registerOfflineServiceWorker();
             const hadLocalCatalog = bootstrapCatalogFromStorage();
@@ -10736,58 +10805,10 @@
             if (typeof window.syncTelegramMiniAppUi === 'function') {
                 window.syncTelegramMiniAppUi();
             }
-            void (async () => {
-                setAppDataStatus(
-                    'loading',
-                    hadLocalCatalog
-                        ? 'Проверка сети и обновление каталога…'
-                        : 'Загрузка данных с сервера…'
-                );
-                try {
-                    const online = navigator.onLine !== false;
-                    let awake = false;
-                    if (online) {
-                        awake = await wakeApiServer({
-                            attempts: hadLocalCatalog ? 4 : API_WAKE_ATTEMPTS
-                        });
-                    }
-                    if (!awake && hadLocalCatalog) {
-                        enterOfflineMode();
-                        void runTelegramAuthBootstrap();
-                        return;
-                    }
-                    if (!awake) {
-                        throw new Error('Сервер не отвечает');
-                    }
-                    await warnIfApiStorageNotPersistent();
-                    await refreshCatalogFromApi({ initial: true, skipWake: true });
-                    void runTelegramAuthBootstrap();
-                    void ensurePhotosLoadedFromApi().then(() => {
-                        window.app?.renderPhotoAlbum?.();
-                    }).catch((err) => console.warn('background photos prefetch', err));
-                    if (typeof window.syncTelegramMiniAppUi === 'function') {
-                        window.syncTelegramMiniAppUi();
-                    }
-                } catch (err) {
-                    console.error('API load error', err);
-                    if (hadLocalCatalog || catalogHasContent(getClimbingData())) {
-                        enterOfflineMode(
-                            'Офлайн — показаны сохранённые данные. Подключите сеть и нажмите «Повторить».'
-                        );
-                        void runTelegramAuthBootstrap();
-                        return;
-                    }
-                    setAppDataStatus(
-                        'error',
-                        `Не удалось загрузить данные: ${err.message || 'ошибка сети'}. Откройте бота заново через /start или нажмите «Повторить».`,
-                        { showRetry: true }
-                    );
-                    window.app?.showToast?.(
-                        'Не удалось загрузить данные. Проверьте сеть и откройте приложение ещё раз.',
-                        true
-                    );
-                }
-            })();
+            if (hadLocalCatalog) {
+                leaveOfflineMode();
+            }
+            void bootstrapRemoteCatalog(hadLocalCatalog);
         });
 
         window.addEventListener('online', () => {
