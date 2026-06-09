@@ -303,8 +303,6 @@
             }
 
         };
-        window.initTelegramWebApp();
-        if (typeof window.signalTelegramAppReady === 'function') window.signalTelegramAppReady();
 
         window.getTelegramWebApp = function getTelegramWebApp() {
             return (window.Telegram && window.Telegram.WebApp) || null;
@@ -7049,9 +7047,9 @@
                 let awake = false;
                 if (online) {
                     awake = await wakeApiServer({
-                        attempts: hadLocalCatalog ? 2 : 3,
-                        timeoutMs: 6000,
-                        pauseMs: 500
+                        attempts: hadLocalCatalog ? 1 : 2,
+                        timeoutMs: 3500,
+                        pauseMs: 400
                     });
                 }
                 if (!awake && catalogHasContent(getClimbingData())) {
@@ -7092,8 +7090,7 @@
             }
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
-            if (typeof window.hideTelegramBootOverlay === 'function') window.hideTelegramBootOverlay();
+        function bootClimbingApp() {
             if (typeof window.signalTelegramAppReady === 'function') window.signalTelegramAppReady();
             void clearServiceWorkers();
             const hadLocalCatalog = bootstrapCatalogFromStorage();
@@ -7104,7 +7101,13 @@
             }
             leaveOfflineMode();
             void bootstrapRemoteCatalog(hadLocalCatalog);
-        });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', bootClimbingApp);
+        } else {
+            bootClimbingApp();
+        }
 
         window.addEventListener('online', () => {
             if (!window.app || !_appRemoteDataReady) return;
