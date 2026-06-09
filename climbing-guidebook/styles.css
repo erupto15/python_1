@@ -1,0 +1,2984 @@
+        /* CSS переменные */
+        :root {
+            --primary-color: #5d9cff;
+            --route-color: #2cb5a9;
+            --boulder-color: #ff5757;
+            --danger-color: #ff5252;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+            --text-color: #e8eaf1;
+            --light-text: #9aa0b3;
+            --border-color: #2a3040;
+            --background-color: #0f131c;
+            --card-bg: #171c28;
+            --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+            --radius: 12px;
+            --transition: all 0.3s ease;
+            --logo-font: 'Barlow Condensed', 'Arial Narrow', 'Helvetica Neue Condensed', sans-serif;
+            /* Ромб логотипа (светлый / тёмный треугольник) */
+            --logo-light-top: #ffffff;
+            --logo-light-mid: #e8ecf4;
+            --logo-light-ink: #0c1018;
+            --logo-dark-top: #1c2433;
+            --logo-dark-bottom: #0a0d12;
+            --logo-dark-ink: #f2f5fa;
+            --logo-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+            --logo-shadow-soft: 0 4px 14px rgba(0, 0, 0, 0.28);
+            /* Уже ромб + стык треугольников */
+            --logo-diamond-w: 4.5rem;
+            --logo-diamond-h: 2.35rem;
+            --logo-diamond-font: 1.48rem;
+            --logo-diamond-overlap: -0.62rem;
+            /* Кнопки в духе Telegram (inline / reply keyboard, тёмная тема) */
+            --tg-blue: #3390ec;
+            --tg-blue-hover: #4a9cf0;
+            --tg-blue-active: #2b7fd6;
+            --tg-btn-bg: rgba(255, 255, 255, 0.055);
+            --tg-btn-bg-hover: rgba(255, 255, 255, 0.1);
+            --tg-btn-border: rgba(255, 255, 255, 0.12);
+            --tg-btn-radius: 8px;
+            --tg-danger: #e53935;
+            --tg-danger-hover: #ef5350;
+            --tg-btn-press: 0.97;
+            --btn-primary-glow: 0 1px 0 rgba(255, 255, 255, 0.12) inset, 0 1px 2px rgba(0, 0, 0, 0.22);
+            --btn-secondary-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            --btn-ghost-border: color-mix(in srgb, var(--tg-btn-border) 50%, rgba(255, 255, 255, 0.3));
+            --btn-ghost-hover-bg: rgba(255, 255, 255, 0.06);
+            /* Высота окна Mini App (переопределяется из Telegram.WebApp) */
+            --app-height: 100vh;
+        }
+
+        html.tg-mini-app {
+            height: 100%;
+        }
+
+        html.tg-mini-app body {
+            min-height: var(--app-height, 100vh);
+        }
+
+        /* Базовые стили */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding:
+                calc(20px + env(safe-area-inset-top, 0px))
+                calc(20px + env(safe-area-inset-right, 0px))
+                calc(20px + env(safe-area-inset-bottom, 0px))
+                calc(20px + env(safe-area-inset-left, 0px));
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Заголовок */
+        header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .header-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .header-brand {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .header-brand h1.site-logo {
+            margin: 0;
+        }
+
+        .auth-panel {
+            display: none;
+            align-items: flex-end;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .auth-panel.auth-panel--visible {
+            display: flex;
+        }
+
+        /* Блок пароля админа скрыт до 4 тапов по логотипу */
+        .admin-password-login-block {
+            display: none;
+            align-items: flex-end;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .admin-password-login-block.is-visible {
+            display: flex;
+        }
+
+        .auth-panel .form-input {
+            width: 160px;
+            min-width: 120px;
+        }
+
+        .auth-field {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 2px;
+        }
+
+        .auth-label {
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            color: var(--text-color);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+            text-align: left;
+        }
+
+        .role-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .role-badge.admin { background: #9b51e0; }
+        .role-badge.user { background: #5d9cff; }
+
+        .hidden-by-role { display: none !important; }
+        .hidden { display: none !important; }
+
+        header h1 {
+            color: var(--primary-color);
+            font-size: 2.5rem;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        header h1.site-logo {
+            color: transparent;
+            font-size: 0;
+            letter-spacing: 0;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        .site-logo-mark {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            transform-origin: 50% 45%;
+            filter:
+                drop-shadow(0 0 0 0.55px rgba(255, 255, 255, 0.42))
+                drop-shadow(0 0 0 1px rgba(0, 0, 0, 0.52))
+                drop-shadow(var(--logo-shadow-soft))
+                drop-shadow(var(--logo-shadow));
+            transition: transform 0.18s ease, filter 0.18s ease;
+            animation: logoEnter 0.72s cubic-bezier(0.33, 1.18, 0.55, 1) forwards;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .site-logo-mark {
+                transition: none;
+                animation: none !important;
+            }
+        }
+
+        h1.site-logo:active .site-logo-mark {
+            transform: scale(0.96);
+            filter:
+                drop-shadow(0 0 0 0.55px rgba(255, 255, 255, 0.35))
+                drop-shadow(0 0 0 1px rgba(0, 0, 0, 0.5))
+                drop-shadow(0 2px 10px rgba(0, 0, 0, 0.38));
+        }
+
+        .site-logo-tri {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: var(--logo-diamond-w);
+            height: var(--logo-diamond-h);
+            font-family: var(--logo-font);
+            font-weight: 700;
+            font-size: var(--logo-diamond-font);
+            line-height: 1;
+            letter-spacing: 0.01em;
+            font-variant-numeric: tabular-nums;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+            padding-inline: 0.22rem;
+        }
+
+        .site-logo-tri--light {
+            clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+            background: linear-gradient(168deg, var(--logo-light-top) 0%, var(--logo-light-mid) 52%, #d2dae6 100%);
+            color: var(--logo-light-ink);
+            padding-top: 0.26rem;
+            align-items: flex-start;
+            padding-bottom: 0.2rem;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+            transform: scale(0.9);
+            transform-origin: 50% 66%;
+        }
+
+        .site-logo-tri--dark {
+            clip-path: polygon(0% 0%, 100% 0%, 50% 100%);
+            background: linear-gradient(348deg, var(--logo-dark-top) 0%, #141a24 45%, var(--logo-dark-bottom) 100%);
+            color: var(--logo-dark-ink);
+            margin-top: var(--logo-diamond-overlap);
+            align-items: center;
+            justify-content: center;
+            padding: 0.12rem 0.22rem 0.28rem;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+            text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.35);
+            transform: scale(0.9);
+            transform-origin: 50% 34%;
+        }
+
+        .site-logo-tri-nudge-up {
+            display: inline-block;
+            transform: translateY(-0.04rem);
+        }
+
+        .site-tagline {
+            margin: 0;
+            color: var(--light-text);
+            font-size: 1.2rem;
+            line-height: 1.45;
+            font-weight: 500;
+            max-width: 22rem;
+            text-align: center;
+        }
+
+        /* Вкладки — как ряд «чипов» в стиле Telegram */
+        .tabs {
+            display: flex;
+            gap: 6px;
+            padding: 6px;
+            overflow-x: auto;
+            background: rgba(0, 0, 0, 0.22);
+            border-radius: 10px;
+            border-bottom: none;
+        }
+
+        .tab-btn {
+            padding: 10px 18px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid transparent;
+            border-radius: var(--tg-btn-radius);
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--light-text);
+            cursor: pointer;
+            transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.1s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .tab-btn:hover {
+            background-color: var(--tg-btn-bg-hover);
+            color: var(--text-color);
+            border-color: var(--tg-btn-border);
+        }
+
+        .tab-btn.active {
+            background-color: var(--tg-blue);
+            color: #fff;
+            border-color: color-mix(in srgb, var(--tg-blue) 50%, #0a1628 50%);
+            box-shadow: var(--btn-primary-glow);
+        }
+
+        .tab-btn:active {
+            transform: scale(var(--tg-btn-press));
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Карточки */
+        .card {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 24px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Кнопки: вторичные полупрозрачные, первичные и акценты читаются на тёмном фоне */
+        .btn {
+            padding: 10px 18px;
+            border: 1px solid transparent;
+            border-radius: var(--tg-btn-radius);
+            font-size: 15px;
+            font-weight: 500;
+            letter-spacing: 0.01em;
+            cursor: pointer;
+            transition:
+                background-color 0.18s ease,
+                border-color 0.18s ease,
+                color 0.18s ease,
+                box-shadow 0.18s ease,
+                transform 0.1s ease,
+                opacity 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-decoration: none;
+            line-height: 1.25;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+            pointer-events: none;
+            box-shadow: none;
+        }
+
+        .btn:active:not(:disabled) {
+            transform: scale(var(--tg-btn-press));
+        }
+
+        .btn:focus-visible {
+            outline: 2px solid color-mix(in srgb, var(--tg-blue) 75%, transparent);
+            outline-offset: 2px;
+        }
+
+        .btn-primary {
+            background-color: var(--tg-blue);
+            color: #fff;
+            border-color: color-mix(in srgb, var(--tg-blue) 55%, #0a1628 45%);
+            box-shadow: var(--btn-primary-glow);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: var(--tg-blue-hover);
+            border-color: color-mix(in srgb, var(--tg-blue-hover) 50%, #0a1628 50%);
+        }
+
+        .btn-primary:active:not(:disabled) {
+            background-color: var(--tg-blue-active);
+        }
+
+        .btn-secondary {
+            background-color: var(--tg-btn-bg);
+            color: var(--text-color);
+            border-color: var(--tg-btn-border);
+            box-shadow: var(--btn-secondary-inset);
+        }
+
+        @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+            .btn-secondary {
+                background-color: color-mix(in srgb, var(--card-bg) 35%, rgba(255, 255, 255, 0.07));
+                -webkit-backdrop-filter: blur(10px);
+                backdrop-filter: blur(10px);
+            }
+
+            .btn-secondary:hover:not(:disabled) {
+                background-color: color-mix(in srgb, var(--card-bg) 28%, rgba(255, 255, 255, 0.12));
+            }
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: var(--tg-btn-bg-hover);
+            border-color: color-mix(in srgb, var(--tg-btn-border) 70%, rgba(255, 255, 255, 0.35));
+        }
+
+        /**
+         * «Воздух»: почти только обводка. Не смешивать с .btn-secondary —
+         * для шапки, навигации каталога, закрытия просмотра, редких контекстных кнопок.
+         */
+        .btn-ghost {
+            background-color: transparent;
+            color: var(--text-color);
+            border-color: var(--btn-ghost-border);
+            box-shadow: none;
+        }
+
+        .btn-ghost:hover:not(:disabled) {
+            background-color: var(--btn-ghost-hover-bg);
+            border-color: color-mix(in srgb, var(--tg-btn-border) 35%, rgba(255, 255, 255, 0.45));
+        }
+
+        .btn-ghost:active:not(:disabled) {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+            .btn-ghost:hover:not(:disabled) {
+                -webkit-backdrop-filter: blur(10px);
+                backdrop-filter: blur(10px);
+                background-color: rgba(255, 255, 255, 0.045);
+            }
+        }
+
+        .btn-danger {
+            background-color: color-mix(in srgb, var(--tg-danger) 92%, transparent);
+            color: #fff;
+            border-color: color-mix(in srgb, var(--tg-danger) 45%, #1a0505 55%);
+            box-shadow: 0 1px 0 rgba(255, 200, 200, 0.1) inset, 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background-color: var(--tg-danger-hover);
+            border-color: color-mix(in srgb, var(--tg-danger-hover) 40%, #1a0505 60%);
+        }
+
+        .btn-success {
+            background-color: color-mix(in srgb, var(--success-color) 90%, transparent);
+            color: #fff;
+            border-color: color-mix(in srgb, var(--success-color) 35%, #061a0c 65%);
+            box-shadow: 0 1px 0 rgba(200, 255, 210, 0.12) inset;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            filter: brightness(1.08);
+        }
+
+        .btn-route {
+            background-color: color-mix(in srgb, var(--route-color) 88%, transparent);
+            color: #fff;
+            border-color: color-mix(in srgb, var(--route-color) 40%, #041a18 60%);
+            box-shadow: 0 1px 0 rgba(200, 255, 250, 0.1) inset;
+        }
+
+        .btn-route:hover:not(:disabled) {
+            filter: brightness(1.08);
+        }
+
+        .btn-boulder {
+            background-color: color-mix(in srgb, var(--boulder-color) 88%, transparent);
+            color: #fff;
+            border-color: color-mix(in srgb, var(--boulder-color) 42%, #1a0808 58%);
+            box-shadow: 0 1px 0 rgba(255, 220, 220, 0.1) inset;
+        }
+
+        .btn-boulder:hover:not(:disabled) {
+            filter: brightness(1.08);
+        }
+
+        .btn-small {
+            padding: 7px 14px;
+            font-size: 14px;
+            border-radius: var(--tg-btn-radius);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .btn {
+                transition: none;
+            }
+
+            .btn-ghost:hover:not(:disabled),
+            .btn-ghost:active:not(:disabled) {
+                -webkit-backdrop-filter: none;
+                backdrop-filter: none;
+            }
+        }
+
+        /* Списки */
+        .list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .list-item {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: var(--transition);
+        }
+
+        .list-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Тач / Telegram WebView: клик по div часто не срабатывает — основная зона строки = button */
+        .catalog-climb-row {
+            touch-action: manipulation;
+        }
+
+        .climb-row-open {
+            flex: 1 1 auto;
+            min-width: 0;
+            align-self: stretch;
+            display: block;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            border-radius: 0;
+            font: inherit;
+            color: inherit;
+            text-align: left;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(93, 156, 255, 0.15);
+        }
+
+        .climb-row-open:focus {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+
+        .item-info h3 {
+            font-size: 18px;
+            margin-bottom: 6px;
+            color: var(--text-color);
+        }
+
+        .item-meta {
+            display: flex;
+            gap: 12px;
+            color: var(--light-text);
+            font-size: 14px;
+        }
+
+        .grade-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .grade-route {
+            background-color: rgba(44, 181, 169, 0.1);
+            color: var(--route-color);
+        }
+
+        .grade-boulder {
+            background-color: rgba(255, 87, 87, 0.1);
+            color: var(--boulder-color);
+        }
+
+        /* Формы */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-color);
+        }
+
+        .form-input, .form-textarea, .form-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 15px;
+            transition: var(--transition);
+            background-color: color-mix(in srgb, var(--card-bg) 88%, transparent);
+            color: var(--text-color);
+        }
+
+        .form-input:focus, .form-textarea:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(93, 156, 255, 0.1);
+        }
+
+        .form-textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        /* Селектор сложности */
+        .grade-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .grade-btn {
+            padding: 8px 14px;
+            border: 1px solid var(--tg-btn-border);
+            border-radius: var(--tg-btn-radius);
+            background: var(--tg-btn-bg);
+            color: var(--text-color);
+            font-weight: 500;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+        }
+
+        .grade-btn:hover {
+            background-color: var(--tg-btn-bg-hover);
+            border-color: rgba(255, 255, 255, 0.22);
+        }
+
+        .grade-btn.active {
+            background-color: var(--tg-blue);
+            border-color: var(--tg-blue);
+            color: #fff;
+        }
+
+        .grade-btn:active {
+            transform: scale(var(--tg-btn-press));
+        }
+
+        /* Загрузка фото */
+        .photo-upload {
+            border: 2px dashed var(--border-color);
+            border-radius: var(--radius);
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .photo-upload:hover {
+            border-color: var(--primary-color);
+            background-color: rgba(93, 156, 255, 0.05);
+        }
+
+        .photo-preview {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .photo-preview-item {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid var(--border-color);
+        }
+
+        .photo-preview-item img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .photo-preview-actions {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px;
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .photo-preview-item:hover .photo-preview-actions {
+            opacity: 1;
+        }
+
+        .photo-preview-with-markup:hover .photo-preview-actions {
+            opacity: 1;
+        }
+
+        /* В диалогах кнопки «Удалить» / «Разметить» всегда видны (класс превью — не photo-preview-item) */
+        .dialog-body .photo-preview-with-markup .photo-preview-actions {
+            opacity: 1;
+            flex-wrap: wrap;
+        }
+
+        @media (hover: none) {
+            .photo-preview-with-markup .photo-preview-actions {
+                opacity: 1;
+            }
+        }
+
+        .remove-btn {
+            background-color: var(--danger-color);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Новые стили для кнопки разметки в превью */
+        .markup-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+
+        .markup-btn:hover {
+            background-color: #4a8cff;
+        }
+
+        .markup-btn.route {
+            background-color: var(--route-color);
+        }
+
+        .markup-btn.route:hover {
+            background-color: #3db8af;
+        }
+
+        .markup-btn.boulder {
+            background-color: var(--boulder-color);
+        }
+
+        .markup-btn.boulder:hover {
+            background-color: #ff5252;
+        }
+
+        /* Боулдеринг: прозрачные кружки с красной обводкой (линия — SVG под маркерами) */
+        .hold-marker {
+            position: absolute;
+            width: 28px;
+            height: 28px;
+            background-color: rgba(255, 255, 255, 0.84);
+            border: 2px solid #d32f2f;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            cursor: move;
+            z-index: 10;
+            box-shadow: none;
+            transition: transform 0.15s, border-color 0.15s, background-color 0.15s;
+        }
+
+        .hold-marker:hover {
+            transform: translate(-50%, -50%) scale(1.08);
+            border-color: #b71c1c;
+            background-color: rgba(255, 255, 255, 0.92);
+        }
+
+        .hold-marker.active {
+            background-color: rgba(255, 255, 255, 0.96);
+            border-color: #b71c1c;
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        .route-markup-mode-btn:not(.active),
+        .boulder-markup-mode-btn:not(.active) {
+            background-color: var(--tg-btn-bg);
+            color: var(--text-color);
+            border-color: var(--tg-btn-border);
+        }
+
+        .route-markup-mode-btn:not(.active):hover,
+        .boulder-markup-mode-btn:not(.active):hover {
+            background-color: var(--tg-btn-bg-hover);
+        }
+
+        .route-markup-mode-btn.active,
+        .boulder-markup-mode-btn.active {
+            background-color: var(--tg-blue);
+            color: #fff;
+            border-color: color-mix(in srgb, var(--tg-blue) 55%, #0a1628 45%);
+            box-shadow: var(--btn-primary-glow);
+        }
+
+        .hold-number {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #c62828;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+            text-shadow: none;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .markup-instructions {
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-size: 14px;
+            line-height: 1.45;
+            max-height: min(36vh, 220px);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .markup-instructions i {
+            margin-right: 5px;
+            color: #ffc107;
+        }
+
+        .markup-mode-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 10px;
+            margin-bottom: 12px;
+        }
+
+        .markup-mode-toolbar .markup-mode-label {
+            font-size: 13px;
+            color: var(--light-text);
+            width: 100%;
+        }
+
+        @media (min-width: 420px) {
+            .markup-mode-toolbar .markup-mode-label {
+                width: auto;
+                margin-right: 4px;
+            }
+        }
+
+        .markup-dialog-stage {
+            position: relative;
+            width: 100%;
+            flex: 1;
+            min-height: 200px;
+            height: auto;
+            max-height: none;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+            cursor: crosshair;
+        }
+
+        .markup-dialog-stage.markup-draw-active {
+            cursor: crosshair;
+        }
+
+        .markup-toolbar {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .markup-tool {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background-color: rgba(255,255,255,0.1);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: var(--text-color);
+        }
+
+        .markup-instructions .markup-touch-note {
+            display: block;
+            margin-top: 8px;
+            font-size: 12px;
+            opacity: 0.92;
+            font-weight: 500;
+        }
+
+        .markup-tool span {
+            line-height: 1.35;
+        }
+
+        @media (max-width: 480px) {
+            .markup-tool {
+                font-size: 13px;
+                flex: 1 1 100%;
+            }
+        }
+
+        .hold-color-selector {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+        .hold-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+
+        .hold-color.selected {
+            border-color: white;
+            box-shadow: 0 0 5px rgba(255,255,255,0.5);
+        }
+
+        .hold-color.start {
+            background-color: #4cd964;
+        }
+
+        .hold-color.finish {
+            background-color: #ff3b30;
+        }
+
+        .hold-color.other {
+            background-color: #5ac8fa;
+        }
+
+        /* Точки линии хода (трасса): мелкие маркеры, отличные от стартовых кружков */
+        .line-marker {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: #d32f2f;
+            border: 1.5px solid rgba(255, 255, 255, 0.92);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            cursor: move;
+            z-index: 9;
+            box-shadow: none;
+        }
+
+        .line-marker.active {
+            background-color: #b71c1c;
+            border-color: #fff;
+            transform: translate(-50%, -50%) scale(1.25);
+        }
+
+        .line-number {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 8px;
+            font-weight: bold;
+        }
+
+        .line-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .boulder-markup-line-svg {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 0;
+            height: 0;
+            pointer-events: none;
+            z-index: 4;
+            overflow: visible;
+        }
+
+        .catalog-breadcrumb {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            color: var(--light-text);
+        }
+
+        .catalog-breadcrumb a,
+        .catalog-breadcrumb button.linkish {
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            cursor: pointer;
+            padding: 0;
+            font: inherit;
+            text-decoration: underline;
+        }
+
+        .catalog-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .catalog-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            margin-bottom: 10px;
+            cursor: default;
+            transition: var(--transition);
+            overflow: hidden;
+        }
+
+        .catalog-row:hover {
+            border-color: var(--primary-color);
+        }
+
+        .catalog-row-open {
+            flex: 1 1 auto;
+            min-width: 0;
+            display: block;
+            margin: 0;
+            padding: 14px 16px;
+            border: 0;
+            background: transparent;
+            text-align: left;
+            font: inherit;
+            color: inherit;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(93, 156, 255, 0.15);
+        }
+
+        .catalog-row-open:focus {
+            outline: 2px solid var(--primary-color);
+            outline-offset: -2px;
+        }
+
+        .catalog-row-title {
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .catalog-row-meta {
+            font-size: 13px;
+            color: var(--light-text);
+            margin-top: 4px;
+        }
+
+        .catalog-row-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Стили для превью с разметкой в списке */
+        .photo-preview-with-markup {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid var(--border-color);
+        }
+
+        .photo-preview-with-markup img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .markup-badge {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            z-index: 5;
+            background-color: rgba(255, 87, 87, 0.9);
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .photo-markup-overlay {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 0;
+            height: 0;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 3;
+            border-radius: inherit;
+            background: transparent;
+        }
+
+        .photo-preview-with-markup .photo-preview-actions {
+            z-index: 6;
+        }
+
+        /* Диалог «Просмотр»: линии и кружки разметки поверх фото (как в превью) */
+        .climb-detail-photo-mount.photo-preview-with-markup {
+            width: 100%;
+            height: auto !important;
+            min-height: 160px;
+            max-height: none;
+            border-width: 0;
+            overflow: visible;
+        }
+
+        .climb-detail-photo-mount.photo-preview-with-markup img {
+            width: 100%;
+            height: auto !important;
+            max-height: min(82vh, 720px);
+            object-fit: contain;
+            display: block;
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .climb-detail-image-wrap {
+            position: relative;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            background: #0d0d0d;
+        }
+
+        .climb-detail-photo-mount.climb-detail-photo-swipe {
+            width: 100%;
+            min-height: min(48vh, 380px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: pan-y;
+            cursor: zoom-in;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .climb-detail-photo-counter {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 8;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.62);
+            pointer-events: none;
+        }
+
+        .climb-detail-photo-swipe-hint {
+            margin: 0;
+            padding: 8px 12px 10px;
+            font-size: 12px;
+            line-height: 1.35;
+            text-align: center;
+            color: var(--light-text);
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .climb-photo-viewer {
+            position: fixed;
+            inset: 0;
+            z-index: 1105;
+            display: flex;
+            flex-direction: column;
+            background: rgba(0, 0, 0, 0.94);
+            touch-action: none;
+        }
+
+        .climb-photo-viewer.hidden {
+            display: none !important;
+        }
+
+        .climb-photo-viewer-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .climb-photo-viewer-title {
+            flex: 1;
+            min-width: 0;
+            font-size: 15px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .climb-photo-viewer-counter {
+            font-size: 13px;
+            opacity: 0.88;
+            flex-shrink: 0;
+        }
+
+        .climb-photo-viewer-close {
+            flex-shrink: 0;
+            border: 0;
+            background: rgba(255, 255, 255, 0.14);
+            color: #fff;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .climb-photo-viewer-stage {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 0;
+            touch-action: pan-y;
+        }
+
+        .climb-photo-viewer-mount {
+            width: 100%;
+            height: 100%;
+            max-height: calc(100dvh - 120px - env(safe-area-inset-bottom, 0px));
+            min-height: min(70vh, 520px);
+            border: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .climb-photo-viewer-mount img {
+            width: 100%;
+            height: auto;
+            max-height: calc(100dvh - 120px - env(safe-area-inset-bottom, 0px));
+            object-fit: contain;
+            display: block;
+        }
+
+        .climb-photo-viewer-footer {
+            flex-shrink: 0;
+            padding: 8px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+            text-align: center;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.72);
+        }
+
+        /* Карточка трассы/боулдера: сохранение после описания, визуально отделено */
+        .climb-detail-save-row {
+            margin: 16px 0 0;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .climb-detail-save-hint {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.4;
+            color: var(--light-text);
+            text-align: center;
+            max-width: 36rem;
+            margin-inline: auto;
+        }
+
+        .climb-detail-save-row .btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .photo-album-open-btn {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            border-radius: inherit;
+            background: transparent;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(93, 156, 255, 0.18);
+            display: block;
+            overflow: hidden;
+        }
+
+        .photo-album-open-btn img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            pointer-events: none;
+        }
+
+        .photo-album-open-btn .markup-badge {
+            pointer-events: none;
+        }
+
+        .photo-album-caption {
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+            right: 5px;
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            line-height: 1.35;
+            pointer-events: none;
+        }
+
+        /* Фотоальбом: крупнее плитки, подпись выше полосы кнопок */
+        #photoAlbum.photo-preview {
+            grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+            gap: 14px;
+        }
+
+        #photoAlbum > .photo-album-tile-wrap.photo-preview-with-markup {
+            width: 100%;
+            max-width: 240px;
+            margin-inline: auto;
+            height: auto;
+            min-height: 0;
+            aspect-ratio: 4 / 3;
+        }
+
+        #photoAlbum > .photo-album-tile-wrap .photo-album-open-btn img {
+            object-fit: contain;
+            background: #0d0d0d;
+        }
+
+        #photoAlbum > .photo-album-tile-wrap .photo-album-caption {
+            bottom: 48px;
+            left: 6px;
+            right: 6px;
+            font-size: 11px;
+            padding: 5px 7px;
+            line-height: 1.3;
+        }
+
+        html.tg-mini-app #photoAlbum > .photo-album-tile-wrap .photo-album-caption {
+            font-size: 12px;
+        }
+
+        /* Стили для режима редактирования в диалогах */
+        .markup-edit-mode {
+            border: 2px solid var(--primary-color);
+            box-shadow: 0 0 10px rgba(93, 156, 255, 0.5);
+        }
+
+        /* Полноэкранные экраны (бывшие модальные окна) */
+        body.dialog-screen-open {
+            overflow: hidden;
+        }
+
+        body.dialog-screen-open .container {
+            visibility: hidden;
+        }
+
+        .dialog-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--background-color, #0f1419);
+            padding: 0;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .dialog-overlay.hidden {
+            display: none !important;
+        }
+
+        .dialog-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            max-height: none;
+            margin: 0;
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .dialog-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            flex-shrink: 0;
+            padding:
+                calc(12px + env(safe-area-inset-top, 0px))
+                calc(12px + env(safe-area-inset-right, 0px))
+                12px
+                calc(12px + env(safe-area-inset-left, 0px));
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .dialog-header-text {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .dialog-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: var(--text-color);
+        }
+
+        .dialog-subtitle {
+            color: var(--light-text);
+            font-size: 14px;
+        }
+
+        .dialog-close-btn {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 42px;
+            padding: 8px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            background: var(--tg-btn-bg, rgba(255, 255, 255, 0.08));
+            color: var(--text-color);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .dialog-close-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .dialog-body {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .dialog-footer {
+            flex-shrink: 0;
+            padding:
+                12px
+                calc(12px + env(safe-area-inset-right, 0px))
+                calc(12px + env(safe-area-inset-bottom, 0px))
+                calc(12px + env(safe-area-inset-left, 0px));
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        @media (max-width: 400px) {
+            .dialog-footer {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .dialog-footer .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        .dialog-content .form-input,
+        .dialog-content .form-textarea,
+        .dialog-content .form-select {
+            background-color: #141a26;
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+
+        .dialog-content .form-input::placeholder,
+        .dialog-content .form-textarea::placeholder {
+            color: var(--light-text);
+        }
+
+        .dialog-content .grade-btn {
+            color: var(--text-color);
+            background-color: var(--tg-btn-bg);
+            border-color: var(--tg-btn-border);
+        }
+
+        .dialog-content .photo-upload {
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+
+        .markup-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 440px) {
+            .dialog-body > .markup-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .dialog-body > .markup-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            /* Сверху «Отмена», ниже основное действие у большого пальца */
+            .dialog-body > .markup-actions .btn-secondary {
+                order: 1;
+            }
+
+            .dialog-body > .markup-actions .btn-danger {
+                order: 2;
+            }
+
+            .dialog-body > .markup-actions .btn-primary {
+                order: 3;
+            }
+        }
+
+        .form-hint {
+            font-size: 13px;
+            color: var(--light-text);
+            margin: 6px 0 0;
+            line-height: 1.4;
+        }
+
+        html.tg-mini-app .dialog-body input[type="file"].form-input {
+            min-height: 44px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+        }
+
+        @media (max-width: 400px) {
+            #quickRoutePhotoActions,
+            #quickBoulderPhotoActions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            #quickRoutePhotoActions .btn,
+            #quickBoulderPhotoActions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        html.tg-mini-app .filter-btn {
+            min-height: 40px;
+            touch-action: manipulation;
+        }
+
+        /* Карта */
+        #mapContainer {
+            height: 500px;
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            margin-top: 20px;
+        }
+
+        /* Уведомления */
+        .toast {
+            position: fixed;
+            bottom: max(16px, env(safe-area-inset-bottom, 0px));
+            right: max(12px, env(safe-area-inset-right, 0px));
+            left: auto;
+            padding: 12px 18px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 10000;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            max-width: min(400px, calc(100vw - 24px));
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        @media (max-width: 520px) {
+            .toast {
+                right: max(12px, env(safe-area-inset-right, 0px));
+                left: max(12px, env(safe-area-inset-left, 0px));
+                max-width: none;
+            }
+        }
+
+        .toast.success {
+            background-color: var(--success-color);
+        }
+
+        .toast.error {
+            background-color: var(--danger-color);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes logoEnter {
+            0% {
+                opacity: 0;
+                transform: scale(0.82) translateY(0.45rem) rotate(-2.2deg);
+            }
+            58% {
+                opacity: 1;
+                transform: scale(1.035) translateY(0) rotate(0.35deg);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1) translateY(0) rotate(0deg);
+            }
+        }
+
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .site-logo-tri {
+                width: 3.92rem;
+                height: 2.05rem;
+                font-size: 1.28rem;
+                padding-inline: 0.18rem;
+            }
+
+            .site-logo-tri--dark {
+                margin-top: -0.54rem;
+            }
+
+            .header-top {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .header-brand {
+                width: 100%;
+            }
+
+            .auth-panel {
+                justify-content: center;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .card-header {
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }
+
+            .tabs {
+                overflow-x: auto;
+                padding: 5px;
+            }
+
+            .tab-btn {
+                padding: 9px 14px;
+                font-size: 14px;
+            }
+        }
+
+        /* Пустое состояние */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--light-text);
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        /* Поиск и фильтры */
+        .search-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        /* Обычное поле поиска (не составная строка на вкладках Трассы/Боулдеринг) */
+        .search-bar:not(.search-bar--compound) .search-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        /* Трассы / боулдеринг: одна рамка, без отдельных белых «коробок» */
+        #routes .card,
+        #boulders .card {
+            overflow-x: clip;
+        }
+
+        .search-bar.search-bar--compound {
+            display: flex;
+            flex-direction: column;
+            flex-wrap: nowrap;
+            gap: 8px;
+            align-items: stretch;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            overflow: visible;
+        }
+
+        .search-bar.search-bar--compound .search-input {
+            flex: 0 0 auto;
+            min-width: 0;
+            width: 100%;
+            max-width: 100%;
+            margin: 0;
+            padding: 10px 14px;
+            border: 1px solid var(--tg-btn-border);
+            border-radius: var(--tg-btn-radius);
+            background: var(--tg-btn-bg);
+            box-shadow: var(--btn-secondary-inset);
+            color: var(--text-color);
+            font-size: 14px;
+            line-height: 1.2;
+            min-height: 42px;
+            transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .search-bar.search-bar--compound .search-input::placeholder {
+            font-size: 14px;
+            opacity: 0.85;
+        }
+
+        .search-bar.search-bar--compound .search-input:focus {
+            outline: none;
+            border-color: color-mix(in srgb, var(--tg-btn-border) 70%, rgba(255, 255, 255, 0.35));
+            box-shadow: 0 0 0 2px rgba(93, 156, 255, 0.12);
+        }
+
+        .search-bar.search-bar--compound .list-grade-select {
+            flex: 0 0 auto;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            margin: 0;
+            padding: 10px 2rem 10px 14px;
+            border: 1px solid var(--tg-btn-border);
+            border-radius: var(--tg-btn-radius);
+            background: var(--tg-btn-bg);
+            box-shadow: var(--btn-secondary-inset);
+            color: var(--text-color);
+            font-size: 14px;
+            text-align: left;
+            line-height: 1.2;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 12 8'%3E%3Cpath fill='%239aa0b3' d='M1.4 0 6 4.6 10.6 0 12 1.4l-6 6-6-6z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 10px 6px;
+            min-height: 42px;
+            transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .search-bar.search-bar--compound .list-grade-select:focus {
+            outline: none;
+            border-color: color-mix(in srgb, var(--tg-btn-border) 70%, rgba(255, 255, 255, 0.35));
+            box-shadow: 0 0 0 2px rgba(93, 156, 255, 0.12);
+        }
+
+        .search-bar.search-bar--compound .list-grade-select:hover,
+        .search-bar.search-bar--compound .search-input:hover {
+            background-color: var(--tg-btn-bg-hover);
+        }
+
+        @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+            .search-bar.search-bar--compound .search-input,
+            .search-bar.search-bar--compound .list-grade-select {
+                background-color: color-mix(in srgb, var(--card-bg) 35%, rgba(255, 255, 255, 0.07));
+                -webkit-backdrop-filter: blur(10px);
+                backdrop-filter: blur(10px);
+            }
+        }
+
+        html.tg-mini-app .search-bar.search-bar--compound .search-input {
+            padding: 10px 12px;
+            font-size: 14px;
+        }
+
+        html.tg-mini-app .search-bar.search-bar--compound .list-grade-select {
+            font-size: 14px;
+            padding: 10px 2rem 10px 12px;
+            background-position: right 12px center;
+        }
+
+        .visually-hidden {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+        }
+
+        .grade-picker {
+            position: relative;
+            margin-top: 8px;
+            width: min(220px, 100%);
+            max-width: 100%;
+        }
+
+        .grade-picker-toggle {
+            width: 100%;
+            border: 1px solid var(--tg-btn-border);
+            border-radius: var(--tg-btn-radius);
+            padding: 8px 30px 8px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.1;
+            color: var(--text-color);
+            background: var(--tg-btn-bg);
+            box-shadow: var(--btn-secondary-inset);
+            text-align: left;
+            cursor: pointer;
+            position: relative;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+        }
+
+        .grade-picker-toggle::after {
+            content: '';
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            width: 8px;
+            height: 5px;
+            transform: translateY(-50%);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 12 8'%3E%3Cpath fill='%239aa0b3' d='M1.4 0 6 4.6 10.6 0 12 1.4l-6 6-6-6z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain;
+            transition: transform 0.15s ease;
+        }
+
+        .grade-picker.open .grade-picker-toggle::after {
+            transform: translateY(-50%) rotate(180deg);
+        }
+
+        .grade-picker-toggle:hover {
+            background: var(--tg-btn-bg-hover);
+        }
+
+        .grade-picker-toggle:focus-visible {
+            outline: 2px solid color-mix(in srgb, var(--tg-blue) 75%, transparent);
+            outline-offset: 2px;
+        }
+
+        .grade-picker-dropdown {
+            position: absolute;
+            left: 0;
+            top: calc(100% + 6px);
+            width: min(220px, calc(100vw - 56px));
+            max-width: 100%;
+            border: 1px solid var(--tg-btn-border);
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--card-bg) 78%, rgba(255, 255, 255, 0.08));
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32);
+            padding: 6px;
+            z-index: 8;
+            display: none;
+        }
+
+        .grade-picker.open .grade-picker-dropdown {
+            display: block;
+        }
+
+        .grade-visual-strip {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            max-height: 120px;
+            padding: 1px;
+            scrollbar-width: thin;
+            -webkit-overflow-scrolling: touch;
+            scroll-snap-type: y proximity;
+        }
+
+        .grade-chip {
+            border: 1px solid var(--tg-btn-border);
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1;
+            white-space: nowrap;
+            cursor: pointer;
+            color: var(--text-color);
+            background: var(--tg-btn-bg);
+            box-shadow: var(--btn-secondary-inset);
+            transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.1s ease, color 0.18s ease;
+            scroll-snap-align: start;
+            width: 100%;
+            text-align: left;
+            min-height: 36px;
+        }
+
+        .grade-chip:hover {
+            background: var(--tg-btn-bg-hover);
+        }
+
+        .grade-chip:active {
+            transform: scale(var(--tg-btn-press));
+        }
+
+        .grade-chip.active {
+            color: #fff;
+            border-color: transparent;
+            box-shadow: var(--btn-primary-glow);
+        }
+
+        .grade-chip--all.active {
+            background-color: var(--tg-blue);
+        }
+
+        .grade-chip--easy.active {
+            background-color: #2e7d32;
+        }
+
+        .grade-chip--mid.active {
+            background-color: #ef6c00;
+        }
+
+        .grade-chip--hard.active {
+            background-color: #c62828;
+        }
+
+        .grade-chip--easy {
+            border-color: color-mix(in srgb, #2e7d32 55%, var(--tg-btn-border));
+        }
+
+        .grade-chip--mid {
+            border-color: color-mix(in srgb, #ef6c00 55%, var(--tg-btn-border));
+        }
+
+        .grade-chip--hard {
+            border-color: color-mix(in srgb, #c62828 55%, var(--tg-btn-border));
+        }
+
+        html.tg-mini-app .grade-picker {
+            width: min(210px, 100%);
+        }
+
+        html.tg-mini-app .grade-picker-dropdown {
+            width: min(210px, calc(100vw - 56px));
+        }
+
+        html.tg-mini-app .grade-visual-strip {
+            max-height: 110px;
+        }
+
+        .filters {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 8px 14px;
+            border: 1px solid var(--tg-btn-border);
+            border-radius: var(--tg-btn-radius);
+            background: var(--tg-btn-bg);
+            color: var(--text-color);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.1s ease;
+        }
+
+        .filter-btn:hover {
+            background-color: var(--tg-btn-bg-hover);
+            border-color: color-mix(in srgb, var(--tg-btn-border) 70%, rgba(255, 255, 255, 0.3));
+        }
+
+        .filter-btn.active {
+            background-color: var(--tg-blue);
+            border-color: color-mix(in srgb, var(--tg-blue) 55%, #0a1628 45%);
+            color: #fff;
+            box-shadow: var(--btn-primary-glow);
+        }
+
+        .filter-btn:active {
+            transform: scale(var(--tg-btn-press));
+        }
+
+        .star-rating {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .star-rating .star-btn {
+            border: none;
+            background: none;
+            color: #c0c0c0;
+            font-size: 22px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 2px;
+        }
+
+        .star-rating .star-btn.active {
+            color: #f5b301;
+        }
+
+        .climb-sent-badge {
+            color: #2e7d32;
+            font-weight: 600;
+            margin-right: 6px;
+        }
+
+        .catalog-climb-row.is-sent .climb-row-open h3 {
+            opacity: 0.72;
+        }
+
+        .catalog-climb-row.is-sent .climb-sent-check {
+            color: #2e7d32;
+            margin-right: 6px;
+        }
+
+        .climb-community-panel {
+            margin-bottom: 14px;
+            padding: 12px 14px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+        }
+
+        .climb-community-stats {
+            font-size: 14px;
+            color: var(--light-text);
+            margin-bottom: 10px;
+            line-height: 1.45;
+        }
+
+        .climb-community-sends {
+            margin-bottom: 12px;
+        }
+
+        .climb-community-sends-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin: 0 0 8px;
+        }
+
+        .climb-sends-block {
+            margin-top: 4px;
+        }
+
+        .climb-sends-toggle {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 14px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: left;
+            border-radius: 10px;
+        }
+
+        .climb-sends-toggle-icon {
+            flex-shrink: 0;
+            opacity: 0.75;
+            transition: transform 0.2s ease;
+        }
+
+        .climb-sends-toggle.is-open .climb-sends-toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .climb-sends-panel {
+            margin-top: 8px;
+        }
+
+        .climb-sends-panel.hidden {
+            display: none;
+        }
+
+        .climb-sends-swipe {
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            scroll-snap-type: x mandatory;
+            overscroll-behavior-x: contain;
+            scrollbar-width: none;
+            touch-action: pan-x;
+            margin: 0 -4px;
+            padding: 2px 4px 6px;
+        }
+
+        .climb-sends-swipe::-webkit-scrollbar {
+            display: none;
+        }
+
+        .climb-sends-swipe-hint {
+            font-size: 12px;
+            color: var(--light-text);
+            margin: 4px 0 0;
+            text-align: center;
+        }
+
+        .climb-community-sends-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .climb-community-sends-list.climb-sends-swipe-track {
+            flex-direction: row;
+            gap: 10px;
+        }
+
+        .climb-community-sends-list li {
+            font-size: 13px;
+            line-height: 1.4;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--border-color) 35%, var(--card-bg));
+            border: 1px solid var(--border-color);
+        }
+
+        .climb-community-sends-list.climb-sends-swipe-track li {
+            flex: 0 0 min(88%, 300px);
+            scroll-snap-align: center;
+            scroll-snap-stop: always;
+            box-sizing: border-box;
+        }
+
+        .climb-community-sends-list li.style-onsight {
+            border-left: 3px solid #2e7d32;
+        }
+
+        .climb-community-sends-list li.style-flash {
+            border-left: 3px solid #f9a825;
+        }
+
+        .climb-community-sends-list li.style-redpoint {
+            border-left: 3px solid #c62828;
+        }
+
+        .climb-community-sends-empty {
+            font-size: 13px;
+            color: var(--light-text);
+            margin: 0;
+        }
+
+        .climb-community-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .climb-log-form {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .climb-log-form .climb-log-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 14px;
+        }
+
+        .climb-log-form .climb-log-field-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #climbDetailDialog .dialog-footer .climb-detail-open-log-btn {
+            flex: 1 1 100%;
+            width: 100%;
+            justify-content: center;
+            font-size: 16px;
+            padding: 14px 18px;
+        }
+
+        .climb-community-actions .form-input {
+            max-width: 88px;
+        }
+
+        .ascent-style-picker {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-left: 6px;
+        }
+
+        .ascent-style-btn {
+            border: 1px solid var(--tg-btn-border);
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.2;
+            cursor: pointer;
+            background: var(--tg-btn-bg);
+            color: var(--text-color);
+            transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.1s ease;
+        }
+
+        .ascent-style-btn:active {
+            transform: scale(var(--tg-btn-press));
+        }
+
+        .ascent-style-btn[data-style="onsight"] {
+            border-color: color-mix(in srgb, #2e7d32 55%, var(--tg-btn-border));
+        }
+
+        .ascent-style-btn[data-style="flash"] {
+            border-color: color-mix(in srgb, #f9a825 55%, var(--tg-btn-border));
+        }
+
+        .ascent-style-btn[data-style="redpoint"] {
+            border-color: color-mix(in srgb, #c62828 55%, var(--tg-btn-border));
+        }
+
+        .ascent-style-btn[data-style="onsight"].active {
+            background: #2e7d32;
+            color: #fff;
+            border-color: #2e7d32;
+            box-shadow: var(--btn-primary-glow);
+        }
+
+        .ascent-style-btn[data-style="flash"].active {
+            background: #f9a825;
+            color: #1a1a1a;
+            border-color: #f9a825;
+            box-shadow: var(--btn-primary-glow);
+        }
+
+        .ascent-style-btn[data-style="redpoint"].active {
+            background: #c62828;
+            color: #fff;
+            border-color: #c62828;
+            box-shadow: var(--btn-primary-glow);
+        }
+
+        .profile-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin: 12px 0 16px;
+        }
+
+        .ranking-hint {
+            margin: 0 0 12px;
+            padding: 0 4px;
+            font-size: 13px;
+            line-height: 1.45;
+            color: var(--light-text);
+        }
+
+        .ranking-my-place {
+            margin: 0 0 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(42, 171, 238, 0.12);
+            border: 1px solid rgba(42, 171, 238, 0.35);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .ranking-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .ranking-table {
+            width: 100%;
+            min-width: 320px;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .ranking-table th,
+        .ranking-table td {
+            padding: 10px 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color, rgba(0, 0, 0, 0.08));
+            vertical-align: middle;
+        }
+
+        .ranking-table th {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            color: var(--light-text);
+            white-space: nowrap;
+        }
+
+        .ranking-table td.ranking-num,
+        .ranking-table th.ranking-num {
+            width: 2.5rem;
+            text-align: center;
+            color: var(--light-text);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ranking-table td.ranking-points,
+        .ranking-table th.ranking-points {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .ranking-table tr.ranking-row--me {
+            background: rgba(42, 171, 238, 0.08);
+        }
+
+        .ranking-table tr.ranking-row--top1 td.ranking-num {
+            color: #d4a017;
+            font-weight: 700;
+        }
+
+        .ranking-user-name {
+            font-weight: 500;
+            word-break: break-word;
+        }
+
+        .ranking-user-handle {
+            display: block;
+            font-size: 12px;
+            color: var(--light-text);
+            font-weight: 400;
+        }
+
+        .ranking-empty {
+            padding: 24px 12px;
+            text-align: center;
+            color: var(--light-text);
+        }
+
+        .profile-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .profile-avatar-wrap {
+            position: relative;
+            width: 60px;
+            height: 60px;
+            flex-shrink: 0;
+            overflow: hidden;
+            border-radius: 50%;
+        }
+
+        .profile-avatar {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .profile-avatar--fallback {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: 600;
+            line-height: 1;
+            color: #fff;
+            background: var(--tg-blue);
+            user-select: none;
+        }
+
+        .profile-identity {
+            min-width: 0;
+            width: 100%;
+        }
+
+        .profile-identity h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            line-height: 1.25;
+            word-break: break-word;
+        }
+
+        .profile-identity p {
+            margin: 4px 0 0;
+            color: var(--light-text);
+            font-size: 14px;
+            line-height: 1.3;
+            word-break: break-word;
+        }
+
+        .profile-identity p:empty {
+            display: none;
+        }
+
+        .profile-stat-card {
+            padding: 12px;
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+            background: var(--card-bg);
+        }
+
+        .profile-stat-card strong {
+            display: block;
+            font-size: 22px;
+            margin-bottom: 4px;
+        }
+
+        button.profile-stat-card {
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            font: inherit;
+            color: inherit;
+            transition: border-color 0.15s, background 0.15s;
+        }
+
+        button.profile-stat-card:hover,
+        button.profile-stat-card:focus-visible {
+            border-color: var(--primary-color);
+            background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+        }
+
+        .profile-climb-list {
+            max-height: min(62vh, 480px);
+            overflow-y: auto;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .profile-climb-list-item {
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+            background: var(--card-bg);
+            cursor: pointer;
+            text-align: left;
+            width: 100%;
+            font: inherit;
+            color: inherit;
+        }
+
+        .profile-climb-list-item:hover,
+        .profile-climb-list-item:focus-visible {
+            border-color: var(--primary-color);
+        }
+
+        .profile-climb-list-item.style-onsight {
+            border-color: #2e7d32;
+            background: color-mix(in srgb, #2e7d32 12%, var(--card-bg));
+        }
+
+        .profile-climb-list-item.style-flash {
+            border-color: #f9a825;
+            background: color-mix(in srgb, #f9a825 18%, var(--card-bg));
+        }
+
+        .profile-climb-list-item.style-redpoint {
+            border-color: #c62828;
+            background: color-mix(in srgb, #c62828 10%, var(--card-bg));
+        }
+
+        .profile-climb-list-item h4 {
+            margin: 0 0 4px;
+            font-size: 16px;
+        }
+
+        .profile-climb-list-item .meta {
+            font-size: 13px;
+            color: var(--light-text);
+        }
+
+        .profile-style-badge {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 6px;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .profile-style-badge.style-onsight { background: #2e7d32; color: #fff; }
+        .profile-style-badge.style-flash { background: #f9a825; color: #1a1a1a; }
+        .profile-style-badge.style-redpoint { background: #c62828; color: #fff; }
+
+        .profile-logbook-day {
+            margin-bottom: 16px;
+        }
+
+        .profile-logbook-day-title {
+            margin: 0 0 8px;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-color);
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .profile-logbook-day .profile-log-item:last-child {
+            border-bottom: none;
+        }
+
+        button.profile-logbook-entry {
+            display: block;
+            width: 100%;
+            text-align: left;
+            border: none;
+            border-bottom: 1px solid var(--border-color);
+            background: transparent;
+            cursor: pointer;
+            font: inherit;
+            color: inherit;
+            padding: 10px 4px;
+        }
+
+        button.profile-logbook-entry:hover,
+        button.profile-logbook-entry:focus-visible {
+            background: color-mix(in srgb, var(--primary-color) 6%, transparent);
+        }
+
+        button.profile-logbook-entry.style-onsight {
+            border-left: 4px solid #2e7d32;
+            padding-left: 10px;
+        }
+
+        button.profile-logbook-entry.style-flash {
+            border-left: 4px solid #f9a825;
+            padding-left: 10px;
+        }
+
+        button.profile-logbook-entry.style-redpoint {
+            border-left: 4px solid #c62828;
+            padding-left: 10px;
+        }
+
+        .climb-tg-log-proxy {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .profile-log-item {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 14px;
+        }
+
+        .app-data-status {
+            margin: 0 0 12px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 14px;
+            line-height: 1.4;
+            border: 1px solid var(--border-color);
+            background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+        }
+
+        .app-data-status.hidden {
+            display: none;
+        }
+
+        .app-data-status--loading {
+            color: var(--light-text);
+        }
+
+        .app-data-status--error {
+            border-color: color-mix(in srgb, var(--danger-color) 45%, var(--border-color));
+            background: color-mix(in srgb, var(--danger-color) 10%, var(--card-bg));
+        }
+
+        .app-data-status--offline {
+            border-color: color-mix(in srgb, var(--warning-color) 45%, var(--border-color));
+            background: color-mix(in srgb, var(--warning-color) 12%, var(--card-bg));
+            color: var(--text-color);
+        }
+
+        .app-data-status .btn {
+            margin-top: 8px;
+        }
+
+        .filter-toggle-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .role-badge.user {
+            background: color-mix(in srgb, var(--primary-color) 18%, transparent);
+            color: var(--text-color);
+        }
+
+        /* Действия элемента списка */
+        .item-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Загрузка */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--light-text);
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        html.app-boulder-only .tab-btn[data-tab="routes"],
+        html.app-boulder-only #routes,
+        html.app-boulder-only .photo-filter-routes {
+            display: none !important;
+        }
+
+        /* Telegram Mini App: зона нажатия; без «фантомного» hover на таче */
+        html.tg-mini-app .btn {
+            min-height: 42px;
+        }
+
+        html.tg-mini-app .btn.btn-small {
+            min-height: 38px;
+        }
+
+        /* Telegram: дубли в подвале скрываем только когда нативные кнопки реально видимы */
+        html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] .dialog-footer--tg-native,
+        html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] .markup-actions--tg-native {
+            display: none !important;
+        }
+
+        html.tg-mini-app.tg-webapp-buttons .dialog-content {
+            max-height: none;
+            height: 100%;
+        }
+
+        html.tg-mini-app.tg-webapp-buttons .dialog-footer {
+            padding-bottom: calc(12px + var(--tg-chrome-bottom, 0px) + env(safe-area-inset-bottom, 0px));
+        }
+
+        html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] {
+            --tg-chrome-bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+        }
+
+        html.tg-mini-app.tg-webapp-buttons[data-tg-secondary-visible="true"] {
+            --tg-chrome-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+        }
+
+        html.tg-mini-app.tg-webapp-buttons .toast {
+            bottom: calc(16px + var(--tg-chrome-bottom, 0px));
+        }
+
+        html.tg-mini-app.tg-webapp-buttons #climbDetailSavePhotoBtn {
+            display: none !important;
+        }
+
+        /* Светлая тема Telegram: прозрачные поля и кнопки, текст из themeParams */
+        html.tg-mini-app.tg-theme-light {
+            --tg-field-bg: transparent;
+            --tg-btn-bg: transparent;
+            --tg-btn-bg-hover: color-mix(in srgb, var(--text-color) 7%, transparent);
+            --tg-btn-border: color-mix(in srgb, var(--text-color) 22%, transparent);
+            --tg-btn-ghost-hover-bg: color-mix(in srgb, var(--text-color) 6%, transparent);
+        }
+
+        html.tg-mini-app.tg-theme-light .form-input,
+        html.tg-mini-app.tg-theme-light .form-textarea,
+        html.tg-mini-app.tg-theme-light .form-select,
+        html.tg-mini-app.tg-theme-light .search-input,
+        html.tg-mini-app.tg-theme-light .search-bar.search-bar--compound .search-input,
+        html.tg-mini-app.tg-theme-light .search-bar.search-bar--compound .list-grade-select,
+        html.tg-mini-app.tg-theme-light .dialog-content .form-input,
+        html.tg-mini-app.tg-theme-light .dialog-content .form-textarea,
+        html.tg-mini-app.tg-theme-light .dialog-content .form-select,
+        html.tg-mini-app.tg-theme-light .grade-picker-toggle {
+            background-color: var(--tg-field-bg) !important;
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+            color: var(--text-color);
+            border-color: color-mix(in srgb, var(--text-color) 24%, transparent);
+        }
+
+        html.tg-mini-app.tg-theme-light .form-input::placeholder,
+        html.tg-mini-app.tg-theme-light .form-textarea::placeholder,
+        html.tg-mini-app.tg-theme-light .search-input::placeholder {
+            color: var(--light-text);
+            opacity: 1;
+        }
+
+        html.tg-mini-app.tg-theme-light .btn,
+        html.tg-mini-app.tg-theme-light .filter-btn,
+        html.tg-mini-app.tg-theme-light .grade-btn,
+        html.tg-mini-app.tg-theme-light .route-markup-mode-btn,
+        html.tg-mini-app.tg-theme-light .boulder-markup-mode-btn,
+        html.tg-mini-app.tg-theme-light .tab-btn:not(.active) {
+            background-color: var(--tg-btn-bg) !important;
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+            color: var(--text-color);
+            border-color: var(--tg-btn-border);
+            box-shadow: none;
+        }
+
+        html.tg-mini-app.tg-theme-light .btn-secondary,
+        html.tg-mini-app.tg-theme-light .btn-ghost {
+            background-color: transparent !important;
+            color: var(--text-color);
+            border-color: var(--tg-btn-border);
+        }
+
+        html.tg-mini-app.tg-theme-light .btn-primary {
+            background-color: color-mix(in srgb, var(--tg-blue) 14%, transparent) !important;
+            color: var(--tg-blue);
+            border-color: color-mix(in srgb, var(--tg-blue) 42%, transparent);
+            box-shadow: none;
+        }
+
+        html.tg-mini-app.tg-theme-light .tab-btn.active,
+        html.tg-mini-app.tg-theme-light .filter-btn.active,
+        html.tg-mini-app.tg-theme-light .grade-btn.active,
+        html.tg-mini-app.tg-theme-light .route-markup-mode-btn.active,
+        html.tg-mini-app.tg-theme-light .boulder-markup-mode-btn.active {
+            background-color: color-mix(in srgb, var(--tg-blue) 18%, transparent) !important;
+            color: var(--tg-blue);
+            border-color: color-mix(in srgb, var(--tg-blue) 45%, transparent);
+            box-shadow: none;
+        }
+
+        html.tg-mini-app.tg-theme-light .card {
+            background-color: transparent;
+            box-shadow: none;
+            border: 1px solid color-mix(in srgb, var(--text-color) 12%, transparent);
+        }
+
+        html.tg-mini-app.tg-theme-light .dialog-content {
+            background-color: var(--background-color);
+        }
+
+        html.tg-mini-app.tg-theme-light #climbDetailDescription {
+            background-color: transparent !important;
+            color: var(--text-color);
+            border-color: color-mix(in srgb, var(--text-color) 20%, transparent);
+        }
+
+        html.tg-mini-app.tg-theme-light .photo-upload {
+            background-color: transparent;
+            border-color: color-mix(in srgb, var(--text-color) 22%, transparent);
+        }
+
+        html.tg-mini-app.tg-theme-light .grade-picker-dropdown {
+            background: color-mix(in srgb, var(--background-color) 92%, var(--text-color) 8%);
+            border-color: var(--tg-btn-border);
+            box-shadow: 0 8px 24px color-mix(in srgb, var(--text-color) 12%, transparent);
+        }
+
+        html.tg-mini-app.tg-theme-light .auth-label {
+            text-shadow: none;
+        }
+
+        html.tg-mini-app.tg-theme-light .catalog-breadcrumb button,
+        html.tg-mini-app.tg-theme-light .catalog-row-actions .btn {
+            background-color: transparent;
+        }
+
+        .markup-dialog--view-only .markup-actions {
+            display: none !important;
+        }
+
+        @media (hover: none) {
+            .tab-btn:hover:not(.active) {
+                background-color: rgba(255, 255, 255, 0.04);
+                border-color: transparent;
+                color: var(--light-text);
+            }
+
+            .filter-btn:hover:not(.active) {
+                background-color: var(--tg-btn-bg);
+            }
+
+            .grade-btn:hover:not(.active) {
+                background-color: var(--tg-btn-bg);
+                border-color: var(--tg-btn-border);
+            }
+
+            .route-markup-mode-btn:not(.active):hover,
+            .boulder-markup-mode-btn:not(.active):hover {
+                background-color: var(--tg-btn-bg);
+            }
+
+            .btn-primary:hover:not(:disabled) {
+                background-color: var(--tg-blue);
+            }
+
+            .btn-secondary:hover:not(:disabled) {
+                background-color: var(--tg-btn-bg);
+            }
+
+            .btn-ghost:hover:not(:disabled) {
+                background-color: transparent;
+                border-color: var(--btn-ghost-border);
+                -webkit-backdrop-filter: none;
+                backdrop-filter: none;
+            }
+
+            .btn-danger:hover:not(:disabled) {
+                background-color: color-mix(in srgb, var(--tg-danger) 92%, transparent);
+            }
+
+            .btn-success:hover:not(:disabled),
+            .btn-route:hover:not(:disabled),
+            .btn-boulder:hover:not(:disabled) {
+                filter: none;
+            }
+        }

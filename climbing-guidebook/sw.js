@@ -1,6 +1,6 @@
 /* Service Worker: только оболочка Mini App (index.html). API не перехватываем — иначе зависает старт. */
 const SHELL_CACHE = 'guidebook-shell-v2';
-const SHELL_URLS = ['/', '/index.html'];
+const SHELL_URLS = ['/', '/index.html', '/styles.css', '/app.js'];
 
 function fetchWithTimeout(request, ms) {
     const controller = new AbortController();
