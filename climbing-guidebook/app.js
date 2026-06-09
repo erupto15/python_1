@@ -672,6 +672,190 @@
             }
         }
 
+        const PHOTO_CACHE_DB_NAME = 'climbingApp_photos_v1';
+        const PHOTO_CACHE_STORE = 'photos';
+        const PHOTO_CACHE_MAX_ITEMS = 180;
+        const PHOTO_CACHE_WRITE_BATCH = 4;
+        let _photoCacheDbPromise = null;
+        let _photoCacheStats = { count: 0, updatedAt: 0 };
+
+        function openPhotoCacheDb() {
+            if (!('indexedDB' in window)) {
+                return Promise.reject(new Error('IndexedDB unavailable'));
+            }
+            if (!_photoCacheDbPromise) {
+                _photoCacheDbPromise = new Promise((resolve, reject) => {
+                    const req = indexedDB.open(PHOTO_CACHE_DB_NAME, 1);
+                    req.onupgradeneeded = () => {
+                        const db = req.result;
+                        if (!db.objectStoreNames.contains(PHOTO_CACHE_STORE)) {
+                            const store = db.createObjectStore(PHOTO_CACHE_STORE, { keyPath: 'id' });
+                            store.createIndex('cachedAt', 'cachedAt', { unique: false });
+                        }
+                    };
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
+                });
+            }
+            return _photoCacheDbPromise;
+        }
+
+        function idbRequest(request) {
+            return new Promise((resolve, reject) => {
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error || new Error('IndexedDB request failed'));
+            });
+        }
+
+        async function getCachedPhotoDataUrl(photoId) {
+            const id = String(photoId || '').trim();
+            if (!id || !('indexedDB' in window)) return null;
+            try {
+                const db = await openPhotoCacheDb();
+                const tx = db.transaction(PHOTO_CACHE_STORE, 'readonly');
+                const record = await idbRequest(tx.objectStore(PHOTO_CACHE_STORE).get(id));
+                return record?.dataUrl || null;
+            } catch (err) {
+                console.warn('photo cache read', err);
+                return null;
+            }
+        }
+
+        async function listPhotoCacheRecords() {
+            if (!('indexedDB' in window)) return [];
+            try {
+                const db = await openPhotoCacheDb();
+                const tx = db.transaction(PHOTO_CACHE_STORE, 'readonly');
+                return await idbRequest(tx.objectStore(PHOTO_CACHE_STORE).getAll());
+            } catch (err) {
+                console.warn('photo cache list', err);
+                return [];
+            }
+        }
+
+        async function deletePhotoCacheRecord(photoId) {
+            const id = String(photoId || '').trim();
+            if (!id || !('indexedDB' in window)) return;
+            try {
+                const db = await openPhotoCacheDb();
+                const tx = db.transaction(PHOTO_CACHE_STORE, 'readwrite');
+                tx.objectStore(PHOTO_CACHE_STORE).delete(id);
+                await new Promise((resolve, reject) => {
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
+            } catch (err) {
+                console.warn('photo cache delete', err);
+            }
+        }
+
+        async function prunePhotoCache(validPhotoIds) {
+            const valid = new Set((validPhotoIds || []).map((id) => String(id)));
+            const records = await listPhotoCacheRecords();
+            const stale = records.filter((rec) => !valid.has(String(rec.id)));
+            const overflow = records
+                .filter((rec) => valid.has(String(rec.id)))
+                .sort((a, b) => Number(a.cachedAt || 0) - Number(b.cachedAt || 0));
+            let toDelete = stale.map((rec) => rec.id);
+            if (overflow.length > PHOTO_CACHE_MAX_ITEMS) {
+                toDelete = toDelete.concat(
+                    overflow.slice(0, overflow.length - PHOTO_CACHE_MAX_ITEMS).map((rec) => rec.id)
+                );
+            }
+            await Promise.all(toDelete.map((id) => deletePhotoCacheRecord(id)));
+            await refreshPhotoCacheStats();
+        }
+
+        async function refreshPhotoCacheStats() {
+            const records = await listPhotoCacheRecords();
+            _photoCacheStats = {
+                count: records.length,
+                updatedAt: Date.now()
+            };
+            return _photoCacheStats;
+        }
+
+        async function putCachedPhoto(photoId, dataUrl, mimeType) {
+            const id = String(photoId || '').trim();
+            const url = String(dataUrl || '').trim();
+            if (!id || !url.startsWith('data:') || !('indexedDB' in window)) return false;
+            try {
+                const db = await openPhotoCacheDb();
+                const tx = db.transaction(PHOTO_CACHE_STORE, 'readwrite');
+                tx.objectStore(PHOTO_CACHE_STORE).put({
+                    id,
+                    dataUrl: url,
+                    mimeType: mimeType || '',
+                    cachedAt: Date.now(),
+                    byteSize: url.length
+                });
+                await new Promise((resolve, reject) => {
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
+                _photoCacheStats.count = Math.max(_photoCacheStats.count, 0) + 1;
+                return true;
+            } catch (err) {
+                console.warn('photo cache write', err);
+                return false;
+            }
+        }
+
+        async function cachePhotoToIndexedDb(photo) {
+            const id = String(photo?.id || '').trim();
+            if (!id) return false;
+            const existing = await getCachedPhotoDataUrl(id);
+            if (existing) return true;
+            const dataUrl = await resolvePhotoImageDataUrlForExport(photo);
+            if (!dataUrl || !dataUrl.startsWith('data:')) return false;
+            return putCachedPhoto(id, dataUrl, photo.fileType || '');
+        }
+
+        async function cachePhotosToIndexedDb(photos) {
+            const list = Array.isArray(photos) ? photos.filter((p) => p && p.id) : [];
+            if (!list.length || !('indexedDB' in window)) return;
+            for (let i = 0; i < list.length; i += PHOTO_CACHE_WRITE_BATCH) {
+                const slice = list.slice(i, i + PHOTO_CACHE_WRITE_BATCH);
+                await Promise.all(slice.map((photo) => cachePhotoToIndexedDb(photo)));
+            }
+            await prunePhotoCache(list.map((p) => p.id));
+            await refreshPhotoCacheStats();
+            updateOfflineStatusBanner();
+        }
+
+        async function hydrateCatalogPhotosFromIndexedDb() {
+            const data = getClimbingData();
+            const photos = data.photos || [];
+            if (!photos.length || !('indexedDB' in window)) return false;
+            let changed = false;
+            for (const photo of photos) {
+                const current = resolvePhotoDisplayUrl(photo?.imageData);
+                if (current && current.startsWith('data:')) continue;
+                const cached = await getCachedPhotoDataUrl(photo.id);
+                if (!cached) continue;
+                photo.imageData = cached;
+                changed = true;
+            }
+            if (changed) {
+                saveClimbingData(data);
+                _photosLoadedFromApi = photos.some(photoHasDisplayImage);
+                window.app?.refreshUiAfterRemoteLoad?.();
+            }
+            await refreshPhotoCacheStats();
+            return changed;
+        }
+
+        async function resolvePhotoImageSource(photo) {
+            const direct = resolvePhotoDisplayUrl(photo?.imageData);
+            if (direct && direct.startsWith('data:')) return direct;
+            if (photo?.id) {
+                const cached = await getCachedPhotoDataUrl(photo.id);
+                if (cached) return cached;
+            }
+            if (direct && !shouldUseOfflineQueue()) return direct;
+            return direct || '';
+        }
+
         function composeMarkupOnDataUrl(srcDataUrl, photo, climbType) {
             return new Promise((resolve) => {
                 const markup = normalizePhotoMarkup(photo.markup, climbType);
@@ -1443,16 +1627,12 @@
         }
 
         function slimCatalogForStorage(data) {
-            const photos = (data.photos || []).map((p) => {
-                const imageData = p.imageData;
-                const keepInline = typeof imageData === 'string'
-                    && imageData.startsWith('data:')
-                    && imageData.length < 120000;
-                return {
-                    ...p,
-                    imageData: keepInline ? imageData : (imageData || '')
-                };
-            });
+            const photos = (data.photos || []).map((p) => ({
+                ...p,
+                imageData: (typeof p.imageData === 'string' && !p.imageData.startsWith('data:'))
+                    ? p.imageData
+                    : ''
+            }));
             return { ...data, photos };
         }
 
@@ -1469,7 +1649,8 @@
                         sectors: payload.sectors?.length || 0,
                         routes: payload.routes?.length || 0,
                         boulders: payload.boulders?.length || 0,
-                        photos: payload.photos?.length || 0
+                        photos: payload.photos?.length || 0,
+                        photosCached: _photoCacheStats.count || 0
                     }));
                 } catch (err) {
                     console.warn('catalog persist (full)', err);
@@ -1581,6 +1762,10 @@
             if (pending > 0) {
                 parts.push(`В очереди на отправку: ${pending}.`);
             }
+            const cachedPhotos = _photoCacheStats.count || meta?.photosCached || 0;
+            if (cachedPhotos > 0) {
+                parts.push(`Фото в локальном кэше: ${cachedPhotos}.`);
+            }
             parts.push('При появлении сети данные синхронизируются автоматически.');
             return parts.join(' ');
         }
@@ -1685,7 +1870,8 @@
             if (!catalogHasContent(cached)) return false;
             climbingDataCache = cached;
             _appRemoteDataReady = true;
-            _photosLoadedFromApi = (cached.photos || []).some(photoHasDisplayImage);
+            _photosLoadedFromApi = (cached.photos || []).length > 0;
+            void refreshPhotoCacheStats();
             return true;
         }
 
@@ -1828,49 +2014,52 @@
         }
 
         function loadImageIntoElement(img, photo, onReady) {
-            const src = resolvePhotoDisplayUrl(photo?.imageData);
             if (!img) {
-                if (onReady) onReady();
-                return;
-            }
-            if (!src) {
-                img.removeAttribute('src');
                 if (onReady) onReady();
                 return;
             }
             const done = () => {
                 if (onReady) onReady();
             };
-            img.onload = () => {
-                img.onload = null;
-                img.onerror = null;
-                done();
-            };
-            img.onerror = () => {
-                img.onerror = null;
-                void (async () => {
-                    try {
-                        const dataUrl = await resolvePhotoImageDataUrlForExport(photo);
-                        if (dataUrl) {
-                            img.onload = () => {
-                                img.onload = null;
-                                done();
-                            };
-                            if (img.src) img.removeAttribute('src');
-                            img.src = dataUrl;
-                            if (img.complete && img.naturalWidth > 0) done();
-                            return;
-                        }
-                    } catch (_) {
-                        /* ignore */
-                    }
+            void (async () => {
+                const src = await resolvePhotoImageSource(photo);
+                if (!src) {
+                    img.removeAttribute('src');
                     done();
-                })();
-            };
-            if (img.src) img.removeAttribute('src');
-            void img.offsetWidth;
-            img.src = src;
-            if (img.complete && img.naturalWidth > 0) done();
+                    return;
+                }
+                img.onload = () => {
+                    img.onload = null;
+                    img.onerror = null;
+                    done();
+                };
+                img.onerror = () => {
+                    img.onerror = null;
+                    void (async () => {
+                        try {
+                            const dataUrl = await resolvePhotoImageDataUrlForExport(photo);
+                            if (dataUrl) {
+                                img.onload = () => {
+                                    img.onload = null;
+                                    done();
+                                };
+                                if (img.src) img.removeAttribute('src');
+                                img.src = dataUrl;
+                                void cachePhotoToIndexedDb({ ...photo, imageData: dataUrl });
+                                if (img.complete && img.naturalWidth > 0) done();
+                                return;
+                            }
+                        } catch (_) {
+                            /* ignore */
+                        }
+                        done();
+                    })();
+                };
+                if (img.src) img.removeAttribute('src');
+                void img.offsetWidth;
+                img.src = src;
+                if (img.complete && img.naturalWidth > 0) done();
+            })();
         }
 
         function pickClimbDetailPhoto(photos, preferPhotoId) {
@@ -1988,6 +2177,7 @@
             if (includePhotos) {
                 photos = await fetchPhotosBatched(routes, boulders);
                 _photosLoadedFromApi = true;
+                void cachePhotosToIndexedDb(photos);
             }
 
             saveClimbingData(ensureCatalogArrays({
@@ -2010,6 +2200,7 @@
             data.nextPhotoId = Math.max(1, ...photos.map(p => Number(p.id) || 0)) + 1;
             saveClimbingData(data);
             _photosLoadedFromApi = true;
+            void cachePhotosToIndexedDb(photos);
         }
 
         async function fetchClimbPhotosFromApi(climbType, climbId) {
@@ -2029,6 +2220,7 @@
             recomputeNextPhotoId(data);
             saveClimbingData(data);
             _photosLoadedFromApi = true;
+            void cachePhotosToIndexedDb(mapped);
             return mapped;
         }
 
@@ -7288,10 +7480,13 @@
             }
         }
 
-        function bootClimbingApp() {
+        async function bootClimbingApp() {
             if (typeof window.signalTelegramAppReady === 'function') window.signalTelegramAppReady();
             void clearServiceWorkers();
             const hadLocalCatalog = bootstrapCatalogFromStorage();
+            if (hadLocalCatalog) {
+                await hydrateCatalogPhotosFromIndexedDb();
+            }
             window.app = new ClimbingApp();
             if (typeof window.initTelegramWebApp === 'function') window.initTelegramWebApp();
             if (typeof window.syncTelegramMiniAppUi === 'function') {
@@ -7306,9 +7501,9 @@
         }
 
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', bootClimbingApp);
+            document.addEventListener('DOMContentLoaded', () => { void bootClimbingApp(); });
         } else {
-            bootClimbingApp();
+            void bootClimbingApp();
         }
 
         window.addEventListener('online', () => {
