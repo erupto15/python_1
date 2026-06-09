@@ -4,6 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>6А9А — скалолазные районы и маршруты</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+        window.signalTelegramAppReady = function signalTelegramAppReady() {
+            try {
+                const tg = window.Telegram && window.Telegram.WebApp;
+                if (!tg) return false;
+                if (typeof tg.ready === 'function') tg.ready();
+                if (typeof tg.expand === 'function') tg.expand();
+                return true;
+            } catch (_) {
+                return false;
+            }
+        };
+        window.signalTelegramAppReady();
+    </script>
     <!-- Иконка — ромб: сверху светлый треугольник, снизу тёмный -->
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 36'%3E%3Cdefs%3E%3ClinearGradient id='lt' x1='0%25' y1='0%25' x2='0%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23ffffff'/%3E%3Cstop offset='100%25' stop-color='%23d2dae6'/%3E%3C/linearGradient%3E%3ClinearGradient id='dk' x1='0%25' y1='0%25' x2='0%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%231c2433'/%3E%3Cstop offset='100%25' stop-color='%230a0d12'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='16,2 30,18 2,18' fill='url(%23lt)'/%3E%3Cpolygon points='2,18 30,18 16,34' fill='url(%23dk)'/%3E%3Ctext x='16' y='14.5' text-anchor='middle' font-family='Arial%20Narrow%2C%20sans-serif' font-size='8' font-weight='700' fill='%230c1018'%3E6%D0%90%3C/text%3E%3Ctext x='16' y='27.5' text-anchor='middle' font-family='Arial%20Narrow%2C%20sans-serif' font-size='8' font-weight='700' fill='%23f2f5fa'%3E9%D0%90%3C/text%3E%3C/svg%3E" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -3738,7 +3753,6 @@
         </div>
     </div>
 
-    <script async src="https://telegram.org/js/telegram-web-app.js" onload="window.initTelegramWebApp && window.initTelegramWebApp()" onerror="console.warn('Telegram WebApp script failed to load')"></script>
     <script>
         /**
          * Telegram Mini App: высота viewport, тема, MainButton / BackButton.
@@ -3954,6 +3968,7 @@
 
             tg.ready();
             if (typeof tg.expand === 'function') tg.expand();
+            if (typeof window.signalTelegramAppReady === 'function') window.signalTelegramAppReady();
 
             applyTelegramTheme();
             syncTelegramViewport();
@@ -4045,6 +4060,7 @@
 
         };
         window.initTelegramWebApp();
+        if (typeof window.signalTelegramAppReady === 'function') window.signalTelegramAppReady();
 
         window.getTelegramWebApp = function getTelegramWebApp() {
             return (window.Telegram && window.Telegram.WebApp) || null;
@@ -4252,7 +4268,6 @@
             window.syncTelegramMiniAppUi();
         }
     </script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         window.CLIMBING_API_BASE_URL = '';
     </script>
@@ -4290,6 +4305,44 @@
         let _appRemoteDataReady = false;
         let _offlineMode = false;
         let _persistCatalogTimer = null;
+        let _leafletLoadPromise = null;
+
+        function ensureLeafletLoaded() {
+            if (typeof L !== 'undefined' && L.map) return Promise.resolve();
+            if (_leafletLoadPromise) return _leafletLoadPromise;
+            _leafletLoadPromise = new Promise((resolve, reject) => {
+                const existing = document.querySelector('script[data-leaflet-loader]');
+                if (existing) {
+                    existing.addEventListener('load', () => resolve(), { once: true });
+                    existing.addEventListener('error', () => reject(new Error('Leaflet load failed')), { once: true });
+                    return;
+                }
+                const script = document.createElement('script');
+                script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                script.async = true;
+                script.dataset.leafletLoader = '1';
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error('Leaflet load failed'));
+                document.head.appendChild(script);
+            });
+            return _leafletLoadPromise;
+        }
+
+        async function clearServiceWorkers() {
+            if (!('serviceWorker' in navigator)) return;
+            try {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(regs.map((reg) => reg.unregister()));
+                if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(
+                        keys.filter((key) => key.startsWith('guidebook-')).map((key) => caches.delete(key))
+                    );
+                }
+            } catch (err) {
+                console.warn('service worker cleanup', err);
+            }
+        }
 
         /** Перед отправкой на API: уменьшаем base64 (быстрее JSON и отклик «Добавить»). */
         const QUICK_PHOTO_MAX_EDGE = 1920;
@@ -5201,13 +5254,7 @@
         }
 
         function registerOfflineServiceWorker() {
-            if (!('serviceWorker' in navigator) || window.location.protocol === 'file:') return;
-            navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch((err) => {
-                console.warn('service worker register', err);
-            });
-            if (navigator.storage && typeof navigator.storage.persist === 'function') {
-                void navigator.storage.persist().catch(() => {});
-            }
+            /* Отключено: SW мешал старту в Telegram WebView. Офлайн — через localStorage. */
         }
 
         let climbingDataCache = {
@@ -7961,11 +8008,18 @@
                             document.getElementById(tabId).classList.add('active');
 
                             if (tabId === 'map') {
-                                if (!this.map) {
-                                    this.initMap();
-                                } else {
-                                    this.syncMapAfterTabShow();
-                                }
+                                void ensureLeafletLoaded()
+                                    .then(() => {
+                                        if (!this.map) {
+                                            this.initMap();
+                                        } else {
+                                            this.syncMapAfterTabShow();
+                                        }
+                                    })
+                                    .catch((err) => {
+                                        console.warn('leaflet', err);
+                                        this.showToast('Карта недоступна без сети', true);
+                                    });
                             } else if (tabId === 'photos') {
                                 try {
                                     await ensurePhotosLoadedFromApi();
@@ -10728,36 +10782,31 @@
         }
 
         async function bootstrapRemoteCatalog(hadLocalCatalog) {
-            const showBlockingLoader = !hadLocalCatalog;
-            if (showBlockingLoader) {
-                setAppDataStatus('loading', 'Загрузка данных с сервера…');
-            }
-
             const bootWatchdog = setTimeout(() => {
                 const statusEl = document.getElementById('appDataStatus');
                 if (!statusEl || statusEl.classList.contains('hidden')) return;
-                if (hadLocalCatalog || catalogHasContent(getClimbingData())) {
+                if (catalogHasContent(getClimbingData())) {
                     enterOfflineMode('Медленная сеть — показаны сохранённые данные.');
-                } else if (showBlockingLoader) {
+                } else {
                     setAppDataStatus(
                         'error',
                         'Сервер долго не отвечает. Проверьте сеть или нажмите «Повторить».',
                         { showRetry: true }
                     );
                 }
-            }, hadLocalCatalog ? 12000 : 25000);
+            }, 10000);
 
             try {
                 const online = navigator.onLine !== false;
                 let awake = false;
                 if (online) {
                     awake = await wakeApiServer({
-                        attempts: hadLocalCatalog ? 2 : 5,
-                        timeoutMs: hadLocalCatalog ? 8000 : 15000,
-                        pauseMs: hadLocalCatalog ? 600 : 1500
+                        attempts: hadLocalCatalog ? 2 : 3,
+                        timeoutMs: 6000,
+                        pauseMs: 500
                     });
                 }
-                if (!awake && (hadLocalCatalog || catalogHasContent(getClimbingData()))) {
+                if (!awake && catalogHasContent(getClimbingData())) {
                     enterOfflineMode('Офлайн — показаны сохранённые данные. Подключите сеть для обновления.');
                     void runTelegramAuthBootstrap();
                     return;
@@ -10777,7 +10826,7 @@
                 }
             } catch (err) {
                 console.error('API load error', err);
-                if (hadLocalCatalog || catalogHasContent(getClimbingData())) {
+                if (catalogHasContent(getClimbingData())) {
                     enterOfflineMode(
                         'Офлайн — показаны сохранённые данные. Подключите сеть и нажмите «Повторить».'
                     );
@@ -10786,28 +10835,25 @@
                 }
                 setAppDataStatus(
                     'error',
-                    `Не удалось загрузить данные: ${err.message || 'ошибка сети'}. Откройте бота заново через /start или нажмите «Повторить».`,
+                    `Не удалось загрузить данные: ${err.message || 'ошибка сети'}. Нажмите «Повторить».`,
                     { showRetry: true }
-                );
-                window.app?.showToast?.(
-                    'Не удалось загрузить данные. Проверьте сеть и откройте приложение ещё раз.',
-                    true
                 );
             } finally {
                 clearTimeout(bootWatchdog);
+                if (typeof window.signalTelegramAppReady === 'function') window.signalTelegramAppReady();
             }
         }
 
         window.addEventListener('DOMContentLoaded', () => {
-            registerOfflineServiceWorker();
+            if (typeof window.signalTelegramAppReady === 'function') window.signalTelegramAppReady();
+            void clearServiceWorkers();
             const hadLocalCatalog = bootstrapCatalogFromStorage();
             window.app = new ClimbingApp();
+            if (typeof window.initTelegramWebApp === 'function') window.initTelegramWebApp();
             if (typeof window.syncTelegramMiniAppUi === 'function') {
                 window.syncTelegramMiniAppUi();
             }
-            if (hadLocalCatalog) {
-                leaveOfflineMode();
-            }
+            leaveOfflineMode();
             void bootstrapRemoteCatalog(hadLocalCatalog);
         });
 
