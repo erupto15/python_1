@@ -204,9 +204,10 @@ jobs:
           done
           REMOTE
 
+          MINI_APP_URL="${PUBLIC_URL%/}/"
           curl -fsS --max-time 30 -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setChatMenuButton" \
             -H "Content-Type: application/json" \
-            -d '{"menu_button":{"type":"default"}}' >/dev/null
+            -d "{\"menu_button\":{\"type\":\"web_app\",\"text\":\"Открыть гайд\",\"web_app\":{\"url\":\"${MINI_APP_URL}\"}}}" >/dev/null
 
           curl -fsS --max-time 30 -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
             --data-urlencode "url=${PUBLIC_URL%/}/api/telegram/webhook" \

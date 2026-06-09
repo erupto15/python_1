@@ -19,7 +19,7 @@ def _mini_app_url() -> str:
                 detail="PUBLIC_URL is not configured",
             )
         base = "http://127.0.0.1:8000"
-    return f"{base}/?v={int(time.time())}"
+    return f"{base}/"
 
 
 def _start_message_payload(chat_id: int) -> dict[str, Any]:

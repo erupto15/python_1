@@ -21,21 +21,42 @@
     </style>
     <script>
     (function () {
+        function postToTelegramBridge(eventType) {
+            try {
+                if (window.TelegramWebviewProxy && typeof window.TelegramWebviewProxy.postEvent === 'function') {
+                    window.TelegramWebviewProxy.postEvent(eventType, JSON.stringify(''));
+                    return true;
+                }
+            } catch (_) {}
+            try {
+                if (window.external && typeof window.external.notify === 'function') {
+                    window.external.notify(JSON.stringify({ eventType: eventType, eventData: '' }));
+                    return true;
+                }
+            } catch (_) {}
+            return false;
+        }
         function signalReady() {
+            var ok = false;
+            ok = postToTelegramBridge('web_app_ready') || ok;
+            ok = postToTelegramBridge('web_app_expand') || ok;
             try {
                 const tg = window.Telegram && window.Telegram.WebApp;
-                if (!tg || typeof tg.ready !== 'function') return false;
-                tg.ready();
-                if (typeof tg.expand === 'function') tg.expand();
-                return true;
-            } catch (_) { return false; }
+                if (tg && typeof tg.ready === 'function') {
+                    tg.ready();
+                    if (typeof tg.expand === 'function') tg.expand();
+                    ok = true;
+                }
+            } catch (_) {}
+            return ok;
         }
         window.signalTelegramAppReady = signalReady;
-        if (!signalReady()) {
+        signalReady();
+        if (!window.Telegram || !window.Telegram.WebApp) {
             const started = Date.now();
             const timer = setInterval(function () {
-                if (signalReady() || Date.now() - started > 20000) clearInterval(timer);
-            }, 25);
+                if (signalReady() || Date.now() - started > 15000) clearInterval(timer);
+            }, 20);
         }
         window.hideTelegramBootOverlay = function hideTelegramBootOverlay() {
             const el = document.getElementById('tgBootOverlay');

@@ -4,8 +4,17 @@
     function signalReady() {
         if (typeof window.signalTelegramAppReady === 'function') {
             window.signalTelegramAppReady();
+            return;
         }
+        try {
+            if (window.TelegramWebviewProxy && typeof window.TelegramWebviewProxy.postEvent === 'function') {
+                window.TelegramWebviewProxy.postEvent('web_app_ready', JSON.stringify(''));
+                window.TelegramWebviewProxy.postEvent('web_app_expand', JSON.stringify(''));
+            }
+        } catch (_) {}
     }
+
+    signalReady();
 
     function revealShell() {
         if (typeof window.hideTelegramBootOverlay === 'function') {
