@@ -333,6 +333,7 @@ class AscentReadEnriched(AscentRead):
     climb_name: str = ""
     climb_grade: str = ""
     structure_label: Optional[str] = None
+    climb_deleted: bool = False
 
 
 class ClimbRatingUpsert(BaseModel):

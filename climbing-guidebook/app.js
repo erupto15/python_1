@@ -2828,6 +2828,9 @@
                 this.renderPhotoAlbum();
                 this.renderCatalog();
                 this.applyRoleUI();
+                if (this.isLoggedIn()) {
+                    void this.refreshProfileLogbookSection();
+                }
                 if (this.map) {
                     this.updateMapMarkers();
                 }
@@ -6942,9 +6945,22 @@
                         const listEl = document.getElementById('profileSendsList');
                         if (listEl) {
                             listEl.innerHTML = ascents.length
-                                ? ascents.map((a) => this.renderProfileAscentListItem(a, { showStyle: true })).join('')
+                                ? ascents.map((a) => this.renderProfileAscentListItem(a)).join('')
                                 : '<li style="padding:12px;color:var(--light-text);">Пока нет пролазов.</li>';
                             this.bindProfileClimbListClicks(listEl);
+                        }
+                    }
+                    const stylesDialog = document.getElementById('profileStylesDialog');
+                    if (stylesDialog && !stylesDialog.classList.contains('hidden')) {
+                        const stylesList = document.getElementById('profileStylesList');
+                        if (stylesList) {
+                            const styled = ascents.filter((a) => ['onsight', 'flash', 'redpoint'].includes(a.ascent_style));
+                            const order = { onsight: 0, flash: 1, redpoint: 2 };
+                            styled.sort((x, y) => (order[x.ascent_style] ?? 9) - (order[y.ascent_style] ?? 9));
+                            stylesList.innerHTML = styled.length
+                                ? styled.map((a) => this.renderProfileAscentListItem(a)).join('')
+                                : '<li style="padding:12px;color:var(--light-text);">Нет записей с типом онсайт / флэш / редпоинт.</li>';
+                            this.bindProfileClimbListClicks(stylesList);
                         }
                     }
                 } catch (err) {
@@ -7304,6 +7320,118 @@
                 return map[style] || '';
             }
 
+            ascentClimbId(a) {
+                if (!a) return null;
+                const id = a.climb_type === 'route' ? a.route_id : a.boulder_id;
+                const n = Number(id);
+                return Number.isFinite(n) ? n : null;
+            }
+
+            ascentKindLabel(climbType) {
+                return climbType === 'route' ? 'Трасса' : 'Боулдер';
+            }
+
+            isClimbInCatalog(climbType, climbId) {
+                const id = String(climbId);
+                if (climbType === 'route') {
+                    return getRoutes().some((r) => String(r.id) === id);
+                }
+                return getBoulders().some((b) => String(b.id) === id);
+            }
+
+            formatAscentWhen(iso, { timeOnly } = {}) {
+                if (!iso) return '';
+                const d = new Date(iso);
+                if (timeOnly) {
+                    return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+                }
+                return d.toLocaleString('ru-RU', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+
+            buildAscentCardHtml(a, { compact }) {
+                const climbId = this.ascentClimbId(a);
+                const climbType = a.climb_type;
+                const kind = this.ascentKindLabel(climbType);
+                const name = (a.climb_name || '').trim() || (climbId != null ? `#${climbId}` : '—');
+                const grade = (a.climb_grade || '').trim();
+                const structure = (a.structure_label || '').trim();
+                const style = a.ascent_style || '';
+                const styleClass = style ? ` style-${style}` : '';
+                const deleted = !!a.climb_deleted;
+                const deletedClass = deleted ? ' is-deleted' : '';
+                const openAttrs = deleted || climbId == null
+                    ? ' type="button" disabled aria-disabled="true"'
+                    : ` type="button" data-open-climb-type="${climbType}" data-open-climb-id="${climbId}"`;
+                const badge = style
+                    ? `<span class="profile-style-badge style-${style}">${this.escapeHtml(this.ascentStyleLabel(style))}</span>`
+                    : '';
+                const gradeHtml = grade
+                    ? `<span class="profile-ascent-grade">${this.escapeHtml(grade)}</span>`
+                    : '';
+                const structureHtml = structure
+                    ? `<span class="profile-ascent-structure">${this.escapeHtml(structure)}</span>`
+                    : '';
+                const when = this.formatAscentWhen(a.logged_at, { timeOnly: compact });
+                const tries = Math.max(1, Number(a.tries) || 1);
+                const triesLabel = tries === 1 ? '1 попытка' : `${tries} поп.`;
+                const removedHtml = deleted
+                    ? '<div class="profile-ascent-removed">Удалена из каталога — данные обновятся у всех пользователей</div>'
+                    : '';
+
+                if (compact) {
+                    return `<button class="profile-log-item profile-logbook-entry profile-ascent-card${styleClass}${deletedClass}"${openAttrs}>
+                        <div class="profile-ascent-head">
+                            <span class="profile-ascent-kind">${kind}</span>
+                            ${badge}
+                        </div>
+                        <div class="profile-ascent-title">${this.escapeHtml(name)}${gradeHtml}</div>
+                        <div class="profile-ascent-meta">
+                            ${structureHtml}
+                            <span class="profile-ascent-tries">${triesLabel}</span>
+                            ${when ? `<span class="profile-ascent-when">${when}</span>` : ''}
+                        </div>
+                        ${removedHtml}
+                    </button>`;
+                }
+
+                return `<li class="profile-ascent-item">
+                    <button class="profile-climb-list-item profile-ascent-card${styleClass}${deletedClass}"${openAttrs}>
+                        <div class="profile-ascent-head">
+                            <span class="profile-ascent-kind">${kind}</span>
+                            ${badge}
+                        </div>
+                        <h4 class="profile-ascent-title">${this.escapeHtml(name)}${gradeHtml}</h4>
+                        <div class="profile-ascent-meta">
+                            ${structureHtml}
+                            <span class="profile-ascent-tries">${triesLabel}</span>
+                            <span class="profile-ascent-when">${this.escapeHtml(when)}</span>
+                        </div>
+                        ${removedHtml}
+                    </button>
+                </li>`;
+            }
+
+            openAscentFromProfile(climbType, climbId, ascentRow) {
+                if (ascentRow?.climb_deleted) {
+                    const label = this.ascentKindLabel(climbType).toLowerCase();
+                    this.showToast(`${label.charAt(0).toUpperCase()}${label.slice(1)} удалена из каталога`, false);
+                    return;
+                }
+                if (!this.isClimbInCatalog(climbType, climbId)) {
+                    this.showToast('Объект больше не в каталоге. Обновите данные.', false);
+                    return;
+                }
+                this.hideDialog('profileSendsDialog');
+                this.hideDialog('profileStylesDialog');
+                void this.showClimbDetailDialog(climbType, climbId);
+            }
+
             bindProfileClimbListClicks(container) {
                 if (!container) return;
                 container.querySelectorAll('[data-open-climb-type]').forEach((el) => {
@@ -7311,21 +7439,19 @@
                         const climbType = el.getAttribute('data-open-climb-type');
                         const climbId = Number(el.getAttribute('data-open-climb-id'));
                         if (!climbType || !Number.isFinite(climbId)) return;
-                        this.hideDialog('profileSendsDialog');
-                        this.hideDialog('profileStylesDialog');
-                        void this.showClimbDetailDialog(climbType, climbId);
+                        this.openAscentFromProfile(climbType, climbId);
                     });
                 });
             }
 
             bindProfileLogbookClicks(container) {
                 if (!container) return;
-                container.querySelectorAll('[data-logbook-open]').forEach((el) => {
+                container.querySelectorAll('[data-open-climb-type]').forEach((el) => {
                     el.addEventListener('click', () => {
-                        const climbType = el.getAttribute('data-logbook-open');
-                        const climbId = Number(el.getAttribute('data-logbook-id'));
+                        const climbType = el.getAttribute('data-open-climb-type');
+                        const climbId = Number(el.getAttribute('data-open-climb-id'));
                         if (!climbType || !Number.isFinite(climbId)) return;
-                        void this.showClimbDetailDialog(climbType, climbId);
+                        this.openAscentFromProfile(climbType, climbId);
                     });
                 });
             }
@@ -7342,19 +7468,7 @@
             }
 
             renderProfileLogbookItem(a) {
-                const climbId = a.route_id || a.boulder_id;
-                const name = a.climb_name || `#${climbId}`;
-                const kind = a.climb_type === 'route' ? 'Трасса' : 'Боулдер';
-                const grade = a.climb_grade ? ` · ${this.escapeHtml(a.climb_grade)}` : '';
-                const statusRu = 'пролаз';
-                const styleRu = a.ascent_style ? this.ascentStyleLabel(a.ascent_style) : '';
-                const when = a.logged_at ? new Date(a.logged_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
-                const extra = styleRu ? `, ${styleRu}` : '';
-                const styleClass = a.ascent_style ? ` style-${a.ascent_style}` : '';
-                return `<button type="button" class="profile-log-item profile-logbook-entry${styleClass}" data-logbook-open="${a.climb_type}" data-logbook-id="${climbId}">
-                    <strong>${this.escapeHtml(name)}</strong> — ${statusRu}${extra}, ${a.tries} поп. · ${when}
-                    <span class="meta" style="display:block;font-size:13px;color:var(--light-text);margin-top:4px;">${kind}${grade}${a.structure_label ? ` · ${this.escapeHtml(a.structure_label)}` : ''}</span>
-                </button>`;
+                return this.buildAscentCardHtml(a, { compact: true });
             }
 
             renderProfileLogbookByDays(ascents) {
@@ -7376,28 +7490,8 @@
                 return html;
             }
 
-            renderProfileAscentListItem(a, { showStyle }) {
-                const climbId = a.route_id || a.boulder_id;
-                const climbType = a.climb_type;
-                const name = a.climb_name || `#${climbId}`;
-                const kind = climbType === 'route' ? 'Трасса' : 'Боулдер';
-                const grade = a.climb_grade ? ` · ${this.escapeHtml(a.climb_grade)}` : '';
-                const struct = a.structure_label ? `<br>${this.escapeHtml(a.structure_label)}` : '';
-                const when = a.logged_at ? new Date(a.logged_at).toLocaleString('ru-RU') : '';
-                const style = a.ascent_style || '';
-                const styleClass = style ? ` style-${style}` : '';
-                const badge = showStyle && style
-                    ? `<span class="profile-style-badge style-${style}">${this.escapeHtml(this.ascentStyleLabel(style))}</span>`
-                    : '';
-                return `
-                    <li>
-                        <button type="button" class="profile-climb-list-item${styleClass}"
-                            data-open-climb-type="${climbType}" data-open-climb-id="${climbId}">
-                            <h4>${this.escapeHtml(name)}</h4>
-                            <div class="meta">${kind}${grade} · ${a.tries} поп. · ${when}${struct}</div>
-                            ${badge}
-                        </button>
-                    </li>`;
+            renderProfileAscentListItem(a) {
+                return this.buildAscentCardHtml(a, { compact: false });
             }
 
             async openProfileSendsDialog() {
@@ -7415,7 +7509,7 @@
                         listEl.innerHTML = '<li style="padding:12px;color:var(--light-text);">Пока нет пролазов.</li>';
                         return;
                     }
-                    listEl.innerHTML = ascents.map((a) => this.renderProfileAscentListItem(a, { showStyle: true })).join('');
+                    listEl.innerHTML = ascents.map((a) => this.renderProfileAscentListItem(a)).join('');
                     this.bindProfileClimbListClicks(listEl);
                 } catch (err) {
                     listEl.innerHTML = `<li style="padding:12px;color:var(--danger-color);">${this.escapeHtml(err.message)}</li>`;
@@ -7439,7 +7533,7 @@
                     }
                     const order = { onsight: 0, flash: 1, redpoint: 2 };
                     ascents.sort((x, y) => (order[x.ascent_style] ?? 9) - (order[y.ascent_style] ?? 9));
-                    listEl.innerHTML = ascents.map((a) => this.renderProfileAscentListItem(a, { showStyle: true })).join('');
+                    listEl.innerHTML = ascents.map((a) => this.renderProfileAscentListItem(a)).join('');
                     this.bindProfileClimbListClicks(listEl);
                 } catch (err) {
                     listEl.innerHTML = `<li style="padding:12px;color:var(--danger-color);">${this.escapeHtml(err.message)}</li>`;

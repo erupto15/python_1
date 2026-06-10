@@ -69,24 +69,32 @@ def _user_display(user: User | None) -> str:
 
 def _enrich_ascent(db: Session, row: ClimbAscent) -> schemas.AscentReadEnriched:
     name, grade, structure = "", "", None
+    climb_deleted = False
     if row.climb_type == "route" and row.route_id:
         route = db.get(Route, row.route_id)
-        if route and route.deleted_at is None:
-            name = route.name
-            grade = route.grade
+        if route:
+            name = route.name or ""
+            grade = route.grade or ""
             structure = _structure_label(db, route.area_id, route.sector_id)
+            climb_deleted = route.deleted_at is not None
+        else:
+            climb_deleted = True
     elif row.climb_type == "boulder" and row.boulder_id:
         boulder = db.get(Boulder, row.boulder_id)
-        if boulder and boulder.deleted_at is None:
-            name = boulder.name
-            grade = boulder.grade
+        if boulder:
+            name = boulder.name or ""
+            grade = boulder.grade or ""
             structure = _structure_label(db, boulder.area_id, boulder.sector_id)
+            climb_deleted = boulder.deleted_at is not None
+        else:
+            climb_deleted = True
     base = schemas.AscentRead.model_validate(row)
     return schemas.AscentReadEnriched(
         **base.model_dump(),
         climb_name=name,
-        climb_grade=grade,
+        climb_grade=grade or "",
         structure_label=structure,
+        climb_deleted=climb_deleted,
     )
 
 
