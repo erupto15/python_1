@@ -5092,6 +5092,8 @@
                         requestAnimationFrame(() => requestAnimationFrame(run));
                     } else run();
                 }
+                void this.loadAscentSummary();
+                void this.refreshProfileLogbookSection();
                 this.showToast('Трасса удалена');
             }
 
@@ -5118,6 +5120,8 @@
                         requestAnimationFrame(() => requestAnimationFrame(run));
                     } else run();
                 }
+                void this.loadAscentSummary();
+                void this.refreshProfileLogbookSection();
                 this.showToast('Боулдеринг удален');
             }
 

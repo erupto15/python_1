@@ -7,6 +7,7 @@ from app import schemas
 from app.db import get_db
 from app.deps import assert_admin, assert_owner, get_current_user
 from app.models import Area, Boulder, Photo, Sector, User
+from app.services.climb_community_cleanup import purge_ascents_and_ratings_for_boulder
 
 router = APIRouter(prefix="/boulders", tags=["boulders"])
 
@@ -111,4 +112,5 @@ def delete_boulder(boulder_id: int, db: Session = Depends(get_db), user: User = 
         raise HTTPException(status_code=404, detail="Boulder not found")
     assert_admin(user)
     b.deleted_at = datetime.now(timezone.utc)
+    purge_ascents_and_ratings_for_boulder(db, boulder_id)
     db.commit()

@@ -6,6 +6,7 @@ from app import schemas
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import Boulder, ClimbAscent, ClimbUserRating, Route, User
+from app.services.climb_community_cleanup import purge_community_for_soft_deleted_climbs
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -16,22 +17,32 @@ def register_user() -> User:
 
 
 def _profile_counts(db: Session, user_id: str) -> dict[str, int]:
-    sends = (
-        db.query(func.count(ClimbAscent.id))
-        .filter(ClimbAscent.user_id == user_id, ClimbAscent.status == "send")
-        .scalar()
-        or 0
-    )
-    styles = (
-        db.query(func.count(ClimbAscent.id))
-        .filter(
-            ClimbAscent.user_id == user_id,
-            ClimbAscent.status == "send",
-            ClimbAscent.ascent_style.in_(("onsight", "flash", "redpoint")),
-        )
-        .scalar()
-        or 0
-    )
+    purge_community_for_soft_deleted_climbs(db)
+    db.commit()
+
+    active_route_ids = {
+        row[0] for row in db.query(Route.id).filter(Route.deleted_at.is_(None)).all()
+    }
+    active_boulder_ids = {
+        row[0] for row in db.query(Boulder.id).filter(Boulder.deleted_at.is_(None)).all()
+    }
+
+    ascent_rows = db.query(ClimbAscent).filter(ClimbAscent.user_id == user_id).all()
+    sends = 0
+    styles = 0
+    for row in ascent_rows:
+        if row.climb_type == "route":
+            if row.route_id not in active_route_ids:
+                continue
+        elif row.climb_type == "boulder":
+            if row.boulder_id not in active_boulder_ids:
+                continue
+        else:
+            continue
+        if row.status == "send":
+            sends += 1
+            if row.ascent_style in ("onsight", "flash", "redpoint"):
+                styles += 1
     ratings = db.query(func.count(ClimbUserRating.id)).filter(ClimbUserRating.user_id == user_id).scalar() or 0
     routes = db.query(func.count(Route.id)).filter(Route.created_by == user_id, Route.deleted_at.is_(None)).scalar() or 0
     boulders = (

@@ -11,12 +11,28 @@ from app import schemas
 from app.db import get_db
 from app.deps import get_current_user, get_current_user_optional
 from app.models import Area, Boulder, ClimbAscent, ClimbUserRating, Route, Sector, User
+from app.services.climb_community_cleanup import purge_community_for_soft_deleted_climbs
 from app.services.climb_rating import star_average, sync_climb_star_average
 from app.services.climb_score import build_leaderboard
 
 router = APIRouter(tags=["community"])
 
 ASCENT_STYLES = frozenset({"onsight", "flash", "redpoint"})
+
+
+def _ensure_profile_community_clean(db: Session) -> None:
+    if purge_community_for_soft_deleted_climbs(db):
+        db.commit()
+
+
+def _ascent_climb_is_active(db: Session, row: ClimbAscent) -> bool:
+    if row.climb_type == "route" and row.route_id is not None:
+        route = db.get(Route, row.route_id)
+        return route is not None and route.deleted_at is None
+    if row.climb_type == "boulder" and row.boulder_id is not None:
+        boulder = db.get(Boulder, row.boulder_id)
+        return boulder is not None and boulder.deleted_at is None
+    return False
 
 
 def _climb_ids(climb_type: str, route_id: Optional[int], boulder_id: Optional[int]) -> tuple[str, Optional[int], Optional[int]]:
@@ -103,7 +119,9 @@ def my_ascent_summary(
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> schemas.MyAscentSummary:
+    _ensure_profile_community_clean(db)
     rows = db.query(ClimbAscent).filter(ClimbAscent.user_id == current.id).all()
+    rows = [row for row in rows if _ascent_climb_is_active(db, row)]
     sent_r: set[int] = set()
     sent_b: set[int] = set()
     att_r: set[int] = set()
@@ -135,6 +153,7 @@ def list_my_ascents(
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[schemas.AscentReadEnriched]:
+    _ensure_profile_community_clean(db)
     q = db.query(ClimbAscent).filter(ClimbAscent.user_id == current.id)
     if status:
         q = q.filter(ClimbAscent.status == status)
@@ -144,6 +163,7 @@ def list_my_ascents(
             ClimbAscent.ascent_style.in_(tuple(ASCENT_STYLES)),
         )
     rows = q.order_by(ClimbAscent.logged_at.desc()).limit(limit).all()
+    rows = [row for row in rows if _ascent_climb_is_active(db, row)]
     return [_enrich_ascent(db, row) for row in rows]
 
 

@@ -7,6 +7,7 @@ from app import schemas
 from app.db import get_db
 from app.deps import assert_admin, assert_owner, get_current_user
 from app.models import Area, Photo, Route, Sector, User
+from app.services.climb_community_cleanup import purge_ascents_and_ratings_for_route
 
 router = APIRouter(prefix="/routes", tags=["routes"])
 
@@ -111,4 +112,5 @@ def delete_route(route_id: int, db: Session = Depends(get_db), user: User = Depe
         raise HTTPException(status_code=404, detail="Route not found")
     assert_admin(user)
     route.deleted_at = datetime.now(timezone.utc)
+    purge_ascents_and_ratings_for_route(db, route_id)
     db.commit()

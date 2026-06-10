@@ -7,6 +7,10 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models import Area, Boulder, Route, Sector
+from app.services.climb_community_cleanup import (
+    purge_ascents_and_ratings_for_boulder,
+    purge_ascents_and_ratings_for_route,
+)
 
 
 def _now() -> datetime:
@@ -28,6 +32,7 @@ def _soft_delete_routes(
         q = q.filter(Route.area_id == area_id)
     for route in q.all():
         route.deleted_at = ts
+        purge_ascents_and_ratings_for_route(db, route.id)
 
 
 def _soft_delete_boulders(
@@ -45,6 +50,7 @@ def _soft_delete_boulders(
         q = q.filter(Boulder.area_id == area_id)
     for boulder in q.all():
         boulder.deleted_at = ts
+        purge_ascents_and_ratings_for_boulder(db, boulder.id)
 
 
 def soft_delete_sector_with_contents(db: Session, sector: Sector) -> None:
