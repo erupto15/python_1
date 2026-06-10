@@ -6952,7 +6952,6 @@
 
             async refreshProfileLogbookSection() {
                 if (!this.isLoggedIn()) return;
-                const list = document.getElementById('profileLogbookList');
                 try {
                     const [profile, ascents] = await Promise.all([
                         apiFetch('/api/users/me/profile'),
@@ -6964,18 +6963,12 @@
                     if (stylesCountEl) {
                         stylesCountEl.textContent = String(profile.styles_count ?? profile.attempts_count ?? 0);
                     }
-                    if (list) {
-                        list.innerHTML = this.renderProfileLogbookByDays(ascents);
-                        this.bindProfileLogbookClicks(list);
-                    }
                     const sendsDialog = document.getElementById('profileSendsDialog');
                     if (sendsDialog && !sendsDialog.classList.contains('hidden')) {
                         const listEl = document.getElementById('profileSendsList');
                         if (listEl) {
-                            listEl.innerHTML = ascents.length
-                                ? ascents.map((a) => this.renderProfileAscentListItem(a)).join('')
-                                : '<li style="padding:12px;color:var(--light-text);">Пока нет пролазов.</li>';
-                            this.bindProfileClimbListClicks(listEl);
+                            listEl.innerHTML = this.renderProfileLogbookByDays(ascents);
+                            this.bindProfileLogbookClicks(listEl);
                         }
                     }
                     const stylesDialog = document.getElementById('profileStylesDialog');
@@ -7333,13 +7326,11 @@
                             void this.openProfileStylesDialog();
                         });
                     }
-                    const ascents = await apiFetch('/api/me/ascents?status=send&limit=500');
-                    const list = document.getElementById('profileLogbookList');
-                    if (!list) return;
-                    list.innerHTML = this.renderProfileLogbookByDays(ascents);
-                    this.bindProfileLogbookClicks(list);
                 } catch (err) {
-                    document.getElementById('profileLogbookList').innerHTML = `<p style="color:var(--danger-color);">${this.escapeHtml(err.message)}</p>`;
+                    const grid = document.getElementById('profileStatsGrid');
+                    if (grid) {
+                        grid.innerHTML = `<p style="color:var(--danger-color);">${this.escapeHtml(err.message)}</p>`;
+                    }
                 }
             }
 
@@ -7529,18 +7520,14 @@
                 }
                 const listEl = document.getElementById('profileSendsList');
                 if (!listEl) return;
-                listEl.innerHTML = '<li style="padding:12px;color:var(--light-text);">Загрузка…</li>';
+                listEl.innerHTML = '<p style="padding:12px;color:var(--light-text);margin:0;">Загрузка…</p>';
                 this.showDialog('profileSendsDialog');
                 try {
                     const ascents = await apiFetch('/api/me/ascents?status=send&limit=500');
-                    if (!ascents.length) {
-                        listEl.innerHTML = '<li style="padding:12px;color:var(--light-text);">Пока нет пролазов.</li>';
-                        return;
-                    }
-                    listEl.innerHTML = ascents.map((a) => this.renderProfileAscentListItem(a)).join('');
-                    this.bindProfileClimbListClicks(listEl);
+                    listEl.innerHTML = this.renderProfileLogbookByDays(ascents);
+                    this.bindProfileLogbookClicks(listEl);
                 } catch (err) {
-                    listEl.innerHTML = `<li style="padding:12px;color:var(--danger-color);">${this.escapeHtml(err.message)}</li>`;
+                    listEl.innerHTML = `<p style="padding:12px;color:var(--danger-color);margin:0;">${this.escapeHtml(err.message)}</p>`;
                 }
             }
 

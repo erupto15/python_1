@@ -2705,6 +2705,10 @@
         .profile-style-badge.style-flash { background: #f9a825; color: #1a1a1a; }
         .profile-style-badge.style-redpoint { background: #c62828; color: #fff; }
 
+        .profile-sends-logbook {
+            padding: 0;
+        }
+
         .profile-logbook-day {
             margin-bottom: 16px;
         }

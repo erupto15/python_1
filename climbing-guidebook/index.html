@@ -305,9 +305,6 @@
                         </div>
                     </div>
                     <div class="profile-stats-grid" id="profileStatsGrid"></div>
-                    <h3 style="font-size:16px;margin:16px 0 8px;">Логбук по дням</h3>
-                    <p style="font-size:13px;color:var(--light-text);margin:0 0 10px;">Записи из каталога — пролаз существующей трассы, не новая трасса в профиле.</p>
-                    <div id="profileLogbookList"></div>
                 </div>
             </div>
         </div>
@@ -317,12 +314,12 @@
             <div class="dialog-header">
                 <div class="dialog-header-text">
                     <div class="dialog-title">Пролазы</div>
-                    <div class="dialog-subtitle">Все пролезенные трассы и боулдеры</div>
+                    <div class="dialog-subtitle">Логбук по дням</div>
                 </div>
                 <button type="button" class="dialog-close-btn" id="profileSendsDialogCloseBtn" data-close-dialog="profileSendsDialog" aria-label="Закрыть"><i class="fas fa-times"></i></button>
             </div>
             <div class="dialog-body">
-                <ul class="profile-climb-list" id="profileSendsList"></ul>
+                <div id="profileSendsList" class="profile-sends-logbook"></div>
             </div>
             <div class="dialog-footer">
                 <button type="button" class="btn btn-ghost" data-close-dialog="profileSendsDialog">Закрыть</button>
