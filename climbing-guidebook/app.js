@@ -6720,14 +6720,18 @@
                 }
                 const climbType = ctx.climbType;
                 const climbId = ctx.climbId;
-                const tries = Math.max(1, parseInt(document.getElementById('climbLogTries')?.value || '1', 10) || 1);
+                const ascentStyle = status === 'send' ? (this.getSelectedAscentStyle() || null) : null;
+                const fixedTriesStyle = ascentStyle === 'onsight' || ascentStyle === 'flash';
+                const tries = fixedTriesStyle
+                    ? 1
+                    : Math.max(1, parseInt(document.getElementById('climbLogTries')?.value || '1', 10) || 1);
                 const body = {
                     climb_type: climbType,
                     status,
                     tries,
                     route_id: climbType === 'route' ? Number(climbId) : null,
                     boulder_id: climbType === 'boulder' ? Number(climbId) : null,
-                    ascent_style: status === 'send' ? (this.getSelectedAscentStyle() || null) : null
+                    ascent_style: ascentStyle
                 };
                 if (status === 'send' && !body.ascent_style) {
                     throw new Error('Выберите тип пролаза: онсайт, флэш или редпоинт');
@@ -6791,6 +6795,23 @@
                 if (hidden) hidden.value = normalized;
             }
 
+            syncClimbLogTriesForStyle() {
+                const style = this.getSelectedAscentStyle();
+                const field = document.getElementById('climbLogTriesField');
+                const input = document.getElementById('climbLogTries');
+                if (!field || !input) return;
+                const fixedTries = style === 'onsight' || style === 'flash';
+                field.classList.toggle('hidden', fixedTries);
+                field.setAttribute('aria-hidden', fixedTries ? 'true' : 'false');
+                if (fixedTries) {
+                    input.value = '1';
+                    input.disabled = true;
+                } else {
+                    input.disabled = false;
+                    if (!input.value || Number(input.value) < 1) input.value = '1';
+                }
+            }
+
             bindAscentStylePicker(initialStyle = 'redpoint') {
                 const picker = document.getElementById('climbLogSendStylePicker');
                 const hidden = document.getElementById('climbLogSendStyle');
@@ -6804,11 +6825,14 @@
                         const current = this.getSelectedAscentStyle();
                         if (current === next) {
                             this.setAscentStyleSelection(picker, hidden, '');
+                            this.syncClimbLogTriesForStyle();
                             return;
                         }
                         this.setAscentStyleSelection(picker, hidden, next);
+                        this.syncClimbLogTriesForStyle();
                     });
                 });
+                this.syncClimbLogTriesForStyle();
             }
 
             renderCommunityStarPicker(container, selectedStars, onPick) {
@@ -7042,12 +7066,6 @@
                     const triesVal = stats.my_tries || 1;
                     formEl.innerHTML = `
                         <div class="climb-log-field">
-                            <span class="form-label">Попыток</span>
-                            <div class="climb-log-field-row">
-                                <input type="number" class="form-input" id="climbLogTries" min="1" max="99" value="${triesVal}">
-                            </div>
-                        </div>
-                        <div class="climb-log-field">
                             <span class="form-label">Тип пролаза</span>
                             <div class="climb-log-field-row">
                                 <div class="ascent-style-picker" id="climbLogSendStylePicker" role="radiogroup" aria-label="Тип пролаза">
@@ -7056,6 +7074,12 @@
                                     <button type="button" class="ascent-style-btn active" data-style="redpoint" aria-pressed="true">Редпоинт</button>
                                 </div>
                                 <input type="hidden" id="climbLogSendStyle" value="redpoint">
+                            </div>
+                        </div>
+                        <div class="climb-log-field" id="climbLogTriesField">
+                            <span class="form-label">Попыток</span>
+                            <div class="climb-log-field-row">
+                                <input type="number" class="form-input" id="climbLogTries" min="1" max="99" value="${triesVal}">
                             </div>
                         </div>
                         <div class="climb-log-field">
