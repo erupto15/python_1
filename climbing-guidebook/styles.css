@@ -1747,6 +1747,14 @@
             margin: 0 0 12px;
         }
 
+        .climb-detail-admin-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 8px;
+            margin: 0 0 12px;
+        }
+
         @media (max-width: 520px) {
             #mapContainer {
                 height: 62vh;

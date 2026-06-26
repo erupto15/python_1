@@ -4483,8 +4483,8 @@
             }
 
             async saveQuickRoute() {
-                if (!this.requireAdmin('Добавление трассы')) return;
                 const editId = Number(document.getElementById('quickRouteId').value || 0);
+                if (!this.requireAdmin(editId ? 'Редактирование трассы' : 'Добавление трассы')) return;
                 const sid = Number(document.getElementById('quickRouteSectorId').value || 0);
                 const sector = getSectors().find(s => Number(s.id) === sid);
                 if (!sector) {
@@ -4563,8 +4563,8 @@
             }
 
             async saveQuickBoulder() {
-                if (!this.requireAdmin('Добавление боулдеринга')) return;
                 const editId = Number(document.getElementById('quickBoulderId').value || 0);
+                if (!this.requireAdmin(editId ? 'Редактирование боулдеринга' : 'Добавление боулдеринга')) return;
                 const sid = Number(document.getElementById('quickBoulderSectorId').value || 0);
                 const sector = getSectors().find(s => Number(s.id) === sid);
                 if (!sector) {
@@ -5248,6 +5248,26 @@
                     if (!ctx) return;
                     void this.focusMapTarget(ctx.climbType, ctx.climbId);
                 });
+                document.getElementById('climbDetailEditBtn')?.addEventListener('click', () => {
+                    const ctx = this._climbDetailContext;
+                    if (!ctx) return;
+                    if (ctx.climbType === 'route') {
+                        this.hideDialog('climbDetailDialog');
+                        this.showEditRouteDialog(Number(ctx.climbId));
+                    } else {
+                        this.hideDialog('climbDetailDialog');
+                        this.showEditBoulderDialog(Number(ctx.climbId));
+                    }
+                });
+                document.getElementById('climbDetailDeleteBtn')?.addEventListener('click', () => {
+                    const ctx = this._climbDetailContext;
+                    if (!ctx) return;
+                    if (ctx.climbType === 'route') {
+                        void this.deleteRoute(Number(ctx.climbId));
+                    } else {
+                        void this.deleteBoulder(Number(ctx.climbId));
+                    }
+                });
                 this.setupClimbPhotoViewerListeners();
 
                 document.getElementById('climbDetailOpenLogBtn')?.addEventListener('click', () => {
@@ -5418,6 +5438,9 @@
                 }
                 void this.loadAscentSummary();
                 void this.refreshProfileLogbookSection();
+                if (this._climbDetailContext?.climbType === 'route' && Number(this._climbDetailContext.climbId) === Number(routeId)) {
+                    this.hideDialog('climbDetailDialog');
+                }
                 this.showToast('Трасса удалена');
             }
 
@@ -5446,6 +5469,9 @@
                 }
                 void this.loadAscentSummary();
                 void this.refreshProfileLogbookSection();
+                if (this._climbDetailContext?.climbType === 'boulder' && Number(this._climbDetailContext.climbId) === Number(boulderId)) {
+                    this.hideDialog('climbDetailDialog');
+                }
                 this.showToast('Боулдеринг удален');
             }
 

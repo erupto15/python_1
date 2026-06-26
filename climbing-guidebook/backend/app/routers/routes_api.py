@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app import schemas
 from app.db import get_db
-from app.deps import assert_admin, assert_owner, get_current_user
+from app.deps import assert_admin, get_current_user
 from app.models import Area, Photo, Route, Sector, User
 from app.services.climb_community_cleanup import purge_ascents_and_ratings_for_route
 
@@ -90,7 +90,6 @@ def update_route(
     if not route or route.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Route not found")
     assert_admin(user)
-    assert_owner(user, route.created_by)
     data = payload.model_dump(exclude_unset=True)
     if "sector_id" in data or "area_id" in data:
         _validate_active_sector_area(
