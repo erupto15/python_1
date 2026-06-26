@@ -6,27 +6,19 @@
         window.__TG_DIALOG_MAIN = {
             areaDialog: {
                 text: 'Сохранить',
-                btnId: 'areaSubmitBtn',
-                secondaryText: 'Закрыть',
-                secondaryBtnId: 'closeAreaDialogBtn'
+                btnId: 'areaSubmitBtn'
             },
             sectorDialog: {
                 text: 'Сохранить',
-                btnId: 'sectorSubmitBtn',
-                secondaryText: 'Закрыть',
-                secondaryBtnId: 'closeSectorDialogBtn'
+                btnId: 'sectorSubmitBtn'
             },
             quickRouteDialog: {
                 text: 'Добавить трассу',
-                btnId: 'saveQuickRouteBtn',
-                secondaryText: 'Закрыть',
-                secondaryBtnId: 'closeQuickRouteDialogBtn'
+                btnId: 'saveQuickRouteBtn'
             },
             quickBoulderDialog: {
                 text: 'Добавить боулдеринг',
-                btnId: 'saveQuickBoulderBtn',
-                secondaryText: 'Закрыть',
-                secondaryBtnId: 'closeQuickBoulderDialogBtn'
+                btnId: 'saveQuickBoulderBtn'
             },
             climbDetailDialog: {
                 resolve() {
@@ -35,78 +27,49 @@
                     if (canLog) {
                         return {
                             text: 'Пролаз',
-                            btnId: 'climbDetailOpenLogBtn',
-                            secondaryText: 'Закрыть',
-                            secondaryBtnId: 'climbDetailCloseBtn'
+                            btnId: 'climbDetailOpenLogBtn'
                         };
                     }
                     const mkBtn = document.getElementById('climbDetailMarkupBtn');
                     const saveRow = document.getElementById('climbDetailSaveRow');
                     const hasPhoto = mkBtn && mkBtn.style.display !== 'none';
                     if (!hasPhoto) {
-                        return {
-                            text: 'Закрыть',
-                            btnId: 'climbDetailCloseBtn'
-                        };
+                        return null;
                     }
                     const showSave = saveRow && !saveRow.classList.contains('hidden');
                     return {
                         text: 'Схема на фото',
                         btnId: 'climbDetailMarkupBtn',
-                        secondaryText: showSave ? 'Сохранить со схемой' : 'Закрыть',
-                        secondaryBtnId: showSave ? 'climbDetailSavePhotoBtn' : 'climbDetailCloseBtn'
+                        secondaryText: showSave ? 'Сохранить со схемой' : '',
+                        secondaryBtnId: showSave ? 'climbDetailSavePhotoBtn' : ''
                     };
                 }
             },
             routeLineMarkupDialog: {
                 resolve() {
                     if (window.app && window.app._markupDialogViewOnly) {
-                        return {
-                            text: 'Закрыть',
-                            btnId: 'closeRouteLineMarkupDialogBtn'
-                        };
+                        return null;
                     }
                     return {
                         text: 'Сохранить разметку',
-                        btnId: 'saveRouteLineMarkupBtn',
-                        secondaryText: 'Закрыть',
-                        secondaryBtnId: 'cancelRouteLineMarkupBtn'
+                        btnId: 'saveRouteLineMarkupBtn'
                     };
                 }
             },
             boulderHoldsMarkupDialog: {
                 resolve() {
                     if (window.app && window.app._markupDialogViewOnly) {
-                        return {
-                            text: 'Закрыть',
-                            btnId: 'closeBoulderHoldsMarkupDialogBtn'
-                        };
+                        return null;
                     }
                     return {
                         text: 'Сохранить разметку',
-                        btnId: 'saveBoulderHoldsMarkupBtn',
-                        secondaryText: 'Закрыть',
-                        secondaryBtnId: 'cancelBoulderHoldsMarkupBtn'
+                        btnId: 'saveBoulderHoldsMarkupBtn'
                     };
                 }
             },
-            profileSendsDialog: {
-                text: 'Закрыть',
-                btnId: 'profileSendsDialogCloseBtn',
-                secondaryText: 'Закрыть',
-                secondaryBtnId: 'profileSendsDialogCloseBtn'
-            },
-            profileStylesDialog: {
-                text: 'Закрыть',
-                btnId: 'profileStylesDialogCloseBtn',
-                secondaryText: 'Закрыть',
-                secondaryBtnId: 'profileStylesDialogCloseBtn'
-            },
             climbLogDialog: {
                 text: 'Записать пролаз',
-                btnId: 'climbTgLogConfirmBtn',
-                secondaryText: 'Назад',
-                secondaryBtnId: 'climbLogCloseBtn'
+                btnId: 'climbTgLogConfirmBtn'
             }
         };
 
@@ -5819,10 +5782,7 @@
                 } catch (err) {
                     console.warn('climb detail photos load', err);
                 }
-                const climb =
-                    climbType === 'route'
-                        ? getRoutes().find((r) => String(r.id) === idStr)
-                        : getBoulders().find((b) => String(b.id) === idStr);
+                const climb = await this.ensureClimbInCatalog(climbType, idStr);
                 if (!climb) {
                     this.showToast(
                         climbType === 'route' ? 'Трасса не найдена' : 'Боулдеринг не найден',
@@ -6953,16 +6913,14 @@
             async refreshProfileLogbookSection() {
                 if (!this.isLoggedIn()) return;
                 try {
+                    if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
+                        await refreshCatalogFromApi({ skipWake: true }).catch(() => {});
+                    }
                     const [profile, ascents] = await Promise.all([
                         apiFetch('/api/users/me/profile'),
                         apiFetch('/api/me/ascents?status=send&limit=500')
                     ]);
-                    const sendsCountEl = document.querySelector('#profileStatsGrid [data-profile-stat="sends"] strong');
-                    if (sendsCountEl) sendsCountEl.textContent = String(profile.sends_count ?? 0);
-                    const stylesCountEl = document.querySelector('#profileStatsGrid [data-profile-stat="styles"] strong');
-                    if (stylesCountEl) {
-                        stylesCountEl.textContent = String(profile.styles_count ?? profile.attempts_count ?? 0);
-                    }
+                    this.renderProfileStatsGrid(profile, ascents);
                     const sendsDialog = document.getElementById('profileSendsDialog');
                     if (sendsDialog && !sendsDialog.classList.contains('hidden')) {
                         const listEl = document.getElementById('profileSendsList');
@@ -7304,28 +7262,15 @@
                 this.renderProfileIdentity(user);
 
                 try {
-                    const profile = await apiFetch('/api/users/me/profile');
-                    this.updateProfileAvatar(user, profile);
-                    const grid = document.getElementById('profileStatsGrid');
-                    if (grid) {
-                        const stylesCount = profile.styles_count ?? profile.attempts_count ?? 0;
-                        grid.className = 'profile-stats-grid';
-                        grid.innerHTML = `
-                            <button type="button" class="profile-stat-card" data-profile-stat="sends" aria-label="Список пролазов">
-                                <strong>${profile.sends_count}</strong>пролазов
-                            </button>
-                            <button type="button" class="profile-stat-card" data-profile-stat="styles" aria-label="Стили пролаза">
-                                <strong>${stylesCount}</strong>стилей
-                            </button>
-                            <div class="profile-stat-card"><strong>${profile.ratings_count}</strong>рейтинг</div>
-                        `;
-                        grid.querySelector('[data-profile-stat="sends"]')?.addEventListener('click', () => {
-                            void this.openProfileSendsDialog();
-                        });
-                        grid.querySelector('[data-profile-stat="styles"]')?.addEventListener('click', () => {
-                            void this.openProfileStylesDialog();
-                        });
+                    if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
+                        await refreshCatalogFromApi({ skipWake: true }).catch(() => {});
                     }
+                    const [profile, ascents] = await Promise.all([
+                        apiFetch('/api/users/me/profile'),
+                        apiFetch('/api/me/ascents?status=send&limit=500')
+                    ]);
+                    this.updateProfileAvatar(user, profile);
+                    this.renderProfileStatsGrid(profile, ascents);
                 } catch (err) {
                     const grid = document.getElementById('profileStatsGrid');
                     if (grid) {
@@ -7339,15 +7284,159 @@
                 return map[style] || '';
             }
 
+            normalizeAscentClimbType(a) {
+                const raw = String(a?.climb_type || '').trim().toLowerCase();
+                if (raw === 'route' || raw === 'boulder') return raw;
+                if (a?.route_id != null && a?.boulder_id == null) return 'route';
+                if (a?.boulder_id != null && a?.route_id == null) return 'boulder';
+                return raw || 'route';
+            }
+
             ascentClimbId(a) {
                 if (!a) return null;
-                const id = a.climb_type === 'route' ? a.route_id : a.boulder_id;
+                const climbType = this.normalizeAscentClimbType(a);
+                const id = climbType === 'route' ? a.route_id : a.boulder_id;
                 const n = Number(id);
                 return Number.isFinite(n) ? n : null;
             }
 
+            findClimbInCatalog(climbType, climbId) {
+                if (climbId == null) return null;
+                const id = String(climbId);
+                if (climbType === 'route') {
+                    return getRoutes().find((r) => String(r.id) === id) || null;
+                }
+                return getBoulders().find((b) => String(b.id) === id) || null;
+            }
+
+            async ensureClimbInCatalog(climbType, climbId) {
+                const id = String(climbId);
+                const existing = this.findClimbInCatalog(climbType, id);
+                if (existing) return existing;
+
+                if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
+                    await refreshCatalogFromApi({ skipWake: true }).catch(() => {});
+                    const refreshed = this.findClimbInCatalog(climbType, id);
+                    if (refreshed) return refreshed;
+                }
+
+                try {
+                    if (climbType === 'route') {
+                        const apiRoute = await apiFetch(`/api/routes/${encodeURIComponent(id)}`);
+                        const route = mapApiRouteToUi(apiRoute);
+                        saveRoutes([...getRoutes().filter((r) => String(r.id) !== id), route]);
+                        return route;
+                    }
+                    const apiBoulder = await apiFetch(`/api/boulders/${encodeURIComponent(id)}`);
+                    const boulder = mapApiBoulderToUi(apiBoulder);
+                    saveBoulders([...getBoulders().filter((b) => String(b.id) !== id), boulder]);
+                    return boulder;
+                } catch (err) {
+                    console.warn('ensure climb in catalog', err);
+                    return null;
+                }
+            }
+
             ascentKindLabel(climbType) {
                 return climbType === 'route' ? 'Трасса' : 'Боулдер';
+            }
+
+            resolveAscentDisplay(a) {
+                const climbType = this.normalizeAscentClimbType(a);
+                const climbId = this.ascentClimbId(a);
+                let name = String(a?.climb_name ?? '').trim();
+                let grade = String(a?.climb_grade ?? '').trim();
+                let structure = String(a?.structure_label ?? '').trim();
+
+                const climb = climbId != null ? this.findClimbInCatalog(climbType, climbId) : null;
+                if (climb) {
+                    const catalogName = String(climb.name ?? '').trim();
+                    if (catalogName) name = name || catalogName;
+                    if (!grade && climb.grade != null && climb.grade !== '') {
+                        grade = String(climb.grade);
+                    }
+                    if (!structure && climb.sectorId != null) {
+                        structure = String(this.getStructureLabel(climb.sectorId) || '').trim();
+                    }
+                }
+
+                if (!name && climbId != null) name = `#${climbId}`;
+
+                return {
+                    climbId,
+                    climbType,
+                    name,
+                    grade,
+                    structure,
+                    kind: this.ascentKindLabel(climbType)
+                };
+            }
+
+            buildProfileSendsStatCardHtml(sendsCount, ascents) {
+                const items = ascents || [];
+                const previewHtml = items.length
+                    ? `<div class="profile-sends-preview">${items.map((a) => {
+                        const d = this.resolveAscentDisplay(a);
+                        const kindClass = d.climbType === 'route' ? 'route' : 'boulder';
+                        const style = a.ascent_style || '';
+                        const styleBadge = style
+                            ? `<span class="profile-style-badge style-${style}">${this.escapeHtml(this.ascentStyleLabel(style))}</span>`
+                            : '';
+                        const deleted = !!a.climb_deleted;
+                        const openAttrs = deleted || d.climbId == null
+                            ? ' type="button" disabled aria-disabled="true"'
+                            : ` type="button" data-open-climb-type="${d.climbType}" data-open-climb-id="${d.climbId}"`;
+                        return `<button class="profile-sends-preview-item${style ? ` style-${style}` : ''}${deleted ? ' is-deleted' : ''}"${openAttrs}>
+                            <span class="profile-sends-preview-name">${this.escapeHtml(d.name)}</span>
+                            ${d.grade ? `<span class="profile-sends-preview-grade">${this.escapeHtml(d.grade)}</span>` : ''}
+                            <span class="profile-sends-preview-kind profile-sends-preview-kind--${kindClass}">${d.kind}</span>
+                            ${styleBadge}
+                        </button>`;
+                    }).join('')}</div>`
+                    : '<div class="profile-sends-preview profile-sends-preview--empty">Пока нет пролазов</div>';
+
+                return `<div class="profile-stat-card profile-stat-card--sends" data-profile-stat="sends" aria-label="Мои пролазы">
+                    <div class="profile-stat-card-head">
+                        <strong>${sendsCount}</strong>
+                        <span class="profile-stat-card-label">пролазов</span>
+                    </div>
+                    ${previewHtml}
+                </div>`;
+            }
+
+            bindProfileSendsStatCardClicks(container) {
+                if (!container) return;
+                container.querySelectorAll('[data-open-climb-type]').forEach((el) => {
+                    el.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const climbType = el.getAttribute('data-open-climb-type');
+                        const climbId = Number(el.getAttribute('data-open-climb-id'));
+                        if (!climbType || !Number.isFinite(climbId)) return;
+                        void this.openAscentFromProfile(climbType, climbId);
+                    });
+                });
+            }
+
+            renderProfileStatsGrid(profile, ascents = []) {
+                const grid = document.getElementById('profileStatsGrid');
+                if (!grid) return;
+                const stylesCount = profile.styles_count ?? profile.attempts_count ?? 0;
+                grid.className = 'profile-stats-grid';
+                grid.innerHTML = `
+                    ${this.buildProfileSendsStatCardHtml(profile.sends_count ?? 0, ascents)}
+                    <button type="button" class="profile-stat-card" data-profile-stat="styles" aria-label="Стили пролаза">
+                        <strong>${stylesCount}</strong>
+                        <span class="profile-stat-card-label">стилей</span>
+                    </button>
+                    <div class="profile-stat-card">
+                        <strong>${profile.ratings_count ?? 0}</strong>
+                        <span class="profile-stat-card-label">рейтинг</span>
+                    </div>
+                `;
+                this.bindProfileSendsStatCardClicks(grid.querySelector('[data-profile-stat="sends"]'));
+                grid.querySelector('[data-profile-stat="styles"]')?.addEventListener('click', () => {
+                    void this.openProfileStylesDialog();
+                });
             }
 
             isClimbInCatalog(climbType, climbId) {
@@ -7374,12 +7463,13 @@
             }
 
             buildAscentCardHtml(a, { compact }) {
-                const climbId = this.ascentClimbId(a);
-                const climbType = a.climb_type;
-                const kind = this.ascentKindLabel(climbType);
-                const name = (a.climb_name || '').trim() || (climbId != null ? `#${climbId}` : '—');
-                const grade = (a.climb_grade || '').trim();
-                const structure = (a.structure_label || '').trim();
+                const display = this.resolveAscentDisplay(a);
+                const climbId = display.climbId;
+                const climbType = display.climbType;
+                const kind = display.kind;
+                const name = display.name || '—';
+                const grade = display.grade;
+                const structure = display.structure;
                 const style = a.ascent_style || '';
                 const styleClass = style ? ` style-${style}` : '';
                 const deleted = !!a.climb_deleted;
@@ -7403,52 +7493,45 @@
                     ? '<div class="profile-ascent-removed">Удалена из каталога — данные обновятся у всех пользователей</div>'
                     : '';
 
-                if (compact) {
-                    return `<button class="profile-log-item profile-logbook-entry profile-ascent-card${styleClass}${deletedClass}"${openAttrs}>
-                        <div class="profile-ascent-head">
+                const titleInnerHtml = `<span class="profile-ascent-name">${this.escapeHtml(name)}</span>${gradeHtml}${badge}`;
+                const metaHtml = `<div class="profile-ascent-meta">
                             <span class="profile-ascent-kind">${kind}</span>
-                            ${badge}
-                        </div>
-                        <div class="profile-ascent-title">${this.escapeHtml(name)}${gradeHtml}</div>
-                        <div class="profile-ascent-meta">
                             ${structureHtml}
                             <span class="profile-ascent-tries">${triesLabel}</span>
                             ${when ? `<span class="profile-ascent-when">${when}</span>` : ''}
-                        </div>
+                        </div>`;
+
+                if (compact) {
+                    return `<button class="profile-log-item profile-logbook-entry profile-ascent-card${styleClass}${deletedClass}"${openAttrs}>
+                        <div class="profile-ascent-title-row">${titleInnerHtml}</div>
+                        ${metaHtml}
                         ${removedHtml}
                     </button>`;
                 }
 
                 return `<li class="profile-ascent-item">
                     <button class="profile-climb-list-item profile-ascent-card${styleClass}${deletedClass}"${openAttrs}>
-                        <div class="profile-ascent-head">
-                            <span class="profile-ascent-kind">${kind}</span>
-                            ${badge}
-                        </div>
-                        <h4 class="profile-ascent-title">${this.escapeHtml(name)}${gradeHtml}</h4>
-                        <div class="profile-ascent-meta">
-                            ${structureHtml}
-                            <span class="profile-ascent-tries">${triesLabel}</span>
-                            <span class="profile-ascent-when">${this.escapeHtml(when)}</span>
-                        </div>
+                        <h4 class="profile-ascent-title-row profile-ascent-title">${titleInnerHtml}</h4>
+                        ${metaHtml}
                         ${removedHtml}
                     </button>
                 </li>`;
             }
 
-            openAscentFromProfile(climbType, climbId, ascentRow) {
+            async openAscentFromProfile(climbType, climbId, ascentRow) {
                 if (ascentRow?.climb_deleted) {
                     const label = this.ascentKindLabel(climbType).toLowerCase();
                     this.showToast(`${label.charAt(0).toUpperCase()}${label.slice(1)} удалена из каталога`, false);
                     return;
                 }
-                if (!this.isClimbInCatalog(climbType, climbId)) {
+                const climb = await this.ensureClimbInCatalog(climbType, climbId);
+                if (!climb) {
                     this.showToast('Объект больше не в каталоге. Обновите данные.', false);
                     return;
                 }
                 this.hideDialog('profileSendsDialog');
                 this.hideDialog('profileStylesDialog');
-                void this.showClimbDetailDialog(climbType, climbId);
+                await this.showClimbDetailDialog(climbType, climbId);
             }
 
             bindProfileClimbListClicks(container) {
@@ -7458,7 +7541,7 @@
                         const climbType = el.getAttribute('data-open-climb-type');
                         const climbId = Number(el.getAttribute('data-open-climb-id'));
                         if (!climbType || !Number.isFinite(climbId)) return;
-                        this.openAscentFromProfile(climbType, climbId);
+                        void this.openAscentFromProfile(climbType, climbId);
                     });
                 });
             }
@@ -7470,7 +7553,7 @@
                         const climbType = el.getAttribute('data-open-climb-type');
                         const climbId = Number(el.getAttribute('data-open-climb-id'));
                         if (!climbType || !Number.isFinite(climbId)) return;
-                        this.openAscentFromProfile(climbType, climbId);
+                        void this.openAscentFromProfile(climbType, climbId);
                     });
                 });
             }
@@ -7523,6 +7606,9 @@
                 listEl.innerHTML = '<p style="padding:12px;color:var(--light-text);margin:0;">Загрузка…</p>';
                 this.showDialog('profileSendsDialog');
                 try {
+                    if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
+                        await refreshCatalogFromApi({ skipWake: true }).catch(() => {});
+                    }
                     const ascents = await apiFetch('/api/me/ascents?status=send&limit=500');
                     listEl.innerHTML = this.renderProfileLogbookByDays(ascents);
                     this.bindProfileLogbookClicks(listEl);
