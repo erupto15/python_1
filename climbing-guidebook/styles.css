@@ -1134,6 +1134,25 @@
             gap: 8px;
         }
 
+        .catalog-map-btn {
+            flex-shrink: 0;
+        }
+
+        @media (max-width: 520px) {
+            .catalog-row,
+            .catalog-climb-row {
+                flex-wrap: wrap;
+            }
+
+            .catalog-map-btn {
+                margin: 0 10px 10px auto;
+            }
+
+            .catalog-map-climb-btn {
+                margin-left: auto;
+            }
+        }
+
         /* Стили для превью с разметкой в списке */
         .photo-preview-with-markup {
             position: relative;
@@ -1660,12 +1679,85 @@
         }
 
         /* Карта */
+        .map-toolbar {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 12px;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--card-bg) 88%, var(--primary-color) 12%);
+        }
+
+        .map-filter-group,
+        .map-nav-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .map-status {
+            font-size: 13px;
+            line-height: 1.4;
+            color: var(--light-text);
+        }
+
         #mapContainer {
             height: 500px;
             border-radius: var(--radius);
             overflow: hidden;
             box-shadow: var(--shadow);
-            margin-top: 20px;
+            margin-top: 12px;
+        }
+
+        .map-popup {
+            min-width: 180px;
+            color: #111827;
+            line-height: 1.35;
+        }
+
+        .map-popup-meta {
+            margin-top: 4px;
+            font-size: 12px;
+            color: #4b5563;
+        }
+
+        .map-popup-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .catalog-map-btn {
+            align-self: center;
+            margin-right: 8px;
+            white-space: nowrap;
+        }
+
+        .catalog-map-climb-btn {
+            margin: 0 8px 0 0;
+        }
+
+        .climb-detail-map-row {
+            display: flex;
+            justify-content: flex-end;
+            margin: 0 0 12px;
+        }
+
+        @media (max-width: 520px) {
+            #mapContainer {
+                height: 62vh;
+                min-height: 360px;
+            }
+
+            .map-filter-group .filter-btn,
+            .map-nav-row .btn {
+                flex: 1 1 calc(50% - 8px);
+                justify-content: center;
+            }
         }
 
         /* Уведомления */
