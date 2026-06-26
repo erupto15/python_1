@@ -97,11 +97,19 @@ jobs:
           printf '%s\n' "${TIMEWEB_SSH_KEY}" > ~/.ssh/timeweb_ci_key
           chmod 600 ~/.ssh/timeweb_ci_key
           ssh-keyscan -H "${HOST}" >> ~/.ssh/known_hosts
+          GITHUB_HOST_IP="$(python3 - <<'PY'
+          import socket
+
+          for family, _, _, _, sockaddr in socket.getaddrinfo("github.com", 22, socket.AF_INET, socket.SOCK_STREAM):
+              print(sockaddr[0])
+              break
+          PY
+          )"
 
           scp -i ~/.ssh/timeweb_ci_key -o IdentitiesOnly=yes "$BACKEND_ENV" "${USER}@${HOST}:/tmp/guide-rus-backend.env"
 
           ssh -i ~/.ssh/timeweb_ci_key -o IdentitiesOnly=yes "${USER}@${HOST}" \
-            "APP_DIR='${APP_DIR}' DEPLOY_KEY_PATH='${DEPLOY_KEY_PATH}' CADDY_HOST='${CADDY_HOST}' bash -s" <<'REMOTE'
+            "APP_DIR='${APP_DIR}' DEPLOY_KEY_PATH='${DEPLOY_KEY_PATH}' CADDY_HOST='${CADDY_HOST}' GITHUB_HOST_IP='${GITHUB_HOST_IP}' bash -s" <<'REMOTE'
           set -euo pipefail
 
           install -d -m 700 /etc/guide-rus
@@ -115,6 +123,10 @@ jobs:
           fi
 
           export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          if [ -n "${GITHUB_HOST_IP:-}" ]; then
+            sed -i '/[[:space:]]github\.com$/d' /etc/hosts || true
+            printf '%s github.com\n' "$GITHUB_HOST_IP" >> /etc/hosts
+          fi
           git fetch origin main
           git checkout main
           git pull --ff-only origin main
