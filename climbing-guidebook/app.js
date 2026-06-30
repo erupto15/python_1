@@ -489,6 +489,7 @@
         const AUTH_STORAGE_KEY = 'climbingApp_auth';
         const CLIMBING_DATA_STORAGE_KEY = 'climbingApp_catalog_v2';
         const CLIMBING_OFFLINE_META_KEY = 'climbingApp_offline_meta_v1';
+        const CLIMBING_OFFLINE_PACKS_KEY = 'climbingApp_offline_packs_v1';
         const OFFLINE_OUTBOX_KEY = 'climbingApp_sync_outbox_v1';
         const OFFLINE_OUTBOX_LIMIT = 50;
         const ADMIN_EMAIL_HINT = window.CLIMBING_ADMIN_EMAIL || 'admin@climbing-guidebook.local';
@@ -1872,9 +1873,15 @@
                 id: a.id,
                 name: a.name,
                 description: a.description || '',
+                access: a.access || '',
+                season: a.season || '',
+                parking: a.parking || '',
+                approach: a.approach || '',
+                warnings: a.warnings || '',
                 latitude: a.latitude,
                 longitude: a.longitude,
-                createdAt: a.created_at
+                createdAt: a.created_at,
+                updatedAt: a.updated_at
             };
         }
 
@@ -1884,7 +1891,13 @@
                 areaId: s.area_id,
                 name: s.name,
                 description: s.description || '',
-                createdAt: s.created_at
+                access: s.access || '',
+                season: s.season || '',
+                parking: s.parking || '',
+                approach: s.approach || '',
+                warnings: s.warnings || '',
+                createdAt: s.created_at,
+                updatedAt: s.updated_at
             };
         }
 
@@ -2721,6 +2734,8 @@
                 this._boulderHoldsMarkupAbort = null;
                 this._routeSearchDebounceTimer = null;
                 this._boulderSearchDebounceTimer = null;
+                this._globalSearchDebounceTimer = null;
+                this.updatesFilter = 'all';
                 this._boulderHoldDrag = null;
                 this._onBoulderHoldPointerMove = this.onBoulderHoldPointerMove.bind(this);
                 this._onBoulderHoldPointerUp = this.onBoulderHoldPointerUp.bind(this);
@@ -2798,6 +2813,9 @@
                 this.renderBoulders();
                 this.renderPhotoAlbum();
                 this.renderCatalog();
+                if (document.getElementById('updates')?.classList.contains('active')) {
+                    this.renderUpdatesTab();
+                }
                 this.applyRoleUI();
                 if (this.isLoggedIn()) {
                     void this.refreshProfileLogbookSection();
@@ -4044,6 +4062,388 @@
                 return `${a} → ${s}`;
             }
 
+            formatFeedDate(value) {
+                if (!value) return '';
+                const d = new Date(value);
+                if (Number.isNaN(d.getTime())) return '';
+                return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+            }
+
+            guideFieldRows(entity) {
+                const fields = [
+                    ['access', 'Доступ', 'fa-door-open'],
+                    ['season', 'Сезон', 'fa-cloud-sun'],
+                    ['parking', 'Парковка', 'fa-square-parking'],
+                    ['approach', 'Подход', 'fa-person-hiking'],
+                    ['warnings', 'Важно', 'fa-triangle-exclamation']
+                ];
+                return fields
+                    .map(([key, label, icon]) => {
+                        const value = String(entity?.[key] || '').trim();
+                        if (!value) return '';
+                        return `
+                            <div class="catalog-guide-field catalog-guide-field--${key}">
+                                <div class="catalog-guide-field-title"><i class="fas ${icon}"></i> ${label}</div>
+                                <div class="catalog-guide-field-text">${this.escapeHtml(value)}</div>
+                            </div>
+                        `;
+                    })
+                    .filter(Boolean)
+                    .join('');
+            }
+
+            getOfflinePacks() {
+                try {
+                    const raw = JSON.parse(localStorage.getItem(CLIMBING_OFFLINE_PACKS_KEY) || '[]');
+                    return Array.isArray(raw) ? raw : [];
+                } catch (_) {
+                    return [];
+                }
+            }
+
+            saveOfflinePacks(packs) {
+                localStorage.setItem(CLIMBING_OFFLINE_PACKS_KEY, JSON.stringify(Array.isArray(packs) ? packs : []));
+            }
+
+            findOfflinePack(scope, id) {
+                const key = scope === 'sector' ? 'sectorId' : 'areaId';
+                return this.getOfflinePacks().find((p) => p.scope === scope && Number(p[key]) === Number(id));
+            }
+
+            offlinePackLabel(pack) {
+                if (!pack) return 'Сохранить для офлайна';
+                const date = this.formatFeedDate(pack.downloadedAt);
+                const suffix = date ? ` · ${date}` : '';
+                return `Офлайн сохранён${suffix}`;
+            }
+
+            renderCatalogGuideHero(kind, entity) {
+                const hero = document.getElementById('catalogGuideHero');
+                if (!hero) return;
+                if (!entity) {
+                    hero.classList.add('hidden');
+                    hero.innerHTML = '';
+                    return;
+                }
+                const isArea = kind === 'area';
+                const area = isArea
+                    ? entity
+                    : getAreas().find((a) => Number(a.id) === Number(entity.areaId));
+                const sectorIds = isArea
+                    ? getSectors().filter((s) => Number(s.areaId) === Number(entity.id)).map((s) => Number(s.id))
+                    : [Number(entity.id)];
+                const routes = getRoutes().filter((r) => sectorIds.includes(Number(r.sectorId)));
+                const boulders = getBoulders().filter((b) => sectorIds.includes(Number(b.sectorId)));
+                const sectorsCount = isArea ? sectorIds.length : 1;
+                const meta = APP_BOULDER_ONLY
+                    ? `${sectorsCount} секторов · ${boulders.length} боулдеров`
+                    : `${sectorsCount} секторов · ${routes.length} трасс · ${boulders.length} боулдеров`;
+                const desc = String(entity.description || '').trim();
+                const fieldsHtml = this.guideFieldRows(entity);
+                const inherited = !isArea && area ? this.guideFieldRows({
+                    access: entity.access || area.access,
+                    season: entity.season || area.season,
+                    parking: entity.parking || area.parking,
+                    approach: entity.approach || area.approach,
+                    warnings: entity.warnings || area.warnings
+                }) : '';
+                const scope = isArea ? 'area' : 'sector';
+                const pack = this.findOfflinePack(scope, entity.id);
+                hero.classList.remove('hidden');
+                hero.innerHTML = `
+                    <div class="catalog-guide-head">
+                        <div>
+                            <div class="catalog-guide-kicker">${isArea ? 'Район' : 'Сектор'} · ${this.escapeHtml(meta)}</div>
+                            <h2>${this.escapeHtml(entity.name || '—')}</h2>
+                            ${!isArea && area ? `<p class="catalog-guide-parent">${this.escapeHtml(area.name)}</p>` : ''}
+                        </div>
+                        <div class="catalog-guide-actions">
+                            <button type="button" class="btn btn-secondary btn-small" data-catalog-act="show-map" data-map-kind="${scope}" data-id="${entity.id}">
+                                <i class="fas fa-map-location-dot"></i> На карте
+                            </button>
+                            <button type="button" class="btn btn-ghost btn-small" data-catalog-act="save-offline-pack" data-pack-scope="${scope}" data-id="${entity.id}">
+                                <i class="fas fa-download"></i> ${this.escapeHtml(this.offlinePackLabel(pack))}
+                            </button>
+                        </div>
+                    </div>
+                    ${desc ? `<div class="catalog-guide-desc">${this.escapeHtml(desc)}</div>` : ''}
+                    <div class="catalog-guide-grid">${fieldsHtml || inherited || '<div class="catalog-guide-empty">Guide-поля пока не заполнены.</div>'}</div>
+                `;
+            }
+
+            switchToTab(tabId) {
+                const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+                if (btn) btn.click();
+            }
+
+            buildGlobalSearchIndex() {
+                const areas = getAreas();
+                const sectors = getSectors();
+                const areaById = new Map(areas.map((a) => [Number(a.id), a]));
+                const sectorById = new Map(sectors.map((s) => [Number(s.id), s]));
+                const guideText = (item) => [item.description, item.access, item.season, item.parking, item.approach, item.warnings]
+                    .filter(Boolean)
+                    .join(' ');
+                const items = [];
+                areas.forEach((area) => {
+                    const sectorCount = sectors.filter((s) => Number(s.areaId) === Number(area.id)).length;
+                    items.push({
+                        kind: 'area',
+                        id: area.id,
+                        title: area.name,
+                        subtitle: `${sectorCount} секторов`,
+                        search: `${area.name} ${guideText(area)}`
+                    });
+                });
+                sectors.forEach((sector) => {
+                    const area = areaById.get(Number(sector.areaId));
+                    items.push({
+                        kind: 'sector',
+                        id: sector.id,
+                        areaId: sector.areaId,
+                        title: sector.name,
+                        subtitle: area ? area.name : 'Сектор',
+                        search: `${sector.name} ${area?.name || ''} ${guideText(sector)}`
+                    });
+                });
+                getRoutes().forEach((route) => {
+                    const sector = sectorById.get(Number(route.sectorId));
+                    const area = sector ? areaById.get(Number(sector.areaId)) : null;
+                    items.push({
+                        kind: 'route',
+                        id: route.id,
+                        areaId: route.areaId,
+                        sectorId: route.sectorId,
+                        title: route.name,
+                        subtitle: `${route.grade || '—'} · ${area?.name || ''}${sector ? ` → ${sector.name}` : ''}`,
+                        search: `${route.name} ${route.grade || ''} ${route.category || ''} ${route.description || ''} ${area?.name || ''} ${sector?.name || ''}`
+                    });
+                });
+                getBoulders().forEach((boulder) => {
+                    const sector = sectorById.get(Number(boulder.sectorId));
+                    const area = sector ? areaById.get(Number(sector.areaId)) : null;
+                    items.push({
+                        kind: 'boulder',
+                        id: boulder.id,
+                        areaId: boulder.areaId,
+                        sectorId: boulder.sectorId,
+                        title: boulder.name,
+                        subtitle: `${boulder.grade || '—'} · ${area?.name || ''}${sector ? ` → ${sector.name}` : ''}`,
+                        search: `${boulder.name} ${boulder.grade || ''} ${boulder.category || ''} ${boulder.description || ''} ${area?.name || ''} ${sector?.name || ''}`
+                    });
+                });
+                return items;
+            }
+
+            renderGlobalSearchResults() {
+                const input = document.getElementById('globalSearch');
+                const box = document.getElementById('globalSearchResults');
+                if (!input || !box) return;
+                const query = String(input.value || '').trim().toLowerCase();
+                if (query.length < 2) {
+                    box.classList.add('hidden');
+                    box.innerHTML = '';
+                    return;
+                }
+                const words = query.split(/\s+/).filter(Boolean);
+                const results = this.buildGlobalSearchIndex()
+                    .map((item) => {
+                        const hay = String(item.search || '').toLowerCase();
+                        const all = words.every((w) => hay.includes(w));
+                        if (!all) return null;
+                        const title = String(item.title || '').toLowerCase();
+                        const score = title === query ? 3 : title.includes(query) ? 2 : 1;
+                        return { ...item, score };
+                    })
+                    .filter(Boolean)
+                    .sort((a, b) => b.score - a.score || String(a.title).localeCompare(String(b.title), 'ru'))
+                    .slice(0, 12);
+                if (!results.length) {
+                    box.classList.remove('hidden');
+                    box.innerHTML = '<div class="global-search-empty">Ничего не найдено</div>';
+                    return;
+                }
+                const kindLabels = { area: 'Район', sector: 'Сектор', route: 'Трасса', boulder: 'Боулдер' };
+                box.classList.remove('hidden');
+                box.innerHTML = results.map((item) => `
+                    <button type="button" class="global-search-item" data-global-kind="${item.kind}" data-id="${item.id}">
+                        <span class="global-search-kind">${kindLabels[item.kind] || 'Объект'}</span>
+                        <strong>${this.escapeHtml(item.title)}</strong>
+                        <span>${this.escapeHtml(item.subtitle || '')}</span>
+                    </button>
+                `).join('');
+            }
+
+            openGlobalSearchResult(kind, id) {
+                const input = document.getElementById('globalSearch');
+                const box = document.getElementById('globalSearchResults');
+                if (input) input.value = '';
+                if (box) {
+                    box.classList.add('hidden');
+                    box.innerHTML = '';
+                }
+                if (kind === 'route' || kind === 'boulder') {
+                    void this.showClimbDetailDialog(kind, id);
+                    return;
+                }
+                if (kind === 'area') {
+                    this.catalog = { view: 'sectors', areaId: Number(id), sectorId: null };
+                    this.switchToTab('catalog');
+                    this.renderCatalog();
+                    return;
+                }
+                if (kind === 'sector') {
+                    const sector = getSectors().find((s) => Number(s.id) === Number(id));
+                    if (!sector) return;
+                    this.catalog = { view: 'problems', areaId: Number(sector.areaId), sectorId: Number(id) };
+                    this.switchToTab('catalog');
+                    this.renderCatalog();
+                }
+            }
+
+            buildUpdatesFeedItems() {
+                const areas = getAreas();
+                const sectors = getSectors();
+                const areaById = new Map(areas.map((a) => [Number(a.id), a]));
+                const sectorById = new Map(sectors.map((s) => [Number(s.id), s]));
+                const items = [];
+                const pushItem = (kind, entity, title, subtitle, filterGroup) => {
+                    const updated = entity.updatedAt || entity.updated_at || entity.createdAt || entity.created_at;
+                    if (!updated) return;
+                    const created = entity.createdAt || entity.created_at;
+                    const action = created && updated && String(created) !== String(updated) ? 'Обновлено' : 'Добавлено';
+                    items.push({
+                        kind,
+                        id: entity.id,
+                        at: updated,
+                        title,
+                        subtitle,
+                        action,
+                        filterGroup
+                    });
+                };
+                areas.forEach((area) => pushItem('area', area, area.name, 'Район', 'places'));
+                sectors.forEach((sector) => {
+                    const area = areaById.get(Number(sector.areaId));
+                    pushItem('sector', sector, sector.name, area ? `Сектор · ${area.name}` : 'Сектор', 'places');
+                });
+                getRoutes().forEach((route) => {
+                    const sector = sectorById.get(Number(route.sectorId));
+                    const area = sector ? areaById.get(Number(sector.areaId)) : null;
+                    pushItem('route', route, route.name, `${route.grade || '—'} · ${area?.name || ''}${sector ? ` → ${sector.name}` : ''}`, 'routes');
+                });
+                getBoulders().forEach((boulder) => {
+                    const sector = sectorById.get(Number(boulder.sectorId));
+                    const area = sector ? areaById.get(Number(sector.areaId)) : null;
+                    pushItem('boulder', boulder, boulder.name, `${boulder.grade || '—'} · ${area?.name || ''}${sector ? ` → ${sector.name}` : ''}`, 'boulders');
+                });
+                return items
+                    .filter((item) => this.updatesFilter === 'all' || item.filterGroup === this.updatesFilter)
+                    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+                    .slice(0, 60);
+            }
+
+            renderUpdatesTab() {
+                const feed = document.getElementById('updatesFeed');
+                if (!feed) return;
+                document.querySelectorAll('[data-update-filter]').forEach((btn) => {
+                    btn.classList.toggle('active', btn.dataset.updateFilter === this.updatesFilter);
+                });
+                const items = this.buildUpdatesFeedItems();
+                if (!items.length) {
+                    feed.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-newspaper"></i>
+                            <h3>Лента пока пустая</h3>
+                            <p>Обновления появятся после загрузки каталога.</p>
+                        </div>`;
+                    return;
+                }
+                const icons = {
+                    area: 'fa-map',
+                    sector: 'fa-layer-group',
+                    route: 'fa-route',
+                    boulder: 'fa-mountain'
+                };
+                feed.innerHTML = items.map((item) => `
+                    <button type="button" class="updates-feed-item updates-feed-item--${item.kind}" data-update-kind="${item.kind}" data-id="${item.id}">
+                        <span class="updates-feed-icon"><i class="fas ${icons[item.kind] || 'fa-circle'}"></i></span>
+                        <span class="updates-feed-main">
+                            <strong>${this.escapeHtml(item.title)}</strong>
+                            <span>${this.escapeHtml(item.subtitle || '')}</span>
+                        </span>
+                        <span class="updates-feed-meta">${this.escapeHtml(item.action)} · ${this.escapeHtml(this.formatFeedDate(item.at))}</span>
+                    </button>
+                `).join('');
+            }
+
+            openUpdatesFeedTarget(kind, id) {
+                if (kind === 'route' || kind === 'boulder') {
+                    void this.showClimbDetailDialog(kind, id);
+                    return;
+                }
+                this.openGlobalSearchResult(kind, id);
+            }
+
+            async downloadOfflinePack(scope, rawId) {
+                const id = Number(rawId);
+                if (!Number.isFinite(id)) return;
+                const label = scope === 'sector' ? 'сектор' : 'район';
+                this.showToast(`Сохраняю ${label} для офлайна…`);
+                try {
+                    const bundle = await apiFetch('/api/catalog/bundle');
+                    (bundle.areas || []).forEach(mergeAreaFromApiResponse);
+                    (bundle.sectors || []).forEach(mergeSectorFromApiResponse);
+                    (bundle.routes || []).forEach(mergeRouteFromApiResponse);
+                    (bundle.boulders || []).forEach(mergeBoulderFromApiResponse);
+
+                    const sectors = scope === 'sector'
+                        ? getSectors().filter((s) => Number(s.id) === id)
+                        : getSectors().filter((s) => Number(s.areaId) === id);
+                    const sectorIds = new Set(sectors.map((s) => Number(s.id)));
+                    const routes = getRoutes().filter((r) => sectorIds.has(Number(r.sectorId)));
+                    const boulders = getBoulders().filter((b) => sectorIds.has(Number(b.sectorId)));
+                    const photos = await fetchPhotosBatched(routes, boulders);
+                    const data = getClimbingData();
+                    const targetKeys = new Set([
+                        ...routes.map((r) => `route:${String(r.id)}`),
+                        ...boulders.map((b) => `boulder:${String(b.id)}`)
+                    ]);
+                    const photoKey = (p) => `${p.type}:${String(p.climbId)}`;
+                    data.photos = [
+                        ...(data.photos || []).filter((p) => !targetKeys.has(photoKey(p))),
+                        ...photos
+                    ];
+                    data.nextPhotoId = Math.max(1, ...(data.photos || []).map((p) => Number(p.id) || 0)) + 1;
+                    saveClimbingData(data);
+                    await cachePhotosToIndexedDb(photos);
+                    await refreshPhotoCacheStats();
+                    const packs = this.getOfflinePacks().filter((p) => {
+                        if (scope === 'sector') return !(p.scope === scope && Number(p.sectorId) === id);
+                        return !(p.scope === scope && Number(p.areaId) === id);
+                    });
+                    packs.push({
+                        scope,
+                        areaId: scope === 'area' ? id : Number(sectors[0]?.areaId || 0),
+                        sectorId: scope === 'sector' ? id : null,
+                        downloadedAt: new Date().toISOString(),
+                        sectors: sectors.length,
+                        climbs: routes.length + boulders.length,
+                        photosCached: photos.length
+                    });
+                    this.saveOfflinePacks(packs);
+                    this.data = getClimbingData();
+                    this.renderCatalog();
+                    this.renderGlobalSearchResults();
+                    if (document.getElementById('updates')?.classList.contains('active')) {
+                        this.renderUpdatesTab();
+                    }
+                    this.showToast(`Офлайн-пакет сохранён: ${routes.length + boulders.length} объектов, ${photos.length} фото`);
+                } catch (err) {
+                    this.showToast(`Не удалось сохранить офлайн-пакет: ${err.message}`, true);
+                }
+            }
+
             fillSectorSelects(preferredSectorId = null) {
                 const routeSel = document.getElementById('routeCatalogSectorId');
                 const boulderSel = document.getElementById('boulderCatalogSectorId');
@@ -4076,12 +4476,17 @@
                 const bc = document.getElementById('catalogBreadcrumb');
                 const tb = document.getElementById('catalogToolbar');
                 const list = document.getElementById('catalogList');
+                const hero = document.getElementById('catalogGuideHero');
                 if (!bc || !tb || !list) return;
 
                 const areas = getAreas();
                 const sectors = getSectors();
 
                 if (this.catalog.view === 'areas') {
+                    if (hero) {
+                        hero.classList.add('hidden');
+                        hero.innerHTML = '';
+                    }
                     bc.innerHTML = '<span><strong>Районы</strong></span>';
                     tb.innerHTML = this.isAdmin() ? `
                         <button type="button" class="btn btn-primary" data-catalog-act="add-area">
@@ -4115,6 +4520,7 @@
 
                 if (this.catalog.view === 'sectors') {
                     const area = areas.find(a => Number(a.id) === Number(this.catalog.areaId));
+                    this.renderCatalogGuideHero('area', area);
                     const areaName = area ? this.escapeHtml(area.name) : '?';
                     bc.innerHTML = `
                         <button type="button" class="linkish" data-catalog-act="nav-areas">Районы</button>
@@ -4154,6 +4560,7 @@
                 if (this.catalog.view === 'problems') {
                     const area = areas.find(a => Number(a.id) === Number(this.catalog.areaId));
                     const sector = sectors.find(s => Number(s.id) === Number(this.catalog.sectorId));
+                    this.renderCatalogGuideHero('sector', sector);
                     const areaName = area ? this.escapeHtml(area.name) : '?';
                     const sectorName = sector ? this.escapeHtml(sector.name) : '?';
                     bc.innerHTML = `
@@ -4260,6 +4667,10 @@
                         const kind = act.dataset.mapKind || '';
                         if (kind && id != null) void this.focusMapTarget(kind, id);
                     }
+                    if (action === 'save-offline-pack') {
+                        const scope = act.dataset.packScope === 'sector' ? 'sector' : 'area';
+                        if (id != null) void this.downloadOfflinePack(scope, id);
+                    }
                     if (action === 'nav-areas') {
                         this.catalog = { view: 'areas', areaId: null, sectorId: null };
                         this.renderCatalog();
@@ -4299,6 +4710,11 @@
                 document.getElementById('areaId').value = '';
                 document.getElementById('areaName').value = '';
                 document.getElementById('areaDescription').value = '';
+                document.getElementById('areaAccess').value = '';
+                document.getElementById('areaSeason').value = '';
+                document.getElementById('areaParking').value = '';
+                document.getElementById('areaApproach').value = '';
+                document.getElementById('areaWarnings').value = '';
                 document.getElementById('areaLatitude').value = '';
                 document.getElementById('areaLongitude').value = '';
                 this.showDialog('areaDialog');
@@ -4312,6 +4728,11 @@
                 document.getElementById('areaId').value = area.id;
                 document.getElementById('areaName').value = area.name;
                 document.getElementById('areaDescription').value = area.description || '';
+                document.getElementById('areaAccess').value = area.access || '';
+                document.getElementById('areaSeason').value = area.season || '';
+                document.getElementById('areaParking').value = area.parking || '';
+                document.getElementById('areaApproach').value = area.approach || '';
+                document.getElementById('areaWarnings').value = area.warnings || '';
                 document.getElementById('areaLatitude').value = area.latitude ?? '';
                 document.getElementById('areaLongitude').value = area.longitude ?? '';
                 this.showDialog('areaDialog');
@@ -4328,6 +4749,11 @@
                 const payload = {
                     name,
                     description: document.getElementById('areaDescription').value.trim(),
+                    access: document.getElementById('areaAccess').value.trim() || null,
+                    season: document.getElementById('areaSeason').value.trim() || null,
+                    parking: document.getElementById('areaParking').value.trim() || null,
+                    approach: document.getElementById('areaApproach').value.trim() || null,
+                    warnings: document.getElementById('areaWarnings').value.trim() || null,
                     latitude: document.getElementById('areaLatitude').value ? parseFloat(document.getElementById('areaLatitude').value) : null,
                     longitude: document.getElementById('areaLongitude').value ? parseFloat(document.getElementById('areaLongitude').value) : null
                 };
@@ -4392,6 +4818,11 @@
                 document.getElementById('sectorAreaId').value = String(areaId);
                 document.getElementById('sectorName').value = '';
                 document.getElementById('sectorDescription').value = '';
+                document.getElementById('sectorAccess').value = '';
+                document.getElementById('sectorSeason').value = '';
+                document.getElementById('sectorParking').value = '';
+                document.getElementById('sectorApproach').value = '';
+                document.getElementById('sectorWarnings').value = '';
                 this.showDialog('sectorDialog');
             }
 
@@ -4404,6 +4835,11 @@
                 document.getElementById('sectorAreaId').value = sector.areaId;
                 document.getElementById('sectorName').value = sector.name;
                 document.getElementById('sectorDescription').value = sector.description || '';
+                document.getElementById('sectorAccess').value = sector.access || '';
+                document.getElementById('sectorSeason').value = sector.season || '';
+                document.getElementById('sectorParking').value = sector.parking || '';
+                document.getElementById('sectorApproach').value = sector.approach || '';
+                document.getElementById('sectorWarnings').value = sector.warnings || '';
                 this.showDialog('sectorDialog');
             }
 
@@ -4650,7 +5086,12 @@
                 }
                 const payload = {
                     name,
-                    description: document.getElementById('sectorDescription').value.trim()
+                    description: document.getElementById('sectorDescription').value.trim(),
+                    access: document.getElementById('sectorAccess').value.trim() || null,
+                    season: document.getElementById('sectorSeason').value.trim() || null,
+                    parking: document.getElementById('sectorParking').value.trim() || null,
+                    approach: document.getElementById('sectorApproach').value.trim() || null,
+                    warnings: document.getElementById('sectorWarnings').value.trim() || null
                 };
                 try {
                     const savedSector = id
@@ -5000,6 +5441,8 @@
                                 this.renderRoutes();
                             } else if (tabId === 'boulders') {
                                 this.renderBoulders();
+                            } else if (tabId === 'updates') {
+                                this.renderUpdatesTab();
                             } else if (tabId === 'ranking') {
                                 void this.renderRankingTab();
                             }
@@ -5103,6 +5546,29 @@
                     clearTimeout(this._boulderSearchDebounceTimer);
                     this._boulderSearchDebounceTimer = setTimeout(() => this.renderBoulders(), searchDebounceMs);
                 });
+                document.getElementById('globalSearch')?.addEventListener('input', () => {
+                    clearTimeout(this._globalSearchDebounceTimer);
+                    this._globalSearchDebounceTimer = setTimeout(() => this.renderGlobalSearchResults(), searchDebounceMs);
+                });
+                document.getElementById('globalSearchResults')?.addEventListener('click', (e) => {
+                    const item = e.target.closest('[data-global-kind]');
+                    if (!item) return;
+                    e.preventDefault();
+                    this.openGlobalSearchResult(item.dataset.globalKind, Number(item.dataset.id));
+                });
+                document.getElementById('updatesFilters')?.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-update-filter]');
+                    if (!btn) return;
+                    e.preventDefault();
+                    this.updatesFilter = btn.dataset.updateFilter || 'all';
+                    this.renderUpdatesTab();
+                });
+                document.getElementById('updatesFeed')?.addEventListener('click', (e) => {
+                    const item = e.target.closest('[data-update-kind]');
+                    if (!item) return;
+                    e.preventDefault();
+                    this.openUpdatesFeedTarget(item.dataset.updateKind, Number(item.dataset.id));
+                });
                 document.getElementById('routeGradeFilter')?.addEventListener('change', () => {
                     this.renderRoutes();
                     this._syncVisualGradeFilter(
@@ -5125,6 +5591,9 @@
 
                 document.addEventListener('click', (e) => {
                     if (e.target && e.target.closest && e.target.closest('.grade-picker')) return;
+                    if (e.target && e.target.closest && e.target.closest('.global-search-wrap')) return;
+                    const box = document.getElementById('globalSearchResults');
+                    box?.classList.add('hidden');
                     this._closeAllGradePickers();
                 });
                 document.addEventListener('keydown', (e) => {
@@ -5133,6 +5602,7 @@
                             e.preventDefault();
                             return;
                         }
+                        document.getElementById('globalSearchResults')?.classList.add('hidden');
                         this._closeAllGradePickers();
                     }
                 });

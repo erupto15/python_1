@@ -75,6 +75,11 @@ class Token(BaseModel):
 class AreaCreate(BaseModel):
     name: str = Field(max_length=255)
     description: Optional[str] = None
+    access: Optional[str] = None
+    season: Optional[str] = None
+    parking: Optional[str] = None
+    approach: Optional[str] = None
+    warnings: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     created_by: Optional[str] = None
@@ -83,6 +88,11 @@ class AreaCreate(BaseModel):
 class AreaUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = None
+    access: Optional[str] = None
+    season: Optional[str] = None
+    parking: Optional[str] = None
+    approach: Optional[str] = None
+    warnings: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
@@ -93,6 +103,11 @@ class AreaRead(BaseModel):
     id: int
     name: str
     description: Optional[str]
+    access: Optional[str]
+    season: Optional[str]
+    parking: Optional[str]
+    approach: Optional[str]
+    warnings: Optional[str]
     latitude: Optional[float]
     longitude: Optional[float]
     created_by: Optional[str]
@@ -104,12 +119,22 @@ class AreaRead(BaseModel):
 class SectorCreate(BaseModel):
     name: str = Field(max_length=255)
     description: Optional[str] = None
+    access: Optional[str] = None
+    season: Optional[str] = None
+    parking: Optional[str] = None
+    approach: Optional[str] = None
+    warnings: Optional[str] = None
     created_by: Optional[str] = None
 
 
 class SectorUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = None
+    access: Optional[str] = None
+    season: Optional[str] = None
+    parking: Optional[str] = None
+    approach: Optional[str] = None
+    warnings: Optional[str] = None
 
 
 class SectorRead(BaseModel):
@@ -119,6 +144,11 @@ class SectorRead(BaseModel):
     area_id: int
     name: str
     description: Optional[str]
+    access: Optional[str]
+    season: Optional[str]
+    parking: Optional[str]
+    approach: Optional[str]
+    warnings: Optional[str]
     created_by: Optional[str]
     created_at: datetime
     updated_at: datetime

@@ -4,11 +4,21 @@
 areas:
   - name: "Общий район"
     description: "Стартовый район из seed"
+    access: "Как добраться до района, пропуска, ограничения доступа"
+    season: "Лучший сезон и погодные особенности"
+    parking: "Где оставить машину"
+    approach: "Общий подход к массиву"
+    warnings: "Опасности, правила и важные предупреждения"
     latitude: null
     longitude: null
     sectors:
       - name: "Сектор по умолчанию"
         description: ""
+        access: ""
+        season: ""
+        parking: ""
+        approach: "Подход к конкретной стене / блоку"
+        warnings: ""
         routes:
           - name: "Пример трассы"
             grade: "6a"

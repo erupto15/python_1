@@ -94,6 +94,11 @@ def ensure_catalog_seed(db: Session, admin_user: User | None = None) -> dict[str
             area = Area(
                 name=area_name,
                 description=area_item.get("description"),
+                access=area_item.get("access"),
+                season=area_item.get("season"),
+                parking=area_item.get("parking"),
+                approach=area_item.get("approach"),
+                warnings=area_item.get("warnings"),
                 latitude=area_item.get("latitude"),
                 longitude=area_item.get("longitude"),
                 created_by=owner_id,
@@ -115,6 +120,11 @@ def ensure_catalog_seed(db: Session, admin_user: User | None = None) -> dict[str
                     area_id=area.id,
                     name=sector_name,
                     description=sector_item.get("description"),
+                    access=sector_item.get("access"),
+                    season=sector_item.get("season"),
+                    parking=sector_item.get("parking"),
+                    approach=sector_item.get("approach"),
+                    warnings=sector_item.get("warnings"),
                     created_by=owner_id,
                 )
                 db.add(sector)

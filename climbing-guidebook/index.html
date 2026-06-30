@@ -89,6 +89,10 @@
                     </h1>
                     <p class="site-tagline">Скалолазные районы и маршруты</p>
                 </div>
+                <div class="global-search-wrap">
+                    <input type="search" class="search-input" id="globalSearch" placeholder="Поиск по гайду…" autocomplete="off" enterkeyhint="search" aria-label="Глобальный поиск по гайду">
+                    <div class="global-search-results hidden" id="globalSearchResults" role="listbox" aria-label="Результаты поиска"></div>
+                </div>
                 <div class="auth-panel" id="authPanel">
                     <div id="adminPasswordLoginBlock" class="admin-password-login-block" aria-hidden="true">
                         <div class="auth-field">
@@ -125,6 +129,9 @@
             <button class="tab-btn" data-tab="photos">
                 <i class="fas fa-images"></i> Фотоальбом
             </button>
+            <button class="tab-btn" data-tab="updates">
+                <i class="fas fa-newspaper"></i> Лента
+            </button>
             <button class="tab-btn" data-tab="ranking" id="rankingTabBtn">
                 <i class="fas fa-trophy"></i> Рейтинг
             </button>
@@ -144,6 +151,7 @@
                 <div id="appDataStatus" class="app-data-status hidden" role="status" aria-live="polite"></div>
                 <div class="catalog-breadcrumb" id="catalogBreadcrumb"></div>
                 <div class="catalog-toolbar" id="catalogToolbar"></div>
+                <div class="catalog-guide-hero hidden" id="catalogGuideHero"></div>
                 <div id="catalogList"></div>
             </div>
         </div>
@@ -399,6 +407,29 @@
             </div>
         </div>
 
+        <div class="tab-content" id="updates">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fas fa-newspaper"></i> Лента обновлений
+                    </div>
+                </div>
+                <div class="filters" id="updatesFilters">
+                    <button class="filter-btn active" data-update-filter="all">Все</button>
+                    <button class="filter-btn" data-update-filter="places">Районы и секторы</button>
+                    <button class="filter-btn photo-filter-routes" data-update-filter="routes">Трассы</button>
+                    <button class="filter-btn" data-update-filter="boulders">Боулдеры</button>
+                </div>
+                <div class="updates-feed" id="updatesFeed">
+                    <div class="empty-state">
+                        <i class="fas fa-newspaper"></i>
+                        <h3>Лента пока пустая</h3>
+                        <p>Обновления появятся после загрузки каталога.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Контент вкладки «Рейтинг» (баллы 8a.nu) -->
         <div class="tab-content" id="ranking">
             <div class="card">
@@ -549,6 +580,30 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group">
+                            <label class="form-label" for="areaAccess">Доступ</label>
+                            <textarea class="form-textarea" id="areaAccess" rows="2" placeholder="Пропуска, правила доступа, ограничения"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="areaSeason">Сезон</label>
+                            <textarea class="form-textarea" id="areaSeason" rows="2" placeholder="Лучшее время, солнце, ветер, влажность"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="areaParking">Парковка</label>
+                            <textarea class="form-textarea" id="areaParking" rows="2" placeholder="Где оставить машину"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="areaApproach">Подход</label>
+                            <textarea class="form-textarea" id="areaApproach" rows="2" placeholder="Как дойти до массива"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="areaWarnings">Предупреждения</label>
+                        <textarea class="form-textarea" id="areaWarnings" rows="2" placeholder="Опасности, запреты, важные замечания"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
                             <label class="form-label" for="areaLatitude">Широта</label>
                             <input type="number" class="form-input" id="areaLatitude" step="0.000001">
                         </div>
@@ -586,6 +641,30 @@
                     <div class="form-group">
                         <label class="form-label" for="sectorDescription">Описание</label>
                         <textarea class="form-textarea" id="sectorDescription" rows="2"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="sectorAccess">Доступ</label>
+                            <textarea class="form-textarea" id="sectorAccess" rows="2" placeholder="Особенности доступа к сектору"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="sectorSeason">Сезон</label>
+                            <textarea class="form-textarea" id="sectorSeason" rows="2" placeholder="Когда сектор лучше всего работает"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="sectorParking">Парковка</label>
+                            <textarea class="form-textarea" id="sectorParking" rows="2" placeholder="Ближайшая парковка или ориентир"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="sectorApproach">Подход</label>
+                            <textarea class="form-textarea" id="sectorApproach" rows="2" placeholder="Подход от парковки / тропы"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="sectorWarnings">Предупреждения</label>
+                        <textarea class="form-textarea" id="sectorWarnings" rows="2" placeholder="Камнепад, ограничения, локальная этика"></textarea>
                     </div>
                 </form>
             </div>

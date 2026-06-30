@@ -59,6 +59,16 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE climb_ascents ADD COLUMN IF NOT EXISTS ascent_style VARCHAR(16)",
             "ALTER TABLE areas ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ",
             "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ",
+            "ALTER TABLE areas ADD COLUMN IF NOT EXISTS access TEXT",
+            "ALTER TABLE areas ADD COLUMN IF NOT EXISTS season TEXT",
+            "ALTER TABLE areas ADD COLUMN IF NOT EXISTS parking TEXT",
+            "ALTER TABLE areas ADD COLUMN IF NOT EXISTS approach TEXT",
+            "ALTER TABLE areas ADD COLUMN IF NOT EXISTS warnings TEXT",
+            "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS access TEXT",
+            "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS season TEXT",
+            "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS parking TEXT",
+            "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS approach TEXT",
+            "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS warnings TEXT",
         ]
     else:
         statements = [
@@ -74,6 +84,16 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE climb_ascents ADD COLUMN ascent_style VARCHAR(16)",
             "ALTER TABLE areas ADD COLUMN deleted_at TEXT",
             "ALTER TABLE sectors ADD COLUMN deleted_at TEXT",
+            "ALTER TABLE areas ADD COLUMN access TEXT",
+            "ALTER TABLE areas ADD COLUMN season TEXT",
+            "ALTER TABLE areas ADD COLUMN parking TEXT",
+            "ALTER TABLE areas ADD COLUMN approach TEXT",
+            "ALTER TABLE areas ADD COLUMN warnings TEXT",
+            "ALTER TABLE sectors ADD COLUMN access TEXT",
+            "ALTER TABLE sectors ADD COLUMN season TEXT",
+            "ALTER TABLE sectors ADD COLUMN parking TEXT",
+            "ALTER TABLE sectors ADD COLUMN approach TEXT",
+            "ALTER TABLE sectors ADD COLUMN warnings TEXT",
         ]
     with engine.begin() as conn:
         for stmt in statements:
