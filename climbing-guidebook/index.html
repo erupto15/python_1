@@ -291,17 +291,23 @@
                     <div class="map-filter-group" role="group" aria-label="Фильтр карты">
                         <button type="button" class="filter-btn active" data-map-filter="all">Все</button>
                         <button type="button" class="filter-btn" data-map-filter="areas">Районы</button>
+                        <button type="button" class="filter-btn" data-map-filter="sectors">Секторы</button>
                         <button type="button" class="filter-btn" data-map-filter="routes">Трассы</button>
                         <button type="button" class="filter-btn" data-map-filter="boulders">Боулдеры</button>
                     </div>
+                    <div class="map-context-bar hidden" id="mapContextBar"></div>
                     <div class="map-nav-row">
                         <button type="button" class="btn btn-secondary btn-small" id="mapLocateBtn">
                             <i class="fas fa-location-crosshairs"></i> Моё место
                         </button>
                         <button type="button" class="btn btn-ghost btn-small" id="mapTargetBtn" disabled>
-                            <i class="fas fa-route"></i> К выбранной точке
+                            <i class="fas fa-crosshairs"></i> Показать цель
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-small" id="mapExternalNavBtn" disabled>
+                            <i class="fas fa-diamond-turn-right"></i> Маршрут в навигаторе
                         </button>
                     </div>
+                    <div class="map-guide-strip hidden" id="mapGuideStrip"></div>
                     <div class="map-status" id="mapStatus">Выберите объект на карте или в каталоге.</div>
                 </div>
                 <div id="mapContainer"></div>

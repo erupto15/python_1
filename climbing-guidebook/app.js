@@ -2701,6 +2701,7 @@
                 this.mapLayers = [];
                 this.mapMarkerIndex = new Map();
                 this.mapFilter = 'all';
+                this.mapCatalogScope = null;
                 this.mapTarget = null;
                 this.userLocation = null;
                 this.userLocationMarker = null;
@@ -3673,28 +3674,59 @@
 
             mapLayerVisible(kind) {
                 if (this.mapFilter === 'all') return true;
-                if (this.mapFilter === 'areas') return kind === 'area' || kind === 'sector';
+                if (this.mapFilter === 'areas') return kind === 'area';
+                if (this.mapFilter === 'sectors') return kind === 'sector';
                 if (this.mapFilter === 'routes') return kind === 'route';
                 if (this.mapFilter === 'boulders') return kind === 'boulder';
                 return true;
             }
 
+            guideSnippetForMapEntry(entry) {
+                const source = entry.guideSource;
+                if (!source) return '';
+                const fields = [
+                    ['warnings', 'Важно'],
+                    ['approach', 'Подход'],
+                    ['parking', 'Парковка'],
+                    ['season', 'Сезон'],
+                    ['access', 'Доступ']
+                ];
+                return fields
+                    .map(([key, label]) => {
+                        const value = String(source[key] || '').trim();
+                        if (!value) return '';
+                        const short = value.length > 120 ? `${value.slice(0, 117).trim()}…` : value;
+                        return `<div class="map-popup-guide-row"><strong>${label}:</strong> ${this.escapeHtml(short)}</div>`;
+                    })
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .join('');
+            }
+
             buildMapPopupHtml(entry) {
                 const meta = entry.meta ? `<div class="map-popup-meta">${this.escapeHtml(entry.meta)}</div>` : '';
+                const guide = this.guideSnippetForMapEntry(entry);
+                const guideBlock = guide ? `<div class="map-popup-guide">${guide}</div>` : '';
                 const detailButton = entry.climbType
                     ? `<button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('open','${entry.climbType}', '${this.escapeHtml(entry.id)}'); return false;">Открыть</button>`
                     : '';
                 const catalogButton = entry.catalog
                     ? `<button type="button" class="btn btn-small btn-ghost" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('catalog','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">В каталог</button>`
                     : '';
+                const guideButton = entry.kind === 'area' || entry.kind === 'sector'
+                    ? `<button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('guide','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Guide</button>`
+                    : '';
                 return `
                     <div class="map-popup">
                         <strong>${this.escapeHtml(entry.title)}</strong>
                         ${meta}
+                        ${guideBlock}
                         <div class="map-popup-actions">
                             ${detailButton}
+                            ${guideButton}
                             ${catalogButton}
                             <button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('target','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">К точке</button>
+                            <button type="button" class="btn btn-small btn-ghost" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('external','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Навигатор</button>
                         </div>
                     </div>
                 `;
@@ -3750,8 +3782,17 @@
                     .addTo(this.map)
                     .bindPopup(this.buildMapPopupHtml(entry));
                 const item = { ...entry, lat: coord.lat, lng: coord.lng, marker };
+                marker.on('click', () => this.setMapTarget(item));
                 this.mapLayers.push(marker);
                 this.mapMarkerIndex.set(this.mapKey(entry.kind, entry.id), item);
+            }
+
+            mapEntryInScope(entry) {
+                if (!this.mapCatalogScope) return true;
+                const { areaId, sectorId } = this.mapCatalogScope;
+                if (sectorId != null) return Number(entry.sectorId) === Number(sectorId) || (entry.kind === 'sector' && Number(entry.id) === Number(sectorId));
+                if (areaId != null) return Number(entry.areaId) === Number(areaId) || (entry.kind === 'area' && Number(entry.id) === Number(areaId));
+                return true;
             }
 
             buildMapEntries() {
@@ -3767,7 +3808,9 @@
                         meta: `${sectorsCount} секторов`,
                         lat: c.lat,
                         lng: c.lng,
-                        catalog: true
+                        catalog: true,
+                        areaId: area.id,
+                        guideSource: area
                     });
                 });
 
@@ -3785,7 +3828,9 @@
                         lat: c.lat,
                         lng: c.lng,
                         catalog: true,
-                        areaId: sector.areaId
+                        areaId: sector.areaId,
+                        sectorId: sector.id,
+                        guideSource: sector
                     });
                 });
 
@@ -3802,6 +3847,7 @@
                             lat: c.lat,
                             lng: c.lng,
                             catalog: true,
+                            areaId: route.areaId,
                             sectorId: route.sectorId
                         });
                     });
@@ -3819,10 +3865,11 @@
                         lat: c.lat,
                         lng: c.lng,
                         catalog: true,
+                        areaId: boulder.areaId,
                         sectorId: boulder.sectorId
                     });
                 });
-                return entries;
+                return entries.filter((entry) => this.mapEntryInScope(entry));
             }
 
             updateMapMarkers() {
@@ -3835,6 +3882,8 @@
                 const entries = this.buildMapEntries();
                 entries.forEach((entry) => this.addMapEntry(entry));
                 this.updateMapNavigationLine();
+                this.renderMapContextBar();
+                this.renderMapGuideStrip();
                 this.updateMapStatus();
 
                 if (!this._mapFitDone && this.mapLayers.length) {
@@ -3851,8 +3900,38 @@
             }
 
             setMapFilter(filter) {
-                this.mapFilter = ['all', 'areas', 'routes', 'boulders'].includes(filter) ? filter : 'all';
+                this.mapFilter = ['all', 'areas', 'sectors', 'routes', 'boulders'].includes(filter) ? filter : 'all';
                 this.syncMapFilterButtons();
+                this.updateMapMarkers();
+            }
+
+            fitMapToVisibleMarkers(maxZoom = 15) {
+                if (!this.map || !this.mapLayers.length) return;
+                const bounds = L.latLngBounds(this.mapLayers.map((layer) => layer.getLatLng()));
+                this.map.fitBounds(bounds.pad(0.22), { maxZoom, animate: true });
+            }
+
+            setMapScopeForEntry(kind, id) {
+                const normalizedKind = kind === 'routes' ? 'route'
+                    : kind === 'boulders' ? 'boulder'
+                    : kind;
+                if (normalizedKind === 'area') {
+                    this.mapCatalogScope = { areaId: Number(id), sectorId: null };
+                    return;
+                }
+                if (normalizedKind === 'sector') {
+                    const sector = getSectors().find((s) => Number(s.id) === Number(id));
+                    this.mapCatalogScope = sector ? { areaId: Number(sector.areaId), sectorId: Number(sector.id) } : null;
+                    return;
+                }
+                const climb = normalizedKind === 'route'
+                    ? getRoutes().find((r) => Number(r.id) === Number(id))
+                    : getBoulders().find((b) => Number(b.id) === Number(id));
+                this.mapCatalogScope = climb ? { areaId: Number(climb.areaId), sectorId: Number(climb.sectorId) } : null;
+            }
+
+            clearMapScope() {
+                this.mapCatalogScope = null;
                 this.updateMapMarkers();
             }
 
@@ -3877,6 +3956,7 @@
                 if (!this.mapLayerVisible(normalizedKind)) {
                     this.setMapFilter('all');
                 }
+                this.setMapScopeForEntry(normalizedKind, id);
                 await this.showMapTab();
                 this.updateMapMarkers();
                 const entry = this.mapMarkerIndex.get(this.mapKey(normalizedKind, id));
@@ -3885,7 +3965,11 @@
                     this.updateMapStatus('У объекта нет координат на карте.');
                     return null;
                 }
-                this.map.setView([entry.lat, entry.lng], Math.max(this.map.getZoom(), normalizedKind === 'area' ? 12 : 17), { animate: true });
+                if (normalizedKind === 'area' || normalizedKind === 'sector') {
+                    this.fitMapToVisibleMarkers(normalizedKind === 'area' ? 13 : 16);
+                } else {
+                    this.map.setView([entry.lat, entry.lng], Math.max(this.map.getZoom(), 17), { animate: true });
+                }
                 if (openPopup) entry.marker.openPopup();
                 if (setTarget) this.setMapTarget(entry);
                 return entry;
@@ -3896,13 +3980,20 @@
                     void this.showClimbDetailDialog(kind, id);
                     return;
                 }
-                if (action === 'catalog') {
+                if (action === 'catalog' || action === 'guide') {
                     this.openCatalogFromMap(kind, id);
+                    if (action === 'guide') {
+                        setTimeout(() => document.getElementById('catalogGuideHero')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+                    }
                     return;
                 }
                 if (action === 'target') {
                     const entry = this.mapMarkerIndex.get(this.mapKey(kind, id));
                     if (entry) this.setMapTarget(entry);
+                }
+                if (action === 'external') {
+                    const entry = this.mapMarkerIndex.get(this.mapKey(kind, id));
+                    if (entry) this.openExternalNavigation(entry);
                 }
             }
 
@@ -3940,10 +4031,105 @@
                 const btn = document.getElementById('mapTargetBtn');
                 if (btn) {
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-route"></i> К выбранной точке';
+                    btn.innerHTML = '<i class="fas fa-crosshairs"></i> Показать цель';
                 }
+                const navBtn = document.getElementById('mapExternalNavBtn');
+                if (navBtn) navBtn.disabled = false;
+                this.renderMapGuideStrip();
                 this.updateMapNavigationLine();
                 this.updateMapStatus();
+            }
+
+            renderMapContextBar() {
+                const el = document.getElementById('mapContextBar');
+                if (!el) return;
+                if (!this.mapCatalogScope) {
+                    el.classList.add('hidden');
+                    el.innerHTML = '';
+                    return;
+                }
+                const area = getAreas().find((a) => Number(a.id) === Number(this.mapCatalogScope.areaId));
+                const sector = this.mapCatalogScope.sectorId != null
+                    ? getSectors().find((s) => Number(s.id) === Number(this.mapCatalogScope.sectorId))
+                    : null;
+                const label = sector
+                    ? `${area?.name || 'Район'} → ${sector.name}`
+                    : `${area?.name || 'Район'}`;
+                el.classList.remove('hidden');
+                el.innerHTML = `
+                    <span><i class="fas fa-filter"></i> На карте: ${this.escapeHtml(label)}</span>
+                    <button type="button" class="btn btn-ghost btn-small" id="mapScopeResetBtn">Показать всё</button>
+                `;
+            }
+
+            mapGuideSourceForTarget() {
+                if (!this.mapTarget) return null;
+                if (this.mapTarget.kind === 'area') return getAreas().find((a) => Number(a.id) === Number(this.mapTarget.id));
+                if (this.mapTarget.kind === 'sector') return getSectors().find((s) => Number(s.id) === Number(this.mapTarget.id));
+                const climb = this.mapTarget.kind === 'route'
+                    ? getRoutes().find((r) => Number(r.id) === Number(this.mapTarget.id))
+                    : getBoulders().find((b) => Number(b.id) === Number(this.mapTarget.id));
+                const sector = climb ? getSectors().find((s) => Number(s.id) === Number(climb.sectorId)) : null;
+                return sector || (climb ? getAreas().find((a) => Number(a.id) === Number(climb.areaId)) : null);
+            }
+
+            renderMapGuideStrip() {
+                const el = document.getElementById('mapGuideStrip');
+                if (!el) return;
+                const source = this.mapGuideSourceForTarget();
+                if (!this.mapTarget || !source) {
+                    el.classList.add('hidden');
+                    el.innerHTML = '';
+                    return;
+                }
+                const guide = this.guideSnippetForMapEntry({ guideSource: source });
+                const scope = source.areaId != null ? 'sector' : 'area';
+                const pack = this.findOfflinePack(scope, source.id);
+                el.classList.remove('hidden');
+                el.innerHTML = `
+                    <div class="map-guide-strip-title">
+                        <strong>${this.escapeHtml(this.mapTarget.title)}</strong>
+                        <span>${pack ? this.escapeHtml(this.offlinePackLabel(pack)) : 'Офлайн-пакет не сохранён'}</span>
+                    </div>
+                    ${guide ? `<div class="map-guide-strip-body">${guide}</div>` : '<div class="map-guide-strip-body">Guide-поля для этой точки пока не заполнены.</div>'}
+                    <div class="map-guide-strip-actions">
+                        <button type="button" class="btn btn-ghost btn-small" id="mapGuideOpenBtn">Подробнее в каталоге</button>
+                        <button type="button" class="btn btn-secondary btn-small" id="mapOfflinePackBtn" data-pack-scope="${scope}" data-id="${source.id}">
+                            <i class="fas fa-download"></i> ${pack ? 'Обновить офлайн' : 'Сохранить офлайн'}
+                        </button>
+                    </div>
+                `;
+            }
+
+            bearingDegrees(a, b) {
+                const toRad = (v) => Number(v) * Math.PI / 180;
+                const toDeg = (v) => Number(v) * 180 / Math.PI;
+                const lat1 = toRad(a.lat);
+                const lat2 = toRad(b.lat);
+                const dLng = toRad(b.lng - a.lng);
+                const y = Math.sin(dLng) * Math.cos(lat2);
+                const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+                return (toDeg(Math.atan2(y, x)) + 360) % 360;
+            }
+
+            formatBearing(degrees) {
+                if (!Number.isFinite(degrees)) return '';
+                const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+                return dirs[Math.round(degrees / 45) % 8];
+            }
+
+            openExternalNavigation(entry = null) {
+                const target = entry || this.mapTarget;
+                if (!target) {
+                    this.showToast('Сначала выберите точку на карте', true);
+                    return;
+                }
+                const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${target.lat},${target.lng}`)}&travelmode=walking`;
+                if (window.Telegram?.WebApp?.openLink) {
+                    window.Telegram.WebApp.openLink(url);
+                } else {
+                    window.open(url, '_blank', 'noopener');
+                }
             }
 
             updateMapStatus(message = '') {
@@ -3954,11 +4140,13 @@
                     return;
                 }
                 if (this.mapTarget && this.userLocation) {
-                    el.textContent = `${this.mapTarget.title}: ${this.formatDistanceMeters(this.distanceMeters(this.userLocation, this.mapTarget))} по прямой.`;
+                    const dist = this.distanceMeters(this.userLocation, this.mapTarget);
+                    const bearing = this.formatBearing(this.bearingDegrees(this.userLocation, this.mapTarget));
+                    el.textContent = `${this.mapTarget.title}: ${this.formatDistanceMeters(dist)} по прямой${bearing ? ` · ${bearing}` : ''}. Для маршрута по тропам откройте навигатор.`;
                     return;
                 }
                 if (this.mapTarget) {
-                    el.textContent = `Цель: ${this.mapTarget.title}. Нажмите «Моё место», чтобы показать расстояние.`;
+                    el.textContent = `Цель: ${this.mapTarget.title}. Нажмите «Моё место», чтобы показать расстояние, или «Маршрут в навигаторе».`;
                     return;
                 }
                 el.textContent = 'Выберите объект на карте или в каталоге.';
@@ -5509,6 +5697,29 @@
                 });
                 document.getElementById('mapTargetBtn')?.addEventListener('click', () => {
                     this.focusCurrentMapTarget();
+                });
+                document.getElementById('mapExternalNavBtn')?.addEventListener('click', () => {
+                    this.openExternalNavigation();
+                });
+                document.getElementById('mapToolbar')?.addEventListener('click', (e) => {
+                    const resetBtn = e.target.closest('#mapScopeResetBtn');
+                    if (resetBtn) {
+                        e.preventDefault();
+                        this.clearMapScope();
+                        return;
+                    }
+                    const guideBtn = e.target.closest('#mapGuideOpenBtn');
+                    if (guideBtn && this.mapTarget) {
+                        e.preventDefault();
+                        this.openCatalogFromMap(this.mapTarget.kind, this.mapTarget.id);
+                        return;
+                    }
+                    const packBtn = e.target.closest('#mapOfflinePackBtn');
+                    if (packBtn) {
+                        e.preventDefault();
+                        const scope = packBtn.dataset.packScope === 'sector' ? 'sector' : 'area';
+                        void this.downloadOfflinePack(scope, Number(packBtn.dataset.id));
+                    }
                 });
                 document.querySelectorAll('.star-rating').forEach((wrap) => {
                     const targetId = wrap.getAttribute('data-rating-target');

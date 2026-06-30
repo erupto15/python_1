@@ -1856,6 +1856,52 @@
             align-items: center;
         }
 
+        .map-context-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-color);
+            font-size: 13px;
+        }
+
+        .map-guide-strip {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--primary-color);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .map-guide-strip-title {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .map-guide-strip-title span,
+        .map-guide-strip-body {
+            color: var(--light-text);
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .map-guide-strip-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
         .map-status {
             font-size: 13px;
             line-height: 1.4;
@@ -1882,11 +1928,27 @@
             color: #4b5563;
         }
 
+        .map-popup-guide {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #e5e7eb;
+            color: #374151;
+            font-size: 12px;
+        }
+
+        .map-popup-guide-row + .map-popup-guide-row {
+            margin-top: 4px;
+        }
+
         .map-popup-actions {
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
             margin-top: 8px;
+        }
+
+        .map-popup-actions .btn {
+            min-height: 34px;
         }
 
         .catalog-map-btn {
@@ -1922,6 +1984,12 @@
             .map-filter-group .filter-btn,
             .map-nav-row .btn {
                 flex: 1 1 calc(50% - 8px);
+                justify-content: center;
+            }
+
+            .map-guide-strip-actions .btn,
+            .map-context-bar .btn {
+                flex: 1 1 auto;
                 justify-content: center;
             }
         }
