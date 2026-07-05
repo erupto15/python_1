@@ -44,6 +44,13 @@
             --btn-secondary-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
             --btn-ghost-border: color-mix(in srgb, var(--tg-btn-border) 50%, rgba(255, 255, 255, 0.3));
             --btn-ghost-hover-bg: rgba(255, 255, 255, 0.06);
+            /* Карта (V8ROCK-style) */
+            --map-accent: #ff6b35;
+            --map-panel: rgba(15, 17, 22, 0.85);
+            --map-grade-easy: #22c55e;
+            --map-grade-mid: #facc15;
+            --map-grade-hard: #ef4444;
+            --map-tick-done: #4caf50;
             /* Высота окна Mini App (переопределяется из Telegram.WebApp) */
             --app-height: 100vh;
         }
@@ -2237,6 +2244,148 @@
                 flex: 1 1 auto;
                 justify-content: center;
             }
+        }
+
+        /* Leaflet: V8ROCK-style маркеры и полигоны */
+        .leaflet-div-icon.parent-label-icon,
+        .leaflet-div-icon.sector-badge {
+            background: transparent;
+            border: none;
+        }
+
+        .parent-label {
+            transform: translate(-50%, -50%);
+            background: var(--map-panel);
+            border: 1.5px solid var(--map-accent);
+            color: var(--text-color);
+            border-radius: 8px;
+            padding: 6px 10px;
+            font: 600 13px/1.15 sans-serif;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+            pointer-events: auto;
+            cursor: pointer;
+        }
+
+        .parent-label span {
+            opacity: 0.75;
+            font-weight: 500;
+        }
+
+        .parent-label.selected {
+            background: var(--map-accent);
+            border-color: #fff;
+            color: #fff;
+            transform: translate(-50%, -50%) scale(1.06);
+        }
+
+        .parent-label.declutter-hidden {
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .badge-pin {
+            transform: translate(-50%, -100%);
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: auto;
+            cursor: pointer;
+        }
+
+        .badge-pin .label {
+            background: var(--card-bg);
+            color: var(--text-color);
+            border: 1px solid var(--map-accent);
+            border-radius: 14px;
+            padding: 3px 10px;
+            font: 600 12px sans-serif;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .badge-pin .label span {
+            opacity: 0.8;
+            font-weight: 500;
+        }
+
+        .badge-pin .pointer {
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 7px solid var(--map-accent);
+        }
+
+        .badge-pin .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--map-accent);
+            margin-top: 1px;
+        }
+
+        .badge-pin.child .label {
+            padding: 1px 6px;
+            font-size: 11px;
+            border-color: rgba(255, 255, 255, 0.25);
+            background: rgba(15, 17, 22, 0.7);
+        }
+
+        .badge-pin.child .dot {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .badge-pin.done .label {
+            border-color: var(--map-tick-done);
+        }
+
+        .badge-pin.done .pointer {
+            border-top-color: var(--map-tick-done);
+        }
+
+        .badge-pin.focused .label {
+            background: var(--map-accent);
+            border-color: #fff;
+            color: #fff;
+        }
+
+        .badge-pin.focused .pointer {
+            border-top-color: var(--map-accent);
+        }
+
+        .badge-pin .ticks-tag {
+            display: inline-block;
+            margin-left: 4px;
+            padding: 0 4px;
+            border-radius: 8px;
+            background: var(--map-tick-done);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        .badge-pin.declutter-hidden .label,
+        .badge-pin.declutter-hidden .pointer {
+            visibility: hidden;
+        }
+
+        /* Zoom-уровни карты */
+        .leaflet-container.z-low .parent-label-icon,
+        .leaflet-container.z-low .sector-badge {
+            display: none !important;
+        }
+
+        .leaflet-container.z-mid .sector-badge .label,
+        .leaflet-container.z-mid .sector-badge .pointer {
+            display: none !important;
+        }
+
+        .leaflet-container.z-mid .sector-badge .dot {
+            display: block !important;
         }
 
         /* Уведомления */
