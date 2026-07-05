@@ -2262,23 +2262,30 @@
             return photos;
         }
 
-        /** Геометрия видимой области фото (object-fit: contain) — всегда по naturalWidth/Height. */
+        /** Геометрия реально видимой области фото с учетом CSS object-fit. */
         function getMarkupStageGeometry(container) {
             const img = container?.querySelector('img');
-            const cw = Math.max(1, container?.clientWidth || container?.offsetWidth || 1);
-            const ch = Math.max(1, container?.clientHeight || container?.offsetHeight || 1);
+            const containerRect = container?.getBoundingClientRect?.();
+            const cw = Math.max(1, containerRect?.width || container?.clientWidth || container?.offsetWidth || 1);
+            const ch = Math.max(1, containerRect?.height || container?.clientHeight || container?.offsetHeight || 1);
             const base = { cw, ch, left: 0, top: 0, iw: cw, ih: ch, ready: false };
             if (!img || !img.naturalWidth || !img.naturalHeight) {
                 return base;
             }
-            const scale = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
+            const imageRect = img.getBoundingClientRect();
+            const boxW = Math.max(1, imageRect.width || img.clientWidth || img.offsetWidth || cw);
+            const boxH = Math.max(1, imageRect.height || img.clientHeight || img.offsetHeight || ch);
+            const fit = window.getComputedStyle(img).objectFit || 'fill';
+            const scale = fit === 'cover'
+                ? Math.max(boxW / img.naturalWidth, boxH / img.naturalHeight)
+                : Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);
             const iw = img.naturalWidth * scale;
             const ih = img.naturalHeight * scale;
             return {
                 cw,
                 ch,
-                left: (cw - iw) / 2,
-                top: (ch - ih) / 2,
+                left: (imageRect.left - (containerRect?.left || 0)) + (boxW - iw) / 2,
+                top: (imageRect.top - (containerRect?.top || 0)) + (boxH - ih) / 2,
                 iw,
                 ih,
                 ready: iw >= 8 && ih >= 8
@@ -6417,6 +6424,9 @@
             schedulePhotoMarkupOverlay(previewItem, markup, climbType) {
                 if (!previewItem) return;
                 const normalized = normalizePhotoMarkup(markup, climbType);
+                previewItem._pendingPhotoMarkup = normalized;
+                previewItem._pendingPhotoMarkupType = climbType;
+                previewItem._markupOverlayAttempts = 0;
                 const apply = () => this.applyPhotoPreviewMarkupOverlay(previewItem, normalized, climbType);
                 const img = previewItem.querySelector('img');
                 if (!img) {
@@ -6436,18 +6446,27 @@
 
             applyPhotoPreviewMarkupOverlay(previewItem, markup, climbType) {
                 if (!previewItem) return;
-                previewItem.querySelectorAll('.photo-markup-overlay').forEach(el => el.remove());
 
                 const normalized = normalizePhotoMarkup(markup, climbType);
                 if (!normalized) {
+                    previewItem.querySelectorAll('.photo-markup-overlay').forEach(el => el.remove());
                     this.updatePreviewMarkupBadge(previewItem, false);
                     return;
                 }
 
                 const geom = getMarkupStageGeometry(previewItem);
                 if (!isMarkupStageReady(geom)) {
+                    const attempts = Number(previewItem._markupOverlayAttempts || 0);
+                    if (attempts < 8) {
+                        previewItem._markupOverlayAttempts = attempts + 1;
+                        requestAnimationFrame(() => {
+                            requestAnimationFrame(() => this.applyPhotoPreviewMarkupOverlay(previewItem, normalized, climbType));
+                        });
+                    }
                     return;
                 }
+                previewItem._markupOverlayAttempts = 0;
+                previewItem.querySelectorAll('.photo-markup-overlay').forEach(el => el.remove());
                 let markupForSvg = normalized;
                 if (climbType === 'route' && normalized.coordSpace !== 'image') {
                     markupForSvg = {
