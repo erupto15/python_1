@@ -80,6 +80,7 @@ class AreaCreate(BaseModel):
     parking: Optional[str] = None
     approach: Optional[str] = None
     warnings: Optional[str] = None
+    image_url: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     created_by: Optional[str] = None
@@ -93,6 +94,7 @@ class AreaUpdate(BaseModel):
     parking: Optional[str] = None
     approach: Optional[str] = None
     warnings: Optional[str] = None
+    image_url: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
@@ -108,6 +110,7 @@ class AreaRead(BaseModel):
     parking: Optional[str]
     approach: Optional[str]
     warnings: Optional[str]
+    image_url: Optional[str]
     latitude: Optional[float]
     longitude: Optional[float]
     created_by: Optional[str]

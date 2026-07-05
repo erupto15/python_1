@@ -9,6 +9,7 @@ areas:
     parking: "Где оставить машину"
     approach: "Общий подход к массиву"
     warnings: "Опасности, правила и важные предупреждения"
+    image_url: ""
     latitude: null
     longitude: null
     sectors:

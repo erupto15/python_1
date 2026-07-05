@@ -99,6 +99,7 @@ def ensure_catalog_seed(db: Session, admin_user: User | None = None) -> dict[str
                 parking=area_item.get("parking"),
                 approach=area_item.get("approach"),
                 warnings=area_item.get("warnings"),
+                image_url=area_item.get("image_url"),
                 latitude=area_item.get("latitude"),
                 longitude=area_item.get("longitude"),
                 created_by=owner_id,

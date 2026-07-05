@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app import schemas
 from app.db import get_db
-from app.deps import assert_admin, assert_owner, get_current_user
+from app.deps import assert_admin, get_current_user
 from app.models import Area, User
 from app.services.catalog_delete import soft_delete_area_with_contents
 
@@ -57,7 +57,6 @@ def update_area(
     if not area or area.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Area not found")
     assert_admin(user)
-    assert_owner(user, area.created_by)
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(area, k, v)
     db.commit()

@@ -1603,13 +1603,19 @@
         }
 
         function slimCatalogForStorage(data) {
+            const areas = (data.areas || []).map((a) => ({
+                ...a,
+                imageData: (typeof a.imageData === 'string' && !a.imageData.startsWith('data:'))
+                    ? a.imageData
+                    : ''
+            }));
             const photos = (data.photos || []).map((p) => ({
                 ...p,
                 imageData: (typeof p.imageData === 'string' && !p.imageData.startsWith('data:'))
                     ? p.imageData
                     : ''
             }));
-            return { ...data, photos };
+            return { ...data, areas, photos };
         }
 
         function persistClimbingDataToStorage(data) {
@@ -1878,6 +1884,7 @@
                 parking: a.parking || '',
                 approach: a.approach || '',
                 warnings: a.warnings || '',
+                imageData: a.image_url || '',
                 latitude: a.latitude,
                 longitude: a.longitude,
                 createdAt: a.created_at,
@@ -2707,6 +2714,8 @@
                 this.userLocationMarker = null;
                 this.mapNavigationLine = null;
                 this._geoWatchId = null;
+                this.areaPhotoData = null;
+                this.areaPhotoRemove = false;
                 this.currentPhotoPreview = null;
                 this.quickRoutePhotoData = null;
                 this.quickBoulderPhotoData = null;
@@ -3514,6 +3523,69 @@
                     if (box) box.innerHTML = '';
                     const actions = document.getElementById('quickBoulderPhotoActions');
                     if (actions) actions.style.display = 'none';
+                }
+            }
+
+            clearAreaDialogPhoto({ markRemove = true } = {}) {
+                this.areaPhotoData = null;
+                this.areaPhotoRemove = !!markRemove;
+                const input = document.getElementById('areaPhoto');
+                if (input) input.value = '';
+                const box = document.getElementById('areaPhotoPreview');
+                if (box) {
+                    box.classList.add('hidden');
+                    box.innerHTML = '';
+                }
+                const actions = document.getElementById('areaPhotoActions');
+                if (actions) actions.style.display = 'none';
+            }
+
+            renderAreaDialogPhotoPreview(src) {
+                const box = document.getElementById('areaPhotoPreview');
+                const actions = document.getElementById('areaPhotoActions');
+                if (!box || !actions || !src) {
+                    if (box) {
+                        box.classList.add('hidden');
+                        box.innerHTML = '';
+                    }
+                    if (actions) actions.style.display = 'none';
+                    return;
+                }
+                box.classList.remove('hidden');
+                box.innerHTML = `
+                    <img src="${this.escapeHtml(src)}" alt="Картинка района">
+                    <span>Обложка района</span>
+                `;
+                actions.style.display = 'flex';
+            }
+
+            async onAreaPhotoSelected(event) {
+                const file = event?.target?.files?.[0];
+                if (!file) return;
+                if (!String(file.type || '').startsWith('image/')) {
+                    this.showToast('Выберите файл изображения', true);
+                    this.clearAreaDialogPhoto();
+                    return;
+                }
+                if (file.size > MAX_PHOTO_SIZE_BYTES) {
+                    this.showToast(`Размер файла не должен превышать ${MAX_PHOTO_SIZE_MB}MB`, true);
+                    this.clearAreaDialogPhoto();
+                    return;
+                }
+                try {
+                    const dataUrl = await this.fileToDataUrl(file);
+                    const scaled = await downscaleDataUrlForUpload(dataUrl);
+                    const mime = scaled.startsWith('data:image/jpeg') ? 'image/jpeg' : (file.type || '');
+                    this.areaPhotoData = {
+                        data: scaled,
+                        fileName: file.name || '',
+                        type: mime
+                    };
+                    this.areaPhotoRemove = false;
+                    this.renderAreaDialogPhotoPreview(scaled);
+                } catch (err) {
+                    this.showToast(`Ошибка чтения файла: ${err.message}`, true);
+                    this.clearAreaDialogPhoto();
                 }
             }
 
@@ -4337,8 +4409,13 @@
                 }) : '';
                 const scope = isArea ? 'area' : 'sector';
                 const pack = this.findOfflinePack(scope, entity.id);
+                const heroImageUrl = isArea ? resolvePhotoDisplayUrl(entity.imageData) : '';
+                const heroImage = heroImageUrl
+                    ? `<img class="catalog-guide-cover" src="${this.escapeHtml(heroImageUrl)}" alt="${this.escapeHtml(entity.name || 'Район')}" loading="lazy">`
+                    : '';
                 hero.classList.remove('hidden');
                 hero.innerHTML = `
+                    ${heroImage}
                     <div class="catalog-guide-head">
                         <div>
                             <div class="catalog-guide-kicker">${isArea ? 'Район' : 'Сектор'} · ${this.escapeHtml(meta)}</div>
@@ -4687,11 +4764,18 @@
                         const meta = APP_BOULDER_ONLY
                             ? `${sc} секторов · ${bcnt} боулдеров`
                             : `${sc} секторов · ${rc} трасс · ${bcnt} боулдеров`;
+                        const imageUrl = resolvePhotoDisplayUrl(a.imageData);
+                        const thumb = imageUrl
+                            ? `<img class="catalog-area-card-image" src="${this.escapeHtml(imageUrl)}" alt="${this.escapeHtml(a.name)}" loading="lazy">`
+                            : `<div class="catalog-area-card-image catalog-area-card-image--placeholder"><i class="fas fa-mountain-sun"></i></div>`;
+                        const desc = String(a.description || '').trim();
                         return `
-                            <div class="catalog-row">
+                            <div class="catalog-row catalog-area-card">
+                                ${thumb}
                                 <button type="button" class="catalog-row-open" data-catalog-go="area" data-id="${a.id}" aria-label="Открыть район: ${this.escapeHtml(a.name)}">
                                     <div class="catalog-row-title">${this.escapeHtml(a.name)}</div>
                                     <div class="catalog-row-meta">${meta}</div>
+                                    ${desc ? `<div class="catalog-area-card-desc">${this.escapeHtml(desc)}</div>` : ''}
                                 </button>
                                 <button type="button" class="catalog-map-btn btn btn-ghost btn-small" data-catalog-act="show-map" data-map-kind="area" data-id="${a.id}">
                                     <i class="fas fa-map-location-dot"></i> На карте
@@ -4905,6 +4989,7 @@
                 document.getElementById('areaWarnings').value = '';
                 document.getElementById('areaLatitude').value = '';
                 document.getElementById('areaLongitude').value = '';
+                this.clearAreaDialogPhoto({ markRemove: false });
                 this.showDialog('areaDialog');
             }
 
@@ -4923,6 +5008,11 @@
                 document.getElementById('areaWarnings').value = area.warnings || '';
                 document.getElementById('areaLatitude').value = area.latitude ?? '';
                 document.getElementById('areaLongitude').value = area.longitude ?? '';
+                this.areaPhotoData = null;
+                this.areaPhotoRemove = false;
+                const input = document.getElementById('areaPhoto');
+                if (input) input.value = '';
+                this.renderAreaDialogPhotoPreview(resolvePhotoDisplayUrl(area.imageData));
                 this.showDialog('areaDialog');
             }
 
@@ -4945,6 +5035,11 @@
                     latitude: document.getElementById('areaLatitude').value ? parseFloat(document.getElementById('areaLatitude').value) : null,
                     longitude: document.getElementById('areaLongitude').value ? parseFloat(document.getElementById('areaLongitude').value) : null
                 };
+                if (this.areaPhotoData?.data) {
+                    payload.image_url = this.areaPhotoData.data;
+                } else if (this.areaPhotoRemove || !id) {
+                    payload.image_url = null;
+                }
                 try {
                     const savedArea = id
                         ? await apiFetch(`/api/areas/${Number(id)}`, {
@@ -4964,6 +5059,7 @@
                     return;
                 }
                 this.hideDialog('areaDialog');
+                this.clearAreaDialogPhoto({ markRemove: false });
                 this.fillSectorSelects();
                 this.renderCatalog();
                 this.updateMapMarkers();
@@ -5666,6 +5762,8 @@
                     if (!this.requireAdmin('Сохранение района')) return;
                     this.saveArea();
                 });
+                document.getElementById('areaPhoto')?.addEventListener('change', (e) => this.onAreaPhotoSelected(e));
+                document.getElementById('areaPhotoClearBtn')?.addEventListener('click', () => this.clearAreaDialogPhoto());
                 document.getElementById('cancelSectorBtn')?.addEventListener('click', () => this.hideDialog('sectorDialog'));
                 document.getElementById('sectorSubmitBtn')?.addEventListener('click', () => {
                     if (!this.requireAdmin('Сохранение сектора')) return;

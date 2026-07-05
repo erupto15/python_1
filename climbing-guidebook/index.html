@@ -608,6 +608,15 @@
                         <label class="form-label" for="areaWarnings">Предупреждения</label>
                         <textarea class="form-textarea" id="areaWarnings" rows="2" placeholder="Опасности, запреты, важные замечания"></textarea>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label" for="areaPhoto">Картинка района</label>
+                        <input type="file" class="form-input" id="areaPhoto" accept="image/*">
+                        <p class="form-hint">Обложка будет показана на карточке района. Можно заменить или удалить её при редактировании.</p>
+                        <div class="area-photo-preview hidden" id="areaPhotoPreview"></div>
+                        <div class="markup-actions" id="areaPhotoActions" style="display:none; margin-top:8px;">
+                            <button type="button" class="btn btn-danger btn-small" id="areaPhotoClearBtn"><i class="fas fa-trash"></i> Удалить картинку</button>
+                        </div>
+                    </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label class="form-label" for="areaLatitude">Широта</label>

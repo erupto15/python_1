@@ -54,6 +54,7 @@ class Area(Base):
     parking: Mapped[Optional[str]] = mapped_column(Text)
     approach: Mapped[Optional[str]] = mapped_column(Text)
     warnings: Mapped[Optional[str]] = mapped_column(Text)
+    image_url: Mapped[Optional[str]] = mapped_column(Text)
     latitude: Mapped[Optional[float]] = mapped_column(Float)
     longitude: Mapped[Optional[float]] = mapped_column(Float)
     created_by: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("users.id", ondelete="SET NULL"))
