@@ -5002,6 +5002,83 @@
                     .join('');
             }
 
+            renderActionBtn(variant, attrs) {
+                const label = variant === 'delete' ? 'Удалить' : 'Редактировать';
+                const icon = variant === 'delete' ? 'fa-times' : 'fa-pen';
+                return `<button type="button" class="action-btn action-btn--${variant}" aria-label="${label}" ${attrs}><i class="fas ${icon}" aria-hidden="true"></i></button>`;
+            }
+
+            renderRowActions(editAttrs, deleteAttrs) {
+                return `<div class="row-action-group">${this.renderActionBtn('edit', editAttrs)}${this.renderActionBtn('delete', deleteAttrs)}</div>`;
+            }
+
+            renderGuideDescriptionSection(kind, entityId, description) {
+                const desc = String(description || '').trim();
+                const editAct = {
+                    area: 'edit-area-desc',
+                    sector: 'edit-sector-desc',
+                    route: 'edit-route-desc',
+                    boulder: 'edit-boulder-desc'
+                }[kind];
+                const clearAct = {
+                    area: 'clear-area-desc',
+                    sector: 'clear-sector-desc',
+                    route: 'clear-route-desc',
+                    boulder: 'clear-boulder-desc'
+                }[kind];
+                const useCatalogAct = kind === 'area' || kind === 'sector';
+                const idAttr = kind === 'route'
+                    ? `data-route-id="${entityId}"`
+                    : kind === 'boulder'
+                        ? `data-boulder-id="${entityId}"`
+                        : `data-id="${entityId}"`;
+                const editAttrs = useCatalogAct
+                    ? `data-catalog-act="${editAct}" ${idAttr}`
+                    : `data-action="${editAct}" ${idAttr}`;
+                const clearAttrs = useCatalogAct
+                    ? `data-catalog-act="${clearAct}" ${idAttr}`
+                    : `data-action="${clearAct}" ${idAttr}`;
+                const adminBar = this.isAdmin() ? `
+                    <div class="guide-desc-head">
+                        <span class="guide-desc-label">Описание</span>
+                        <div class="row-action-group">
+                            ${this.renderActionBtn('edit', editAttrs)}
+                            ${this.renderActionBtn('delete', clearAttrs + (desc ? '' : ' disabled'))}
+                        </div>
+                    </div>` : (desc ? '<span class="guide-desc-label">Описание</span>' : '');
+                if (!desc && !this.isAdmin()) return '';
+                const bodyClass = desc ? 'catalog-guide-desc' : 'catalog-guide-desc catalog-guide-desc--empty';
+                const bodyText = desc
+                    ? this.escapeHtml(desc)
+                    : 'Описание не указано. Нажмите карандаш, чтобы добавить.';
+                return `
+                    <div class="guide-desc-block">
+                        ${adminBar}
+                        <div class="${bodyClass}">${bodyText}</div>
+                    </div>`;
+            }
+
+            syncClimbDetailDescriptionUi(climb) {
+                const descEl = document.getElementById('climbDetailDescription');
+                const clearBtn = document.getElementById('climbDetailClearDescBtn');
+                const editDescBtn = document.getElementById('climbDetailEditDescBtn');
+                const editEntityBtn = document.getElementById('climbDetailEditBtn');
+                const deleteEntityBtn = document.getElementById('climbDetailDeleteBtn');
+                const descRaw = climb?.description != null ? String(climb.description).trim() : '';
+                const climbType = climb?.climbType || 'route';
+                const entityLabel = climbType === 'boulder' ? 'боулдеринг' : 'трассу';
+                if (descEl) {
+                    descEl.textContent = descRaw || (this.isAdmin()
+                        ? 'Описание не указано. Нажмите карандаш, чтобы добавить.'
+                        : 'Описание пока не указано.');
+                    descEl.classList.toggle('guide-desc-text--empty', !descRaw);
+                }
+                if (clearBtn) clearBtn.disabled = !descRaw;
+                if (editDescBtn) editDescBtn.setAttribute('aria-label', `Редактировать описание ${entityLabel === 'трассу' ? 'трассы' : 'боулдеринга'}`);
+                if (editEntityBtn) editEntityBtn.setAttribute('aria-label', `Редактировать ${entityLabel}`);
+                if (deleteEntityBtn) deleteEntityBtn.setAttribute('aria-label', `Удалить ${entityLabel}`);
+            }
+
             getOfflinePacks() {
                 try {
                     const raw = JSON.parse(localStorage.getItem(CLIMBING_OFFLINE_PACKS_KEY) || '[]');
@@ -5081,7 +5158,7 @@
                             </button>
                         </div>
                     </div>
-                    ${desc ? `<div class="catalog-guide-desc">${this.escapeHtml(desc)}</div>` : ''}
+                    ${this.renderGuideDescriptionSection(isArea ? 'area' : 'sector', entity.id, desc)}
                     <div class="catalog-guide-grid">${fieldsHtml || inherited || '<div class="catalog-guide-empty">Guide-поля пока не заполнены.</div>'}</div>
                 `;
             }
@@ -5430,9 +5507,8 @@
                                 <button type="button" class="catalog-map-btn btn btn-ghost btn-small" data-catalog-act="show-map" data-map-kind="area" data-id="${a.id}">
                                     <i class="fas fa-map-location-dot"></i> На карте
                                 </button>
-                                <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" style="align-self:center;padding-right:12px">
-                                    <button type="button" class="btn btn-ghost btn-small" data-catalog-act="edit-area" data-id="${a.id}"><i class="fas fa-edit"></i></button>
-                                    <button type="button" class="btn btn-danger btn-small" data-catalog-act="delete-area" data-id="${a.id}"><i class="fas fa-trash"></i></button>
+                                <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" style="align-self:center">
+                                    ${this.renderRowActions(`data-catalog-act="edit-area" data-id="${a.id}"`, `data-catalog-act="delete-area" data-id="${a.id}"`)}
                                 </div>
                             </div>`;
                     }).join('') : '<div class="empty-state"><p>Нет районов. Создайте первый.</p></div>';
@@ -5460,18 +5536,19 @@
                         const meta = APP_BOULDER_ONLY
                             ? `${bcnt} боулдеров`
                             : `${rc} трасс · ${bcnt} боулдеров`;
+                        const desc = String(s.description || '').trim();
                         return `
                             <div class="catalog-row">
                                 <button type="button" class="catalog-row-open" data-catalog-go="sector" data-id="${s.id}" aria-label="Открыть сектор: ${this.escapeHtml(s.name)}">
                                     <div class="catalog-row-title">${this.escapeHtml(s.name)}</div>
                                     <div class="catalog-row-meta">${meta}</div>
+                                    ${desc ? `<div class="catalog-area-card-desc">${this.escapeHtml(desc)}</div>` : ''}
                                 </button>
                                 <button type="button" class="catalog-map-btn btn btn-ghost btn-small" data-catalog-act="show-map" data-map-kind="sector" data-id="${s.id}">
                                     <i class="fas fa-map-location-dot"></i> На карте
                                 </button>
-                                <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" style="align-self:center;padding-right:12px">
-                                    <button type="button" class="btn btn-ghost btn-small" data-catalog-act="edit-sector" data-id="${s.id}"><i class="fas fa-edit"></i></button>
-                                    <button type="button" class="btn btn-danger btn-small" data-catalog-act="delete-sector" data-id="${s.id}"><i class="fas fa-trash"></i></button>
+                                <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" style="align-self:center">
+                                    ${this.renderRowActions(`data-catalog-act="edit-sector" data-id="${s.id}"`, `data-catalog-act="delete-sector" data-id="${s.id}"`)}
                                 </div>
                             </div>`;
                     }).join('') : '<div class="empty-state"><p>В этом районе пока нет секторов.</p></div>';
@@ -5509,6 +5586,7 @@
                     if (!APP_BOULDER_ONLY && rs.length) {
                         blocks.push('<h4 style="margin:12px 0 8px;color:var(--light-text)">Трассы</h4>');
                         rs.forEach(r => {
+                            const routeDesc = String(r.description || '').trim();
                             blocks.push(`
                                 <div class="list-item catalog-climb-row" style="margin-bottom:8px" data-open-climb="route" data-open-climb-id="${r.id}">
                                     <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(r.name)}">
@@ -5521,14 +5599,14 @@
                                                 ${r.length ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(r.length)}м</span>` : ''}
                                                 ${r.sector ? `<span><i class="fas fa-map-marker-alt"></i> ${this.escapeHtml(r.sector)}</span>` : ''}
                                             </div>
+                                            ${routeDesc ? `<div class="catalog-climb-desc">${this.escapeHtml(routeDesc)}</div>` : ''}
                                         </div>
                                     </button>
                                     <button type="button" class="catalog-map-btn catalog-map-climb-btn btn btn-ghost btn-small" data-catalog-act="show-map" data-map-kind="route" data-id="${r.id}">
                                         <i class="fas fa-map-location-dot"></i> На карте
                                     </button>
                                     <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
-                                    <button type="button" class="btn btn-ghost btn-small" data-action="edit-route" data-route-id="${r.id}"><i class="fas fa-edit"></i></button>
-                                        <button type="button" class="btn btn-danger btn-small" data-action="delete-route" data-route-id="${r.id}"><i class="fas fa-trash"></i></button>
+                                        ${this.renderRowActions(`data-action="edit-route" data-route-id="${r.id}"`, `data-action="delete-route" data-route-id="${r.id}"`)}
                                     </div>
                                 </div>`);
                         });
@@ -5536,6 +5614,7 @@
                     if (bs.length) {
                         blocks.push('<h4 style="margin:16px 0 8px;color:var(--light-text)">Боулдеринг</h4>');
                         bs.forEach(b => {
+                            const boulderDesc = String(b.description || '').trim();
                             blocks.push(`
                                 <div class="list-item catalog-climb-row" style="margin-bottom:8px" data-open-climb="boulder" data-open-climb-id="${b.id}">
                                     <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(b.name)}">
@@ -5547,14 +5626,14 @@
                                                 ${b.rating != null && b.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(b.rating))}</span>` : ''}
                                                 ${b.height ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(b.height)}м</span>` : ''}
                                             </div>
+                                            ${boulderDesc ? `<div class="catalog-climb-desc">${this.escapeHtml(boulderDesc)}</div>` : ''}
                                         </div>
                                     </button>
                                     <button type="button" class="catalog-map-btn catalog-map-climb-btn btn btn-ghost btn-small" data-catalog-act="show-map" data-map-kind="boulder" data-id="${b.id}">
                                         <i class="fas fa-map-location-dot"></i> На карте
                                     </button>
                                     <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
-                                    <button type="button" class="btn btn-ghost btn-small" data-action="edit-boulder" data-boulder-id="${b.id}"><i class="fas fa-edit"></i></button>
-                                        <button type="button" class="btn btn-danger btn-small" data-action="delete-boulder" data-boulder-id="${b.id}"><i class="fas fa-trash"></i></button>
+                                        ${this.renderRowActions(`data-action="edit-boulder" data-boulder-id="${b.id}"`, `data-action="delete-boulder" data-boulder-id="${b.id}"`)}
                                     </div>
                                 </div>`);
                         });
@@ -5579,10 +5658,14 @@
                     const action = act.dataset.catalogAct;
                     if (action === 'add-area') { if (!this.requireAdmin('Добавление района')) return; this.showAddAreaDialog(); }
                     if (action === 'edit-area') { if (!this.requireAdmin('Редактирование района')) return; this.showEditAreaDialog(id); }
+                    if (action === 'edit-area-desc') { if (!this.requireAdmin('Редактирование описания района')) return; this.showEditAreaDialog(id, { focusDescription: true }); }
                     if (action === 'delete-area') { if (!this.requireAdmin('Удаление района')) return; void this.deleteArea(id); }
+                    if (action === 'clear-area-desc') { if (!this.requireAdmin('Удаление описания района')) return; void this.clearAreaDescription(id); }
                     if (action === 'add-sector') { if (!this.requireAdmin('Добавление сектора')) return; this.showAddSectorDialog(Number(act.dataset.id)); }
                     if (action === 'edit-sector') { if (!this.requireAdmin('Редактирование сектора')) return; this.showEditSectorDialog(id); }
+                    if (action === 'edit-sector-desc') { if (!this.requireAdmin('Редактирование описания сектора')) return; this.showEditSectorDialog(id, { focusDescription: true }); }
                     if (action === 'delete-sector') { if (!this.requireAdmin('Удаление сектора')) return; void this.deleteSector(id); }
+                    if (action === 'clear-sector-desc') { if (!this.requireAdmin('Удаление описания сектора')) return; void this.clearSectorDescription(id); }
                     if (action === 'add-route') { if (!this.requireAdmin('Добавление трассы')) return; this.quickAddRouteInSector(id); }
                     if (action === 'add-boulder') { if (!this.requireAdmin('Добавление боулдеринга')) return; this.quickAddBoulderInSector(id); }
                     if (action === 'show-map') {
@@ -5643,7 +5726,7 @@
                 this.showDialog('areaDialog');
             }
 
-            showEditAreaDialog(areaId) {
+            showEditAreaDialog(areaId, opts = {}) {
                 if (!this.requireAdmin('Редактирование района')) return;
                 const area = getAreas().find(a => Number(a.id) === Number(areaId));
                 if (!area) return;
@@ -5664,6 +5747,9 @@
                 if (input) input.value = '';
                 this.renderAreaDialogPhotoPreview(resolvePhotoDisplayUrl(area.imageData));
                 this.showDialog('areaDialog');
+                if (opts.focusDescription) {
+                    requestAnimationFrame(() => document.getElementById('areaDescription')?.focus());
+                }
             }
 
             async saveArea() {
@@ -5745,6 +5831,27 @@
                 this.showToast('Район удалён');
             }
 
+            async clearAreaDescription(areaId) {
+                if (!this.requireAdmin('Удаление описания района')) return;
+                const area = getAreas().find((a) => Number(a.id) === Number(areaId));
+                if (!area || !String(area.description || '').trim()) return;
+                if (!(await confirmDestructive('Удалить описание района?'))) return;
+                try {
+                    const savedArea = await apiFetch(`/api/areas/${Number(areaId)}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ description: '' })
+                    });
+                    mergeAreaFromApiResponse(savedArea);
+                    this.data = getClimbingData();
+                } catch (err) {
+                    this.showToast(`Ошибка удаления описания: ${err.message}`, true);
+                    return;
+                }
+                this.renderCatalog();
+                this.showToast('Описание района удалено');
+            }
+
             showAddSectorDialog(areaId) {
                 if (!this.requireAdmin('Добавление сектора')) return;
                 document.getElementById('sectorDialogTitle').textContent = 'Новый сектор';
@@ -5760,7 +5867,7 @@
                 this.showDialog('sectorDialog');
             }
 
-            showEditSectorDialog(sectorId) {
+            showEditSectorDialog(sectorId, opts = {}) {
                 if (!this.requireAdmin('Редактирование сектора')) return;
                 const sector = getSectors().find(s => Number(s.id) === Number(sectorId));
                 if (!sector) return;
@@ -5775,6 +5882,9 @@
                 document.getElementById('sectorApproach').value = sector.approach || '';
                 document.getElementById('sectorWarnings').value = sector.warnings || '';
                 this.showDialog('sectorDialog');
+                if (opts.focusDescription) {
+                    requestAnimationFrame(() => document.getElementById('sectorDescription')?.focus());
+                }
             }
 
             async quickAddRouteInSector(sectorId) {
@@ -5805,7 +5915,7 @@
                 this.showDialog('quickBoulderDialog');
             }
 
-            showEditRouteDialog(routeId) {
+            showEditRouteDialog(routeId, opts = {}) {
                 if (!this.requireAdmin('Редактирование трассы')) return;
                 const route = getRoutes().find((r) => Number(r.id) === Number(routeId));
                 if (!route) {
@@ -5827,9 +5937,12 @@
                 document.getElementById('saveQuickRouteBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить изменения';
                 this.clearQuickDialogPhoto('route');
                 this.showDialog('quickRouteDialog');
+                if (opts.focusDescription) {
+                    requestAnimationFrame(() => document.getElementById('quickRouteDescription')?.focus());
+                }
             }
 
-            showEditBoulderDialog(boulderId) {
+            showEditBoulderDialog(boulderId, opts = {}) {
                 if (!this.requireAdmin('Редактирование боулдеринга')) return;
                 const boulder = getBoulders().find((b) => Number(b.id) === Number(boulderId));
                 if (!boulder) {
@@ -5850,6 +5963,9 @@
                 document.getElementById('saveQuickBoulderBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить изменения';
                 this.clearQuickDialogPhoto('boulder');
                 this.showDialog('quickBoulderDialog');
+                if (opts.focusDescription) {
+                    requestAnimationFrame(() => document.getElementById('quickBoulderDescription')?.focus());
+                }
             }
 
             async saveQuickRoute() {
@@ -6081,6 +6197,79 @@
                 this.showToast('Сектор удалён');
             }
 
+            async clearSectorDescription(sectorId) {
+                if (!this.requireAdmin('Удаление описания сектора')) return;
+                const sector = getSectors().find((s) => Number(s.id) === Number(sectorId));
+                if (!sector || !String(sector.description || '').trim()) return;
+                if (!(await confirmDestructive('Удалить описание сектора?'))) return;
+                try {
+                    const savedSector = await apiFetch(`/api/sectors/${Number(sectorId)}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ description: '' })
+                    });
+                    mergeSectorFromApiResponse(savedSector);
+                    this.data = getClimbingData();
+                } catch (err) {
+                    this.showToast(`Ошибка удаления описания: ${err.message}`, true);
+                    return;
+                }
+                this.renderCatalog();
+                this.showToast('Описание сектора удалено');
+            }
+
+            async clearRouteDescription(routeId) {
+                if (!this.requireAdmin('Удаление описания трассы')) return;
+                const route = getRoutes().find((r) => Number(r.id) === Number(routeId));
+                if (!route || !String(route.description || '').trim()) return;
+                if (!(await confirmDestructive('Удалить описание трассы?'))) return;
+                try {
+                    const savedRoute = await apiFetch(`/api/routes/${Number(routeId)}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ description: null })
+                    });
+                    mergeRouteFromApiResponse(savedRoute);
+                    this.data = getClimbingData();
+                } catch (err) {
+                    this.showToast(`Ошибка удаления описания: ${err.message}`, true);
+                    return;
+                }
+                this.renderCatalog();
+                this.renderRoutes();
+                if (this._climbDetailContext && String(this._climbDetailContext.climbId) === String(routeId) && this._climbDetailContext.climbType === 'route') {
+                    const updated = getRoutes().find((r) => Number(r.id) === Number(routeId));
+                    if (updated) this.syncClimbDetailDescriptionUi({ ...updated, climbType: 'route' });
+                }
+                this.showToast('Описание трассы удалено');
+            }
+
+            async clearBoulderDescription(boulderId) {
+                if (!this.requireAdmin('Удаление описания боулдеринга')) return;
+                const boulder = getBoulders().find((b) => Number(b.id) === Number(boulderId));
+                if (!boulder || !String(boulder.description || '').trim()) return;
+                if (!(await confirmDestructive('Удалить описание боулдеринга?'))) return;
+                try {
+                    const savedBoulder = await apiFetch(`/api/boulders/${Number(boulderId)}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ description: null })
+                    });
+                    mergeBoulderFromApiResponse(savedBoulder);
+                    this.data = getClimbingData();
+                } catch (err) {
+                    this.showToast(`Ошибка удаления описания: ${err.message}`, true);
+                    return;
+                }
+                this.renderCatalog();
+                this.renderBoulders();
+                if (this._climbDetailContext && String(this._climbDetailContext.climbId) === String(boulderId) && this._climbDetailContext.climbType === 'boulder') {
+                    const updated = getBoulders().find((b) => Number(b.id) === Number(boulderId));
+                    if (updated) this.syncClimbDetailDescriptionUi({ ...updated, climbType: 'boulder' });
+                }
+                this.showToast('Описание боулдеринга удалено');
+            }
+
             renderRoutes() {
                 if (APP_BOULDER_ONLY) return;
                 const routesList = document.getElementById('routesList');
@@ -6143,16 +6332,11 @@
                                     ${route.bolts ? `<span><i class="fas fa-bolt"></i> ${this.escapeHtml(route.bolts)} болтов</span>` : ''}
                                     ${route.sector ? `<span><i class="fas fa-map-marker-alt"></i> ${this.escapeHtml(route.sector)}</span>` : ''}
                                 </div>
-                                ${route.description ? `<p style="margin-top: 8px; color: var(--light-text);">${this.escapeHtml(route.description)}</p>` : ''}
+                                ${route.description ? `<div class="catalog-climb-desc">${this.escapeHtml(route.description)}</div>` : ''}
                             </div>
                         </button>
                         <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
-                            <button type="button" class="btn btn-ghost btn-small" data-action="edit-route" data-route-id="${route.id}">
-                                <i class="fas fa-edit"></i> Редактировать
-                            </button>
-                            <button type="button" class="btn btn-danger btn-small" data-action="delete-route" data-route-id="${route.id}">
-                                <i class="fas fa-trash"></i> Удалить
-                            </button>
+                            ${this.renderRowActions(`data-action="edit-route" data-route-id="${route.id}"`, `data-action="delete-route" data-route-id="${route.id}"`)}
                         </div>
                     </div>
                 `;
@@ -6217,16 +6401,11 @@
                                     ${boulder.rating != null && boulder.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(boulder.rating))}</span>` : ''}
                                     ${boulder.height ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(boulder.height)}м</span>` : ''}
                                 </div>
-                                ${boulder.description ? `<p style="margin-top: 8px; color: var(--light-text);">${this.escapeHtml(boulder.description)}</p>` : ''}
+                                ${boulder.description ? `<div class="catalog-climb-desc">${this.escapeHtml(boulder.description)}</div>` : ''}
                             </div>
                         </button>
                         <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
-                            <button type="button" class="btn btn-ghost btn-small" data-action="edit-boulder" data-boulder-id="${boulder.id}">
-                                <i class="fas fa-edit"></i> Редактировать
-                            </button>
-                            <button type="button" class="btn btn-danger btn-small" data-action="delete-boulder" data-boulder-id="${boulder.id}">
-                                <i class="fas fa-trash"></i> Удалить
-                            </button>
+                            ${this.renderRowActions(`data-action="edit-boulder" data-boulder-id="${boulder.id}"`, `data-action="delete-boulder" data-boulder-id="${boulder.id}"`)}
                         </div>
                     </div>
                 `;
@@ -6393,17 +6572,45 @@
                 document.getElementById('catalog')?.addEventListener('click', (e) => this.handleCatalogClick(e));
                 document.getElementById('catalogList')?.addEventListener('click', (e) => {
                     const editRoute = e.target.closest('[data-action="edit-route"]');
+                    const editRouteDesc = e.target.closest('[data-action="edit-route-desc"]');
                     const editBoulder = e.target.closest('[data-action="edit-boulder"]');
+                    const editBoulderDesc = e.target.closest('[data-action="edit-boulder-desc"]');
+                    const clearRouteDesc = e.target.closest('[data-action="clear-route-desc"]');
+                    const clearBoulderDesc = e.target.closest('[data-action="clear-boulder-desc"]');
+                    if (editRouteDesc) {
+                        e.preventDefault();
+                        if (!this.requireAdmin('Редактирование описания трассы')) return;
+                        this.showEditRouteDialog(Number(editRouteDesc.dataset.routeId), { focusDescription: true });
+                        return;
+                    }
                     if (editRoute) {
                         e.preventDefault();
                         if (!this.requireAdmin('Редактирование трассы')) return;
                         this.showEditRouteDialog(Number(editRoute.dataset.routeId));
                         return;
                     }
+                    if (editBoulderDesc) {
+                        e.preventDefault();
+                        if (!this.requireAdmin('Редактирование описания боулдеринга')) return;
+                        this.showEditBoulderDialog(Number(editBoulderDesc.dataset.boulderId), { focusDescription: true });
+                        return;
+                    }
                     if (editBoulder) {
                         e.preventDefault();
                         if (!this.requireAdmin('Редактирование боулдеринга')) return;
                         this.showEditBoulderDialog(Number(editBoulder.dataset.boulderId));
+                        return;
+                    }
+                    if (clearRouteDesc) {
+                        e.preventDefault();
+                        if (!this.requireAdmin('Удаление описания трассы')) return;
+                        void this.clearRouteDescription(Number(clearRouteDesc.dataset.routeId));
+                        return;
+                    }
+                    if (clearBoulderDesc) {
+                        e.preventDefault();
+                        if (!this.requireAdmin('Удаление описания боулдеринга')) return;
+                        void this.clearBoulderDescription(Number(clearBoulderDesc.dataset.boulderId));
                         return;
                     }
                 });
@@ -6688,6 +6895,26 @@
                         this.showEditBoulderDialog(Number(ctx.climbId));
                     }
                 });
+                document.getElementById('climbDetailEditDescBtn')?.addEventListener('click', () => {
+                    const ctx = this._climbDetailContext;
+                    if (!ctx) return;
+                    if (ctx.climbType === 'route') {
+                        this.hideDialog('climbDetailDialog');
+                        this.showEditRouteDialog(Number(ctx.climbId), { focusDescription: true });
+                    } else {
+                        this.hideDialog('climbDetailDialog');
+                        this.showEditBoulderDialog(Number(ctx.climbId), { focusDescription: true });
+                    }
+                });
+                document.getElementById('climbDetailClearDescBtn')?.addEventListener('click', () => {
+                    const ctx = this._climbDetailContext;
+                    if (!ctx) return;
+                    if (ctx.climbType === 'route') {
+                        void this.clearRouteDescription(Number(ctx.climbId));
+                    } else {
+                        void this.clearBoulderDescription(Number(ctx.climbId));
+                    }
+                });
                 document.getElementById('climbDetailDeleteBtn')?.addEventListener('click', () => {
                     const ctx = this._climbDetailContext;
                     if (!ctx) return;
@@ -6844,7 +7071,7 @@
 
             async deleteRoute(routeId) {
                 if (!this.requireAdmin('Удаление трассы')) return;
-                if (!confirm('Удалить эту трассу? Все связанные фотографии также будут удалены.')) {
+                if (!(await confirmDestructive('Удалить эту трассу? Все связанные фотографии также будут удалены.'))) {
                     return;
                 }
                 try {
@@ -6875,7 +7102,7 @@
 
             async deleteBoulder(boulderId) {
                 if (!this.requireAdmin('Удаление боулдера')) return;
-                if (!confirm('Удалить этот боулдеринг? Все связанные фотографии также будут удалены.')) {
+                if (!(await confirmDestructive('Удалить этот боулдеринг? Все связанные фотографии также будут удалены.'))) {
                     return;
                 }
                 try {
@@ -7559,7 +7786,6 @@
 
                 const titleEl = document.getElementById('climbDetailTitle');
                 const metaEl = document.getElementById('climbDetailMeta');
-                const descEl = document.getElementById('climbDetailDescription');
                 if (titleEl) titleEl.textContent = climb.name || '—';
                 const structLabel =
                     climb.sectorId != null ? this.getStructureLabel(climb.sectorId) : '';
@@ -7590,10 +7816,7 @@
                 if (metaEl) {
                     metaEl.innerHTML = `${kindRu} · Категория: <strong>${grade}</strong>${extraBits}${structHtml}`;
                 }
-                const descRaw = climb.description != null ? String(climb.description).trim() : '';
-                if (descEl) {
-                    descEl.textContent = descRaw || 'Описание пока не указано.';
-                }
+                this.syncClimbDetailDescriptionUi({ ...climb, climbType });
 
                 const wrap = document.getElementById('climbDetailImageWrap');
                 wrap?.classList.remove('hidden');
@@ -7673,7 +7896,6 @@
 
                 const titleEl = document.getElementById('climbDetailTitle');
                 const metaEl = document.getElementById('climbDetailMeta');
-                const descEl = document.getElementById('climbDetailDescription');
                 const wrap = document.getElementById('climbDetailImageWrap');
                 const noPh = document.getElementById('climbDetailNoPhoto');
                 const mkBtn = document.getElementById('climbDetailMarkupBtn');
@@ -7706,10 +7928,7 @@
                 if (metaEl) {
                     metaEl.innerHTML = `${kindRu} · Категория: <strong>${grade}</strong>${extraBits}${structHtml}`;
                 }
-                const descRaw = climb.description != null ? String(climb.description).trim() : '';
-                if (descEl) {
-                    descEl.textContent = descRaw || 'Описание пока не указано.';
-                }
+                this.syncClimbDetailDescriptionUi({ ...climb, climbType });
 
                 const mount = document.getElementById('climbDetailPhotoMount');
                 const photoSrc = resolvePhotoDisplayUrl(photo?.imageData);

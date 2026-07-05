@@ -854,21 +854,33 @@
                     </button>
                 </div>
                 <div class="climb-detail-admin-row admin-only hidden-by-role" id="climbDetailAdminActions">
-                    <button type="button" class="btn btn-ghost btn-small" id="climbDetailEditBtn">
-                        <i class="fas fa-edit"></i> Редактировать
-                    </button>
-                    <button type="button" class="btn btn-danger btn-small" id="climbDetailDeleteBtn">
-                        <i class="fas fa-trash"></i> Удалить
-                    </button>
+                    <div class="row-action-group">
+                        <button type="button" class="action-btn action-btn--edit" id="climbDetailEditBtn" aria-label="Редактировать трассу">
+                            <i class="fas fa-pen" aria-hidden="true"></i>
+                        </button>
+                        <button type="button" class="action-btn action-btn--delete" id="climbDetailDeleteBtn" aria-label="Удалить трассу">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                        </button>
+                    </div>
                 </div>
                 <div id="climbDetailCommunity" class="climb-community-panel hidden">
                     <div class="form-label" style="margin-bottom:6px;">Сообщество</div>
                     <div class="climb-community-stats" id="climbDetailCommunityStats">Загрузка…</div>
                     <div class="climb-community-sends" id="climbDetailCommunitySends"></div>
                 </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <div class="form-label">Описание</div>
-                    <div id="climbDetailDescription" style="min-height:72px;max-height:40vh;overflow:auto;white-space:pre-wrap;background:var(--card-bg);color:var(--text-color);padding:12px 14px;border:2px solid var(--border-color);border-radius:8px;font-size:15px;line-height:1.45;"></div>
+                <div class="form-group guide-desc-block" style="margin-bottom:0;">
+                    <div class="guide-desc-head">
+                        <div class="guide-desc-label">Описание</div>
+                        <div class="row-action-group admin-only hidden-by-role" id="climbDetailDescActions">
+                            <button type="button" class="action-btn action-btn--edit" id="climbDetailEditDescBtn" aria-label="Редактировать описание">
+                                <i class="fas fa-pen" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="action-btn action-btn--delete" id="climbDetailClearDescBtn" aria-label="Удалить описание">
+                                <i class="fas fa-times" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="climbDetailDescription" class="guide-desc-text">—</div>
                 </div>
                 <div id="climbDetailSaveRow" class="climb-detail-save-row hidden">
                     <p id="climbDetailSaveHint" class="climb-detail-save-hint hidden">В Telegram автосохранение часто отключено. Нажмите кнопку — откроется «Поделиться» или загрузка файла со схемой.</p>

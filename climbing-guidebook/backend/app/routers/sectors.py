@@ -79,7 +79,6 @@ def update_sector(
     if not sector or sector.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Sector not found")
     assert_admin(user)
-    assert_owner(user, sector.created_by)
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(sector, k, v)
     db.commit()
