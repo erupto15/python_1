@@ -3331,6 +3331,12 @@
                 document.getElementById('hideSentRoutesWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
                 document.getElementById('hideSentBouldersWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
                 document.getElementById('profileTabBtn')?.classList.toggle('hidden-by-role', !loggedIn);
+                if (!adminMode) {
+                    const activeTab = document.querySelector('.tab-content.active')?.id || '';
+                    if (activeTab === 'routes' || activeTab === 'boulders') {
+                        document.querySelector('.tab-btn[data-tab="catalog"]')?.click();
+                    }
+                }
             }
 
             /**
