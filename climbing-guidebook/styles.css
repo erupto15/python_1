@@ -2519,8 +2519,18 @@
             border: none;
         }
 
+        .map-climb-dot-hit {
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
         .map-climb-dot {
-            transform: translate(-50%, -50%);
             width: 9px;
             height: 9px;
             border-radius: 50%;

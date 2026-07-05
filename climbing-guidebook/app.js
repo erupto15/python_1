@@ -4025,7 +4025,8 @@
 
                 this.map = L.map('mapContainer', {
                     scrollWheelZoom: true,
-                    attributionControl: false
+                    attributionControl: false,
+                    tapTolerance: 20
                 }).setView([55.7558, 37.6173], 5);
                 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
                     maxZoom: 20,
@@ -4359,24 +4360,49 @@
             buildMapDotHtml(entry) {
                 const selected = this.mapEntrySelected(entry);
                 const done = entry.climbType && this.hasUserSent(entry.climbType, entry.id);
-                return `<div class="map-climb-dot${selected ? ' focused' : ''}${done ? ' done' : ''}" aria-hidden="true"></div>`;
+                const title = this.escapeHtml(entry.title || 'Точка');
+                return `<div class="map-climb-dot-hit" role="button" tabindex="-1" aria-label="${title}"><div class="map-climb-dot${selected ? ' focused' : ''}${done ? ' done' : ''}" aria-hidden="true"></div></div>`;
+            }
+
+            openMapClimbFromMarker(entry) {
+                if (!entry?.climbType) return;
+                const mapEl = this.map?.getContainer?.();
+                if (mapEl?.classList.contains('map-fs')) {
+                    mapEl.classList.remove('map-fs');
+                    document.body.classList.remove('map-fs-open');
+                    const fsBtn = mapEl.querySelector('.map-fs-btn');
+                    if (fsBtn) {
+                        fsBtn.innerHTML = '⛶';
+                        fsBtn.title = 'На весь экран';
+                    }
+                    setTimeout(() => this.map?.invalidateSize?.({ animate: false }), 60);
+                }
+                this.setMapTarget(entry);
+                void this.showClimbDetailDialog(entry.climbType, entry.id);
+            }
+
+            bindMapClimbDotMarkerClick(marker, entry) {
+                if (!marker) return;
+                marker.off('click');
+                marker.on('click', (e) => {
+                    L.DomEvent.stopPropagation(e);
+                    this.openMapClimbFromMarker(entry);
+                });
             }
 
             createMapDotMarker(entry, coord) {
                 const icon = L.divIcon({
                     className: 'map-climb-dot-marker',
                     html: this.buildMapDotHtml(entry),
-                    iconSize: [0, 0],
-                    iconAnchor: [0, 0]
+                    iconSize: [44, 44],
+                    iconAnchor: [22, 22]
                 });
-                const marker = L.marker([coord.lat, coord.lng], { icon, zIndexOffset: 500 })
-                    .addTo(this.map);
-                marker.on('click', () => {
-                    this.setMapTarget(entry);
-                    if (entry.climbType) {
-                        void this.showClimbDetailDialog(entry.climbType, entry.id);
-                    }
-                });
+                const marker = L.marker([coord.lat, coord.lng], {
+                    icon,
+                    interactive: true,
+                    zIndexOffset: 500
+                }).addTo(this.map);
+                this.bindMapClimbDotMarkerClick(marker, entry);
                 return marker;
             }
 
@@ -4499,10 +4525,11 @@
                         stored.marker.setIcon(L.divIcon({
                             className: 'map-climb-dot-marker',
                             html: this.buildMapDotHtml(stored),
-                            iconSize: [0, 0],
-                            iconAnchor: [0, 0]
+                            iconSize: [44, 44],
+                            iconAnchor: [22, 22]
                         }));
-                        stored.labelEl = stored.marker.getElement()?.querySelector('.map-climb-dot') || null;
+                        this.bindMapClimbDotMarkerClick(stored.marker, stored);
+                        stored.labelEl = stored.marker.getElement()?.querySelector('.map-climb-dot-hit') || null;
                     }
                 });
                 this.scheduleMapDeclutter();
@@ -4642,7 +4669,7 @@
                 } else {
                     stored.grade = entry.grade || '';
                     stored.marker = this.createMapDotMarker(stored, coord);
-                    stored.labelEl = stored.marker.getElement()?.querySelector('.map-climb-dot') || null;
+                    stored.labelEl = stored.marker.getElement()?.querySelector('.map-climb-dot-hit') || null;
                 }
 
                 this.mapLayers.push(stored.marker);
