@@ -1580,8 +1580,13 @@
             max-height: min(82vh, 720px);
         }
 
-        .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed) .zoom-controls {
-            display: none;
+        .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed) .photo-wrap {
+            width: 100%;
+            height: auto;
+        }
+
+        .zoom-controls--expand-only button {
+            font-size: 16px;
         }
 
         .climb-detail-photo-mount.photo-preview-with-markup img:not(.photo-wrap img) {

@@ -2089,7 +2089,10 @@
                 return { x: t.clientX, y: t.clientY };
             };
 
+            const ignoreTarget = (e) => e.target?.closest?.('.zoom-controls');
+
             const onStart = (e) => {
+                if (ignoreTarget(e)) return;
                 if (e.pointerType === 'mouse' && e.button !== 0) return;
                 const p = pointFrom(e);
                 startX = p.x;
@@ -2099,7 +2102,7 @@
             };
 
             const onMove = (e) => {
-                if (!tracking) return;
+                if (!tracking || ignoreTarget(e)) return;
                 const p = pointFrom(e);
                 if (Math.abs(p.x - startX) > tapMaxMove || Math.abs(p.y - startY) > tapMaxMove) {
                     moved = true;
@@ -2107,6 +2110,7 @@
             };
 
             const onEnd = (e) => {
+                if (ignoreTarget(e)) return;
                 if (!tracking) return;
                 tracking = false;
                 const p = pointFrom(e);
@@ -2257,24 +2261,57 @@
             });
         }
 
-        function ensurePhotoZoomControls(wrap) {
-            if (!wrap || wrap.querySelector('.zoom-controls')) return;
+        function inferPhotoControlMode(container) {
+            if (container?.classList.contains('climb-photo-viewer-mount')) return 'viewer';
+            if (container?.classList.contains('topo-framed')) return 'detail-markup';
+            if (container?.classList.contains('climb-detail-photo-mount')) return 'detail-expand';
+            return 'none';
+        }
+
+        function bindPhotoControlButton(btn, fn) {
+            const run = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                fn();
+            };
+            btn.addEventListener('click', run);
+            btn.addEventListener('pointerdown', (e) => e.stopPropagation());
+        }
+
+        function ensurePhotoZoomControls(wrap, container) {
+            if (!wrap) return;
+            const mode = inferPhotoControlMode(container);
+            if (mode === 'none') {
+                wrap.querySelector('.zoom-controls')?.remove();
+                return;
+            }
+            wrap.querySelector('.zoom-controls')?.remove();
             const zc = document.createElement('div');
-            zc.className = 'zoom-controls';
+            zc.className = mode === 'detail-expand' ? 'zoom-controls zoom-controls--expand-only' : 'zoom-controls';
             const mkBtn = (title, label, fn) => {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.title = title;
+                btn.setAttribute('aria-label', title);
                 btn.textContent = label;
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    fn();
-                });
+                bindPhotoControlButton(btn, fn);
                 return btn;
             };
-            zc.appendChild(mkBtn('Увеличить', '+', () => photoStageZoomBy(wrap, 1.4)));
-            zc.appendChild(mkBtn('Уменьшить', '−', () => photoStageZoomBy(wrap, 1 / 1.4)));
-            zc.appendChild(mkBtn('Сброс', '⤢', () => resetPhotoStageZoom(wrap)));
+            if (mode === 'detail-expand') {
+                zc.appendChild(mkBtn('На весь экран', '⤢', () => {
+                    void window.app?.openClimbPhotoViewer?.();
+                }));
+            } else {
+                zc.appendChild(mkBtn('Увеличить', '+', () => photoStageZoomBy(wrap, 1.4)));
+                zc.appendChild(mkBtn('Уменьшить', '−', () => photoStageZoomBy(wrap, 1 / 1.4)));
+                if (mode === 'viewer') {
+                    zc.appendChild(mkBtn('Сброс zoom', '⤢', () => resetPhotoStageZoom(wrap)));
+                } else {
+                    zc.appendChild(mkBtn('На весь экран', '⤢', () => {
+                        void window.app?.openClimbPhotoViewer?.();
+                    }));
+                }
+            }
             wrap.appendChild(zc);
         }
 
@@ -2304,8 +2341,8 @@
             }
             if (options.enableZoom) {
                 attachPhotoStageZoomPan(wrap);
-                ensurePhotoZoomControls(wrap);
             }
+            ensurePhotoZoomControls(wrap, container);
             return wrap;
         }
 
@@ -7027,6 +7064,9 @@
                 if (!normalized) {
                     previewItem.querySelectorAll('.photo-markup-overlay').forEach(el => el.remove());
                     this.updatePreviewMarkupBadge(previewItem, false);
+                    if (previewItem.classList.contains('climb-detail-photo-mount')) {
+                        ensurePhotoStageWrap(previewItem, { enableZoom: false });
+                    }
                     return;
                 }
 
@@ -7432,11 +7472,14 @@
                         : this.ensureClimbDetailImageElement();
                 if (!img || !mount || !photoMayHaveImage(photo)) return;
                 resetPhotoStageInContainer(mount);
-                if (which === 'viewer') {
-                    ensurePhotoStageWrap(mount, { enableZoom: true });
-                }
                 const climbType =
                     this._climbDetailContext?.climbType || photo.type || 'route';
+                const hasMarkup = !!normalizePhotoMarkup(photo.markup, climbType);
+                if (which === 'viewer') {
+                    ensurePhotoStageWrap(mount, { enableZoom: true });
+                } else {
+                    ensurePhotoStageWrap(mount, { enableZoom: hasMarkup });
+                }
                 const applyMarkup = () => {
                     this.schedulePhotoMarkupOverlay(mount, photo.markup || null, climbType);
                 };
