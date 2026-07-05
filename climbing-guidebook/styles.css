@@ -4195,7 +4195,7 @@
             background-color: transparent;
         }
 
-        .markup-dialog--view-only .markup-actions {
+        .markup-dialog--view-only .dialog-footer {
             display: none !important;
         }
 

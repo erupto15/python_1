@@ -5,12 +5,18 @@
          */
         window.__TG_DIALOG_MAIN = {
             areaDialog: {
-                text: 'Сохранить',
-                btnId: 'areaSubmitBtn'
+                resolve() {
+                    const btn = document.getElementById('areaSubmitBtn');
+                    if (!btn || btn.disabled) return null;
+                    return { text: 'Сохранить', btnId: 'areaSubmitBtn' };
+                }
             },
             sectorDialog: {
-                text: 'Сохранить',
-                btnId: 'sectorSubmitBtn'
+                resolve() {
+                    const btn = document.getElementById('sectorSubmitBtn');
+                    if (!btn || btn.disabled) return null;
+                    return { text: 'Сохранить', btnId: 'sectorSubmitBtn' };
+                }
             },
             quickRouteDialog: {
                 resolve() {
