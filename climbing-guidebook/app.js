@@ -4370,9 +4370,13 @@
                     iconAnchor: [0, 0]
                 });
                 const marker = L.marker([coord.lat, coord.lng], { icon, zIndexOffset: 500 })
-                    .addTo(this.map)
-                    .bindPopup(this.buildMapPopupHtml(entry));
-                marker.on('click', () => this.setMapTarget(entry));
+                    .addTo(this.map);
+                marker.on('click', () => {
+                    this.setMapTarget(entry);
+                    if (entry.climbType) {
+                        void this.showClimbDetailDialog(entry.climbType, entry.id);
+                    }
+                });
                 return marker;
             }
 
@@ -4752,7 +4756,9 @@
                 } else {
                     this.map.setView([entry.lat, entry.lng], Math.max(this.map.getZoom(), 17), { animate: true });
                 }
-                if (openPopup) entry.marker.openPopup();
+                if (openPopup && entry.marker?.getPopup?.()) {
+                    entry.marker.openPopup();
+                }
                 if (setTarget) this.setMapTarget(entry);
                 return entry;
             }
