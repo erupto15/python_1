@@ -4024,18 +4024,58 @@
                 if (!mapContainer || this.map) return;
 
                 this.map = L.map('mapContainer', {
+                    scrollWheelZoom: true,
                     attributionControl: false
                 }).setView([55.7558, 37.6173], 5);
-                L.tileLayer('https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-                    subdomains: ['0', '1', '2', '3'],
-                    attribution: '',
-                    maxZoom: 21
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                    maxZoom: 20,
+                    subdomains: 'abcd'
                 }).addTo(this.map);
+
+                this.map.on('zoomend', () => {
+                    this.syncMapZoomClass();
+                    this.scheduleMapDeclutter();
+                });
+                this.map.on('moveend', () => this.scheduleMapDeclutter());
+                this.attachMapFullscreenControl();
 
                 this.updateMapMarkers();
                 this.updateMapNavigationLine();
+                this.syncMapZoomClass();
                 requestAnimationFrame(() => this.map.invalidateSize({ animate: false }));
                 setTimeout(() => this.map.invalidateSize({ animate: false }), 120);
+            }
+
+            attachMapFullscreenControl() {
+                if (!this.map || this._mapFullscreenAttached) return;
+                this._mapFullscreenAttached = true;
+                const Ctrl = L.Control.extend({
+                    options: { position: 'topright' },
+                    onAdd: () => {
+                        const btn = L.DomUtil.create('button', 'map-fs-btn');
+                        btn.type = 'button';
+                        btn.title = 'На весь экран';
+                        btn.innerHTML = '⛶';
+                        L.DomEvent.disableClickPropagation(btn);
+                        L.DomEvent.on(btn, 'click', (e) => {
+                            L.DomEvent.preventDefault(e);
+                            const container = this.map.getContainer();
+                            const on = container.classList.toggle('map-fs');
+                            document.body.classList.toggle('map-fs-open', on);
+                            btn.innerHTML = on ? '✕' : '⛶';
+                            btn.title = on ? 'Свернуть' : 'На весь экран';
+                            setTimeout(() => {
+                                try {
+                                    this.map.invalidateSize({ animate: false });
+                                } catch (_) {
+                                    /* ignore */
+                                }
+                            }, 60);
+                        });
+                        return btn;
+                    }
+                });
+                this.map.addControl(new Ctrl());
             }
 
             /** Вкладка с display:none даёт контейнеру 0×0 — пересчитать размер после показа */
@@ -4047,6 +4087,8 @@
                 setTimeout(fix, 100);
                 setTimeout(() => {
                     fix();
+                    this.syncMapZoomClass();
+                    this.scheduleMapDeclutter();
                 }, 280);
             }
 
@@ -4160,22 +4202,266 @@
                 return true;
             }
 
+            mapTierFill(tier) {
+                const fills = { easy: '#22c55e', mid: '#facc15', hard: '#ef4444' };
+                return fills[tier] || fills.mid;
+            }
+
+            mapGradeTier(grade) {
+                const tone = this._gradeChipToneByValue(grade);
+                return tone === 'all' ? 'mid' : tone;
+            }
+
+            mapDominantTier(items, gradeKey = 'grade') {
+                const counts = { easy: 0, mid: 0, hard: 0 };
+                (items || []).forEach((item) => {
+                    const tier = this.mapGradeTier(item?.[gradeKey]);
+                    if (counts[tier] != null) counts[tier] += 1;
+                });
+                if (counts.hard > 0) return 'hard';
+                if (counts.mid >= counts.easy && counts.mid > 0) return 'mid';
+                if (counts.easy > 0) return 'easy';
+                return 'mid';
+            }
+
+            mapTierForSector(sectorId) {
+                const routes = APP_BOULDER_ONLY ? [] : getRoutes().filter((r) => Number(r.sectorId) === Number(sectorId));
+                const boulders = getBoulders().filter((b) => Number(b.sectorId) === Number(sectorId));
+                return this.mapDominantTier([...routes, ...boulders]);
+            }
+
+            mapTierForArea(areaId) {
+                const sectors = getSectors().filter((s) => Number(s.areaId) === Number(areaId));
+                const tiers = sectors.map((s) => this.mapTierForSector(s.id));
+                if (tiers.includes('hard')) return 'hard';
+                if (tiers.includes('mid')) return 'mid';
+                if (tiers.includes('easy')) return 'easy';
+                return 'mid';
+            }
+
+            sectorMapPoints(sectorId) {
+                const points = [];
+                if (!APP_BOULDER_ONLY) {
+                    getRoutes().forEach((r) => {
+                        if (Number(r.sectorId) !== Number(sectorId)) return;
+                        const c = this.validMapCoord(r.latitude, r.longitude);
+                        if (c) points.push(c);
+                    });
+                }
+                getBoulders().forEach((b) => {
+                    if (Number(b.sectorId) !== Number(sectorId)) return;
+                    const c = this.validMapCoord(b.latitude, b.longitude);
+                    if (c) points.push(c);
+                });
+                return points;
+            }
+
+            areaMapPoints(areaId) {
+                const points = [];
+                getSectors()
+                    .filter((s) => Number(s.areaId) === Number(areaId))
+                    .forEach((s) => points.push(...this.sectorMapPoints(s.id)));
+                const area = getAreas().find((a) => Number(a.id) === Number(areaId));
+                const explicit = this.validMapCoord(area?.latitude, area?.longitude);
+                if (explicit) points.push(explicit);
+                return points;
+            }
+
+            mapPointPadSquare(point, pad = 0.00003) {
+                const { lat, lng } = point;
+                return [
+                    [lat - pad, lng - pad],
+                    [lat - pad, lng + pad],
+                    [lat + pad, lng + pad],
+                    [lat + pad, lng - pad]
+                ];
+            }
+
+            mapCoordVisualPad(points) {
+                if (!points.length) return 0.00003;
+                if (points.length === 1) return 0.00003;
+                const lats = points.map((p) => p.lat);
+                const lngs = points.map((p) => p.lng);
+                const latSpan = Math.max(...lats) - Math.min(...lats);
+                const lngSpan = Math.max(...lngs) - Math.min(...lngs);
+                const span = Math.max(latSpan, lngSpan, 0.00003);
+                return Math.min(Math.max(span * 0.04, 0.00002), 0.00008);
+            }
+
+            mapConvexHull(points) {
+                if (!points.length) return null;
+                if (points.length === 1) return this.mapPointPadSquare(points[0]);
+                const sorted = points
+                    .map((p) => ({ x: p.lng, y: p.lat }))
+                    .sort((a, b) => (a.x - b.x) || (a.y - b.y));
+                const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+                const lower = [];
+                for (const p of sorted) {
+                    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+                    lower.push(p);
+                }
+                const upper = [];
+                for (let i = sorted.length - 1; i >= 0; i -= 1) {
+                    const p = sorted[i];
+                    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+                    upper.push(p);
+                }
+                upper.pop();
+                lower.pop();
+                const hull = lower.concat(upper);
+                if (hull.length < 3) {
+                    const lats = points.map((p) => p.lat);
+                    const lngs = points.map((p) => p.lng);
+                    const pad = this.mapCoordVisualPad(points);
+                    return [
+                        [Math.min(...lats) - pad, Math.min(...lngs) - pad],
+                        [Math.min(...lats) - pad, Math.max(...lngs) + pad],
+                        [Math.max(...lats) + pad, Math.max(...lngs) + pad],
+                        [Math.max(...lats) + pad, Math.min(...lngs) - pad]
+                    ];
+                }
+                return hull.map((p) => [p.y, p.x]);
+            }
+
+            mapExpandPolygon(latlngs, factor = 1) {
+                if (!latlngs?.length || factor === 1) return latlngs;
+                const cLat = latlngs.reduce((sum, p) => sum + p[0], 0) / latlngs.length;
+                const cLng = latlngs.reduce((sum, p) => sum + p[1], 0) / latlngs.length;
+                return latlngs.map(([lat, lng]) => [
+                    cLat + (lat - cLat) * factor,
+                    cLng + (lng - cLng) * factor
+                ]);
+            }
+
+            mapPolygonForPoints(points) {
+                if (!points.length) return null;
+                return this.mapConvexHull(points);
+            }
+
+            mapPolygonStyle(tier, selected = false) {
+                const fill = this.mapTierFill(tier);
+                const accent = '#ff6b35';
+                return {
+                    color: selected ? accent : fill,
+                    fillColor: selected ? accent : fill,
+                    weight: selected ? 4 : 2,
+                    opacity: selected ? 1 : 0.9,
+                    fillOpacity: selected ? 0.32 : 0.18
+                };
+            }
+
             mapEntrySelected(entry) {
                 return this.mapTarget
                     && this.mapTarget.kind === entry.kind
                     && String(this.mapTarget.id) === String(entry.id);
             }
 
-            buildMapClimberPinHtml(entry) {
-                const selected = this.mapEntrySelected(entry);
-                const sizeClass = entry.kind === 'area' ? 'map-climber-pin--area' : 'map-climber-pin--sector';
-                return `<div class="map-climber-pin ${sizeClass}${selected ? ' focused' : ''}" aria-hidden="true"><span class="map-climber-pin__shape"><i class="fas fa-person-hiking" aria-hidden="true"></i></span></div>`;
+            buildMapParentLabelHtml(title, sub = '', selected = false) {
+                const subHtml = sub ? ` <span>${this.escapeHtml(sub)}</span>` : '';
+                return `<div class="parent-label${selected ? ' selected' : ''}">${this.escapeHtml(title)}${subHtml}</div>`;
             }
 
-            buildMapBoulderDotHtml(entry) {
+            buildMapBadgePinHtml(entry) {
                 const selected = this.mapEntrySelected(entry);
                 const done = entry.climbType && this.hasUserSent(entry.climbType, entry.id);
-                return `<div class="map-boulder-dot${selected ? ' focused' : ''}${done ? ' done' : ''}" aria-hidden="true"></div>`;
+                const shortTitle = String(entry.title || '').length > 16
+                    ? `${String(entry.title).slice(0, 14).trim()}…`
+                    : String(entry.title || '—');
+                const grade = entry.grade || entry.meta?.split('·').pop()?.trim() || '';
+                const gradePart = grade ? ` <span>·${this.escapeHtml(grade)}</span>` : '';
+                const tickPart = done ? '<span class="ticks-tag">✓</span>' : '';
+                const classes = ['badge-pin', 'child', done ? 'done' : '', selected ? 'focused' : ''].filter(Boolean).join(' ');
+                return `
+                    <div class="${classes}">
+                        <div class="label">${this.escapeHtml(shortTitle)}${gradePart}${tickPart}</div>
+                        <div class="pointer"></div>
+                        <div class="dot"></div>
+                    </div>
+                `;
+            }
+
+            createMapParentLabelMarker(entry, coord, html) {
+                const icon = L.divIcon({
+                    className: 'parent-label-icon',
+                    html,
+                    iconSize: [0, 0],
+                    iconAnchor: [0, 0]
+                });
+                const marker = L.marker([coord.lat, coord.lng], { icon, zIndexOffset: 400 })
+                    .addTo(this.map)
+                    .bindPopup(this.buildMapPopupHtml(entry));
+                marker.on('click', () => this.setMapTarget(entry));
+                return marker;
+            }
+
+            createMapBadgeMarker(entry, coord) {
+                const icon = L.divIcon({
+                    className: 'sector-badge',
+                    html: this.buildMapBadgePinHtml(entry),
+                    iconSize: [0, 0],
+                    iconAnchor: [0, 0]
+                });
+                const marker = L.marker([coord.lat, coord.lng], { icon, zIndexOffset: 500 })
+                    .addTo(this.map)
+                    .bindPopup(this.buildMapPopupHtml(entry));
+                marker.on('click', () => this.setMapTarget(entry));
+                return marker;
+            }
+
+            mapDeclutterPriority(entry) {
+                if (this.mapEntrySelected(entry)) return 1_000_000;
+                if (entry.kind === 'area') {
+                    return 1000 + Number(getSectors().filter((s) => Number(s.areaId) === Number(entry.id)).length || 0);
+                }
+                if (entry.kind === 'sector') {
+                    const routes = APP_BOULDER_ONLY ? 0 : getRoutes().filter((r) => Number(r.sectorId) === Number(entry.id)).length;
+                    const boulders = getBoulders().filter((b) => Number(b.sectorId) === Number(entry.id)).length;
+                    return 500 + routes + boulders;
+                }
+                return 100;
+            }
+
+            syncMapZoomClass() {
+                if (!this.map) return;
+                const container = this.map.getContainer();
+                const z = this.map.getZoom();
+                container.classList.remove('z-low', 'z-mid', 'z-hi');
+                if (z <= 10) container.classList.add('z-low');
+                else if (z <= 14) container.classList.add('z-mid');
+                else container.classList.add('z-hi');
+            }
+
+            scheduleMapDeclutter() {
+                if (!this.map) return;
+                if (this._mapDeclutterRaf != null) cancelAnimationFrame(this._mapDeclutterRaf);
+                this._mapDeclutterRaf = requestAnimationFrame(() => {
+                    this._mapDeclutterRaf = null;
+                    this.declutterMapLabels();
+                });
+            }
+
+            declutterMapLabels() {
+                if (!this.map || this.map.getZoom() <= 10) return;
+                const entries = [...this.mapMarkerIndex.values()]
+                    .filter((entry) => entry.labelEl)
+                    .sort((a, b) => this.mapDeclutterPriority(b) - this.mapDeclutterPriority(a));
+                const kept = [];
+                entries.forEach((entry) => {
+                    const el = entry.labelEl;
+                    if (!el) return;
+                    el.classList.remove('declutter-hidden');
+                    if (this.mapEntrySelected(entry)) return;
+                    const rect = el.getBoundingClientRect();
+                    if (!rect.width || !rect.height) return;
+                    const overlaps = kept.some((k) => !(
+                        rect.right < k.left
+                        || rect.left > k.right
+                        || rect.bottom < k.top
+                        || rect.top > k.bottom
+                    ));
+                    if (overlaps) el.classList.add('declutter-hidden');
+                    else kept.push(rect);
+                });
             }
 
             buildMapPopupHtml(entry) {
@@ -4209,27 +4495,34 @@
 
             refreshMapMarkerStyles() {
                 this.mapMarkerIndex.forEach((stored) => {
-                    if (!stored.marker) return;
+                    const selected = this.mapEntrySelected(stored);
+                    if (stored.polygon) {
+                        stored.polygon.setStyle(this.mapPolygonStyle(stored.tier, selected));
+                    }
                     if (stored.kind === 'area' || stored.kind === 'sector') {
-                        stored.marker.setIcon(L.divIcon({
-                            className: 'map-climber-marker',
-                            html: this.buildMapClimberPinHtml(stored),
+                        stored.marker?.setIcon(L.divIcon({
+                            className: 'parent-label-icon',
+                            html: this.buildMapParentLabelHtml(stored.title, stored.labelSub || '', selected),
                             iconSize: [0, 0],
                             iconAnchor: [0, 0]
                         }));
-                    } else if (stored.kind === 'boulder') {
+                        stored.labelEl = stored.marker?.getElement()?.querySelector('.parent-label') || null;
+                    } else if (stored.marker) {
                         stored.marker.setIcon(L.divIcon({
-                            className: 'map-boulder-marker',
-                            html: this.buildMapBoulderDotHtml(stored),
+                            className: 'sector-badge',
+                            html: this.buildMapBadgePinHtml(stored),
                             iconSize: [0, 0],
                             iconAnchor: [0, 0]
                         }));
+                        stored.labelEl = stored.marker.getElement()?.querySelector('.badge-pin') || null;
                     }
                 });
+                this.scheduleMapDeclutter();
             }
 
             extendMapBounds(bounds, entry) {
-                if (entry.lat != null && entry.lng != null) bounds.extend([entry.lat, entry.lng]);
+                if (entry.polygon) bounds.extend(entry.polygon.getBounds());
+                else if (entry.lat != null && entry.lng != null) bounds.extend([entry.lat, entry.lng]);
             }
 
             mapVisibleBounds() {
@@ -4270,6 +4563,7 @@
                         id: area.id,
                         title: area.name,
                         meta: `${sectorsCount} секторов`,
+                        labelSub: String(sectorsCount),
                         lat: c.lat,
                         lng: c.lng,
                         catalog: true,
@@ -4289,6 +4583,7 @@
                         id: sector.id,
                         title: sector.name,
                         meta: `${area?.name || 'Район'} · ${routesCount} трасс · ${bouldersCount} боулдеров`,
+                        labelSub: `${routesCount + bouldersCount}`,
                         lat: c.lat,
                         lng: c.lng,
                         catalog: true,
@@ -4323,35 +4618,47 @@
                 const coord = this.validMapCoord(entry.lat, entry.lng);
                 if (!coord) return;
 
-                const stored = { ...entry, lat: coord.lat, lng: coord.lng, marker: null };
+                const selected = this.mapEntrySelected(entry);
+                const stored = {
+                    ...entry,
+                    lat: coord.lat,
+                    lng: coord.lng,
+                    polygon: null,
+                    tier: entry.tier || 'mid',
+                    labelSub: entry.labelSub || '',
+                    labelEl: null,
+                    marker: null
+                };
                 const popupHtml = this.buildMapPopupHtml(entry);
-                let icon;
+                const bindLayer = (layer) => {
+                    layer.bindPopup(popupHtml);
+                    layer.on('click', () => this.setMapTarget(stored));
+                    this.mapLayers.push(layer);
+                };
+
                 if (entry.kind === 'area' || entry.kind === 'sector') {
-                    icon = L.divIcon({
-                        className: 'map-climber-marker',
-                        html: this.buildMapClimberPinHtml(stored),
-                        iconSize: [0, 0],
-                        iconAnchor: [0, 0]
-                    });
-                } else if (entry.kind === 'boulder') {
-                    icon = L.divIcon({
-                        className: 'map-boulder-marker',
-                        html: this.buildMapBoulderDotHtml(stored),
-                        iconSize: [0, 0],
-                        iconAnchor: [0, 0]
-                    });
+                    const points = entry.kind === 'area'
+                        ? this.areaMapPoints(entry.id)
+                        : this.sectorMapPoints(entry.id);
+                    const polygonLatLngs = this.mapPolygonForPoints(points.length ? points : [coord]);
+                    stored.tier = entry.kind === 'area'
+                        ? this.mapTierForArea(entry.id)
+                        : this.mapTierForSector(entry.id);
+                    if (polygonLatLngs) {
+                        stored.polygon = L.polygon(polygonLatLngs, this.mapPolygonStyle(stored.tier, selected)).addTo(this.map);
+                        bindLayer(stored.polygon);
+                    }
+                    const labelHtml = this.buildMapParentLabelHtml(entry.title, stored.labelSub, selected);
+                    stored.marker = this.createMapParentLabelMarker(stored, coord, labelHtml);
+                    stored.labelEl = stored.marker.getElement()?.querySelector('.parent-label') || null;
+                    this.mapLayers.push(stored.marker);
                 } else {
-                    return;
+                    stored.grade = entry.grade || '';
+                    stored.marker = this.createMapBadgeMarker(stored, coord);
+                    stored.labelEl = stored.marker.getElement()?.querySelector('.badge-pin') || null;
+                    this.mapLayers.push(stored.marker);
                 }
 
-                stored.marker = L.marker([coord.lat, coord.lng], {
-                    icon,
-                    zIndexOffset: entry.kind === 'boulder' ? 500 : 400
-                })
-                    .addTo(this.map)
-                    .bindPopup(popupHtml);
-                stored.marker.on('click', () => this.setMapTarget(stored));
-                this.mapLayers.push(stored.marker);
                 this.mapMarkerIndex.set(this.mapKey(entry.kind, entry.id), stored);
             }
 
@@ -4388,6 +4695,8 @@
                         this._mapFitDone = true;
                     }
                 }
+                this.syncMapZoomClass();
+                this.scheduleMapDeclutter();
             }
 
             syncMapFilterButtons() {
