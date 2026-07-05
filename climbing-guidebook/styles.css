@@ -1021,13 +1021,19 @@
             min-height: min(42vh, 300px);
         }
 
-        .markup-dialog-stage.topo-framed img {
+        .markup-dialog-stage .photo-wrap {
+            width: 100%;
+            height: 100%;
+        }
+
+        .markup-dialog-stage.topo-framed img,
+        .markup-dialog-stage .photo-wrap img {
             width: 100%;
             height: 100%;
             max-width: none;
             max-height: none;
             object-fit: contain;
-            object-position: center 65%;
+            object-position: center center;
         }
 
         .markup-dialog-stage.markup-draw-active {
@@ -1458,15 +1464,78 @@
 
         .photo-markup-overlay {
             position: absolute;
-            left: 0;
-            top: 0;
-            width: 0;
-            height: 0;
-            overflow: hidden;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: visible;
             pointer-events: none;
             z-index: 3;
             border-radius: inherit;
             background: transparent;
+        }
+
+        .photo-markup-overlay .topo-line {
+            filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.85)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+        }
+
+        .photo-markup-overlay .topo-hold {
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+        }
+
+        .photo-wrap {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            background: #0d0d0d;
+            border-radius: inherit;
+        }
+
+        .photo-wrap .stage {
+            position: absolute;
+            inset: 0;
+            transform-origin: 0 0;
+            will-change: transform;
+        }
+
+        .photo-wrap img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: center center;
+            pointer-events: none;
+        }
+
+        .zoom-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 8;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .zoom-controls button {
+            width: 34px;
+            height: 34px;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.55);
+            color: #fff;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .zoom-controls button:hover {
+            background: rgba(0, 0, 0, 0.72);
+            border-color: var(--primary-color);
         }
 
         .photo-preview-with-markup .photo-preview-actions {
@@ -1481,9 +1550,34 @@
             max-height: none;
             border-width: 0;
             overflow: hidden;
+            position: relative;
         }
 
-        .climb-detail-photo-mount.photo-preview-with-markup img {
+        .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed) .photo-wrap {
+            position: relative;
+            height: auto;
+            overflow: visible;
+            touch-action: pan-y;
+        }
+
+        .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed) .photo-wrap .stage {
+            position: relative;
+            inset: auto;
+            transform: none !important;
+        }
+
+        .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed) .photo-wrap img {
+            width: auto;
+            max-width: 100%;
+            height: auto !important;
+            max-height: min(82vh, 720px);
+        }
+
+        .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed) .zoom-controls {
+            display: none;
+        }
+
+        .climb-detail-photo-mount.photo-preview-with-markup img:not(.photo-wrap img) {
             width: auto;
             max-width: 100%;
             height: auto !important;
@@ -1501,14 +1595,15 @@
             max-height: min(56vh, 480px);
         }
 
-        .climb-detail-photo-mount.topo-framed img,
-        .climb-photo-viewer-mount.topo-framed img {
-            width: 100%;
+        .climb-detail-photo-mount.topo-framed .photo-wrap,
+        .climb-photo-viewer-mount .photo-wrap {
             height: 100%;
+        }
+
+        .climb-detail-photo-mount.topo-framed .photo-wrap img,
+        .climb-photo-viewer-mount .photo-wrap img {
             max-width: none;
             max-height: none;
-            object-fit: contain;
-            object-position: center 65%;
         }
 
         .climb-photo-viewer-mount.topo-framed {
@@ -1530,11 +1625,17 @@
             width: 100%;
             min-height: min(48vh, 380px);
             display: flex;
-            align-items: center;
-            justify-content: center;
-            touch-action: pan-y;
+            align-items: stretch;
+            justify-content: stretch;
+            touch-action: none;
             cursor: zoom-in;
             -webkit-tap-highlight-color: transparent;
+        }
+
+        .climb-detail-photo-mount.climb-detail-photo-swipe:not(.topo-framed) {
+            touch-action: pan-y;
+            align-items: center;
+            justify-content: center;
         }
 
         .climb-detail-photo-counter {
@@ -1616,10 +1717,10 @@
             flex: 1;
             min-height: 0;
             display: flex;
-            align-items: center;
-            justify-content: center;
+            align-items: stretch;
+            justify-content: stretch;
             padding: 8px 0;
-            touch-action: pan-y;
+            touch-action: none;
         }
 
         .climb-photo-viewer-mount {
@@ -1629,11 +1730,15 @@
             min-height: min(70vh, 520px);
             border: 0;
             display: flex;
-            align-items: center;
-            justify-content: center;
+            align-items: stretch;
+            justify-content: stretch;
         }
 
-        .climb-photo-viewer-mount img {
+        .climb-photo-viewer-mount .photo-wrap {
+            height: 100%;
+        }
+
+        .climb-photo-viewer-mount img:not(.photo-wrap img) {
             width: auto;
             max-width: 100%;
             height: auto;

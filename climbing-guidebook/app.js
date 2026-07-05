@@ -2116,6 +2116,7 @@
                     handlers.onTap?.();
                     return;
                 }
+                if (handlers.canSwipe && !handlers.canSwipe()) return;
                 if (Math.abs(dx) < threshold || Math.abs(dx) < Math.abs(dy) * 1.15) return;
                 if (dx < 0) handlers.onSwipeLeft?.();
                 else handlers.onSwipeRight?.();
@@ -2130,6 +2131,187 @@
             element.addEventListener('pointercancel', () => {
                 tracking = false;
             });
+        }
+
+        function getPhotoZoomState(wrap) {
+            if (!wrap._zoom) wrap._zoom = { scale: 1, tx: 0, ty: 0 };
+            return wrap._zoom;
+        }
+
+        function applyPhotoStageTransform(wrap) {
+            const stage = wrap?.querySelector('.stage');
+            if (!stage) return;
+            const z = getPhotoZoomState(wrap);
+            stage.style.transform = `translate(${z.tx}px, ${z.ty}px) scale(${z.scale})`;
+        }
+
+        function clampPhotoStagePan(wrap) {
+            const z = getPhotoZoomState(wrap);
+            const W = Math.max(1, wrap.clientWidth || 1);
+            const H = Math.max(1, wrap.clientHeight || 1);
+            const sw = W * z.scale;
+            const sh = H * z.scale;
+            const minX = Math.min(0, W - sw);
+            const minY = Math.min(0, H - sh);
+            z.tx = Math.max(minX, Math.min(0, z.tx));
+            z.ty = Math.max(minY, Math.min(0, z.ty));
+        }
+
+        function resetPhotoStageZoom(wrap) {
+            if (!wrap) return;
+            const z = getPhotoZoomState(wrap);
+            z.scale = 1;
+            z.tx = 0;
+            z.ty = 0;
+            applyPhotoStageTransform(wrap);
+        }
+
+        function photoStageZoomBy(wrap, factor, cx, cy) {
+            const z = getPhotoZoomState(wrap);
+            const newScale = Math.max(1, Math.min(8, z.scale * factor));
+            if (newScale === z.scale) return;
+            const rect = wrap.getBoundingClientRect();
+            const localCx = cx == null ? rect.width / 2 : cx;
+            const localCy = cy == null ? rect.height / 2 : cy;
+            const ratio = newScale / z.scale;
+            z.tx = localCx - (localCx - z.tx) * ratio;
+            z.ty = localCy - (localCy - z.ty) * ratio;
+            z.scale = newScale;
+            clampPhotoStagePan(wrap);
+            applyPhotoStageTransform(wrap);
+        }
+
+        function isPhotoStageZoomed(wrap) {
+            return getPhotoZoomState(wrap).scale > 1.05;
+        }
+
+        function attachPhotoStageZoomPan(wrap) {
+            if (!wrap || wrap._photoZoomPanBound) return;
+            wrap._photoZoomPanBound = true;
+
+            wrap.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const rect = wrap.getBoundingClientRect();
+                photoStageZoomBy(
+                    wrap,
+                    e.deltaY < 0 ? 1.2 : 1 / 1.2,
+                    e.clientX - rect.left,
+                    e.clientY - rect.top
+                );
+            }, { passive: false });
+
+            let dragging = false;
+            let sx = 0;
+            let sy = 0;
+            let btx = 0;
+            let bty = 0;
+            let didMove = false;
+            let pendingPid = null;
+
+            wrap.addEventListener('pointerdown', (e) => {
+                if (e.pointerType === 'mouse' && e.button !== 0) return;
+                const z = getPhotoZoomState(wrap);
+                if (z.scale <= 1) return;
+                dragging = true;
+                didMove = false;
+                pendingPid = e.pointerId;
+                sx = e.clientX;
+                sy = e.clientY;
+                btx = z.tx;
+                bty = z.ty;
+            });
+
+            wrap.addEventListener('pointermove', (e) => {
+                if (!dragging) return;
+                if (!didMove && (Math.abs(e.clientX - sx) > 3 || Math.abs(e.clientY - sy) > 3)) {
+                    didMove = true;
+                    wrap.setPointerCapture(pendingPid);
+                    wrap.style.cursor = 'grabbing';
+                }
+                if (!didMove) return;
+                const z = getPhotoZoomState(wrap);
+                z.tx = btx + (e.clientX - sx);
+                z.ty = bty + (e.clientY - sy);
+                clampPhotoStagePan(wrap);
+                applyPhotoStageTransform(wrap);
+            });
+
+            const endDrag = (e) => {
+                if (!dragging) return;
+                dragging = false;
+                pendingPid = null;
+                wrap.style.cursor = '';
+                if (didMove) e.stopPropagation();
+            };
+            wrap.addEventListener('pointerup', endDrag);
+            wrap.addEventListener('pointercancel', endDrag);
+
+            wrap.addEventListener('dblclick', (e) => {
+                const z = getPhotoZoomState(wrap);
+                if (z.scale > 1.05) {
+                    resetPhotoStageZoom(wrap);
+                    return;
+                }
+                const rect = wrap.getBoundingClientRect();
+                photoStageZoomBy(wrap, 2.5, e.clientX - rect.left, e.clientY - rect.top);
+            });
+        }
+
+        function ensurePhotoZoomControls(wrap) {
+            if (!wrap || wrap.querySelector('.zoom-controls')) return;
+            const zc = document.createElement('div');
+            zc.className = 'zoom-controls';
+            const mkBtn = (title, label, fn) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.title = title;
+                btn.textContent = label;
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    fn();
+                });
+                return btn;
+            };
+            zc.appendChild(mkBtn('Увеличить', '+', () => photoStageZoomBy(wrap, 1.4)));
+            zc.appendChild(mkBtn('Уменьшить', '−', () => photoStageZoomBy(wrap, 1 / 1.4)));
+            zc.appendChild(mkBtn('Сброс', '⤢', () => resetPhotoStageZoom(wrap)));
+            wrap.appendChild(zc);
+        }
+
+        function findPhotoStageWrap(container) {
+            return container?.querySelector(':scope > .photo-wrap') || null;
+        }
+
+        /** V8ROCK-style: .photo-wrap > .stage (img + svg zoom/pan together). */
+        function ensurePhotoStageWrap(container, options = {}) {
+            if (!container) return null;
+            let wrap = findPhotoStageWrap(container);
+            if (!wrap) {
+                wrap = document.createElement('div');
+                wrap.className = 'photo-wrap';
+                const stage = document.createElement('div');
+                stage.className = 'stage';
+                [...container.childNodes].forEach((node) => {
+                    if (node.nodeType !== 1) return;
+                    if (node.classList.contains('photo-preview-actions')) return;
+                    if (node.classList.contains('photo-wrap')) return;
+                    stage.appendChild(node);
+                });
+                wrap.appendChild(stage);
+                const actions = container.querySelector('.photo-preview-actions');
+                if (actions) container.insertBefore(wrap, actions);
+                else container.appendChild(wrap);
+            }
+            if (options.enableZoom) {
+                attachPhotoStageZoomPan(wrap);
+                ensurePhotoZoomControls(wrap);
+            }
+            return wrap;
+        }
+
+        function resetPhotoStageInContainer(container) {
+            const wrap = findPhotoStageWrap(container);
+            if (wrap) resetPhotoStageZoom(wrap);
         }
 
         async function fetchPhotosBatched(routes, boulders) {
@@ -2281,17 +2463,20 @@
 
         /** Геометрия реально видимой области фото с учетом CSS object-fit. */
         function getMarkupStageGeometry(container) {
-            const img = container?.querySelector('img');
+            const wrap = findPhotoStageWrap(container);
+            const geomRoot = wrap || container;
+            const img = geomRoot?.querySelector('img');
+            const geomRootRect = geomRoot?.getBoundingClientRect?.();
             const containerRect = container?.getBoundingClientRect?.();
-            const cw = Math.max(1, containerRect?.width || container?.clientWidth || container?.offsetWidth || 1);
-            const ch = Math.max(1, containerRect?.height || container?.clientHeight || container?.offsetHeight || 1);
+            const cw = Math.max(1, geomRootRect?.width || geomRoot?.clientWidth || geomRoot?.offsetWidth || 1);
+            const ch = Math.max(1, geomRootRect?.height || geomRoot?.clientHeight || geomRoot?.offsetHeight || 1);
             const base = { cw, ch, left: 0, top: 0, iw: cw, ih: ch, ready: false };
             if (!img || !img.naturalWidth || !img.naturalHeight) {
                 return base;
             }
             const imageRect = img.getBoundingClientRect();
-            const boxW = Math.max(1, imageRect.width || img.clientWidth || img.offsetWidth || cw);
-            const boxH = Math.max(1, imageRect.height || img.clientHeight || img.offsetHeight || ch);
+            const boxW = Math.max(1, wrap ? cw : (imageRect.width || img.clientWidth || img.offsetWidth || cw));
+            const boxH = Math.max(1, wrap ? ch : (imageRect.height || img.clientHeight || img.offsetHeight || ch));
             const imgStyle = window.getComputedStyle(img);
             const fit = imgStyle.objectFit || 'fill';
             const scale = fit === 'cover'
@@ -2302,11 +2487,17 @@
             const pos = parseObjectPositionFraction(imgStyle);
             const offsetX = (boxW - iw) * pos.x;
             const offsetY = (boxH - ih) * pos.y;
+            const originLeft = wrap
+                ? (geomRootRect.left - (containerRect?.left || 0)) + offsetX
+                : (imageRect.left - (containerRect?.left || 0)) + offsetX;
+            const originTop = wrap
+                ? (geomRootRect.top - (containerRect?.top || 0)) + offsetY
+                : (imageRect.top - (containerRect?.top || 0)) + offsetY;
             return {
-                cw,
-                ch,
-                left: (imageRect.left - (containerRect?.left || 0)) + offsetX,
-                top: (imageRect.top - (containerRect?.top || 0)) + offsetY,
+                cw: containerRect?.width || container?.clientWidth || cw,
+                ch: containerRect?.height || container?.clientHeight || ch,
+                left: originLeft,
+                top: originTop,
                 iw,
                 ih,
                 ready: iw >= 8 && ih >= 8
@@ -2460,10 +2651,12 @@
                 .filter(Boolean);
             if (pairs.length < 2) return;
             const pl = document.createElementNS(NS, 'polyline');
+            pl.setAttribute('class', 'topo-line');
             pl.setAttribute('points', pairs.join(' '));
             pl.setAttribute('fill', 'none');
             pl.setAttribute('stroke', TOPO_MARKUP.lineColor);
-            pl.setAttribute('stroke-width', String(topoStrokeNorm(geom, TOPO_MARKUP.lineStrokePx)));
+            pl.setAttribute('stroke-width', String(TOPO_MARKUP.lineStrokePx));
+            pl.setAttribute('vector-effect', 'non-scaling-stroke');
             pl.setAttribute('stroke-linecap', 'round');
             pl.setAttribute('stroke-linejoin', 'round');
             svg.appendChild(pl);
@@ -2475,23 +2668,25 @@
             const ny = Math.max(0, Math.min(1, Number(hold.y)));
             if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
             const r = topoHoldRadiusNorm(geom);
-            const sw = topoStrokeNorm(geom, TOPO_MARKUP.holdStrokePx);
             const c = document.createElementNS(NS, 'circle');
+            c.setAttribute('class', 'topo-hold');
             c.setAttribute('cx', String(nx));
             c.setAttribute('cy', String(ny));
             c.setAttribute('r', String(r));
             c.setAttribute('fill', TOPO_MARKUP.holdFill);
             c.setAttribute('stroke', TOPO_MARKUP.holdStroke);
-            c.setAttribute('stroke-width', String(sw));
+            c.setAttribute('stroke-width', String(TOPO_MARKUP.holdStrokePx));
+            c.setAttribute('vector-effect', 'non-scaling-stroke');
             svg.appendChild(c);
 
             const label = document.createElementNS(NS, 'text');
+            label.setAttribute('class', 'topo-hold-num');
             label.setAttribute('x', String(nx));
             label.setAttribute('y', String(ny));
             label.setAttribute('text-anchor', 'middle');
             label.setAttribute('dominant-baseline', 'central');
             label.setAttribute('fill', TOPO_MARKUP.holdNumberColor);
-            label.setAttribute('font-size', String(topoStrokeNorm(geom, TOPO_MARKUP.holdRadiusPx * 0.88)));
+            label.setAttribute('font-size', String(TOPO_MARKUP.holdRadiusPx * 0.88));
             label.setAttribute('font-weight', '700');
             label.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, sans-serif');
             label.setAttribute('pointer-events', 'none');
@@ -6436,7 +6631,7 @@
                 const svg = document.createElementNS(NS, 'svg');
                 svg.setAttribute('class', 'photo-markup-overlay');
                 svg.setAttribute('viewBox', '0 0 1 1');
-                svg.setAttribute('preserveAspectRatio', 'none');
+                svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
                 svg.setAttribute('aria-hidden', 'true');
 
                 if (!markup) return svg;
@@ -6504,6 +6699,10 @@
                     return;
                 }
 
+                const enableZoom = previewItem.classList.contains('climb-photo-viewer-mount')
+                    || previewItem.classList.contains('topo-framed');
+                ensurePhotoStageWrap(previewItem, { enableZoom });
+
                 const drawOverlay = () => {
                     const geom = getMarkupStageGeometry(previewItem);
                     if (!isMarkupStageReady(geom)) {
@@ -6534,19 +6733,21 @@
                     }
 
                     const svg = this.buildPhotoMarkupOverlaySvg(markupForSvg, climbType, geom);
-                    svg.style.left = `${geom.left}px`;
-                    svg.style.top = `${geom.top}px`;
-                    svg.style.width = `${geom.iw}px`;
-                    svg.style.height = `${geom.ih}px`;
-                    const img = previewItem.querySelector('img');
-                    if (img && svg.nextSibling !== img && img.parentNode === previewItem) {
-                        previewItem.insertBefore(svg, img.nextSibling);
+                    const stage = previewItem.querySelector('.photo-wrap .stage');
+                    if (stage) {
+                        stage.appendChild(svg);
                     } else {
-                        const actions = previewItem.querySelector('.photo-preview-actions');
-                        if (actions) {
-                            previewItem.insertBefore(svg, actions);
+                        svg.style.left = `${geom.left}px`;
+                        svg.style.top = `${geom.top}px`;
+                        svg.style.width = `${geom.iw}px`;
+                        svg.style.height = `${geom.ih}px`;
+                        const img = previewItem.querySelector('img');
+                        if (img && img.parentNode === previewItem) {
+                            previewItem.insertBefore(svg, img.nextSibling);
                         } else {
-                            previewItem.appendChild(svg);
+                            const actions = previewItem.querySelector('.photo-preview-actions');
+                            if (actions) previewItem.insertBefore(svg, actions);
+                            else previewItem.appendChild(svg);
                         }
                     }
 
@@ -6814,7 +7015,11 @@
                             }
                         },
                         onSwipeLeft: () => this.navigatePhotoGallery(1),
-                        onSwipeRight: () => this.navigatePhotoGallery(-1)
+                        onSwipeRight: () => this.navigatePhotoGallery(-1),
+                        canSwipe: () => {
+                            const wrap = findPhotoStageWrap(mount);
+                            return !wrap || !isPhotoStageZoomed(wrap);
+                        }
                     });
                 };
                 bindMount(document.getElementById('climbDetailPhotoMount'));
@@ -6853,6 +7058,7 @@
                 }
                 const mount = document.getElementById('climbPhotoViewerMount');
                 if (mount) {
+                    resetPhotoStageInContainer(mount);
                     this.applyPhotoPreviewMarkupOverlay(
                         mount,
                         null,
@@ -6887,11 +7093,17 @@
                           (() => {
                               const el = document.createElement('img');
                               el.id = 'climbPhotoViewerImage';
-                              mount?.insertBefore(el, mount.firstChild);
+                              const stage = mount?.querySelector('.photo-wrap .stage');
+                              if (stage) stage.insertBefore(el, stage.firstChild);
+                              else mount?.insertBefore(el, mount.firstChild);
                               return el;
                           })()
                         : this.ensureClimbDetailImageElement();
                 if (!img || !mount || !photoMayHaveImage(photo)) return;
+                resetPhotoStageInContainer(mount);
+                if (which === 'viewer') {
+                    ensurePhotoStageWrap(mount, { enableZoom: true });
+                }
                 const climbType =
                     this._climbDetailContext?.climbType || photo.type || 'route';
                 const applyMarkup = () => {
@@ -7011,7 +7223,9 @@
                 if (!img || !mount.contains(img)) {
                     img = document.createElement('img');
                     img.id = 'climbDetailImage';
-                    mount.insertBefore(img, mount.firstChild);
+                    const stage = mount.querySelector('.photo-wrap .stage');
+                    if (stage) stage.insertBefore(img, stage.firstChild);
+                    else mount.insertBefore(img, mount.firstChild);
                 }
                 return img;
             }
@@ -7484,6 +7698,7 @@
                     points: this.currentRouteLineMarkup.points || [],
                     startHolds: this.currentRouteLineMarkup.startHolds || []
                 }, 'route');
+                ensurePhotoStageWrap(container, { enableZoom: false });
 
                 const paint = () => {
                     const geom = getMarkupStageGeometry(container);
@@ -7810,6 +8025,7 @@
                     holds: this.currentBoulderHoldsMarkup.holds || [],
                     linePoints: this.currentBoulderHoldsMarkup.linePoints || []
                 }, 'boulder');
+                ensurePhotoStageWrap(container, { enableZoom: false });
 
                 const paint = () => {
                     const geom = getMarkupStageGeometry(container);
