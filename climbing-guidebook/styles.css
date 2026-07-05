@@ -990,9 +990,9 @@
             position: relative;
             width: 100%;
             flex: 1;
-            min-height: 200px;
+            min-height: min(48vh, 420px);
+            max-height: min(68vh, 620px);
             height: auto;
-            max-height: none;
             border: 1px solid var(--border-color);
             border-radius: 8px;
             overflow: hidden;
@@ -1000,6 +1000,34 @@
             -webkit-user-select: none;
             user-select: none;
             cursor: crosshair;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #0d0d0d;
+        }
+
+        .markup-dialog-stage img {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            object-position: center center;
+            display: block;
+        }
+
+        .markup-dialog-stage.topo-framed {
+            height: min(52vh, 440px);
+            min-height: min(42vh, 300px);
+        }
+
+        .markup-dialog-stage.topo-framed img {
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            max-height: none;
+            object-fit: cover;
+            object-position: var(--topo-focus-x, 50%) var(--topo-focus-y, 50%);
         }
 
         .markup-dialog-stage.markup-draw-active {
@@ -1165,8 +1193,9 @@
         .catalog-guide-cover {
             display: block;
             width: 100%;
-            max-height: 260px;
-            object-fit: cover;
+            height: clamp(180px, 32vw, 320px);
+            object-fit: contain;
+            background: #0d0d0d;
             border-radius: 12px;
             margin-bottom: 14px;
             border: 1px solid var(--border-color);
@@ -1271,10 +1300,11 @@
 
         .catalog-area-card-image {
             width: 180px;
-            min-height: 132px;
+            height: 132px;
             flex: 0 0 180px;
-            object-fit: cover;
-            background: color-mix(in srgb, var(--card-bg) 70%, var(--primary-color) 30%);
+            object-fit: contain;
+            object-position: center center;
+            background: #0d0d0d;
         }
 
         .catalog-area-card-image--placeholder {
@@ -1381,7 +1411,7 @@
 
             .catalog-area-card-image {
                 width: 100%;
-                min-height: 170px;
+                height: 220px;
                 flex-basis: auto;
             }
 
@@ -1450,7 +1480,7 @@
             min-height: 160px;
             max-height: none;
             border-width: 0;
-            overflow: visible;
+            overflow: hidden;
         }
 
         .climb-detail-photo-mount.photo-preview-with-markup img {
@@ -1459,9 +1489,32 @@
             height: auto !important;
             max-height: min(82vh, 720px);
             object-fit: contain;
+            object-position: center center;
             display: block;
             visibility: visible;
             opacity: 1;
+        }
+
+        .climb-detail-photo-mount.topo-framed.climb-detail-photo-swipe {
+            height: min(52vh, 440px) !important;
+            min-height: min(42vh, 300px);
+            max-height: min(56vh, 480px);
+        }
+
+        .climb-detail-photo-mount.topo-framed img,
+        .climb-photo-viewer-mount.topo-framed img {
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            max-height: none;
+            object-fit: cover;
+            object-position: var(--topo-focus-x, 50%) var(--topo-focus-y, 50%);
+        }
+
+        .climb-photo-viewer-mount.topo-framed {
+            height: min(72vh, 640px);
+            min-height: min(52vh, 420px);
+            max-height: calc(100dvh - 120px - env(safe-area-inset-bottom, 0px));
         }
 
         .climb-detail-image-wrap {
@@ -1682,6 +1735,12 @@
         #photoAlbum > .photo-album-tile-wrap .photo-album-open-btn img {
             object-fit: contain;
             background: #0d0d0d;
+        }
+
+        #photoAlbum > .photo-album-tile-wrap.topo-framed .photo-album-open-btn img,
+        .photo-preview-with-markup.topo-framed:not(.climb-detail-photo-mount):not(.climb-photo-viewer-mount):not(.markup-dialog-stage) img {
+            object-fit: cover;
+            object-position: var(--topo-focus-x, 50%) var(--topo-focus-y, 50%);
         }
 
         #photoAlbum > .photo-album-tile-wrap .photo-album-caption {

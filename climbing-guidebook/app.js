@@ -2262,6 +2262,23 @@
             return photos;
         }
 
+        function parseObjectPositionFraction(style) {
+            const raw = (style?.objectPosition || '50% 50%').trim();
+            const parts = raw.split(/\s+/);
+            const parseOne = (val) => {
+                if (!val) return 0.5;
+                if (val.endsWith('%')) {
+                    return Math.min(1, Math.max(0, parseFloat(val) / 100));
+                }
+                const keywords = { left: 0, top: 0, center: 0.5, right: 1, bottom: 1 };
+                return keywords[val] ?? 0.5;
+            };
+            return {
+                x: parseOne(parts[0]),
+                y: parseOne(parts[1] ?? parts[0])
+            };
+        }
+
         /** Геометрия реально видимой области фото с учетом CSS object-fit. */
         function getMarkupStageGeometry(container) {
             const img = container?.querySelector('img');
@@ -2275,17 +2292,21 @@
             const imageRect = img.getBoundingClientRect();
             const boxW = Math.max(1, imageRect.width || img.clientWidth || img.offsetWidth || cw);
             const boxH = Math.max(1, imageRect.height || img.clientHeight || img.offsetHeight || ch);
-            const fit = window.getComputedStyle(img).objectFit || 'fill';
+            const imgStyle = window.getComputedStyle(img);
+            const fit = imgStyle.objectFit || 'fill';
             const scale = fit === 'cover'
                 ? Math.max(boxW / img.naturalWidth, boxH / img.naturalHeight)
                 : Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);
             const iw = img.naturalWidth * scale;
             const ih = img.naturalHeight * scale;
+            const pos = parseObjectPositionFraction(imgStyle);
+            const offsetX = (boxW - iw) * pos.x;
+            const offsetY = (boxH - ih) * pos.y;
             return {
                 cw,
                 ch,
-                left: (imageRect.left - (containerRect?.left || 0)) + (boxW - iw) / 2,
-                top: (imageRect.top - (containerRect?.top || 0)) + (boxH - ih) / 2,
+                left: (imageRect.left - (containerRect?.left || 0)) + offsetX,
+                top: (imageRect.top - (containerRect?.top || 0)) + offsetY,
                 iw,
                 ih,
                 ready: iw >= 8 && ih >= 8
@@ -2294,6 +2315,105 @@
 
         function isMarkupStageReady(geom) {
             return !!(geom && geom.ready && geom.iw >= 8 && geom.ih >= 8);
+        }
+
+        function collectMarkupNormPoints(markup, climbType) {
+            const normalized = normalizePhotoMarkup(markup, climbType);
+            if (!normalized) return [];
+            if (climbType === 'route') {
+                return [...(normalized.points || []), ...(normalized.startHolds || [])];
+            }
+            if (climbType === 'boulder') {
+                return [...(normalized.holds || []), ...(normalized.linePoints || [])];
+            }
+            return [];
+        }
+
+        /** Центр bbox разметки в нормализованных координатах изображения (0..1). */
+        function getMarkupCenterNorm(markup, climbType) {
+            const points = collectMarkupNormPoints(markup, climbType);
+            if (!points.length) return null;
+            let minX = 1;
+            let minY = 1;
+            let maxX = 0;
+            let maxY = 0;
+            points.forEach((p) => {
+                const x = Number(p.x);
+                const y = Number(p.y);
+                if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+            });
+            if (maxX < minX || maxY < minY) return null;
+            const pad = 0.1;
+            minX = Math.max(0, minX - pad);
+            minY = Math.max(0, minY - pad);
+            maxX = Math.min(1, maxX + pad);
+            maxY = Math.min(1, maxY + pad);
+            return {
+                cx: (minX + maxX) / 2,
+                cy: (minY + maxY) / 2
+            };
+        }
+
+        /**
+         * object-position для object-fit: cover так, чтобы точка (cx, cy) изображения
+         * оказалась в центре контейнера (а не в той же доле кадра, что и на фото).
+         */
+        function computeCoverObjectPosition(cx, cy, cw, ch, nw, nh) {
+            const cwSafe = Math.max(1, cw);
+            const chSafe = Math.max(1, ch);
+            const nwSafe = Math.max(1, nw);
+            const nhSafe = Math.max(1, nh);
+            const scale = Math.max(cwSafe / nwSafe, chSafe / nhSafe);
+            const iw = nwSafe * scale;
+            const ih = nhSafe * scale;
+            let px = 50;
+            let py = 50;
+            if (Math.abs(iw - cwSafe) > 0.5) {
+                px = 100 * (0.5 * cwSafe - cx * iw) / (cwSafe - iw);
+                px = Math.min(100, Math.max(0, px));
+            }
+            if (Math.abs(ih - chSafe) > 0.5) {
+                py = 100 * (0.5 * chSafe - cy * ih) / (chSafe - ih);
+                py = Math.min(100, Math.max(0, py));
+            }
+            return {
+                x: `${px.toFixed(2)}%`,
+                y: `${py.toFixed(2)}%`
+            };
+        }
+
+        function getTopoObjectPosition(container, markup, climbType) {
+            const center = getMarkupCenterNorm(markup, climbType);
+            if (!center) return null;
+            const img = container?.querySelector('img');
+            const containerRect = container?.getBoundingClientRect?.();
+            const cw = containerRect?.width || container?.clientWidth || 0;
+            const ch = containerRect?.height || container?.clientHeight || 0;
+            const nw = img?.naturalWidth || 0;
+            const nh = img?.naturalHeight || 0;
+            if (cw >= 8 && ch >= 8 && nw >= 8 && nh >= 8) {
+                return computeCoverObjectPosition(center.cx, center.cy, cw, ch, nw, nh);
+            }
+            return { x: '50%', y: '50%' };
+        }
+
+        function applyTopoPhotoFraming(container, markup, climbType) {
+            if (!container) return;
+            const center = getMarkupCenterNorm(markup, climbType);
+            if (!center) {
+                container.classList.remove('topo-framed');
+                container.style.removeProperty('--topo-focus-x');
+                container.style.removeProperty('--topo-focus-y');
+                return;
+            }
+            container.classList.add('topo-framed');
+            const focus = getTopoObjectPosition(container, markup, climbType);
+            container.style.setProperty('--topo-focus-x', focus.x);
+            container.style.setProperty('--topo-focus-y', focus.y);
         }
 
         function normalizePhotoMarkup(raw, climbType) {
@@ -6448,58 +6568,67 @@
                 if (!previewItem) return;
 
                 const normalized = normalizePhotoMarkup(markup, climbType);
+                applyTopoPhotoFraming(previewItem, normalized, climbType);
                 if (!normalized) {
                     previewItem.querySelectorAll('.photo-markup-overlay').forEach(el => el.remove());
                     this.updatePreviewMarkupBadge(previewItem, false);
                     return;
                 }
 
-                const geom = getMarkupStageGeometry(previewItem);
-                if (!isMarkupStageReady(geom)) {
-                    const attempts = Number(previewItem._markupOverlayAttempts || 0);
-                    if (attempts < 8) {
-                        previewItem._markupOverlayAttempts = attempts + 1;
-                        requestAnimationFrame(() => {
-                            requestAnimationFrame(() => this.applyPhotoPreviewMarkupOverlay(previewItem, normalized, climbType));
-                        });
+                const drawOverlay = () => {
+                    const geom = getMarkupStageGeometry(previewItem);
+                    if (!isMarkupStageReady(geom)) {
+                        const attempts = Number(previewItem._markupOverlayAttempts || 0);
+                        if (attempts < 8) {
+                            previewItem._markupOverlayAttempts = attempts + 1;
+                            requestAnimationFrame(() => {
+                                requestAnimationFrame(() => this.applyPhotoPreviewMarkupOverlay(previewItem, normalized, climbType));
+                            });
+                        }
+                        return;
                     }
+                    previewItem._markupOverlayAttempts = 0;
+                    previewItem.querySelectorAll('.photo-markup-overlay').forEach(el => el.remove());
+                    let markupForSvg = normalized;
+                    if (climbType === 'route' && normalized.coordSpace !== 'image') {
+                        markupForSvg = {
+                            ...normalized,
+                            points: (normalized.points || []).map((p) => boulderStoredToImageNorm(p, geom, false)),
+                            startHolds: (normalized.startHolds || []).map((p) => boulderStoredToImageNorm(p, geom, false))
+                        };
+                    } else if (climbType === 'boulder' && normalized.coordSpace !== 'image') {
+                        markupForSvg = {
+                            ...normalized,
+                            holds: (normalized.holds || []).map((h) => boulderStoredToImageNorm(h, geom, false)),
+                            linePoints: (normalized.linePoints || []).map((p) => boulderStoredToImageNorm(p, geom, false))
+                        };
+                    }
+
+                    const svg = this.buildPhotoMarkupOverlaySvg(markupForSvg, climbType, geom);
+                    svg.style.left = `${geom.left}px`;
+                    svg.style.top = `${geom.top}px`;
+                    svg.style.width = `${geom.iw}px`;
+                    svg.style.height = `${geom.ih}px`;
+                    const img = previewItem.querySelector('img');
+                    if (img && svg.nextSibling !== img && img.parentNode === previewItem) {
+                        previewItem.insertBefore(svg, img.nextSibling);
+                    } else {
+                        const actions = previewItem.querySelector('.photo-preview-actions');
+                        if (actions) {
+                            previewItem.insertBefore(svg, actions);
+                        } else {
+                            previewItem.appendChild(svg);
+                        }
+                    }
+
+                    this.updatePreviewMarkupBadge(previewItem, true);
+                };
+
+                if (previewItem.classList.contains('topo-framed')) {
+                    requestAnimationFrame(() => requestAnimationFrame(drawOverlay));
                     return;
                 }
-                previewItem._markupOverlayAttempts = 0;
-                previewItem.querySelectorAll('.photo-markup-overlay').forEach(el => el.remove());
-                let markupForSvg = normalized;
-                if (climbType === 'route' && normalized.coordSpace !== 'image') {
-                    markupForSvg = {
-                        ...normalized,
-                        points: (normalized.points || []).map((p) => boulderStoredToImageNorm(p, geom, false)),
-                        startHolds: (normalized.startHolds || []).map((p) => boulderStoredToImageNorm(p, geom, false))
-                    };
-                } else if (climbType === 'boulder' && normalized.coordSpace !== 'image') {
-                    markupForSvg = {
-                        ...normalized,
-                        holds: (normalized.holds || []).map((h) => boulderStoredToImageNorm(h, geom, false)),
-                        linePoints: (normalized.linePoints || []).map((p) => boulderStoredToImageNorm(p, geom, false))
-                    };
-                }
-
-                const svg = this.buildPhotoMarkupOverlaySvg(markupForSvg, climbType, geom);
-                svg.style.left = `${geom.left}px`;
-                svg.style.top = `${geom.top}px`;
-                svg.style.width = `${geom.iw}px`;
-                svg.style.height = `${geom.ih}px`;
-                const img = previewItem.querySelector('img');
-                if (img && svg.nextSibling !== img && img.parentNode === previewItem) {
-                    previewItem.insertBefore(svg, img.nextSibling);
-                } else {
-                    const actions = previewItem.querySelector('.photo-preview-actions');
-                    if (actions) {
-                        previewItem.insertBefore(svg, actions);
-                    } else {
-                        previewItem.appendChild(svg);
-                    }
-                }
-
-                this.updatePreviewMarkupBadge(previewItem, true);
+                drawOverlay();
             }
 
             syncMarkupButtonOnPreviewItem(previewItem, hasMarkup) {
@@ -7420,47 +7549,60 @@
                 const container = document.getElementById('routeLineMarkupContainer');
                 if (!container || !this.currentRouteLineMarkup) return;
 
-                const geom = getMarkupStageGeometry(container);
-                container.querySelectorAll('.hold-marker, .line-marker').forEach((marker) => marker.remove());
+                applyTopoPhotoFraming(container, {
+                    type: 'route-line',
+                    coordSpace: 'image',
+                    points: this.currentRouteLineMarkup.points || [],
+                    startHolds: this.currentRouteLineMarkup.startHolds || []
+                }, 'route');
 
-                const starts = this.currentRouteLineMarkup.startHolds || [];
-                starts.forEach((hold, index) => {
-                    const pos = markupPxFromNorm(hold.x, hold.y, geom);
-                    const marker = document.createElement('div');
-                    marker.className = 'hold-marker';
-                    marker.style.left = `${pos.x}px`;
-                    marker.style.top = `${pos.y}px`;
-                    marker.dataset.index = String(index);
+                const paint = () => {
+                    const geom = getMarkupStageGeometry(container);
+                    container.querySelectorAll('.hold-marker, .line-marker').forEach((marker) => marker.remove());
 
-                    const number = document.createElement('div');
-                    number.className = 'hold-number';
-                    number.textContent = String(index + 1);
-                    marker.appendChild(number);
+                    const starts = this.currentRouteLineMarkup.startHolds || [];
+                    starts.forEach((hold, index) => {
+                        const pos = markupPxFromNorm(hold.x, hold.y, geom);
+                        const marker = document.createElement('div');
+                        marker.className = 'hold-marker';
+                        marker.style.left = `${pos.x}px`;
+                        marker.style.top = `${pos.y}px`;
+                        marker.dataset.index = String(index);
 
-                    container.appendChild(marker);
-                });
+                        const number = document.createElement('div');
+                        number.className = 'hold-number';
+                        number.textContent = String(index + 1);
+                        marker.appendChild(number);
 
-                const pts = this.currentRouteLineMarkup.points || [];
-                pts.forEach((point, index) => {
-                    const pos = markupPxFromNorm(point.x, point.y, geom);
-                    const marker = document.createElement('div');
-                    marker.className = 'line-marker';
-                    marker.style.left = `${pos.x}px`;
-                    marker.style.top = `${pos.y}px`;
-                    marker.dataset.index = String(index);
-                    container.appendChild(marker);
-                });
+                        container.appendChild(marker);
+                    });
 
-                this.updateRouteLinePolyline();
+                    const pts = this.currentRouteLineMarkup.points || [];
+                    pts.forEach((point, index) => {
+                        const pos = markupPxFromNorm(point.x, point.y, geom);
+                        const marker = document.createElement('div');
+                        marker.className = 'line-marker';
+                        marker.style.left = `${pos.x}px`;
+                        marker.style.top = `${pos.y}px`;
+                        marker.dataset.index = String(index);
+                        container.appendChild(marker);
+                    });
+
+                    this.updateRouteLinePolyline();
+                };
+
+                if (container.classList.contains('topo-framed')) {
+                    requestAnimationFrame(() => requestAnimationFrame(paint));
+                } else {
+                    paint();
+                }
             }
 
             clearRouteLineMarkup() {
                 if (confirm('Очистить всю разметку?')) {
                     this.currentRouteLineMarkup.points = [];
                     this.currentRouteLineMarkup.startHolds = [];
-                    const container = document.getElementById('routeLineMarkupContainer');
-                    container?.querySelectorAll('.hold-marker, .line-marker').forEach((marker) => marker.remove());
-                    this.updateRouteLinePolyline();
+                    this.renderRouteLineMarkup();
                 }
             }
 
@@ -7733,35 +7875,48 @@
                 const container = document.getElementById('boulderHoldsMarkupContainer');
                 if (!container || !this.currentBoulderHoldsMarkup) return;
 
-                const geom = getMarkupStageGeometry(container);
+                applyTopoPhotoFraming(container, {
+                    type: 'boulder-holds',
+                    coordSpace: 'image',
+                    holds: this.currentBoulderHoldsMarkup.holds || [],
+                    linePoints: this.currentBoulderHoldsMarkup.linePoints || []
+                }, 'boulder');
 
-                // Удаляем старые маркеры
-                const oldMarkers = container.querySelectorAll('.hold-marker');
-                oldMarkers.forEach(marker => marker.remove());
+                const paint = () => {
+                    const geom = getMarkupStageGeometry(container);
 
-                // Добавляем новые маркеры
-                this.currentBoulderHoldsMarkup.holds.forEach((hold, index) => {
-                    const pos = markupPxFromNorm(hold.x, hold.y, geom);
-                    const marker = document.createElement('div');
-                    marker.className = 'hold-marker';
-                    marker.style.left = `${pos.x}px`;
-                    marker.style.top = `${pos.y}px`;
-                    marker.dataset.index = index;
+                    const oldMarkers = container.querySelectorAll('.hold-marker');
+                    oldMarkers.forEach(marker => marker.remove());
 
-                    const number = document.createElement('div');
-                    number.className = 'hold-number';
-                    number.textContent = (index + 1).toString();
+                    this.currentBoulderHoldsMarkup.holds.forEach((hold, index) => {
+                        const pos = markupPxFromNorm(hold.x, hold.y, geom);
+                        const marker = document.createElement('div');
+                        marker.className = 'hold-marker';
+                        marker.style.left = `${pos.x}px`;
+                        marker.style.top = `${pos.y}px`;
+                        marker.dataset.index = index;
 
-                    marker.appendChild(number);
+                        const number = document.createElement('div');
+                        number.className = 'hold-number';
+                        number.textContent = (index + 1).toString();
 
-                    if (!this._markupDialogViewOnly) {
-                        this.makeHoldDraggable(marker, index);
-                    }
+                        marker.appendChild(number);
 
-                    container.appendChild(marker);
-                });
+                        if (!this._markupDialogViewOnly) {
+                            this.makeHoldDraggable(marker, index);
+                        }
 
-                this.updateBoulderHoldsPolyline();
+                        container.appendChild(marker);
+                    });
+
+                    this.updateBoulderHoldsPolyline();
+                };
+
+                if (container.classList.contains('topo-framed')) {
+                    requestAnimationFrame(() => requestAnimationFrame(paint));
+                } else {
+                    paint();
+                }
             }
 
             makeHoldDraggable(marker, index) {
