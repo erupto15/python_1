@@ -2329,91 +2329,14 @@
             return [];
         }
 
-        /** Центр bbox разметки в нормализованных координатах изображения (0..1). */
-        function getMarkupCenterNorm(markup, climbType) {
-            const points = collectMarkupNormPoints(markup, climbType);
-            if (!points.length) return null;
-            let minX = 1;
-            let minY = 1;
-            let maxX = 0;
-            let maxY = 0;
-            points.forEach((p) => {
-                const x = Number(p.x);
-                const y = Number(p.y);
-                if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-                minX = Math.min(minX, x);
-                minY = Math.min(minY, y);
-                maxX = Math.max(maxX, x);
-                maxY = Math.max(maxY, y);
-            });
-            if (maxX < minX || maxY < minY) return null;
-            const pad = 0.1;
-            minX = Math.max(0, minX - pad);
-            minY = Math.max(0, minY - pad);
-            maxX = Math.min(1, maxX + pad);
-            maxY = Math.min(1, maxY + pad);
-            return {
-                cx: (minX + maxX) / 2,
-                cy: (minY + maxY) / 2
-            };
-        }
-
-        /**
-         * object-position для object-fit: cover так, чтобы точка (cx, cy) изображения
-         * оказалась в центре контейнера (а не в той же доле кадра, что и на фото).
-         */
-        function computeCoverObjectPosition(cx, cy, cw, ch, nw, nh) {
-            const cwSafe = Math.max(1, cw);
-            const chSafe = Math.max(1, ch);
-            const nwSafe = Math.max(1, nw);
-            const nhSafe = Math.max(1, nh);
-            const scale = Math.max(cwSafe / nwSafe, chSafe / nhSafe);
-            const iw = nwSafe * scale;
-            const ih = nhSafe * scale;
-            let px = 50;
-            let py = 50;
-            if (Math.abs(iw - cwSafe) > 0.5) {
-                px = 100 * (0.5 * cwSafe - cx * iw) / (cwSafe - iw);
-                px = Math.min(100, Math.max(0, px));
-            }
-            if (Math.abs(ih - chSafe) > 0.5) {
-                py = 100 * (0.5 * chSafe - cy * ih) / (chSafe - ih);
-                py = Math.min(100, Math.max(0, py));
-            }
-            return {
-                x: `${px.toFixed(2)}%`,
-                y: `${py.toFixed(2)}%`
-            };
-        }
-
-        function getTopoObjectPosition(container, markup, climbType) {
-            const center = getMarkupCenterNorm(markup, climbType);
-            if (!center) return null;
-            const img = container?.querySelector('img');
-            const containerRect = container?.getBoundingClientRect?.();
-            const cw = containerRect?.width || container?.clientWidth || 0;
-            const ch = containerRect?.height || container?.clientHeight || 0;
-            const nw = img?.naturalWidth || 0;
-            const nh = img?.naturalHeight || 0;
-            if (cw >= 8 && ch >= 8 && nw >= 8 && nh >= 8) {
-                return computeCoverObjectPosition(center.cx, center.cy, cw, ch, nw, nh);
-            }
-            return { x: '50%', y: '50%' };
-        }
-
+        /** Кадр с разметкой: фиксированная высота, фото целиком по центру (без crop по разметке). */
         function applyTopoPhotoFraming(container, markup, climbType) {
             if (!container) return;
-            const center = getMarkupCenterNorm(markup, climbType);
-            if (!center) {
+            if (collectMarkupNormPoints(markup, climbType).length) {
+                container.classList.add('topo-framed');
+            } else {
                 container.classList.remove('topo-framed');
-                container.style.removeProperty('--topo-focus-x');
-                container.style.removeProperty('--topo-focus-y');
-                return;
             }
-            container.classList.add('topo-framed');
-            const focus = getTopoObjectPosition(container, markup, climbType);
-            container.style.setProperty('--topo-focus-x', focus.x);
-            container.style.setProperty('--topo-focus-y', focus.y);
         }
 
         function normalizePhotoMarkup(raw, climbType) {

@@ -1026,8 +1026,8 @@
             height: 100%;
             max-width: none;
             max-height: none;
-            object-fit: cover;
-            object-position: var(--topo-focus-x, 50%) var(--topo-focus-y, 50%);
+            object-fit: contain;
+            object-position: center center;
         }
 
         .markup-dialog-stage.markup-draw-active {
@@ -1507,8 +1507,8 @@
             height: 100%;
             max-width: none;
             max-height: none;
-            object-fit: cover;
-            object-position: var(--topo-focus-x, 50%) var(--topo-focus-y, 50%);
+            object-fit: contain;
+            object-position: center center;
         }
 
         .climb-photo-viewer-mount.topo-framed {
@@ -1734,13 +1734,8 @@
 
         #photoAlbum > .photo-album-tile-wrap .photo-album-open-btn img {
             object-fit: contain;
+            object-position: center center;
             background: #0d0d0d;
-        }
-
-        #photoAlbum > .photo-album-tile-wrap.topo-framed .photo-album-open-btn img,
-        .photo-preview-with-markup.topo-framed:not(.climb-detail-photo-mount):not(.climb-photo-viewer-mount):not(.markup-dialog-stage) img {
-            object-fit: cover;
-            object-position: var(--topo-focus-x, 50%) var(--topo-focus-y, 50%);
         }
 
         #photoAlbum > .photo-album-tile-wrap .photo-album-caption {
