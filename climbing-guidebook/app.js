@@ -581,6 +581,122 @@
         const QUICK_PHOTO_JPEG_QUALITY = 0.82;
         const QUICK_PHOTO_DATAURL_SOFT_CAP = 900000;
 
+        let _heic2anyLoadPromise = null;
+
+        function isHeicImageFile(file) {
+            const type = String(file?.type || '').toLowerCase();
+            if (type.includes('heic') || type.includes('heif')) return true;
+            return /\.(heic|heif|heics)$/i.test(String(file?.name || ''));
+        }
+
+        function isHeicDataUrl(dataUrl) {
+            const s = String(dataUrl || '').toLowerCase();
+            return s.startsWith('data:image/heic') || s.startsWith('data:image/heif');
+        }
+
+        function isHeicReference(urlOrMime, fileType) {
+            const mime = String(fileType || '').toLowerCase();
+            if (mime.includes('heic') || mime.includes('heif')) return true;
+            const ref = String(urlOrMime || '').toLowerCase();
+            if (ref.includes('heic') || ref.includes('heif')) return true;
+            return /\.(heic|heif|heics)(\?|#|$)/i.test(ref);
+        }
+
+        function isAcceptedImageFile(file) {
+            if (!file) return false;
+            if (isHeicImageFile(file)) return true;
+            if (String(file.type || '').toLowerCase().startsWith('image/')) return true;
+            return /\.(jpe?g|png|webp|gif|heic|heif|heics|bmp|avif)$/i.test(String(file.name || ''));
+        }
+
+        function uploadMimeFromDataUrl(dataUrl, fallback = 'image/jpeg') {
+            const s = String(dataUrl || '').toLowerCase();
+            if (s.startsWith('data:image/jpeg')) return 'image/jpeg';
+            if (s.startsWith('data:image/png')) return 'image/png';
+            if (s.startsWith('data:image/webp')) return 'image/webp';
+            if (s.startsWith('data:image/gif')) return 'image/gif';
+            return fallback;
+        }
+
+        function normalizeUploadedImageFileName(fileName, mime = 'image/jpeg') {
+            let name = String(fileName || 'photo.jpg').trim() || 'photo.jpg';
+            if (mime === 'image/jpeg' && /\.(heic|heif|heics|png)$/i.test(name)) {
+                name = name.replace(/\.(heic|heif|heics|png)$/i, '.jpg');
+            }
+            return name;
+        }
+
+        function ensureHeic2AnyLoaded() {
+            if (typeof heic2any === 'function') return Promise.resolve();
+            if (_heic2anyLoadPromise) return _heic2anyLoadPromise;
+            _heic2anyLoadPromise = new Promise((resolve, reject) => {
+                const existing = document.querySelector('script[data-heic2any-loader]');
+                if (existing) {
+                    existing.addEventListener('load', () => resolve(), { once: true });
+                    existing.addEventListener('error', () => reject(new Error('heic2any load failed')), { once: true });
+                    return;
+                }
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+                script.async = true;
+                script.dataset.heic2anyLoader = '1';
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error('heic2any load failed'));
+                document.head.appendChild(script);
+            });
+            return _heic2anyLoadPromise;
+        }
+
+        async function convertHeicBlobToJpegDataUrl(blob) {
+            await ensureHeic2AnyLoaded();
+            const out = await heic2any({
+                blob,
+                toType: 'image/jpeg',
+                quality: QUICK_PHOTO_JPEG_QUALITY
+            });
+            const jpegBlob = Array.isArray(out) ? out[0] : out;
+            return await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result || ''));
+                reader.onerror = () => reject(new Error('Не удалось прочитать конвертированный HEIC'));
+                reader.readAsDataURL(jpegBlob);
+            });
+        }
+
+        async function normalizeDisplayableDataUrl(dataUrl) {
+            if (!isHeicDataUrl(dataUrl)) return dataUrl;
+            try {
+                const blob = await fetch(dataUrl).then((res) => res.blob());
+                return await convertHeicBlobToJpegDataUrl(blob);
+            } catch (err) {
+                console.warn('HEIC convert failed', err);
+                return dataUrl;
+            }
+        }
+
+        async function readImageFileAsDataUrl(file) {
+            return await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+                reader.onload = () => resolve(String(reader.result || ''));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function imageFileToUploadDataUrl(file) {
+            if (isHeicImageFile(file)) {
+                const jpeg = await convertHeicBlobToJpegDataUrl(file);
+                return downscaleDataUrlForUpload(jpeg);
+            }
+            const dataUrl = await readImageFileAsDataUrl(file);
+            if (isHeicDataUrl(dataUrl)) {
+                const blob = await fetch(dataUrl).then((res) => res.blob());
+                const jpeg = await convertHeicBlobToJpegDataUrl(blob);
+                return downscaleDataUrlForUpload(jpeg);
+            }
+            return downscaleDataUrlForUpload(dataUrl);
+        }
+
         /** Автосохранение открытых фото в память устройства (Telegram/WebView). */
         const AUTO_SAVE_OPENED_MEDIA_KEY = 'climbingApp_auto_save_opened_media_v1';
 
@@ -645,6 +761,10 @@
                 if (timer) clearTimeout(timer);
                 if (!res.ok) return null;
                 const blob = await res.blob();
+                if (isHeicReference(blob.type, photo?.fileType)
+                    || isHeicReference(url, photo?.fileType)) {
+                    return convertHeicBlobToJpegDataUrl(blob);
+                }
                 return await new Promise((resolve) => {
                     const fr = new FileReader();
                     fr.onload = () => resolve(String(fr.result || '') || null);
@@ -840,10 +960,28 @@
 
         async function resolvePhotoImageSource(photo) {
             const direct = resolvePhotoDisplayUrl(photo?.imageData);
-            if (direct && direct.startsWith('data:')) return direct;
+            if (direct && direct.startsWith('data:')) {
+                if (isHeicDataUrl(direct)) {
+                    return normalizeDisplayableDataUrl(direct);
+                }
+                return direct;
+            }
             if (photo?.id) {
                 const cached = await getCachedPhotoDataUrl(photo.id);
-                if (cached) return cached;
+                if (cached) {
+                    if (isHeicDataUrl(cached)) {
+                        return normalizeDisplayableDataUrl(cached);
+                    }
+                    return cached;
+                }
+            }
+            if (direct && isHeicReference(direct, photo?.fileType)) {
+                try {
+                    const converted = await resolvePhotoImageDataUrlForExport(photo);
+                    if (converted) return converted;
+                } catch (_) {
+                    /* fallback to direct URL below */
+                }
             }
             if (direct && !shouldUseOfflineQueue()) return direct;
             return direct || '';
@@ -1004,7 +1142,12 @@
         }
 
         function downscaleDataUrlForUpload(dataUrl) {
-            if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return Promise.resolve(dataUrl);
+            if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
+                return Promise.resolve(dataUrl);
+            }
+            if (isHeicDataUrl(dataUrl)) {
+                return normalizeDisplayableDataUrl(dataUrl).then((normalized) => downscaleDataUrlForUpload(normalized));
+            }
             return new Promise((resolve) => {
                 const img = new Image();
                 const done = (out) => resolve(out);
@@ -3887,8 +4030,8 @@
             async onAreaPhotoSelected(event) {
                 const file = event?.target?.files?.[0];
                 if (!file) return;
-                if (!String(file.type || '').startsWith('image/')) {
-                    this.showToast('Выберите файл изображения', true);
+                if (!isAcceptedImageFile(file)) {
+                    this.showToast('Выберите файл изображения (JPEG, PNG, HEIC и др.)', true);
                     this.clearAreaDialogPhoto();
                     return;
                 }
@@ -3898,12 +4041,11 @@
                     return;
                 }
                 try {
-                    const dataUrl = await this.fileToDataUrl(file);
-                    const scaled = await downscaleDataUrlForUpload(dataUrl);
-                    const mime = scaled.startsWith('data:image/jpeg') ? 'image/jpeg' : (file.type || '');
+                    const scaled = await imageFileToUploadDataUrl(file);
+                    const mime = uploadMimeFromDataUrl(scaled, 'image/jpeg');
                     this.areaPhotoData = {
                         data: scaled,
-                        fileName: file.name || '',
+                        fileName: normalizeUploadedImageFileName(file.name, mime),
                         type: mime
                     };
                     this.areaPhotoRemove = false;
@@ -3954,8 +4096,8 @@
             async onQuickDialogPhotoSelected(kind, event) {
                 const file = event?.target?.files?.[0];
                 if (!file) return;
-                if (!String(file.type || '').startsWith('image/')) {
-                    this.showToast('Выберите файл изображения', true);
+                if (!isAcceptedImageFile(file)) {
+                    this.showToast('Выберите файл изображения (JPEG, PNG, HEIC и др.)', true);
                     this.clearQuickDialogPhoto(kind);
                     return;
                 }
@@ -3965,16 +4107,11 @@
                     return;
                 }
                 try {
-                    const dataUrl = await this.fileToDataUrl(file);
-                    const scaled = await downscaleDataUrlForUpload(dataUrl);
-                    const mime = scaled.startsWith('data:image/jpeg') ? 'image/jpeg' : (file.type || '');
-                    let fileName = file.name || '';
-                    if (mime === 'image/jpeg' && /\.png$/i.test(fileName)) {
-                        fileName = fileName.replace(/\.png$/i, '.jpg');
-                    }
+                    const scaled = await imageFileToUploadDataUrl(file);
+                    const mime = uploadMimeFromDataUrl(scaled, 'image/jpeg');
                     const payload = {
                         data: scaled,
-                        fileName,
+                        fileName: normalizeUploadedImageFileName(file.name, mime),
                         type: mime,
                         markup: null
                     };
@@ -7261,8 +7398,8 @@
                 const file = event.target.files[0];
                 if (!file) return;
 
-                if (!file.type.match('image.*')) {
-                    this.showToast('Пожалуйста, выберите файл изображения', true);
+                if (!isAcceptedImageFile(file)) {
+                    this.showToast('Пожалуйста, выберите файл изображения (JPEG, PNG, HEIC и др.)', true);
                     return;
                 }
 
@@ -7271,89 +7408,90 @@
                     return;
                 }
 
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const previewContainer = document.getElementById(previewContainerId);
+                void (async () => {
+                    try {
+                        const scaled = await imageFileToUploadDataUrl(file);
+                        const mime = uploadMimeFromDataUrl(scaled, 'image/jpeg');
+                        const fileName = normalizeUploadedImageFileName(file.name, mime);
+                        const previewContainer = document.getElementById(previewContainerId);
 
-                    const previewItem = document.createElement('div');
-                    previewItem.className = 'photo-preview-with-markup';
+                        const previewItem = document.createElement('div');
+                        previewItem.className = 'photo-preview-with-markup';
 
-                    const img = document.createElement('img');
-                    img.src = e.target.result;
-                    img.alt = 'Preview';
+                        const img = document.createElement('img');
+                        img.src = scaled;
+                        img.alt = 'Preview';
 
-                    const actionsDiv = document.createElement('div');
-                    actionsDiv.className = 'photo-preview-actions';
+                        const actionsDiv = document.createElement('div');
+                        actionsDiv.className = 'photo-preview-actions';
 
-                    const removeBtn = document.createElement('button');
-                    removeBtn.type = 'button';
-                    removeBtn.className = `remove-btn small ${this.isAdmin() ? '' : 'hidden-by-role'}`.trim();
-                    removeBtn.innerHTML = '<i class="fas fa-times"></i> Удалить';
-                    removeBtn.addEventListener('click', (removeEvent) => {
-                        removeEvent.preventDefault();
-                        removeEvent.stopPropagation();
-                        previewItem.remove();
-                        event.target.value = '';
-                        this.currentPhotoPreview = null;
-                    });
-
-                    actionsDiv.appendChild(removeBtn);
-
-                    // Добавляем кнопку разметки только если известен тип маршрута
-                    if (climbType) {
-                        const markupBtn = document.createElement('button');
-                        markupBtn.type = 'button';
-                        markupBtn.className = `markup-btn small ${climbType} ${this.isAdmin() ? '' : 'hidden-by-role'}`.trim();
-                        markupBtn.innerHTML = `<i class="fas fa-draw-polygon"></i> Разметить`;
-                        markupBtn.addEventListener('click', (markupEvent) => {
-                            markupEvent.preventDefault();
-                            markupEvent.stopPropagation();
-                            // Для нового (ещё не сохранённого) фото используем временный id:
-                            // тогда разметка пишется в превью и уйдёт в POST /api/photos вместе с фото.
-                            const previewPayload = this.currentPhotoPreview || {
-                                data: e.target.result,
-                                fileName: file.name,
-                                type: file.type,
-                                climbType: climbType,
-                                climbId: `temp-detail-${climbType}-${Date.now()}`,
-                                markup: null
-                            };
-                            this.currentPhotoPreview = previewPayload;
-
-                            if (climbType === 'route') {
-                                this.showRouteLineMarkupDialog(previewPayload);
-                            } else if (climbType === 'boulder') {
-                                this.showBoulderHoldsMarkupDialog(previewPayload);
-                            }
+                        const removeBtn = document.createElement('button');
+                        removeBtn.type = 'button';
+                        removeBtn.className = `remove-btn small ${this.isAdmin() ? '' : 'hidden-by-role'}`.trim();
+                        removeBtn.innerHTML = '<i class="fas fa-times"></i> Удалить';
+                        removeBtn.addEventListener('click', (removeEvent) => {
+                            removeEvent.preventDefault();
+                            removeEvent.stopPropagation();
+                            previewItem.remove();
+                            event.target.value = '';
+                            this.currentPhotoPreview = null;
                         });
 
-                        actionsDiv.appendChild(markupBtn);
+                        actionsDiv.appendChild(removeBtn);
+
+                        if (climbType) {
+                            const markupBtn = document.createElement('button');
+                            markupBtn.type = 'button';
+                            markupBtn.className = `markup-btn small ${climbType} ${this.isAdmin() ? '' : 'hidden-by-role'}`.trim();
+                            markupBtn.innerHTML = `<i class="fas fa-draw-polygon"></i> Разметить`;
+                            markupBtn.addEventListener('click', (markupEvent) => {
+                                markupEvent.preventDefault();
+                                markupEvent.stopPropagation();
+                                const previewPayload = this.currentPhotoPreview || {
+                                    data: scaled,
+                                    fileName,
+                                    type: mime,
+                                    climbType: climbType,
+                                    climbId: `temp-detail-${climbType}-${Date.now()}`,
+                                    markup: null
+                                };
+                                this.currentPhotoPreview = previewPayload;
+
+                                if (climbType === 'route') {
+                                    this.showRouteLineMarkupDialog(previewPayload);
+                                } else if (climbType === 'boulder') {
+                                    this.showBoulderHoldsMarkupDialog(previewPayload);
+                                }
+                            });
+
+                            actionsDiv.appendChild(markupBtn);
+                        }
+
+                        previewItem.appendChild(img);
+                        previewItem.appendChild(actionsDiv);
+
+                        const oldItems = previewContainer.querySelectorAll('.photo-preview-with-markup');
+                        oldItems.forEach((item) => item.remove());
+
+                        previewItem.dataset.climbType = climbType || '';
+
+                        previewContainer.appendChild(previewItem);
+
+                        this.currentPhotoPreview = {
+                            data: scaled,
+                            fileName,
+                            type: mime,
+                            climbType: climbType,
+                            climbId: `temp-detail-${climbType}-${Date.now()}`,
+                            markup: null
+                        };
+
+                        this.applyPhotoPreviewMarkupOverlay(previewItem, this.currentPhotoPreview.markup, climbType);
+                    } catch (err) {
+                        this.showToast(`Ошибка чтения файла: ${err.message}`, true);
+                        event.target.value = '';
                     }
-
-                    previewItem.appendChild(img);
-                    previewItem.appendChild(actionsDiv);
-
-                    // Если есть старые превью, заменяем их
-                    const oldItems = previewContainer.querySelectorAll('.photo-preview-with-markup');
-                    oldItems.forEach(item => item.remove());
-
-                    previewItem.dataset.climbType = climbType || '';
-
-                    previewContainer.appendChild(previewItem);
-
-                    // Сохраняем превью для последующего сохранения
-                    this.currentPhotoPreview = {
-                        data: e.target.result,
-                        fileName: file.name,
-                        type: file.type,
-                        climbType: climbType,
-                        climbId: `temp-detail-${climbType}-${Date.now()}`,
-                        markup: null
-                    };
-
-                    this.applyPhotoPreviewMarkupOverlay(previewItem, this.currentPhotoPreview.markup, climbType);
-                };
-                reader.readAsDataURL(file);
+                })();
             }
 
             buildPhotoMarkupOverlaySvg(markup, climbType, geom = null) {
