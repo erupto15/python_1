@@ -713,14 +713,11 @@
             }
         }
 
-        async function prunePhotoCache(validPhotoIds) {
-            const valid = new Set((validPhotoIds || []).map((id) => String(id)));
+        async function prunePhotoCache() {
             const records = await listPhotoCacheRecords();
-            const stale = records.filter((rec) => !valid.has(String(rec.id)));
             const overflow = records
-                .filter((rec) => valid.has(String(rec.id)))
                 .sort((a, b) => Number(a.cachedAt || 0) - Number(b.cachedAt || 0));
-            let toDelete = stale.map((rec) => rec.id);
+            let toDelete = [];
             if (overflow.length > PHOTO_CACHE_MAX_ITEMS) {
                 toDelete = toDelete.concat(
                     overflow.slice(0, overflow.length - PHOTO_CACHE_MAX_ITEMS).map((rec) => rec.id)
@@ -782,7 +779,7 @@
                 const slice = list.slice(i, i + PHOTO_CACHE_WRITE_BATCH);
                 await Promise.all(slice.map((photo) => cachePhotoToIndexedDb(photo)));
             }
-            await prunePhotoCache(list.map((p) => p.id));
+            await prunePhotoCache();
             await refreshPhotoCacheStats();
             updateOfflineStatusBanner();
         }
@@ -2229,19 +2226,39 @@
         }
 
         async function ensureClimbPhotosForDetail(climbType, climbId) {
-            await ensurePhotosLoadedFromApi();
             const idStr = String(climbId);
+            const hasUsableImage = (list) => (Array.isArray(list) ? list : []).some((p) => {
+                const src = resolvePhotoDisplayUrl(p?.imageData);
+                if (!src) return false;
+                if (shouldUseOfflineQueue() || _offlineMode) return src.startsWith('data:') || src.startsWith('blob:');
+                return true;
+            });
             let photos = getPhotos().filter(
                 (p) => p.type === climbType && String(p.climbId) === idStr
             );
-            if (!photos.some(photoMayHaveImage)) {
+            await hydratePhotosFromIndexedDb(photos);
+            if (hasUsableImage(photos)) return photos;
+
+            if (!shouldUseOfflineQueue() && !_offlineMode) {
+                try {
+                    await ensurePhotosLoadedFromApi();
+                    photos = getPhotos().filter(
+                        (p) => p.type === climbType && String(p.climbId) === idStr
+                    );
+                    await hydratePhotosFromIndexedDb(photos);
+                } catch (err) {
+                    console.warn('all photos fetch', err);
+                }
+            }
+
+            if (!hasUsableImage(photos) && !shouldUseOfflineQueue()) {
                 try {
                     photos = await fetchClimbPhotosFromApi(climbType, climbId);
+                    await hydratePhotosFromIndexedDb(photos);
                 } catch (err) {
                     console.warn('climb photos fetch', err);
                 }
             }
-            await hydratePhotosFromIndexedDb(photos);
             return photos;
         }
 
@@ -7016,8 +7033,11 @@
                 }
 
                 const mount = document.getElementById('climbDetailPhotoMount');
+                const photoSrc = resolvePhotoDisplayUrl(photo?.imageData);
+                const photoReadyForDetail = !!photo && !!photoSrc
+                    && (!(shouldUseOfflineQueue() || _offlineMode) || photoSrc.startsWith('data:') || photoSrc.startsWith('blob:'));
                 const applyDetailMarkup = () => {
-                    if (mount && photo && photoHasDisplayImage(photo)) {
+                    if (mount && photoReadyForDetail) {
                         this.schedulePhotoMarkupOverlay(mount, photo.markup || null, climbType);
                     } else if (mount) {
                         this.applyPhotoPreviewMarkupOverlay(mount, null, climbType);
@@ -7026,7 +7046,7 @@
 
                 this.showDialog('climbDetailDialog');
 
-                if (photo && photoHasDisplayImage(photo)) {
+                if (photoReadyForDetail) {
                     saveRow?.classList.remove('hidden');
                     if (saveHint) {
                         const isTg = document.documentElement.classList.contains('tg-mini-app');
