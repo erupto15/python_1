@@ -4356,28 +4356,29 @@
                     && String(this.mapTarget.id) === String(entry.id);
             }
 
+            buildMapDotHtml(entry) {
+                const selected = this.mapEntrySelected(entry);
+                const done = entry.climbType && this.hasUserSent(entry.climbType, entry.id);
+                return `<div class="map-climb-dot${selected ? ' focused' : ''}${done ? ' done' : ''}" aria-hidden="true"></div>`;
+            }
+
+            createMapDotMarker(entry, coord) {
+                const icon = L.divIcon({
+                    className: 'map-climb-dot-marker',
+                    html: this.buildMapDotHtml(entry),
+                    iconSize: [0, 0],
+                    iconAnchor: [0, 0]
+                });
+                const marker = L.marker([coord.lat, coord.lng], { icon, zIndexOffset: 500 })
+                    .addTo(this.map)
+                    .bindPopup(this.buildMapPopupHtml(entry));
+                marker.on('click', () => this.setMapTarget(entry));
+                return marker;
+            }
+
             buildMapParentLabelHtml(title, sub = '', selected = false) {
                 const subHtml = sub ? ` <span>${this.escapeHtml(sub)}</span>` : '';
                 return `<div class="parent-label${selected ? ' selected' : ''}">${this.escapeHtml(title)}${subHtml}</div>`;
-            }
-
-            buildMapBadgePinHtml(entry) {
-                const selected = this.mapEntrySelected(entry);
-                const done = entry.climbType && this.hasUserSent(entry.climbType, entry.id);
-                const shortTitle = String(entry.title || '').length > 16
-                    ? `${String(entry.title).slice(0, 14).trim()}…`
-                    : String(entry.title || '—');
-                const grade = entry.grade || entry.meta?.split('·').pop()?.trim() || '';
-                const gradePart = grade ? ` <span>·${this.escapeHtml(grade)}</span>` : '';
-                const tickPart = done ? '<span class="ticks-tag">✓</span>' : '';
-                const classes = ['badge-pin', 'child', done ? 'done' : '', selected ? 'focused' : ''].filter(Boolean).join(' ');
-                return `
-                    <div class="${classes}">
-                        <div class="label">${this.escapeHtml(shortTitle)}${gradePart}${tickPart}</div>
-                        <div class="pointer"></div>
-                        <div class="dot"></div>
-                    </div>
-                `;
             }
 
             createMapParentLabelMarker(entry, coord, html) {
@@ -4388,20 +4389,6 @@
                     iconAnchor: [0, 0]
                 });
                 const marker = L.marker([coord.lat, coord.lng], { icon, zIndexOffset: 400 })
-                    .addTo(this.map)
-                    .bindPopup(this.buildMapPopupHtml(entry));
-                marker.on('click', () => this.setMapTarget(entry));
-                return marker;
-            }
-
-            createMapBadgeMarker(entry, coord) {
-                const icon = L.divIcon({
-                    className: 'sector-badge',
-                    html: this.buildMapBadgePinHtml(entry),
-                    iconSize: [0, 0],
-                    iconAnchor: [0, 0]
-                });
-                const marker = L.marker([coord.lat, coord.lng], { icon, zIndexOffset: 500 })
                     .addTo(this.map)
                     .bindPopup(this.buildMapPopupHtml(entry));
                 marker.on('click', () => this.setMapTarget(entry));
@@ -4496,9 +4483,6 @@
             refreshMapMarkerStyles() {
                 this.mapMarkerIndex.forEach((stored) => {
                     const selected = this.mapEntrySelected(stored);
-                    if (stored.polygon) {
-                        stored.polygon.setStyle(this.mapPolygonStyle(stored.tier, selected));
-                    }
                     if (stored.kind === 'area' || stored.kind === 'sector') {
                         stored.marker?.setIcon(L.divIcon({
                             className: 'parent-label-icon',
@@ -4509,20 +4493,19 @@
                         stored.labelEl = stored.marker?.getElement()?.querySelector('.parent-label') || null;
                     } else if (stored.marker) {
                         stored.marker.setIcon(L.divIcon({
-                            className: 'sector-badge',
-                            html: this.buildMapBadgePinHtml(stored),
+                            className: 'map-climb-dot-marker',
+                            html: this.buildMapDotHtml(stored),
                             iconSize: [0, 0],
                             iconAnchor: [0, 0]
                         }));
-                        stored.labelEl = stored.marker.getElement()?.querySelector('.badge-pin') || null;
+                        stored.labelEl = stored.marker.getElement()?.querySelector('.map-climb-dot') || null;
                     }
                 });
                 this.scheduleMapDeclutter();
             }
 
             extendMapBounds(bounds, entry) {
-                if (entry.polygon) bounds.extend(entry.polygon.getBounds());
-                else if (entry.lat != null && entry.lng != null) bounds.extend([entry.lat, entry.lng]);
+                if (entry.lat != null && entry.lng != null) bounds.extend([entry.lat, entry.lng]);
             }
 
             mapVisibleBounds() {
@@ -4593,6 +4576,26 @@
                     });
                 });
 
+                if (!APP_BOULDER_ONLY) {
+                    getRoutes().forEach((route) => {
+                        const c = this.validMapCoord(route.latitude, route.longitude);
+                        if (!c) return;
+                        entries.push({
+                            kind: 'route',
+                            climbType: 'route',
+                            id: route.id,
+                            title: route.name,
+                            meta: `${this.getStructureLabel(route.sectorId) || 'Каталог'} · ${route.grade || '—'}`,
+                            grade: route.grade || '',
+                            lat: c.lat,
+                            lng: c.lng,
+                            catalog: true,
+                            areaId: route.areaId,
+                            sectorId: route.sectorId
+                        });
+                    });
+                }
+
                 getBoulders().forEach((boulder) => {
                     const c = this.validMapCoord(boulder.latitude, boulder.longitude);
                     if (!c) return;
@@ -4623,42 +4626,22 @@
                     ...entry,
                     lat: coord.lat,
                     lng: coord.lng,
-                    polygon: null,
-                    tier: entry.tier || 'mid',
                     labelSub: entry.labelSub || '',
                     labelEl: null,
                     marker: null
                 };
-                const popupHtml = this.buildMapPopupHtml(entry);
-                const bindLayer = (layer) => {
-                    layer.bindPopup(popupHtml);
-                    layer.on('click', () => this.setMapTarget(stored));
-                    this.mapLayers.push(layer);
-                };
 
                 if (entry.kind === 'area' || entry.kind === 'sector') {
-                    const points = entry.kind === 'area'
-                        ? this.areaMapPoints(entry.id)
-                        : this.sectorMapPoints(entry.id);
-                    const polygonLatLngs = this.mapPolygonForPoints(points.length ? points : [coord]);
-                    stored.tier = entry.kind === 'area'
-                        ? this.mapTierForArea(entry.id)
-                        : this.mapTierForSector(entry.id);
-                    if (polygonLatLngs) {
-                        stored.polygon = L.polygon(polygonLatLngs, this.mapPolygonStyle(stored.tier, selected)).addTo(this.map);
-                        bindLayer(stored.polygon);
-                    }
                     const labelHtml = this.buildMapParentLabelHtml(entry.title, stored.labelSub, selected);
                     stored.marker = this.createMapParentLabelMarker(stored, coord, labelHtml);
                     stored.labelEl = stored.marker.getElement()?.querySelector('.parent-label') || null;
-                    this.mapLayers.push(stored.marker);
                 } else {
                     stored.grade = entry.grade || '';
-                    stored.marker = this.createMapBadgeMarker(stored, coord);
-                    stored.labelEl = stored.marker.getElement()?.querySelector('.badge-pin') || null;
-                    this.mapLayers.push(stored.marker);
+                    stored.marker = this.createMapDotMarker(stored, coord);
+                    stored.labelEl = stored.marker.getElement()?.querySelector('.map-climb-dot') || null;
                 }
 
+                this.mapLayers.push(stored.marker);
                 this.mapMarkerIndex.set(this.mapKey(entry.kind, entry.id), stored);
             }
 

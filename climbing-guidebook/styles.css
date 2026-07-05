@@ -2510,19 +2510,34 @@
         }
 
         /* Zoom-уровни карты (как V8ROCK) */
-        .leaflet-container.z-low .parent-label-icon,
-        .leaflet-container.z-low .sector-badge {
+        .leaflet-container.z-low .parent-label-icon {
             display: none !important;
         }
 
-        .leaflet-container.z-mid .sector-badge .badge-pin > .label,
-        .leaflet-container.z-mid .sector-badge .badge-pin > .pointer {
-            display: none !important;
+        .map-climb-dot-marker {
+            background: transparent;
+            border: none;
         }
 
-        .leaflet-container.z-mid .sector-badge .badge-pin > .dot {
-            margin-top: 0;
-            transform: translateY(50%);
+        .map-climb-dot {
+            transform: translate(-50%, -50%);
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.85);
+            border: 2px solid var(--map-accent);
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+            pointer-events: none;
+        }
+
+        .map-climb-dot.focused {
+            background: var(--map-accent);
+            border-color: #fff;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 0 10px var(--map-accent);
+        }
+
+        .map-climb-dot.done {
+            border-color: var(--map-tick-done);
         }
 
         @media (max-width: 520px) {
