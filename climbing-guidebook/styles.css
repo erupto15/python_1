@@ -1027,7 +1027,7 @@
             max-width: none;
             max-height: none;
             object-fit: contain;
-            object-position: center bottom;
+            object-position: center 65%;
         }
 
         .markup-dialog-stage.markup-draw-active {
@@ -1508,7 +1508,7 @@
             max-width: none;
             max-height: none;
             object-fit: contain;
-            object-position: center bottom;
+            object-position: center 65%;
         }
 
         .climb-photo-viewer-mount.topo-framed {
@@ -1734,7 +1734,7 @@
 
         #photoAlbum > .photo-album-tile-wrap .photo-album-open-btn img {
             object-fit: contain;
-            object-position: center bottom;
+            object-position: center 65%;
             background: #0d0d0d;
         }
 
