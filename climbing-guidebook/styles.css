@@ -3832,7 +3832,7 @@
         }
 
         /* Telegram: дубли в подвале скрываем только когда нативные кнопки реально видимы */
-        html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] .dialog-footer--tg-native,
+        html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] .dialog-footer--tg-native:not(.dialog-footer--keep-visible),
         html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] .markup-actions--tg-native {
             display: none !important;
         }

@@ -13,12 +13,26 @@
                 btnId: 'sectorSubmitBtn'
             },
             quickRouteDialog: {
-                text: 'Добавить трассу',
-                btnId: 'saveQuickRouteBtn'
+                resolve() {
+                    const btn = document.getElementById('saveQuickRouteBtn');
+                    if (!btn || btn.disabled) return null;
+                    const text = (btn.textContent || '').replace(/\s+/g, ' ').trim();
+                    return {
+                        text: text || 'Добавить трассу',
+                        btnId: 'saveQuickRouteBtn'
+                    };
+                }
             },
             quickBoulderDialog: {
-                text: 'Добавить боулдеринг',
-                btnId: 'saveQuickBoulderBtn'
+                resolve() {
+                    const btn = document.getElementById('saveQuickBoulderBtn');
+                    if (!btn || btn.disabled) return null;
+                    const text = (btn.textContent || '').replace(/\s+/g, ' ').trim();
+                    return {
+                        text: text || 'Добавить боулдеринг',
+                        btnId: 'saveQuickBoulderBtn'
+                    };
+                }
             },
             climbDetailDialog: {
                 resolve() {
