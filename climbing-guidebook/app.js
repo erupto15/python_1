@@ -4145,7 +4145,7 @@
                 return points;
             }
 
-            mapPointPadSquare(point, pad = 0.00028) {
+            mapPointPadSquare(point, pad = 0.00003) {
                 const { lat, lng } = point;
                 return [
                     [lat - pad, lng - pad],
@@ -4153,6 +4153,17 @@
                     [lat + pad, lng + pad],
                     [lat + pad, lng - pad]
                 ];
+            }
+
+            mapCoordVisualPad(points) {
+                if (!points.length) return 0.00003;
+                if (points.length === 1) return 0.00003;
+                const lats = points.map((p) => p.lat);
+                const lngs = points.map((p) => p.lng);
+                const latSpan = Math.max(...lats) - Math.min(...lats);
+                const lngSpan = Math.max(...lngs) - Math.min(...lngs);
+                const span = Math.max(latSpan, lngSpan, 0.00003);
+                return Math.min(Math.max(span * 0.04, 0.00002), 0.00008);
             }
 
             mapConvexHull(points) {
@@ -4179,7 +4190,7 @@
                 if (hull.length < 3) {
                     const lats = points.map((p) => p.lat);
                     const lngs = points.map((p) => p.lng);
-                    const pad = 0.00022;
+                    const pad = this.mapCoordVisualPad(points);
                     return [
                         [Math.min(...lats) - pad, Math.min(...lngs) - pad],
                         [Math.min(...lats) - pad, Math.max(...lngs) + pad],
@@ -4190,8 +4201,8 @@
                 return hull.map((p) => [p.y, p.x]);
             }
 
-            mapExpandPolygon(latlngs, factor = 1.14) {
-                if (!latlngs?.length) return latlngs;
+            mapExpandPolygon(latlngs, factor = 1) {
+                if (!latlngs?.length || factor === 1) return latlngs;
                 const cLat = latlngs.reduce((sum, p) => sum + p[0], 0) / latlngs.length;
                 const cLng = latlngs.reduce((sum, p) => sum + p[1], 0) / latlngs.length;
                 return latlngs.map(([lat, lng]) => [
@@ -4202,8 +4213,7 @@
 
             mapPolygonForPoints(points) {
                 if (!points.length) return null;
-                const hull = this.mapConvexHull(points);
-                return this.mapExpandPolygon(hull);
+                return this.mapConvexHull(points);
             }
 
             mapPolygonStyle(tier, selected = false) {
