@@ -2655,8 +2655,7 @@
             pl.setAttribute('points', pairs.join(' '));
             pl.setAttribute('fill', 'none');
             pl.setAttribute('stroke', TOPO_MARKUP.lineColor);
-            pl.setAttribute('stroke-width', String(TOPO_MARKUP.lineStrokePx));
-            pl.setAttribute('vector-effect', 'non-scaling-stroke');
+            pl.setAttribute('stroke-width', String(topoStrokeNorm(geom, TOPO_MARKUP.lineStrokePx)));
             pl.setAttribute('stroke-linecap', 'round');
             pl.setAttribute('stroke-linejoin', 'round');
             svg.appendChild(pl);
@@ -2668,6 +2667,7 @@
             const ny = Math.max(0, Math.min(1, Number(hold.y)));
             if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
             const r = topoHoldRadiusNorm(geom);
+            const sw = topoStrokeNorm(geom, TOPO_MARKUP.holdStrokePx);
             const c = document.createElementNS(NS, 'circle');
             c.setAttribute('class', 'topo-hold');
             c.setAttribute('cx', String(nx));
@@ -2675,8 +2675,7 @@
             c.setAttribute('r', String(r));
             c.setAttribute('fill', TOPO_MARKUP.holdFill);
             c.setAttribute('stroke', TOPO_MARKUP.holdStroke);
-            c.setAttribute('stroke-width', String(TOPO_MARKUP.holdStrokePx));
-            c.setAttribute('vector-effect', 'non-scaling-stroke');
+            c.setAttribute('stroke-width', String(sw));
             svg.appendChild(c);
 
             const label = document.createElementNS(NS, 'text');
@@ -2686,7 +2685,7 @@
             label.setAttribute('text-anchor', 'middle');
             label.setAttribute('dominant-baseline', 'central');
             label.setAttribute('fill', TOPO_MARKUP.holdNumberColor);
-            label.setAttribute('font-size', String(TOPO_MARKUP.holdRadiusPx * 0.88));
+            label.setAttribute('font-size', String(topoStrokeNorm(geom, TOPO_MARKUP.holdRadiusPx * 0.88)));
             label.setAttribute('font-weight', '700');
             label.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, sans-serif');
             label.setAttribute('pointer-events', 'none');
@@ -8030,8 +8029,6 @@
                     points: this.currentRouteLineMarkup.points || [],
                     startHolds: this.currentRouteLineMarkup.startHolds || []
                 }, 'route');
-                ensurePhotoStageWrap(container, { enableZoom: false });
-
                 const paint = () => {
                     const geom = getMarkupStageGeometry(container);
                     container.querySelectorAll('.hold-marker, .line-marker').forEach((marker) => marker.remove());
@@ -8357,8 +8354,6 @@
                     holds: this.currentBoulderHoldsMarkup.holds || [],
                     linePoints: this.currentBoulderHoldsMarkup.linePoints || []
                 }, 'boulder');
-                ensurePhotoStageWrap(container, { enableZoom: false });
-
                 const paint = () => {
                     const geom = getMarkupStageGeometry(container);
 
