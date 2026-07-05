@@ -581,7 +581,7 @@
         const QUICK_PHOTO_JPEG_QUALITY = 0.82;
         const QUICK_PHOTO_DATAURL_SOFT_CAP = 900000;
 
-        let _heic2anyLoadPromise = null;
+        let _heicToLoadPromise = null;
 
         function isHeicImageFile(file) {
             const type = String(file?.type || '').toLowerCase();
@@ -626,41 +626,96 @@
             return name;
         }
 
-        function ensureHeic2AnyLoaded() {
-            if (typeof heic2any === 'function') return Promise.resolve();
-            if (_heic2anyLoadPromise) return _heic2anyLoadPromise;
-            _heic2anyLoadPromise = new Promise((resolve, reject) => {
-                const existing = document.querySelector('script[data-heic2any-loader]');
-                if (existing) {
-                    existing.addEventListener('load', () => resolve(), { once: true });
-                    existing.addEventListener('error', () => reject(new Error('heic2any load failed')), { once: true });
-                    return;
-                }
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
-                script.async = true;
-                script.dataset.heic2anyLoader = '1';
-                script.onload = () => resolve();
-                script.onerror = () => reject(new Error('heic2any load failed'));
-                document.head.appendChild(script);
-            });
-            return _heic2anyLoadPromise;
+        function normalizeHeicBlob(blob) {
+            if (!(blob instanceof Blob)) {
+                return new Blob([blob], { type: 'image/heic' });
+            }
+            const type = String(blob.type || '').toLowerCase();
+            if (type.includes('heic') || type.includes('heif') || type) return blob;
+            return new Blob([blob], { type: 'image/heic' });
         }
 
-        async function convertHeicBlobToJpegDataUrl(blob) {
-            await ensureHeic2AnyLoaded();
-            const out = await heic2any({
-                blob,
-                toType: 'image/jpeg',
-                quality: QUICK_PHOTO_JPEG_QUALITY
-            });
-            const jpegBlob = Array.isArray(out) ? out[0] : out;
-            return await new Promise((resolve, reject) => {
+        function blobToDataUrl(blob) {
+            return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(String(reader.result || ''));
                 reader.onerror = () => reject(new Error('Не удалось прочитать конвертированный HEIC'));
-                reader.readAsDataURL(jpegBlob);
+                reader.readAsDataURL(blob);
             });
+        }
+
+        async function convertHeicViaNativeBitmap(blob) {
+            if (typeof createImageBitmap !== 'function') {
+                throw new Error('createImageBitmap unavailable');
+            }
+            const source = normalizeHeicBlob(blob);
+            const bitmap = await createImageBitmap(source);
+            try {
+                const w = bitmap.width;
+                const h = bitmap.height;
+                if (!w || !h) throw new Error('empty bitmap');
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error('canvas unavailable');
+                ctx.drawImage(bitmap, 0, 0, w, h);
+                return canvas.toDataURL('image/jpeg', QUICK_PHOTO_JPEG_QUALITY);
+            } finally {
+                if (typeof bitmap.close === 'function') bitmap.close();
+            }
+        }
+
+        function ensureHeicToLoaded() {
+            if (typeof HeicTo === 'function') return Promise.resolve();
+            if (_heicToLoadPromise) return _heicToLoadPromise;
+            _heicToLoadPromise = new Promise((resolve, reject) => {
+                const existing = document.querySelector('script[data-heic-to-loader]');
+                if (existing) {
+                    existing.addEventListener('load', () => resolve(), { once: true });
+                    existing.addEventListener('error', () => reject(new Error('heic-to load failed')), { once: true });
+                    return;
+                }
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/heic-to@1.5.2/dist/iife/heic-to.js';
+                script.async = true;
+                script.dataset.heicToLoader = '1';
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error('heic-to load failed'));
+                document.head.appendChild(script);
+            });
+            return _heicToLoadPromise;
+        }
+
+        function formatHeicConvertError(err) {
+            const msg = String(err?.message || err || '').trim();
+            if (!msg) return 'Не удалось конвертировать HEIC';
+            if (/ERR_LIBHEIF|format not supported|not heic/i.test(msg)) {
+                return 'Этот HEIC не поддерживается. Сохраните снимок как JPEG в «Фото» на iPhone или выберите другой файл.';
+            }
+            if (/load failed/i.test(msg)) {
+                return 'Не удалось загрузить конвертер HEIC. Проверьте интернет и обновите страницу.';
+            }
+            return `Не удалось конвертировать HEIC: ${msg}`;
+        }
+
+        async function convertHeicBlobToJpegDataUrl(blob) {
+            const source = normalizeHeicBlob(blob);
+            try {
+                await ensureHeicToLoaded();
+                const jpegBlob = await HeicTo({
+                    blob: source,
+                    type: 'image/jpeg',
+                    quality: QUICK_PHOTO_JPEG_QUALITY
+                });
+                return await blobToDataUrl(Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob);
+            } catch (primaryErr) {
+                try {
+                    return await convertHeicViaNativeBitmap(source);
+                } catch (_) {
+                    throw new Error(formatHeicConvertError(primaryErr));
+                }
+            }
         }
 
         async function normalizeDisplayableDataUrl(dataUrl) {
