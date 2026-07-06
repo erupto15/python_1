@@ -2780,7 +2780,11 @@
             if (!container) return;
             const isDetailMount = container.classList.contains('climb-detail-photo-mount')
                 && !container.classList.contains('climb-photo-viewer-mount');
-            if (isDetailMount || collectMarkupNormPoints(markup, climbType).length) {
+            if (isDetailMount) {
+                container.classList.remove('topo-framed');
+                return;
+            }
+            if (collectMarkupNormPoints(markup, climbType).length) {
                 container.classList.add('topo-framed');
             } else {
                 container.classList.remove('topo-framed');
@@ -8035,9 +8039,9 @@
                 const climbType =
                     this._climbDetailContext?.climbType || photo.type || 'route';
                 if (which === 'detail') {
-                    mount.classList.add('topo-framed');
+                    mount.classList.remove('topo-framed');
                 }
-                ensurePhotoStageWrap(mount, { enableZoom: true });
+                ensurePhotoStageWrap(mount, { enableZoom: which !== 'detail' });
                 const applyMarkup = () => {
                     this.schedulePhotoMarkupOverlay(mount, photo.markup || null, climbType);
                 };
