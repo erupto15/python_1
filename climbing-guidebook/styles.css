@@ -447,6 +447,29 @@
             gap: 10px;
         }
 
+        .card-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .card-header-icon-btn {
+            width: 42px;
+            height: 42px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            font-size: 18px;
+        }
+
+        .card-header-icon-btn:disabled {
+            opacity: 0.55;
+            cursor: wait;
+        }
+
         /* Кнопки: вторичные полупрозрачные, первичные и акценты читаются на тёмном фоне */
         .btn {
             padding: 10px 18px;

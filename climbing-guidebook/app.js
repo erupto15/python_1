@@ -1419,9 +1419,6 @@
                         await window.app.tryTelegramLogin();
                     }
                 }
-                void ensurePhotosLoadedFromApi().then(() => {
-                    window.app?.renderPhotoAlbum?.();
-                }).catch((err) => console.warn('photos prefetch', err));
                 setAppDataStatus('hidden');
             } catch (err) {
                 console.error('retry data load', err);
@@ -2676,18 +2673,6 @@
             await hydratePhotosFromIndexedDb(photos);
             if (hasUsableImage(photos)) return photos;
 
-            if (!shouldUseOfflineQueue() && !_offlineMode) {
-                try {
-                    await ensurePhotosLoadedFromApi();
-                    photos = getPhotos().filter(
-                        (p) => p.type === climbType && String(p.climbId) === idStr
-                    );
-                    await hydratePhotosFromIndexedDb(photos);
-                } catch (err) {
-                    console.warn('all photos fetch', err);
-                }
-            }
-
             if (!hasUsableImage(photos) && !shouldUseOfflineQueue()) {
                 try {
                     photos = await fetchClimbPhotosFromApi(climbType, climbId);
@@ -3237,6 +3222,7 @@
                 this._climbViewerImgGen = 0;
                 this._photoGallery = null;
                 this._photoAlbumNavList = [];
+                this._photosLoadInProgress = false;
                 this.map = null;
                 this.mapLayers = [];
                 this.mapMarkerIndex = new Map();
@@ -3345,6 +3331,7 @@
                 this.setupCommunityListeners();
                 this.setupTabSwitching();
                 this.applyRoleUI();
+                this.syncLoadPhotosButtonsUi();
             }
 
             /** После фоновой загрузки с API — обновить списки и карту (не блокирует первый показ UI). */
@@ -3367,6 +3354,7 @@
                 if (this.map) {
                     this.updateMapMarkers();
                 }
+                this.syncLoadPhotosButtonsUi();
             }
 
             getCurrentUser() {
@@ -3777,7 +3765,6 @@
                     localStorage.removeItem('climb_photos');
 
                     await loadClimbingDataFromApi({ includePhotos: false });
-                    await ensurePhotosLoadedFromApi();
                     this.data = getClimbingData();
                     this.refreshUiAfterRemoteLoad();
                     this.showToast(`Перенесено на сервер: ${imported} записей`);
@@ -6750,6 +6737,52 @@
                     : getBoulders().find((b) => String(b.id) === cid);
             }
 
+            syncLoadPhotosButtonsUi({ loading } = {}) {
+                document.querySelectorAll('[data-action="load-photos"]').forEach((btn) => {
+                    btn.disabled = !!loading;
+                    const icon = btn.querySelector('i');
+                    if (icon) {
+                        icon.classList.toggle('fa-spin', !!loading);
+                        icon.classList.toggle('fa-spinner', !!loading);
+                        icon.classList.toggle('fa-cloud-download-alt', !loading);
+                    }
+                    btn.title = _photosLoadedFromApi && !loading
+                        ? 'Обновить фото с сервера'
+                        : 'Загрузить фото с сервера';
+                    btn.setAttribute(
+                        'aria-label',
+                        _photosLoadedFromApi && !loading
+                            ? 'Обновить фото с сервера'
+                            : 'Загрузить фото с сервера'
+                    );
+                });
+            }
+
+            async loadPhotosFromServerManually() {
+                if (this._photosLoadInProgress) return;
+                if (typeof navigator.onLine === 'boolean' && !navigator.onLine) {
+                    this.showToast('Нет сети — загрузка фото недоступна', true);
+                    return;
+                }
+                this._photosLoadInProgress = true;
+                this.syncLoadPhotosButtonsUi({ loading: true });
+                this.showToast('Загрузка фотографий…', false);
+                try {
+                    const awake = await wakeApiServer({ attempts: 3, timeoutMs: 12000, pauseMs: 600 });
+                    if (!awake) throw new Error('Сервер не отвечает');
+                    await ensurePhotosLoadedFromApi({ force: true });
+                    await hydrateCatalogPhotosFromIndexedDb();
+                    this.renderPhotoAlbum();
+                    this.showToast('Фотографии загружены');
+                } catch (err) {
+                    console.warn('manual photos load', err);
+                    this.showToast(`Не удалось загрузить фото: ${err.message || 'ошибка сети'}`, true);
+                } finally {
+                    this._photosLoadInProgress = false;
+                    this.syncLoadPhotosButtonsUi({ loading: false });
+                }
+            }
+
             renderPhotoAlbum() {
                 const photoAlbum = document.getElementById('photoAlbum');
                 const photos = getPhotos();
@@ -6781,11 +6814,13 @@
                         emptyHint = 'По этому названию ничего не найдено. Попробуйте другой запрос или сбросьте фильтры.';
                     } else if (filterType !== 'all') {
                         emptyHint = 'Для выбранного фильтра фотографии не найдены';
+                    } else if (!_photosLoadedFromApi && !photos.length) {
+                        emptyHint = 'Нажмите кнопку загрузки в шапке вкладки, чтобы подтянуть снимки трасс и боулдеров с сервера.';
                     }
                     photoAlbum.innerHTML = `
                         <div class="empty-state">
                             <i class="fas fa-${searchTerm ? 'search' : 'images'}"></i>
-                            <h3>${searchTerm ? 'Ничего не найдено' : 'Нет фотографий'}</h3>
+                            <h3>${searchTerm ? 'Ничего не найдено' : (!_photosLoadedFromApi && !photos.length ? 'Фото не загружены' : 'Нет фотографий')}</h3>
                             <p>${emptyHint}</p>
                         </div>
                     `;
@@ -6871,12 +6906,6 @@
                                         this.showToast('Карта недоступна без сети', true);
                                     });
                             } else if (tabId === 'photos') {
-                                try {
-                                    await ensurePhotosLoadedFromApi();
-                                } catch (err) {
-                                    console.error(err);
-                                    this.showToast('Не удалось загрузить фотографии', true);
-                                }
                                 this.renderPhotoAlbum();
                             } else if (tabId === 'catalog') {
                                 this.renderCatalog();
@@ -6899,6 +6928,12 @@
 
             setupEventListeners() {
                 this.setupAuthEventListeners();
+                document.addEventListener('click', (e) => {
+                    const loadPhotosBtn = e.target.closest('[data-action="load-photos"]');
+                    if (!loadPhotosBtn || loadPhotosBtn.disabled) return;
+                    e.preventDefault();
+                    void this.loadPhotosFromServerManually();
+                });
                 document.getElementById('catalog')?.addEventListener('click', (e) => this.handleCatalogClick(e));
                 document.getElementById('catalogList')?.addEventListener('click', (e) => {
                     const editRoute = e.target.closest('[data-action="edit-route"]');
@@ -10121,9 +10156,6 @@
                 leaveOfflineMode();
                 void flushOfflineOutbox();
                 void runTelegramAuthBootstrap();
-                void ensurePhotosLoadedFromApi().then(() => {
-                    window.app?.renderPhotoAlbum?.();
-                }).catch((err) => console.warn('background photos prefetch', err));
                 if (typeof window.syncTelegramMiniAppUi === 'function') {
                     window.syncTelegramMiniAppUi();
                 }
@@ -10186,9 +10218,6 @@
                     setAppDataStatus('loading', 'Сеть восстановлена — обновление каталога…');
                     await refreshCatalogFromApi({ force: true, skipWake: true });
                     leaveOfflineMode();
-                    void ensurePhotosLoadedFromApi()
-                        .then(() => window.app?.renderPhotoAlbum?.())
-                        .catch((err) => console.warn('photos refresh after online', err));
                 } catch (err) {
                     console.warn('online catalog refresh', err);
                 }
