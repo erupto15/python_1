@@ -2778,7 +2778,9 @@
         /** Кадр с разметкой: фиксированная высота, фото целиком по центру (без crop по разметке). */
         function applyTopoPhotoFraming(container, markup, climbType) {
             if (!container) return;
-            if (collectMarkupNormPoints(markup, climbType).length) {
+            const isDetailMount = container.classList.contains('climb-detail-photo-mount')
+                && !container.classList.contains('climb-photo-viewer-mount');
+            if (isDetailMount || collectMarkupNormPoints(markup, climbType).length) {
                 container.classList.add('topo-framed');
             } else {
                 container.classList.remove('topo-framed');
@@ -7619,8 +7621,11 @@
                 if (!normalized) {
                     previewItem.querySelectorAll('.photo-markup-overlay').forEach(el => el.remove());
                     this.updatePreviewMarkupBadge(previewItem, false);
-                    if (previewItem.classList.contains('climb-detail-photo-mount')) {
-                        ensurePhotoStageWrap(previewItem, { enableZoom: false });
+                    if (previewItem.classList.contains('climb-detail-photo-mount')
+                        || previewItem.classList.contains('climb-photo-viewer-mount')) {
+                        const enableZoom = previewItem.classList.contains('climb-photo-viewer-mount')
+                            || previewItem.classList.contains('topo-framed');
+                        ensurePhotoStageWrap(previewItem, { enableZoom });
                     }
                     return;
                 }
@@ -8029,12 +8034,10 @@
                 resetPhotoStageInContainer(mount);
                 const climbType =
                     this._climbDetailContext?.climbType || photo.type || 'route';
-                const hasMarkup = !!normalizePhotoMarkup(photo.markup, climbType);
-                if (which === 'viewer') {
-                    ensurePhotoStageWrap(mount, { enableZoom: true });
-                } else {
-                    ensurePhotoStageWrap(mount, { enableZoom: hasMarkup });
+                if (which === 'detail') {
+                    mount.classList.add('topo-framed');
                 }
+                ensurePhotoStageWrap(mount, { enableZoom: true });
                 const applyMarkup = () => {
                     this.schedulePhotoMarkupOverlay(mount, photo.markup || null, climbType);
                 };
@@ -8248,13 +8251,6 @@
                 const photoSrc = resolvePhotoDisplayUrl(photo?.imageData);
                 const photoReadyForDetail = !!photo && !!photoSrc
                     && (!(shouldUseOfflineQueue() || _offlineMode) || photoSrc.startsWith('data:') || photoSrc.startsWith('blob:'));
-                const applyDetailMarkup = () => {
-                    if (mount && photoReadyForDetail) {
-                        this.schedulePhotoMarkupOverlay(mount, photo.markup || null, climbType);
-                    } else if (mount) {
-                        this.applyPhotoPreviewMarkupOverlay(mount, null, climbType);
-                    }
-                };
 
                 this.showDialog('climbDetailDialog');
 
@@ -8266,10 +8262,7 @@
                     }
                     wrap?.classList.remove('hidden');
                     noPh?.classList.add('hidden');
-                    const img = this.ensureClimbDetailImageElement();
-                    if (img) {
-                        this._setClimbDetailImageSrc(img, photo, climb.name || '', applyDetailMarkup);
-                    }
+                    this.showClimbDetailPhotoInMount('detail', photo, climb.name || '');
                     if (mkBtn) mkBtn.style.display = '';
                     void this.tryAutoSaveOpenedMediaToDevice(photo, climbType, climb.name || '');
                 } else {
@@ -8283,8 +8276,11 @@
                         img.onerror = null;
                         img.removeAttribute('src');
                     }
+                    if (mount) {
+                        resetPhotoStageInContainer(mount);
+                        this.applyPhotoPreviewMarkupOverlay(mount, null, climbType);
+                    }
                     if (mkBtn) mkBtn.style.display = 'none';
-                    applyDetailMarkup();
                 }
                 this.updateClimbDetailPhotoCounter();
 
