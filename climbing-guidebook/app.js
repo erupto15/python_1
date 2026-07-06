@@ -2730,6 +2730,17 @@
                 return base;
             }
             const imageRect = img.getBoundingClientRect();
+            if (imageRect.width >= 8 && imageRect.height >= 8 && containerRect) {
+                return {
+                    cw: Math.max(1, containerRect.width),
+                    ch: Math.max(1, containerRect.height),
+                    left: imageRect.left - containerRect.left,
+                    top: imageRect.top - containerRect.top,
+                    iw: imageRect.width,
+                    ih: imageRect.height,
+                    ready: true
+                };
+            }
             const boxW = Math.max(1, wrap ? cw : (imageRect.width || img.clientWidth || img.offsetWidth || cw));
             const boxH = Math.max(1, wrap ? ch : (imageRect.height || img.clientHeight || img.offsetHeight || ch));
             const imgStyle = window.getComputedStyle(img);
@@ -7668,6 +7679,14 @@
                     }
 
                     const svg = this.buildPhotoMarkupOverlaySvg(markupForSvg, climbType, geom);
+                    if (isMarkupStageReady(geom)) {
+                        svg.style.position = 'absolute';
+                        svg.style.inset = 'auto';
+                        svg.style.left = `${geom.left}px`;
+                        svg.style.top = `${geom.top}px`;
+                        svg.style.width = `${geom.iw}px`;
+                        svg.style.height = `${geom.ih}px`;
+                    }
                     const stage = previewItem.querySelector('.photo-wrap .stage');
                     if (stage) {
                         stage.appendChild(svg);

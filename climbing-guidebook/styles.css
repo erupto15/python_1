@@ -1739,34 +1739,42 @@
             background: transparent;
             box-shadow: none;
             overflow: visible;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         .climb-detail-photo-panel .climb-detail-photo-counter {
             top: 8px;
-            right: 8px;
+            right: max(8px, calc(50% - min(47vw, 190px)));
         }
 
         .climb-detail-photo-panel .climb-detail-photo-mount.photo-preview-with-markup {
             width: 100%;
+            max-width: min(100%, 380px);
             height: auto !important;
             min-height: 0;
             border: 0;
             border-radius: 12px;
-            overflow: hidden;
+            overflow: visible;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto;
         }
 
         .climb-detail-photo-panel .climb-detail-photo-mount.climb-detail-photo-swipe {
             min-height: 0;
             height: auto !important;
-            align-items: stretch;
-            justify-content: stretch;
         }
 
         .climb-detail-photo-panel .photo-wrap {
             position: relative;
-            width: 100%;
+            width: fit-content;
+            max-width: 100%;
             height: auto;
             min-height: 0;
+            margin: 0 auto;
             overflow: visible;
             background: transparent;
             border-radius: 12px;
@@ -1775,18 +1783,23 @@
         .climb-detail-photo-panel .photo-wrap .stage {
             position: relative;
             inset: auto;
+            width: fit-content;
+            max-width: 100%;
             transform: none !important;
             line-height: 0;
         }
 
         .climb-detail-photo-panel .photo-wrap img,
-        .climb-detail-photo-panel .climb-detail-photo-mount > img {
+        .climb-detail-photo-panel .climb-detail-photo-mount > img,
+        .climb-detail-photo-panel .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed) .photo-wrap img {
             display: block;
-            width: 100%;
+            width: auto;
+            max-width: min(100%, 380px);
             height: auto !important;
-            max-width: 100%;
-            max-height: min(72vh, 720px);
-            object-fit: unset;
+            max-height: min(52vh, 480px);
+            margin: 0 auto;
+            object-fit: contain;
+            object-position: center center;
             background: transparent;
             border-radius: 12px;
         }
@@ -1799,6 +1812,9 @@
             border: 0;
             background: transparent;
             padding: 6px 0 0;
+            width: 100%;
+            max-width: min(100%, 380px);
+            text-align: center;
         }
 
         .climb-detail-photo-mount.climb-detail-photo-swipe {
