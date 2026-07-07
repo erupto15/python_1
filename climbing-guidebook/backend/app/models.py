@@ -257,3 +257,18 @@ class ClimbUserRating(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     user: Mapped["User"] = relationship(back_populates="climb_ratings")
+
+
+class MapFeature(Base):
+    __tablename__ = "map_features"
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    area_id: Mapped[Optional[int]] = mapped_column(ForeignKey("areas.id", ondelete="CASCADE"), nullable=True, index=True)
+    sector_id: Mapped[Optional[int]] = mapped_column(ForeignKey("sectors.id", ondelete="CASCADE"), nullable=True, index=True)
+    feature_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    label: Mapped[Optional[str]] = mapped_column(String(255))
+    geometry: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    properties: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON)
+    created_by: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -439,3 +439,40 @@ class LeaderboardRead(BaseModel):
     rows: list[LeaderboardRow] = Field(default_factory=list)
     my_rank: Optional[int] = None
     my_row: Optional[LeaderboardRow] = None
+
+
+MapFeatureType = Literal["trail", "parking", "camping", "area_sign", "sector_sign"]
+
+
+class MapFeatureCreate(BaseModel):
+    area_id: Optional[int] = None
+    sector_id: Optional[int] = None
+    feature_type: MapFeatureType
+    label: Optional[str] = Field(None, max_length=255)
+    geometry: dict[str, Any]
+    properties: Optional[dict[str, Any]] = None
+    created_by: Optional[str] = None
+
+
+class MapFeatureUpdate(BaseModel):
+    area_id: Optional[int] = None
+    sector_id: Optional[int] = None
+    feature_type: Optional[MapFeatureType] = None
+    label: Optional[str] = Field(None, max_length=255)
+    geometry: Optional[dict[str, Any]] = None
+    properties: Optional[dict[str, Any]] = None
+
+
+class MapFeatureRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    area_id: Optional[int]
+    sector_id: Optional[int]
+    feature_type: str
+    label: Optional[str]
+    geometry: dict[str, Any]
+    properties: Optional[dict[str, Any]]
+    created_by: Optional[str]
+    created_at: datetime
+    updated_at: datetime

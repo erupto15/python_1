@@ -7,17 +7,20 @@ from sqlalchemy.orm import Session
 
 from app import schemas
 from app.db import get_db
-from app.models import Area, Boulder, Route, Sector
+from app.models import Area, Boulder, MapFeature, Route, Sector
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
 
-def _catalog_rows(db: Session) -> tuple[list[Area], list[Sector], list[Route], list[Boulder]]:
+def _catalog_rows(
+    db: Session,
+) -> tuple[list[Area], list[Sector], list[Route], list[Boulder], list[MapFeature]]:
     areas = db.query(Area).filter(Area.deleted_at.is_(None)).order_by(Area.id).all()
     sectors = db.query(Sector).filter(Sector.deleted_at.is_(None)).order_by(Sector.id).all()
     routes = db.query(Route).filter(Route.deleted_at.is_(None)).order_by(Route.id).all()
     boulders = db.query(Boulder).filter(Boulder.deleted_at.is_(None)).order_by(Boulder.id).all()
-    return areas, sectors, routes, boulders
+    map_features = db.query(MapFeature).order_by(MapFeature.id).all()
+    return areas, sectors, routes, boulders, map_features
 
 
 def _catalog_version(*groups: list[object]) -> str:
@@ -32,41 +35,49 @@ def _catalog_version(*groups: list[object]) -> str:
 
 @router.get("/manifest")
 def catalog_manifest(db: Session = Depends(get_db)) -> dict[str, object]:
-    areas, sectors, routes, boulders = _catalog_rows(db)
+    areas, sectors, routes, boulders, map_features = _catalog_rows(db)
     max_updated_at = None
     for model in (Area, Sector, Route, Boulder):
         value = db.scalar(select(func.max(model.updated_at)).where(model.deleted_at.is_(None)))
         if value and (max_updated_at is None or value > max_updated_at):
             max_updated_at = value
+    map_features_updated_at = db.scalar(select(func.max(MapFeature.updated_at)))
+    if map_features_updated_at and (max_updated_at is None or map_features_updated_at > max_updated_at):
+        max_updated_at = map_features_updated_at
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": max_updated_at.isoformat() if max_updated_at else None,
-        "version": _catalog_version(areas, sectors, routes, boulders),
+        "version": _catalog_version(areas, sectors, routes, boulders, map_features),
         "counts": {
             "areas": len(areas),
             "sectors": len(sectors),
             "routes": len(routes),
             "boulders": len(boulders),
+            "map_features": len(map_features),
         },
     }
 
 
 @router.get("/bundle")
 def catalog_bundle(db: Session = Depends(get_db)) -> dict[str, object]:
-    areas, sectors, routes, boulders = _catalog_rows(db)
+    areas, sectors, routes, boulders, map_features = _catalog_rows(db)
     return {
         "manifest": {
             "generated_at": datetime.now(timezone.utc).isoformat(),
-            "version": _catalog_version(areas, sectors, routes, boulders),
+            "version": _catalog_version(areas, sectors, routes, boulders, map_features),
             "counts": {
                 "areas": len(areas),
                 "sectors": len(sectors),
                 "routes": len(routes),
                 "boulders": len(boulders),
+                "map_features": len(map_features),
             },
         },
         "areas": [schemas.AreaRead.model_validate(area).model_dump(mode="json") for area in areas],
         "sectors": [schemas.SectorRead.model_validate(sector).model_dump(mode="json") for sector in sectors],
         "routes": [schemas.RouteRead.model_validate(route).model_dump(mode="json") for route in routes],
         "boulders": [schemas.BoulderRead.model_validate(boulder).model_dump(mode="json") for boulder in boulders],
+        "map_features": [
+            schemas.MapFeatureRead.model_validate(feature).model_dump(mode="json") for feature in map_features
+        ],
     }

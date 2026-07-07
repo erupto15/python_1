@@ -305,6 +305,27 @@
                             <i class="fas fa-diamond-turn-right"></i> Маршрут в навигаторе
                         </button>
                     </div>
+                    <div class="map-edit-panel admin-only hidden-by-role" id="mapEditPanel">
+                        <div class="map-edit-head">
+                            <button type="button" class="btn btn-small btn-primary" id="mapEditToggleBtn">
+                                <i class="fas fa-pen"></i> Редактировать карту
+                            </button>
+                            <span class="map-edit-hint" id="mapEditHint">Ручное нанесение троп, парковок, кемпингов и меток районов/секторов.</span>
+                        </div>
+                        <div class="map-edit-tools hidden" id="mapEditTools">
+                            <div class="map-filter-group">
+                                <button type="button" class="btn btn-small map-draw-tool-btn active" data-map-tool="trail"><i class="fas fa-route"></i> Тропа</button>
+                                <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="parking"><i class="fas fa-square-parking"></i> Парковка</button>
+                                <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="camping"><i class="fas fa-campground"></i> Кемпинг</button>
+                                <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="area_sign"><i class="fas fa-map-pin"></i> Район</button>
+                                <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="sector_sign"><i class="fas fa-thumbtack"></i> Сектор</button>
+                            </div>
+                            <div class="map-filter-group">
+                                <button type="button" class="btn btn-small btn-secondary" id="mapFinishTrailBtn"><i class="fas fa-check"></i> Завершить тропу</button>
+                                <button type="button" class="btn btn-small btn-ghost" id="mapCancelTrailBtn"><i class="fas fa-undo"></i> Отменить черновик</button>
+                            </div>
+                        </div>
+                    </div>
                     <div class="map-guide-strip hidden" id="mapGuideStrip"></div>
                     <div class="map-status" id="mapStatus">Нажмите маркер на карте, чтобы выбрать цель.</div>
                 </div>
@@ -468,21 +489,20 @@
             <div class="dialog-header">
                 <div class="dialog-header-text">
                     <div class="dialog-title">Трудность</div>
-                    <div class="dialog-subtitle">Разметка на фото: старты и линия хода</div>
+                    <div class="dialog-subtitle">Разметка на фото: линия хода</div>
                 </div>
                 <button type="button" class="dialog-close-btn" id="closeRouteLineMarkupDialogBtn" data-close-dialog="routeLineMarkupDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <div class="markup-instructions">
                     <i class="fas fa-info-circle"></i>
-                    <strong>Инструкция:</strong> «Стартовые кружки» — клик по фото. «Линия хода» — кликами по порядку задайте линию движения (всё красным).
-                    Удаление ближайшей точки или кружка: Ctrl / ⌘ + клик рядом с ним.
+                    <strong>Инструкция:</strong> Кликами по порядку задайте линию хода. На обоих концах линии автоматически появляются красные точки.
+                    Удаление точки: Ctrl / ⌘ + клик рядом с ней.
                     <span class="markup-touch-note">На телефоне без клавиатуры точку проще сбросить кнопкой «Очистить все» или отменить и начать заново.</span>
                 </div>
 
-                <div class="markup-mode-toolbar">
+                <div class="markup-mode-toolbar hidden" aria-hidden="true">
                     <span class="markup-mode-label">Режим</span>
-                    <button type="button" class="btn btn-small route-markup-mode-btn" id="routeMarkupModeStarts" data-mode="starts">Стартовые кружки</button>
                     <button type="button" class="btn btn-small route-markup-mode-btn active" id="routeMarkupModeLine" data-mode="line">Линия хода</button>
                 </div>
 
@@ -493,12 +513,8 @@
 
                 <div class="markup-toolbar">
                     <div class="markup-tool">
-                        <i class="fas fa-circle" style="color: #e53935;"></i>
-                        <span>Старты: режим «Стартовые кружки», клик по фото</span>
-                    </div>
-                    <div class="markup-tool">
                         <i class="fas fa-route" style="color: #e53935;"></i>
-                        <span>Линия: режим «Линия хода», клики по порядку</span>
+                        <span>Линия хода: клики по порядку, точки на обоих концах</span>
                     </div>
                     <div class="markup-tool">
                         <i class="fas fa-trash" style="color: var(--danger-color);"></i>
@@ -523,21 +539,22 @@
             <div class="dialog-header">
                 <div class="dialog-header-text">
                     <div class="dialog-title">Разметка боулдеринга на фотографии</div>
-                    <div class="dialog-subtitle">Кружки и линия хода задаются отдельно (два режима)</div>
+                    <div class="dialog-subtitle">Старт, финиш и линия хода</div>
                 </div>
                 <button type="button" class="dialog-close-btn" id="closeBoulderHoldsMarkupDialogBtn" data-close-dialog="boulderHoldsMarkupDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <div class="markup-instructions">
                     <i class="fas fa-info-circle"></i>
-                    <strong>Инструкция:</strong> «Кружки» — клик по фото (можно перетащить маркер). «Линия» — кликами по порядку; линия не соединяет кружки автоматически.
+                    <strong>Инструкция:</strong> «Старт» / «Финиш» — клик по фото (подписи внутри кружков, можно перетащить). «Линия» — кликами по порядку; конец линии отмечается стрелкой.
                     Удаление: Ctrl / ⌘ + клик рядом с маркером или точкой линии.
                     <span class="markup-touch-note">На телефоне без клавиатуры точку проще сбросить кнопкой «Очистить все» или отменить и начать заново.</span>
                 </div>
 
                 <div class="markup-mode-toolbar">
                     <span class="markup-mode-label">Режим</span>
-                    <button type="button" class="btn btn-small boulder-markup-mode-btn active" id="boulderMarkupModeCircles" data-mode="circles">Кружки</button>
+                    <button type="button" class="btn btn-small boulder-markup-mode-btn active" id="boulderMarkupModeStart" data-mode="start">Старт</button>
+                    <button type="button" class="btn btn-small boulder-markup-mode-btn" id="boulderMarkupModeFinish" data-mode="finish">Финиш</button>
                     <button type="button" class="btn btn-small boulder-markup-mode-btn" id="boulderMarkupModeLine" data-mode="line">Линия</button>
                 </div>
 
@@ -549,7 +566,7 @@
                 <div class="markup-toolbar">
                     <div class="markup-tool">
                         <i class="fas fa-circle-notch" style="color: #d32f2f;"></i>
-                        <span>Кружки и линия независимы — переключайте режим кнопками выше</span>
+                        <span>Старт / финиш и линия задаются отдельно — переключайте режим кнопками выше</span>
                     </div>
                 </div>
             </div>

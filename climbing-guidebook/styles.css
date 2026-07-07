@@ -1025,9 +1025,28 @@
             font-size: 12px;
             font-weight: 700;
             line-height: 1;
-            text-shadow: none;
             pointer-events: none;
             user-select: none;
+        }
+
+        .hold-marker--labeled {
+            width: 44px;
+            height: 44px;
+        }
+
+        .hold-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #b71c1c;
+            font-size: 9px;
+            font-weight: 700;
+            line-height: 1.05;
+            text-align: center;
+            pointer-events: none;
+            user-select: none;
+            max-width: 38px;
         }
 
         .markup-instructions {
@@ -2370,6 +2389,85 @@
             font-size: 13px;
             line-height: 1.4;
             color: var(--light-text);
+        }
+
+        .map-edit-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 10px;
+            border: 1px dashed color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .map-edit-head {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .map-edit-hint {
+            font-size: 12px;
+            color: var(--light-text);
+            line-height: 1.35;
+        }
+
+        .map-edit-tools {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .map-draw-tool-btn:not(.active) {
+            background-color: var(--tg-btn-bg);
+            color: var(--text-color);
+            border-color: var(--tg-btn-border);
+        }
+
+        .map-draw-tool-btn.active {
+            background-color: var(--tg-blue);
+            color: #fff;
+            border-color: color-mix(in srgb, var(--tg-blue) 55%, #0a1628 45%);
+        }
+
+        .map-feature-popup {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 160px;
+        }
+
+        .map-feature-popup strong {
+            font-size: 13px;
+        }
+
+        .map-feature-popup-meta {
+            font-size: 12px;
+            color: var(--light-text);
+        }
+
+        .map-feature-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 13px;
+            font-weight: 700;
+            color: #fff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+        }
+
+        .map-feature-icon--parking { background: #2563eb; }
+        .map-feature-icon--camping { background: #16a34a; }
+        .map-feature-icon--area_sign { background: #7c3aed; }
+        .map-feature-icon--sector_sign { background: #db2777; }
+
+        #mapContainer.map-edit-mode {
+            cursor: crosshair;
         }
 
         #mapContainer {

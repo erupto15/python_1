@@ -14,7 +14,7 @@ from app.db import Base, SessionLocal, engine, ensure_optional_columns
 
 logger = logging.getLogger(__name__)
 from app.models import Area, Boulder, Photo, Route, Sector
-from app.routers import areas, auth, boulders, catalog, comments, community, photos, routes_api, sectors, telegram, users
+from app.routers import areas, auth, boulders, catalog, comments, community, map_features, photos, routes_api, sectors, telegram, users
 from app.seed import bootstrap_catalog
 from app.services.telegram_bot import call_telegram_api, close_telegram_client
 
@@ -68,6 +68,7 @@ app.include_router(sectors.router, prefix="/api")
 app.include_router(routes_api.router, prefix="/api")
 app.include_router(boulders.router, prefix="/api")
 app.include_router(catalog.router, prefix="/api")
+app.include_router(map_features.router, prefix="/api")
 app.include_router(photos.router, prefix="/api")
 app.include_router(comments.router, prefix="/api")
 app.include_router(community.router, prefix="/api")
