@@ -314,6 +314,7 @@
                         </div>
                         <div class="map-edit-tools hidden" id="mapEditTools">
                             <div class="map-filter-group">
+                                <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="edit"><i class="fas fa-edit"></i> Изменить</button>
                                 <button type="button" class="btn btn-small map-draw-tool-btn active" data-map-tool="trail"><i class="fas fa-route"></i> Тропа</button>
                                 <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="parking"><i class="fas fa-square-parking"></i> Парковка</button>
                                 <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="camping"><i class="fas fa-campground"></i> Кемпинг</button>
@@ -323,11 +324,27 @@
                             <div class="map-filter-group">
                                 <button type="button" class="btn btn-small btn-secondary" id="mapFinishTrailBtn"><i class="fas fa-check"></i> Завершить тропу</button>
                                 <button type="button" class="btn btn-small btn-ghost" id="mapCancelTrailBtn"><i class="fas fa-undo"></i> Отменить черновик</button>
+                                <button type="button" class="btn btn-small btn-danger" id="mapClearFeaturesBtn"><i class="fas fa-eraser"></i> Очистить карту</button>
+                            </div>
+                            <div class="map-feature-edit-bar hidden" id="mapFeatureEditBar">
+                                <div class="map-feature-edit-head">
+                                    <strong id="mapFeatureEditTitle">Объект</strong>
+                                    <span class="map-feature-edit-type" id="mapFeatureEditType"></span>
+                                </div>
+                                <label class="map-feature-edit-label" for="mapFeatureEditLabelInput">Подпись</label>
+                                <input type="text" class="form-input" id="mapFeatureEditLabelInput" maxlength="255" placeholder="Название на карте">
+                                <div class="map-filter-group map-feature-edit-actions">
+                                    <button type="button" class="btn btn-small btn-primary" id="mapFeatureSaveBtn"><i class="fas fa-save"></i> Сохранить</button>
+                                    <button type="button" class="btn btn-small btn-secondary hidden" id="mapFeatureMoveBtn"><i class="fas fa-arrows-alt"></i> Переместить</button>
+                                    <button type="button" class="btn btn-small btn-secondary hidden" id="mapFeatureRetraceBtn"><i class="fas fa-draw-polygon"></i> Переделать тропу</button>
+                                    <button type="button" class="btn btn-small btn-danger" id="mapFeatureDeleteBtn"><i class="fas fa-trash"></i> Удалить</button>
+                                    <button type="button" class="btn btn-small btn-ghost" id="mapFeatureEditCancelBtn">Снять выбор</button>
+                                </div>
                             </div>
                         </div>
                     </div>
                     <div class="map-guide-strip hidden" id="mapGuideStrip"></div>
-                    <div class="map-status" id="mapStatus">Нажмите маркер на карте, чтобы выбрать цель.</div>
+                    <div class="map-status" id="mapStatus">Нажмите маркер на карте — откроется маршрут в навигаторе.</div>
                 </div>
                 <div id="mapContainer"></div>
             </div>

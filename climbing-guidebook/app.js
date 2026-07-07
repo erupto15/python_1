@@ -3459,6 +3459,9 @@
                 this.mapDrawTool = 'trail';
                 this.mapDraftTrail = null;
                 this.mapFeatureLayers = [];
+                this.mapSelectedFeatureId = null;
+                this.mapFeatureMovePending = false;
+                this.mapEditingTrailFeatureId = null;
                 this._mapEditClickHandler = null;
                 this.areaPhotoData = null;
                 this.areaPhotoRemove = false;
@@ -4810,8 +4813,7 @@
                     }
                     setTimeout(() => this.map?.invalidateSize?.({ animate: false }), 60);
                 }
-                this.setMapTarget(entry);
-                void this.showClimbDetailDialog(entry.climbType, entry.id);
+                this.handleMapMarkerSelection(entry);
             }
 
             bindMapClimbDotMarkerClick(marker, entry) {
@@ -4835,6 +4837,7 @@
                     interactive: true,
                     zIndexOffset: 500
                 }).addTo(this.map);
+                marker.bindPopup(this.buildMapPopupHtml(entry));
                 this.bindMapClimbDotMarkerClick(marker, entry);
                 return marker;
             }
@@ -4854,7 +4857,10 @@
                 const marker = L.marker([coord.lat, coord.lng], { icon, zIndexOffset: 400 })
                     .addTo(this.map)
                     .bindPopup(this.buildMapPopupHtml(entry));
-                marker.on('click', () => this.setMapTarget(entry));
+                marker.on('click', (e) => {
+                    L.DomEvent.stopPropagation(e);
+                    this.handleMapMarkerSelection(entry);
+                });
                 return marker;
             }
 
@@ -4937,7 +4943,7 @@
                             ${guideButton}
                             ${catalogButton}
                             <button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('target','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">К точке</button>
-                            <button type="button" class="btn btn-small btn-ghost" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('external','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Навигатор</button>
+                            <button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('external','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;"><i class="fas fa-diamond-turn-right"></i> Маршрут</button>
                         </div>
                     </div>
                 `;
@@ -5185,16 +5191,173 @@
             buildMapFeaturePopupHtml(feature) {
                 const title = feature.label || this.mapFeatureTypeLabel(feature.featureType);
                 const meta = this.mapFeatureTypeLabel(feature.featureType);
-                const deleteBtn = this.mapEditMode && this.isAdmin()
-                    ? `<button type="button" class="btn btn-small btn-danger" onclick="event.preventDefault(); window.app?.deleteMapFeature?.(${Number(feature.id)}); return false;">Удалить</button>`
+                const adminActions = this.mapEditMode && this.isAdmin()
+                    ? `
+                        <button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.editMapFeatureFromPopup?.(${Number(feature.id)}); return false;">Изменить</button>
+                        <button type="button" class="btn btn-small btn-danger" onclick="event.preventDefault(); window.app?.deleteMapFeature?.(${Number(feature.id)}); return false;">Удалить</button>
+                    `
                     : '';
                 return `
                     <div class="map-feature-popup">
                         <strong>${this.escapeHtml(title)}</strong>
                         <div class="map-feature-popup-meta">${this.escapeHtml(meta)}</div>
-                        <div class="map-popup-actions">${deleteBtn}</div>
+                        <div class="map-popup-actions">${adminActions}</div>
                     </div>
                 `;
+            }
+
+            bindMapFeatureLayerAdminEvents(layer, feature) {
+                if (!layer || !feature) return;
+                layer.off('click');
+                layer.on('click', (e) => {
+                    if (!this.mapEditMode || !this.isAdmin()) return;
+                    L.DomEvent.stopPropagation(e);
+                    if (this.mapDrawTool === 'edit') {
+                        this.selectMapFeature(feature.id);
+                    }
+                });
+            }
+
+            getMapFeatureById(featureId) {
+                return getMapFeatures().find((f) => Number(f.id) === Number(featureId)) || null;
+            }
+
+            getSelectedMapFeature() {
+                return this.mapSelectedFeatureId != null
+                    ? this.getMapFeatureById(this.mapSelectedFeatureId)
+                    : null;
+            }
+
+            editMapFeatureFromPopup(featureId) {
+                if (!this.isAdmin()) return;
+                if (!this.mapEditMode) this.toggleMapEditMode(true);
+                this.setMapDrawTool('edit');
+                this.selectMapFeature(featureId);
+            }
+
+            selectMapFeature(featureId) {
+                this.mapSelectedFeatureId = Number(featureId);
+                this.mapFeatureMovePending = false;
+                this.syncMapFeatureEditBar();
+                this.renderMapFeatureLayers();
+                const feature = this.getSelectedMapFeature();
+                if (feature) {
+                    this.updateMapStatus(`Выбран объект: ${feature.label || this.mapFeatureTypeLabel(feature.featureType)}. Измените подпись или геометрию.`);
+                }
+            }
+
+            deselectMapFeature() {
+                this.mapSelectedFeatureId = null;
+                this.mapFeatureMovePending = false;
+                this.syncMapFeatureEditBar();
+                this.renderMapFeatureLayers();
+            }
+
+            syncMapFeatureEditBar() {
+                const bar = document.getElementById('mapFeatureEditBar');
+                const titleEl = document.getElementById('mapFeatureEditTitle');
+                const typeEl = document.getElementById('mapFeatureEditType');
+                const labelInput = document.getElementById('mapFeatureEditLabelInput');
+                const moveBtn = document.getElementById('mapFeatureMoveBtn');
+                const retraceBtn = document.getElementById('mapFeatureRetraceBtn');
+                const feature = this.getSelectedMapFeature();
+                const visible = !!(this.mapEditMode && feature);
+                bar?.classList.toggle('hidden', !visible);
+                if (!visible || !feature) return;
+                if (titleEl) titleEl.textContent = feature.label || this.mapFeatureTypeLabel(feature.featureType);
+                if (typeEl) typeEl.textContent = this.mapFeatureTypeLabel(feature.featureType);
+                if (labelInput) labelInput.value = feature.label || '';
+                const isPoint = feature.geometry?.type === 'Point';
+                const isTrail = feature.featureType === 'trail' && feature.geometry?.type === 'LineString';
+                moveBtn?.classList.toggle('hidden', !isPoint);
+                retraceBtn?.classList.toggle('hidden', !isTrail);
+            }
+
+            beginMoveSelectedMapPoint() {
+                if (!this.getSelectedMapFeature()) return;
+                this.mapFeatureMovePending = true;
+                this.updateMapStatus('Кликните на карте — новое положение метки.');
+            }
+
+            beginRetraceSelectedTrail() {
+                const feature = this.getSelectedMapFeature();
+                if (!feature || feature.featureType !== 'trail' || feature.geometry?.type !== 'LineString') return;
+                this.mapEditingTrailFeatureId = Number(feature.id);
+                this.mapDraftTrail = {
+                    latlngs: (feature.geometry.coordinates || []).map((c) => [Number(c[1]), Number(c[0])])
+                };
+                this.mapDrawTool = 'trail';
+                this.syncMapEditUi();
+                this.renderMapFeatureLayers();
+                this.updateMapStatus('Переделайте тропу: кликайте по карте, затем «Завершить тропу».');
+            }
+
+            async patchMapFeature(featureId, payload) {
+                const updated = await apiFetch(`/api/map-features/${Number(featureId)}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                mergeMapFeatureFromApiResponse(updated);
+                return updated;
+            }
+
+            async saveSelectedMapFeatureEdits() {
+                if (!this.requireAdmin('Сохранение на карте')) return;
+                const feature = this.getSelectedMapFeature();
+                if (!feature) return;
+                const label = document.getElementById('mapFeatureEditLabelInput')?.value?.trim() || '';
+                try {
+                    await this.patchMapFeature(feature.id, { label: label || null });
+                    this.renderMapFeatureLayers();
+                    this.syncMapFeatureEditBar();
+                    this.showToast('Изменения сохранены');
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось сохранить изменения', true);
+                }
+            }
+
+            async moveSelectedMapPoint(lat, lng) {
+                const feature = this.getSelectedMapFeature();
+                if (!feature || feature.geometry?.type !== 'Point') return;
+                this.mapFeatureMovePending = false;
+                try {
+                    await this.patchMapFeature(feature.id, {
+                        geometry: { type: 'Point', coordinates: [lng, lat] }
+                    });
+                    this.renderMapFeatureLayers();
+                    this.syncMapFeatureEditBar();
+                    this.showToast('Метка перемещена');
+                    this.updateMapStatus('Метка перемещена.');
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось переместить метку', true);
+                }
+            }
+
+            async clearVisibleMapFeatures() {
+                if (!this.requireAdmin('Очистка карты')) return;
+                const visible = getMapFeatures().filter((f) => this.mapFeatureVisible(f));
+                if (!visible.length) {
+                    this.showToast('Нет объектов для удаления', true);
+                    return;
+                }
+                const scopeLabel = this.mapCatalogScope?.areaId ? 'в текущем районе' : 'на карте';
+                if (!confirm(`Удалить все ${visible.length} объектов ${scopeLabel}? Это действие нельзя отменить.`)) return;
+                let removed = 0;
+                for (const feature of visible) {
+                    try {
+                        await apiFetch(`/api/map-features/${Number(feature.id)}`, { method: 'DELETE' });
+                        removeMapFeatureFromLocalCache(feature.id);
+                        removed += 1;
+                    } catch (_) {
+                        /* continue with others */
+                    }
+                }
+                this.deselectMapFeature();
+                this.mapDraftTrail = null;
+                this.mapEditingTrailFeatureId = null;
+                this.renderMapFeatureLayers();
+                this.showToast(removed ? `Удалено объектов: ${removed}` : 'Не удалось очистить карту', !removed);
             }
 
             buildMapFeaturePointIcon(featureType, label) {
@@ -5217,17 +5380,19 @@
             createMapFeatureLayer(feature) {
                 const geom = feature.geometry;
                 if (!geom || !geom.type) return null;
+                const selected = Number(feature.id) === Number(this.mapSelectedFeatureId);
                 if (geom.type === 'LineString' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
                     const latlngs = geom.coordinates.map((c) => [Number(c[1]), Number(c[0])]);
                     const line = L.polyline(latlngs, {
-                        color: '#ea580c',
-                        weight: 4,
-                        opacity: 0.9,
+                        color: selected ? '#2563eb' : '#ea580c',
+                        weight: selected ? 6 : 4,
+                        opacity: 0.95,
                         lineJoin: 'round',
                         lineCap: 'round'
                     });
                     line.bindPopup(this.buildMapFeaturePopupHtml(feature));
                     line._mapFeatureId = feature.id;
+                    this.bindMapFeatureLayerAdminEvents(line, feature);
                     return line;
                 }
                 if (geom.type === 'Point' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
@@ -5235,10 +5400,12 @@
                     const lng = Number(geom.coordinates[0]);
                     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
                     const marker = L.marker([lat, lng], {
-                        icon: this.buildMapFeaturePointIcon(feature.featureType, feature.label)
+                        icon: this.buildMapFeaturePointIcon(feature.featureType, feature.label),
+                        zIndexOffset: selected ? 1000 : 0
                     });
                     marker.bindPopup(this.buildMapFeaturePopupHtml(feature));
                     marker._mapFeatureId = feature.id;
+                    this.bindMapFeatureLayerAdminEvents(marker, feature);
                     return marker;
                 }
                 return null;
@@ -5286,23 +5453,36 @@
                 }
                 if (hint && this.mapEditMode) {
                     const toolHints = {
+                        edit: 'Кликните по объекту на карте, чтобы изменить или удалить его.',
                         trail: 'Кликайте по карте, чтобы добавить точки тропы. «Завершить тропу» — сохранить.',
                         parking: 'Клик по карте — поставить парковку.',
                         camping: 'Клик по карте — поставить кемпинг.',
                         area_sign: 'Клик по карте — метка района.',
                         sector_sign: 'Клик по карте — метка сектора.'
                     };
-                    hint.textContent = toolHints[this.mapDrawTool] || hint.textContent;
+                    hint.textContent = this.mapFeatureMovePending
+                        ? 'Кликните на карте — новое положение выбранной метки.'
+                        : (toolHints[this.mapDrawTool] || hint.textContent);
+                }
+                const finishTrailBtn = document.getElementById('mapFinishTrailBtn');
+                if (finishTrailBtn) {
+                    finishTrailBtn.innerHTML = this.mapEditingTrailFeatureId
+                        ? '<i class="fas fa-check"></i> Сохранить тропу'
+                        : '<i class="fas fa-check"></i> Завершить тропу';
                 }
                 document.querySelectorAll('.map-draw-tool-btn').forEach((btn) => {
                     btn.classList.toggle('active', btn.dataset.mapTool === this.mapDrawTool);
                 });
+                this.syncMapFeatureEditBar();
                 this.map?.getContainer()?.classList.toggle('map-edit-mode', !!this.mapEditMode);
             }
 
             setMapDrawTool(tool) {
-                const allowed = ['trail', 'parking', 'camping', 'area_sign', 'sector_sign'];
+                const allowed = ['edit', 'trail', 'parking', 'camping', 'area_sign', 'sector_sign'];
                 this.mapDrawTool = allowed.includes(tool) ? tool : 'trail';
+                if (this.mapDrawTool !== 'edit') {
+                    this.mapFeatureMovePending = false;
+                }
                 this.syncMapEditUi();
             }
 
@@ -5312,6 +5492,8 @@
                 this.mapEditMode = next;
                 if (!next) {
                     this.mapDraftTrail = null;
+                    this.mapEditingTrailFeatureId = null;
+                    this.deselectMapFeature();
                 }
                 this.syncMapEditUi();
                 this.renderMapFeatureLayers();
@@ -5326,11 +5508,21 @@
                     if (!this.mapEditMode || !this.isAdmin()) return;
                     L.DomEvent.stop(e);
                     const { lat, lng } = e.latlng;
+                    if (this.mapFeatureMovePending && this.mapSelectedFeatureId) {
+                        void this.moveSelectedMapPoint(lat, lng);
+                        return;
+                    }
+                    if (this.mapDrawTool === 'edit') {
+                        this.deselectMapFeature();
+                        this.updateMapStatus('Выбор снят. Кликните по объекту на карте.');
+                        return;
+                    }
                     if (this.mapDrawTool === 'trail') {
                         if (!this.mapDraftTrail) this.mapDraftTrail = { latlngs: [] };
                         this.mapDraftTrail.latlngs.push([lat, lng]);
                         this.renderMapFeatureLayers();
-                        this.updateMapStatus(`Тропа: ${this.mapDraftTrail.latlngs.length} точек. «Завершить тропу» — сохранить.`);
+                        const actionLabel = this.mapEditingTrailFeatureId ? 'Сохранить тропу' : 'Завершить тропу';
+                        this.updateMapStatus(`Тропа: ${this.mapDraftTrail.latlngs.length} точек. «${actionLabel}» — сохранить.`);
                         return;
                     }
                     void this.createMapPointFeature(this.mapDrawTool, lat, lng);
@@ -5340,6 +5532,7 @@
 
             cancelMapDraftTrail() {
                 this.mapDraftTrail = null;
+                this.mapEditingTrailFeatureId = null;
                 this.renderMapFeatureLayers();
                 this.updateMapStatus('Черновик тропы отменён.');
             }
@@ -5351,29 +5544,43 @@
                     this.showToast('Добавьте минимум две точки тропы', true);
                     return;
                 }
-                const label = window.prompt('Название тропы (необязательно):', 'Тропа')?.trim() || 'Тропа';
-                const areaId = this.mapCatalogScope?.areaId ?? null;
-                const payload = {
-                    area_id: areaId,
-                    sector_id: null,
-                    feature_type: 'trail',
-                    label,
-                    geometry: {
-                        type: 'LineString',
-                        coordinates: latlngs.map(([lat, lng]) => [lng, lat])
-                    },
-                    properties: {}
+                const editingId = this.mapEditingTrailFeatureId;
+                const existing = editingId ? this.getMapFeatureById(editingId) : null;
+                const defaultLabel = existing?.label || 'Тропа';
+                const labelInput = document.getElementById('mapFeatureEditLabelInput');
+                const labelFromBar = editingId && labelInput ? labelInput.value.trim() : '';
+                const label = labelFromBar
+                    || window.prompt('Название тропы (необязательно):', defaultLabel)?.trim()
+                    || defaultLabel;
+                const geometry = {
+                    type: 'LineString',
+                    coordinates: latlngs.map(([lat, lng]) => [lng, lat])
                 };
                 try {
-                    const created = await apiFetch('/api/map-features', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    mergeMapFeatureFromApiResponse(created);
+                    if (editingId) {
+                        await this.patchMapFeature(editingId, { label, geometry });
+                        this.selectMapFeature(editingId);
+                        this.showToast('Тропа обновлена');
+                    } else {
+                        const areaId = this.mapCatalogScope?.areaId ?? null;
+                        const created = await apiFetch('/api/map-features', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                area_id: areaId,
+                                sector_id: null,
+                                feature_type: 'trail',
+                                label,
+                                geometry,
+                                properties: {}
+                            })
+                        });
+                        mergeMapFeatureFromApiResponse(created);
+                        this.showToast('Тропа сохранена');
+                    }
                     this.mapDraftTrail = null;
+                    this.mapEditingTrailFeatureId = null;
                     this.renderMapFeatureLayers();
-                    this.showToast('Тропа сохранена');
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось сохранить тропу', true);
                 }
@@ -5430,6 +5637,9 @@
                 try {
                     await apiFetch(`/api/map-features/${Number(featureId)}`, { method: 'DELETE' });
                     removeMapFeatureFromLocalCache(featureId);
+                    if (Number(this.mapSelectedFeatureId) === Number(featureId)) {
+                        this.deselectMapFeature();
+                    }
                     this.renderMapFeatureLayers();
                     this.showToast('Объект удалён');
                 } catch (err) {
@@ -5548,7 +5758,10 @@
                             lat: coord.lat,
                             lng: coord.lng
                         });
+                    } else {
+                        this.showToast('У объекта нет координат на карте', true);
                     }
+                    return;
                 }
             }
 
@@ -5695,18 +5908,67 @@
                 return dirs[Math.round(degrees / 45) % 8];
             }
 
+            handleMapMarkerSelection(entry, { openNavigation = true } = {}) {
+                if (!entry || entry.lat == null || entry.lng == null) return;
+                this.setMapTarget(entry);
+                this.setMapScopeForEntry(entry.kind, entry.id);
+                if (openNavigation && !this.mapEditMode) {
+                    this.openExternalNavigation(entry);
+                }
+            }
+
+            buildExternalNavigationUrl(target) {
+                const lat = Number(target?.lat);
+                const lng = Number(target?.lng);
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+                const dest = `${lat},${lng}`;
+                const ua = navigator.userAgent || '';
+                const isIOS = /iPad|iPhone|iPod/i.test(ua);
+                const isAndroid = /Android/i.test(ua);
+                const preferYandex = (navigator.language || '').toLowerCase().startsWith('ru');
+                const origin = this.userLocation
+                    && Number.isFinite(Number(this.userLocation.lat))
+                    && Number.isFinite(Number(this.userLocation.lng))
+                    ? `${Number(this.userLocation.lat)},${Number(this.userLocation.lng)}`
+                    : '';
+
+                if (preferYandex) {
+                    const rtext = origin ? `${origin}~${dest}` : `~${dest}`;
+                    return `https://yandex.ru/maps/?rtext=${encodeURIComponent(rtext)}&rtt=pd`;
+                }
+                if (isIOS) {
+                    return `maps://?daddr=${encodeURIComponent(dest)}&dirflg=w`;
+                }
+                const params = new URLSearchParams({
+                    api: '1',
+                    destination: dest,
+                    travelmode: 'walking'
+                });
+                if (origin) params.set('origin', origin);
+                if (isAndroid) {
+                    return `https://www.google.com/maps/dir/?${params.toString()}`;
+                }
+                return `https://www.google.com/maps/dir/?${params.toString()}`;
+            }
+
             openExternalNavigation(entry = null) {
                 const target = entry || this.mapTarget;
                 if (!target) {
                     this.showToast('Сначала выберите точку на карте', true);
                     return;
                 }
-                const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${target.lat},${target.lng}`)}&travelmode=walking`;
+                const url = this.buildExternalNavigationUrl(target);
+                if (!url) {
+                    this.showToast('У объекта нет координат для маршрута', true);
+                    return;
+                }
+                const title = target.title || 'цель';
                 if (window.Telegram?.WebApp?.openLink) {
                     window.Telegram.WebApp.openLink(url);
                 } else {
                     window.open(url, '_blank', 'noopener');
                 }
+                this.updateMapStatus(`Открываю маршрут к «${title}» в картах…`);
             }
 
             updateMapStatus(message = '') {
@@ -5723,7 +5985,7 @@
                     return;
                 }
                 if (this.mapTarget) {
-                    el.textContent = `Цель: ${this.mapTarget.title}. Нажмите «Моё место» или «Маршрут в навигаторе».`;
+                    el.textContent = `Цель: ${this.mapTarget.title}. Нажмите «Моё место» или «Маршрут в навигаторе», либо снова ткните маркер.`;
                     return;
                 }
                 const count = this.mapMarkerIndex?.size || 0;
@@ -5732,7 +5994,7 @@
                     return;
                 }
                 const word = count === 1 ? 'объект' : count < 5 ? 'объекта' : 'объектов';
-                el.textContent = `На карте ${count} ${word}. Нажмите маркер, чтобы выбрать цель.`;
+                el.textContent = `На карте ${count} ${word}. Нажмите маркер — откроется маршрут в картах.`;
             }
 
             distanceMeters(a, b) {
@@ -7552,6 +7814,26 @@
                 });
                 document.getElementById('mapCancelTrailBtn')?.addEventListener('click', () => {
                     this.cancelMapDraftTrail();
+                });
+                document.getElementById('mapClearFeaturesBtn')?.addEventListener('click', () => {
+                    void this.clearVisibleMapFeatures();
+                });
+                document.getElementById('mapFeatureSaveBtn')?.addEventListener('click', () => {
+                    void this.saveSelectedMapFeatureEdits();
+                });
+                document.getElementById('mapFeatureMoveBtn')?.addEventListener('click', () => {
+                    this.beginMoveSelectedMapPoint();
+                });
+                document.getElementById('mapFeatureRetraceBtn')?.addEventListener('click', () => {
+                    this.beginRetraceSelectedTrail();
+                });
+                document.getElementById('mapFeatureDeleteBtn')?.addEventListener('click', () => {
+                    const feature = this.getSelectedMapFeature();
+                    if (feature) void this.deleteMapFeature(feature.id);
+                });
+                document.getElementById('mapFeatureEditCancelBtn')?.addEventListener('click', () => {
+                    this.deselectMapFeature();
+                    this.updateMapStatus('Выбор объекта снят.');
                 });
                 document.querySelectorAll('.map-draw-tool-btn').forEach((btn) => {
                     btn.addEventListener('click', () => {
