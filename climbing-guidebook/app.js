@@ -2457,13 +2457,25 @@
 
             const endDrag = (e) => {
                 if (!dragging) return;
+                if (pendingPid != null) {
+                    try {
+                        wrap.releasePointerCapture(pendingPid);
+                    } catch (_) {
+                        /* ignore */
+                    }
+                }
                 dragging = false;
                 pendingPid = null;
                 wrap.style.cursor = '';
-                if (didMove) e.stopPropagation();
+                if (didMove && e) e.stopPropagation();
             };
             wrap.addEventListener('pointerup', endDrag);
             wrap.addEventListener('pointercancel', endDrag);
+            wrap.addEventListener('lostpointercapture', () => {
+                dragging = false;
+                pendingPid = null;
+                wrap.style.cursor = '';
+            });
 
             wrap.addEventListener('dblclick', (e) => {
                 const z = getPhotoZoomState(wrap);
@@ -2556,6 +2568,12 @@
             }
             if (options.enableZoom) {
                 attachPhotoStageZoomPan(wrap);
+            } else {
+                const stage = wrap?.querySelector('.stage');
+                if (stage) stage.style.transform = 'none';
+                if (wrap) {
+                    wrap._zoom = { scale: 1, tx: 0, ty: 0 };
+                }
             }
             ensurePhotoZoomControls(wrap, container);
             return wrap;
@@ -2563,7 +2581,11 @@
 
         function resetPhotoStageInContainer(container) {
             const wrap = findPhotoStageWrap(container);
-            if (wrap) resetPhotoStageZoom(wrap);
+            if (wrap) {
+                resetPhotoStageZoom(wrap);
+                const stage = wrap.querySelector('.stage');
+                if (stage) stage.style.transform = 'none';
+            }
         }
 
         async function fetchPhotosBatched(routes, boulders) {
@@ -2757,6 +2779,40 @@
 
         function isMarkupStageReady(geom) {
             return !!(geom && geom.ready && geom.iw >= 8 && geom.ih >= 8);
+        }
+
+        function placeMarkupOverlaySvg(svg, previewItem, geom) {
+            if (!svg || !previewItem || !isMarkupStageReady(geom)) return;
+            svg.style.position = 'absolute';
+            svg.style.inset = 'auto';
+            svg.style.pointerEvents = 'none';
+            const stage = previewItem.querySelector('.photo-wrap .stage');
+            if (stage) {
+                const stageRect = stage.getBoundingClientRect();
+                const mountRect = previewItem.getBoundingClientRect();
+                const offsetLeft = stageRect.left - mountRect.left;
+                const offsetTop = stageRect.top - mountRect.top;
+                const useStageFill = Math.abs(geom.iw - stageRect.width) < 2
+                    && Math.abs(geom.ih - stageRect.height) < 2
+                    && Math.abs(geom.left - offsetLeft) < 2
+                    && Math.abs(geom.top - offsetTop) < 2;
+                if (useStageFill) {
+                    svg.style.left = '0';
+                    svg.style.top = '0';
+                    svg.style.width = '100%';
+                    svg.style.height = '100%';
+                } else {
+                    svg.style.left = `${geom.left - offsetLeft}px`;
+                    svg.style.top = `${geom.top - offsetTop}px`;
+                    svg.style.width = `${geom.iw}px`;
+                    svg.style.height = `${geom.ih}px`;
+                }
+                return;
+            }
+            svg.style.left = `${geom.left}px`;
+            svg.style.top = `${geom.top}px`;
+            svg.style.width = `${geom.iw}px`;
+            svg.style.height = `${geom.ih}px`;
         }
 
         function collectMarkupNormPoints(markup, climbType) {
@@ -7356,8 +7412,10 @@
             }
 
             syncBodyDialogScreenLock() {
-                const open = !!document.querySelector('.dialog-overlay:not(.hidden)');
-                document.body.classList.toggle('dialog-screen-open', open);
+                const dialogOpen = !!document.querySelector('.dialog-overlay:not(.hidden)');
+                const viewerEl = document.getElementById('climbPhotoViewer');
+                const viewerOpen = !!(viewerEl && !viewerEl.classList.contains('hidden'));
+                document.body.classList.toggle('dialog-screen-open', dialogOpen || viewerOpen);
             }
 
             showDialog(dialogId) {
@@ -7646,6 +7704,10 @@
                 previewItem._pendingPhotoMarkup = normalized;
                 previewItem._pendingPhotoMarkupType = climbType;
                 previewItem._markupOverlayAttempts = 0;
+                if (previewItem.classList.contains('climb-detail-photo-mount')
+                    || previewItem.classList.contains('climb-photo-viewer-mount')) {
+                    this.bindPhotoMarkupResizeObserver(previewItem);
+                }
                 const apply = () => this.applyPhotoPreviewMarkupOverlay(previewItem, normalized, climbType);
                 const img = previewItem.querySelector('img');
                 if (!img) {
@@ -7714,22 +7776,11 @@
                     }
 
                     const svg = this.buildPhotoMarkupOverlaySvg(markupForSvg, climbType, geom);
-                    if (isMarkupStageReady(geom)) {
-                        svg.style.position = 'absolute';
-                        svg.style.inset = 'auto';
-                        svg.style.left = `${geom.left}px`;
-                        svg.style.top = `${geom.top}px`;
-                        svg.style.width = `${geom.iw}px`;
-                        svg.style.height = `${geom.ih}px`;
-                    }
+                    placeMarkupOverlaySvg(svg, previewItem, geom);
                     const stage = previewItem.querySelector('.photo-wrap .stage');
                     if (stage) {
                         stage.appendChild(svg);
                     } else {
-                        svg.style.left = `${geom.left}px`;
-                        svg.style.top = `${geom.top}px`;
-                        svg.style.width = `${geom.iw}px`;
-                        svg.style.height = `${geom.ih}px`;
                         const img = previewItem.querySelector('img');
                         if (img && img.parentNode === previewItem) {
                             previewItem.insertBefore(svg, img.nextSibling);
@@ -7754,6 +7805,22 @@
                 const btn = previewItem?.querySelector('.markup-btn');
                 if (!btn) return;
                 btn.innerHTML = `<i class="fas fa-draw-polygon"></i> ${hasMarkup ? 'Изменить' : 'Разметить'}`;
+            }
+
+            bindPhotoMarkupResizeObserver(previewItem) {
+                if (!previewItem || previewItem._markupResizeObs) return;
+                if (typeof ResizeObserver === 'undefined') return;
+                previewItem._markupResizeObs = new ResizeObserver(() => {
+                    clearTimeout(previewItem._markupResizeDebounce);
+                    previewItem._markupResizeDebounce = setTimeout(() => {
+                        const markup = previewItem._pendingPhotoMarkup;
+                        const climbType = previewItem._pendingPhotoMarkupType || 'route';
+                        if (markup) {
+                            this.applyPhotoPreviewMarkupOverlay(previewItem, markup, climbType);
+                        }
+                    }, 80);
+                });
+                previewItem._markupResizeObs.observe(previewItem);
             }
 
             /** Превью в форме добавления: id нет или временный (temp / temp-…) */
@@ -8024,7 +8091,7 @@
                 await hydratePhotosFromIndexedDb([entry.photo]);
                 viewer.classList.remove('hidden');
                 viewer.setAttribute('aria-hidden', 'false');
-                document.body.classList.add('dialog-screen-open');
+                this.syncBodyDialogScreenLock();
                 this.updatePhotoViewerChrome();
                 this.showClimbDetailPhotoInMount(
                     'viewer',
@@ -8054,14 +8121,8 @@
                         this._climbDetailContext?.climbType || 'route'
                     );
                 }
-                const detailHidden = document
-                    .getElementById('climbDetailDialog')
-                    ?.classList.contains('hidden');
-                if (detailHidden) {
-                    document.body.classList.remove('dialog-screen-open');
-                } else {
-                    this.syncBodyDialogScreenLock();
-                }
+                this.syncBodyDialogScreenLock();
+                this.refreshClimbDetailMarkupOverlayIfOpen();
             }
 
             navigatePhotoGallery(delta) {
