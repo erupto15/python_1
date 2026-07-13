@@ -576,10 +576,26 @@
             }
         }
 
-        /** Перед отправкой на API: уменьшаем base64 (быстрее JSON и отклик «Добавить»). */
+        /** Перед отправкой на API: автосжатие base64 (быстрее JSON и отклик «Добавить»). */
         const QUICK_PHOTO_MAX_EDGE = 1920;
         const QUICK_PHOTO_JPEG_QUALITY = 0.82;
         const QUICK_PHOTO_DATAURL_SOFT_CAP = 900000;
+        const UPLOAD_IMAGE_PRESETS = {
+            /** Обложки районов — меньше разрешение, достаточно для карточек каталога. */
+            cover: {
+                maxEdge: 1280,
+                quality: 0.8,
+                targetBytes: 420000,
+                minQuality: 0.55
+            },
+            /** Топо-фото трасс и боулдеров — выше детализация для разметки. */
+            climb: {
+                maxEdge: QUICK_PHOTO_MAX_EDGE,
+                quality: QUICK_PHOTO_JPEG_QUALITY,
+                targetBytes: QUICK_PHOTO_DATAURL_SOFT_CAP,
+                minQuality: 0.52
+            }
+        };
 
         let _heicToLoadPromise = null;
 
@@ -620,10 +636,31 @@
 
         function normalizeUploadedImageFileName(fileName, mime = 'image/jpeg') {
             let name = String(fileName || 'photo.jpg').trim() || 'photo.jpg';
-            if (mime === 'image/jpeg' && /\.(heic|heif|heics|png)$/i.test(name)) {
-                name = name.replace(/\.(heic|heif|heics|png)$/i, '.jpg');
+            if (mime === 'image/jpeg' && /\.(heic|heif|heics|png|webp|bmp|avif)$/i.test(name)) {
+                name = name.replace(/\.(heic|heif|heics|png|webp|bmp|avif)$/i, '.jpg');
             }
             return name;
+        }
+
+        function estimateDataUrlBytes(dataUrl) {
+            const s = String(dataUrl || '');
+            const idx = s.indexOf(',');
+            if (idx < 0) return 0;
+            return Math.round(s.slice(idx + 1).length * 3 / 4);
+        }
+
+        function formatFileSizeRu(bytes) {
+            const n = Number(bytes);
+            if (!Number.isFinite(n) || n <= 0) return '0 КБ';
+            if (n >= 1024 * 1024) {
+                const mb = n / (1024 * 1024);
+                return `${mb >= 10 ? Math.round(mb) : mb.toFixed(1).replace('.0', '')} МБ`;
+            }
+            return `${Math.max(1, Math.round(n / 1024))} КБ`;
+        }
+
+        function uploadPresetOptions(preset = 'climb') {
+            return UPLOAD_IMAGE_PRESETS[preset] || UPLOAD_IMAGE_PRESETS.climb;
         }
 
         function normalizeHeicBlob(blob) {
@@ -644,7 +681,7 @@
             });
         }
 
-        async function convertHeicViaNativeBitmap(blob) {
+        async function convertHeicViaNativeBitmap(blob, options = uploadPresetOptions('climb')) {
             if (typeof createImageBitmap !== 'function') {
                 throw new Error('createImageBitmap unavailable');
             }
@@ -654,13 +691,19 @@
                 const w = bitmap.width;
                 const h = bitmap.height;
                 if (!w || !h) throw new Error('empty bitmap');
+                const maxEdge = Number(options.maxEdge) > 0 ? Number(options.maxEdge) : QUICK_PHOTO_MAX_EDGE;
+                const scale = Math.min(1, maxEdge / Math.max(w, h));
+                const tw = Math.max(1, Math.round(w * scale));
+                const th = Math.max(1, Math.round(h * scale));
                 const canvas = document.createElement('canvas');
-                canvas.width = w;
-                canvas.height = h;
+                canvas.width = tw;
+                canvas.height = th;
                 const ctx = canvas.getContext('2d');
                 if (!ctx) throw new Error('canvas unavailable');
-                ctx.drawImage(bitmap, 0, 0, w, h);
-                return canvas.toDataURL('image/jpeg', QUICK_PHOTO_JPEG_QUALITY);
+                ctx.fillStyle = '#0d0d0d';
+                ctx.fillRect(0, 0, tw, th);
+                ctx.drawImage(bitmap, 0, 0, tw, th);
+                return canvas.toDataURL('image/jpeg', Number(options.quality) || QUICK_PHOTO_JPEG_QUALITY);
             } finally {
                 if (typeof bitmap.close === 'function') bitmap.close();
             }
@@ -699,19 +742,20 @@
             return `Не удалось конвертировать HEIC: ${msg}`;
         }
 
-        async function convertHeicBlobToJpegDataUrl(blob) {
+        async function convertHeicBlobToJpegDataUrl(blob, options = uploadPresetOptions('climb')) {
             const source = normalizeHeicBlob(blob);
+            const quality = Number(options.quality) || QUICK_PHOTO_JPEG_QUALITY;
             try {
                 await ensureHeicToLoaded();
                 const jpegBlob = await HeicTo({
                     blob: source,
                     type: 'image/jpeg',
-                    quality: QUICK_PHOTO_JPEG_QUALITY
+                    quality
                 });
                 return await blobToDataUrl(Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob);
             } catch (primaryErr) {
                 try {
-                    return await convertHeicViaNativeBitmap(source);
+                    return await convertHeicViaNativeBitmap(source, options);
                 } catch (_) {
                     throw new Error(formatHeicConvertError(primaryErr));
                 }
@@ -738,18 +782,39 @@
             });
         }
 
-        async function imageFileToUploadDataUrl(file) {
+        async function imageFileToUploadDataUrl(file, preset = 'climb') {
+            const options = uploadPresetOptions(preset);
             if (isHeicImageFile(file)) {
-                const jpeg = await convertHeicBlobToJpegDataUrl(file);
-                return downscaleDataUrlForUpload(jpeg);
+                const jpeg = await convertHeicBlobToJpegDataUrl(file, options);
+                return compressDataUrlForUpload(jpeg, options);
             }
             const dataUrl = await readImageFileAsDataUrl(file);
             if (isHeicDataUrl(dataUrl)) {
                 const blob = await fetch(dataUrl).then((res) => res.blob());
-                const jpeg = await convertHeicBlobToJpegDataUrl(blob);
-                return downscaleDataUrlForUpload(jpeg);
+                const jpeg = await convertHeicBlobToJpegDataUrl(blob, options);
+                return compressDataUrlForUpload(jpeg, options);
             }
-            return downscaleDataUrlForUpload(dataUrl);
+            return compressDataUrlForUpload(dataUrl, options);
+        }
+
+        async function processImageUploadFile(file, preset = 'climb') {
+            if (!isAcceptedImageFile(file)) {
+                throw new Error('Выберите файл изображения (JPEG, PNG, HEIC и др.)');
+            }
+            if (file.size > MAX_PHOTO_SIZE_BYTES) {
+                throw new Error(`Размер файла не должен превышать ${MAX_PHOTO_SIZE_MB}MB`);
+            }
+            const originalSize = file.size;
+            const data = await imageFileToUploadDataUrl(file, preset);
+            const mime = uploadMimeFromDataUrl(data, 'image/jpeg');
+            const compressedSize = estimateDataUrlBytes(data);
+            return {
+                data,
+                fileName: normalizeUploadedImageFileName(file.name, mime),
+                type: mime,
+                originalSize,
+                compressedSize
+            };
         }
 
         /** Автосохранение открытых фото в память устройства (Telegram/WebView). */
@@ -1244,13 +1309,18 @@
             }
         }
 
-        function downscaleDataUrlForUpload(dataUrl) {
+        /** Всегда перекодируем в JPEG, уменьшаем длинную сторону и при необходимости снижаем quality. */
+        function compressDataUrlForUpload(dataUrl, options = uploadPresetOptions('climb')) {
             if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
                 return Promise.resolve(dataUrl);
             }
             if (isHeicDataUrl(dataUrl)) {
-                return normalizeDisplayableDataUrl(dataUrl).then((normalized) => downscaleDataUrlForUpload(normalized));
+                return normalizeDisplayableDataUrl(dataUrl).then((normalized) => compressDataUrlForUpload(normalized, options));
             }
+            const maxEdge = Number(options.maxEdge) > 0 ? Number(options.maxEdge) : QUICK_PHOTO_MAX_EDGE;
+            const quality = Number(options.quality) > 0 ? Number(options.quality) : QUICK_PHOTO_JPEG_QUALITY;
+            const targetBytes = Number(options.targetBytes) > 0 ? Number(options.targetBytes) : QUICK_PHOTO_DATAURL_SOFT_CAP;
+            const minQuality = Number(options.minQuality) > 0 ? Number(options.minQuality) : 0.52;
             return new Promise((resolve) => {
                 const img = new Image();
                 const done = (out) => resolve(out);
@@ -1262,13 +1332,7 @@
                             done(dataUrl);
                             return;
                         }
-                        const tooLarge = Math.max(w, h) > QUICK_PHOTO_MAX_EDGE;
-                        const tooHeavy = dataUrl.length > QUICK_PHOTO_DATAURL_SOFT_CAP;
-                        if (!tooLarge && !tooHeavy) {
-                            done(dataUrl);
-                            return;
-                        }
-                        const scale = Math.min(1, QUICK_PHOTO_MAX_EDGE / Math.max(w, h));
+                        const scale = Math.min(1, maxEdge / Math.max(w, h));
                         const tw = Math.max(1, Math.round(w * scale));
                         const th = Math.max(1, Math.round(h * scale));
                         const canvas = document.createElement('canvas');
@@ -1279,8 +1343,17 @@
                             done(dataUrl);
                             return;
                         }
+                        ctx.fillStyle = '#0d0d0d';
+                        ctx.fillRect(0, 0, tw, th);
                         ctx.drawImage(img, 0, 0, tw, th);
-                        done(canvas.toDataURL('image/jpeg', QUICK_PHOTO_JPEG_QUALITY));
+                        let q = quality;
+                        let out = canvas.toDataURL('image/jpeg', q);
+                        while (out.length > targetBytes && q > minQuality) {
+                            q = Math.max(minQuality, q - 0.08);
+                            out = canvas.toDataURL('image/jpeg', q);
+                            if (q <= minQuality) break;
+                        }
+                        done(out);
                     } catch (_) {
                         done(dataUrl);
                     }
@@ -1289,6 +1362,8 @@
                 img.src = dataUrl;
             });
         }
+
+        const downscaleDataUrlForUpload = compressDataUrlForUpload;
 
         function getAuthData() {
             const raw = localStorage.getItem(AUTH_STORAGE_KEY);
@@ -3448,12 +3523,18 @@
                 this.mapLayers = [];
                 this.mapMarkerIndex = new Map();
                 this.mapFilter = 'all';
+                this.mapShowTrails = true;
+                this.mapShowPoi = true;
                 this.mapCatalogScope = null;
                 this.mapTarget = null;
                 this.userLocation = null;
+                this.userLocationHeading = null;
                 this.userLocationMarker = null;
                 this.mapNavigationLine = null;
+                this.mapNavigationTrailLine = null;
+                this._mapPointerCoords = null;
                 this._geoWatchId = null;
+                this._activeTrailRouteName = null;
                 this._mapDeclutterRaf = null;
                 this.mapEditMode = false;
                 this.mapDrawTool = 'trail';
@@ -4156,12 +4237,45 @@
             parseCoordinates(rawValue) {
                 const raw = String(rawValue || '').trim();
                 if (!raw) return { latitude: null, longitude: null };
-                const parts = raw.split(',').map(s => s.trim());
+                let parts;
+                if (raw.includes(',')) {
+                    parts = raw.split(',');
+                } else if (raw.includes(';')) {
+                    parts = raw.split(';');
+                } else {
+                    parts = raw.split(/\s+/);
+                }
+                parts = parts.map((s) => s.trim()).filter(Boolean);
                 if (parts.length !== 2) return null;
-                const lat = Number(parts[0]);
-                const lon = Number(parts[1]);
+                const lat = Number(parts[0].replace(/[^\d.\-+eE]/g, ''));
+                const lon = Number(parts[1].replace(/[^\d.\-+eE]/g, ''));
                 if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+                if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
                 return { latitude: lat, longitude: lon };
+            }
+
+            formatMapCoordinates(lat, lng, { precision = 5 } = {}) {
+                const la = Number(lat);
+                const ln = Number(lng);
+                if (!Number.isFinite(la) || !Number.isFinite(ln)) return '—';
+                const p = Math.max(4, Math.min(7, Number(precision) || 5));
+                return `${la.toFixed(p)}°, ${ln.toFixed(p)}°`;
+            }
+
+            formatMapCoordinatesHint(lat, lng) {
+                const la = Number(lat);
+                const ln = Number(lng);
+                if (!Number.isFinite(la) || !Number.isFinite(ln)) return '';
+                const latHem = la >= 0 ? 'N' : 'S';
+                const lngHem = ln >= 0 ? 'E' : 'W';
+                return `${Math.abs(la).toFixed(4)}°${latHem} · ${Math.abs(ln).toFixed(4)}°${lngHem}`;
+            }
+
+            mapPopupCoordsHtml(lat, lng) {
+                if (lat == null || lng == null) return '';
+                const main = this.formatMapCoordinates(lat, lng);
+                const hint = this.formatMapCoordinatesHint(lat, lng);
+                return `<div class="map-popup-coords">${this.escapeHtml(main)}<small>${this.escapeHtml(hint)}</small></div>`;
             }
 
             _setQuickSaveLoading(kind, busy) {
@@ -4319,31 +4433,31 @@
                 actions.style.display = 'flex';
             }
 
+            notifyImageCompressionResult(originalSize, compressedSize) {
+                if (!Number.isFinite(originalSize) || !Number.isFinite(compressedSize)) return;
+                if (compressedSize >= originalSize * 0.85) return;
+                this.showToast(
+                    `Фото сжато: ${formatFileSizeRu(originalSize)} → ${formatFileSizeRu(compressedSize)}`,
+                    false
+                );
+            }
+
             async onAreaPhotoSelected(event) {
                 const file = event?.target?.files?.[0];
                 if (!file) return;
-                if (!isAcceptedImageFile(file)) {
-                    this.showToast('Выберите файл изображения (JPEG, PNG, HEIC и др.)', true);
-                    this.clearAreaDialogPhoto();
-                    return;
-                }
-                if (file.size > MAX_PHOTO_SIZE_BYTES) {
-                    this.showToast(`Размер файла не должен превышать ${MAX_PHOTO_SIZE_MB}MB`, true);
-                    this.clearAreaDialogPhoto();
-                    return;
-                }
                 try {
-                    const scaled = await imageFileToUploadDataUrl(file);
-                    const mime = uploadMimeFromDataUrl(scaled, 'image/jpeg');
+                    this.showToast('Сжимаем фото…', false);
+                    const payload = await processImageUploadFile(file, 'cover');
                     this.areaPhotoData = {
-                        data: scaled,
-                        fileName: normalizeUploadedImageFileName(file.name, mime),
-                        type: mime
+                        data: payload.data,
+                        fileName: payload.fileName,
+                        type: payload.type
                     };
                     this.areaPhotoRemove = false;
-                    this.renderAreaDialogPhotoPreview(scaled);
+                    this.renderAreaDialogPhotoPreview(payload.data);
+                    this.notifyImageCompressionResult(payload.originalSize, payload.compressedSize);
                 } catch (err) {
-                    this.showToast(`Ошибка чтения файла: ${err.message}`, true);
+                    this.showToast(err.message || 'Ошибка чтения файла', true);
                     this.clearAreaDialogPhoto();
                 }
             }
@@ -4388,30 +4502,21 @@
             async onQuickDialogPhotoSelected(kind, event) {
                 const file = event?.target?.files?.[0];
                 if (!file) return;
-                if (!isAcceptedImageFile(file)) {
-                    this.showToast('Выберите файл изображения (JPEG, PNG, HEIC и др.)', true);
-                    this.clearQuickDialogPhoto(kind);
-                    return;
-                }
-                if (file.size > MAX_PHOTO_SIZE_BYTES) {
-                    this.showToast(`Размер файла не должен превышать ${MAX_PHOTO_SIZE_MB}MB`, true);
-                    this.clearQuickDialogPhoto(kind);
-                    return;
-                }
                 try {
-                    const scaled = await imageFileToUploadDataUrl(file);
-                    const mime = uploadMimeFromDataUrl(scaled, 'image/jpeg');
+                    this.showToast('Сжимаем фото…', false);
+                    const uploaded = await processImageUploadFile(file, 'climb');
                     const payload = {
-                        data: scaled,
-                        fileName: normalizeUploadedImageFileName(file.name, mime),
-                        type: mime,
+                        data: uploaded.data,
+                        fileName: uploaded.fileName,
+                        type: uploaded.type,
                         markup: null
                     };
                     if (kind === 'route') this.quickRoutePhotoData = payload;
                     else this.quickBoulderPhotoData = payload;
                     this.renderQuickDialogPhotoPreview(kind);
+                    this.notifyImageCompressionResult(uploaded.originalSize, uploaded.compressedSize);
                 } catch (err) {
-                    this.showToast(`Ошибка чтения файла: ${err.message}`, true);
+                    this.showToast(err.message || 'Ошибка чтения файла', true);
                     this.clearQuickDialogPhoto(kind);
                 }
             }
@@ -4436,13 +4541,9 @@
                 else this.showBoulderHoldsMarkupDialog(this.currentPhotoPreview);
             }
 
-            async fileToDataUrl(file) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
-                    reader.onload = () => resolve(reader.result);
-                    reader.readAsDataURL(file);
-                });
+            async fileToDataUrl(file, preset = 'climb') {
+                const result = await processImageUploadFile(file, preset);
+                return result.data;
             }
 
             escapeHtml(value) {
@@ -4475,9 +4576,13 @@
                 this.map.on('moveend', () => this.scheduleMapDeclutter());
                 this.attachMapFullscreenControl();
                 this.attachMapEditInteraction();
+                this.attachMapPointerTracking();
+                this.syncMapFilterButtons();
+                this.syncMapLayerButtons();
 
                 this.updateMapMarkers();
                 this.updateMapNavigationLine();
+                this.renderMapCoordsBar();
                 this.syncMapZoomClass();
                 requestAnimationFrame(() => this.map.invalidateSize({ animate: false }));
                 setTimeout(() => this.map.invalidateSize({ animate: false }), 120);
@@ -4552,13 +4657,22 @@
                 });
                 this.mapLayers = [];
                 this.mapMarkerIndex = new Map();
+                if (this.userLocationMarker) {
+                    this.map.removeLayer(this.userLocationMarker);
+                    this.userLocationMarker = null;
+                }
+                this.clearMapNavigationLines();
+            }
+
+            clearMapNavigationLines() {
+                if (!this.map) return;
                 if (this.mapNavigationLine) {
                     this.map.removeLayer(this.mapNavigationLine);
                     this.mapNavigationLine = null;
                 }
-                if (this.userLocationMarker) {
-                    this.map.removeLayer(this.userLocationMarker);
-                    this.userLocationMarker = null;
+                if (this.mapNavigationTrailLine) {
+                    this.map.removeLayer(this.mapNavigationTrailLine);
+                    this.mapNavigationTrailLine = null;
                 }
             }
 
@@ -4813,7 +4927,7 @@
                     }
                     setTimeout(() => this.map?.invalidateSize?.({ animate: false }), 60);
                 }
-                this.handleMapMarkerSelection(entry);
+                this.handleMapMarkerSelection(entry, { openNavigation: false, openPopup: true });
             }
 
             bindMapClimbDotMarkerClick(marker, entry) {
@@ -4842,9 +4956,11 @@
                 return marker;
             }
 
-            buildMapParentLabelHtml(title, sub = '', selected = false) {
+            buildMapParentLabelHtml(title, sub = '', selected = false, kind = '') {
                 const subHtml = sub ? ` <span>${this.escapeHtml(sub)}</span>` : '';
-                return `<div class="parent-label${selected ? ' selected' : ''}">${this.escapeHtml(title)}${subHtml}</div>`;
+                const icons = { area: 'fa-mountain', sector: 'fa-layer-group' };
+                const icon = icons[kind] ? `<i class="fas ${icons[kind]} map-kind-icon" aria-hidden="true"></i>` : '';
+                return `<div class="parent-label${selected ? ' selected' : ''}">${icon}${this.escapeHtml(title)}${subHtml}</div>`;
             }
 
             createMapParentLabelMarker(entry, coord, html) {
@@ -4859,7 +4975,7 @@
                     .bindPopup(this.buildMapPopupHtml(entry));
                 marker.on('click', (e) => {
                     L.DomEvent.stopPropagation(e);
-                    this.handleMapMarkerSelection(entry);
+                    this.handleMapMarkerSelection(entry, { openNavigation: false, openPopup: true });
                 });
                 return marker;
             }
@@ -4922,6 +5038,7 @@
 
             buildMapPopupHtml(entry) {
                 const meta = entry.meta ? `<div class="map-popup-meta">${this.escapeHtml(entry.meta)}</div>` : '';
+                const coords = this.mapPopupCoordsHtml(entry.lat, entry.lng);
                 const guide = this.guideSnippetForMapEntry(entry);
                 const guideBlock = guide ? `<div class="map-popup-guide">${guide}</div>` : '';
                 const detailButton = entry.climbType
@@ -4937,6 +5054,7 @@
                     <div class="map-popup">
                         <strong>${this.escapeHtml(entry.title)}</strong>
                         ${meta}
+                        ${coords}
                         ${guideBlock}
                         <div class="map-popup-actions">
                             ${detailButton}
@@ -4955,7 +5073,7 @@
                     if (stored.kind === 'area' || stored.kind === 'sector') {
                         stored.marker?.setIcon(L.divIcon({
                             className: 'parent-label-icon',
-                            html: this.buildMapParentLabelHtml(stored.title, stored.labelSub || '', selected),
+                            html: this.buildMapParentLabelHtml(stored.title, stored.labelSub || '', selected, stored.kind),
                             iconSize: [0, 0],
                             iconAnchor: [0, 0]
                         }));
@@ -5102,7 +5220,7 @@
                 };
 
                 if (entry.kind === 'area' || entry.kind === 'sector') {
-                    const labelHtml = this.buildMapParentLabelHtml(entry.title, stored.labelSub, selected);
+                    const labelHtml = this.buildMapParentLabelHtml(entry.title, stored.labelSub, selected, entry.kind);
                     stored.marker = this.createMapParentLabelMarker(stored, coord, labelHtml);
                     stored.labelEl = stored.marker.getElement()?.querySelector('.parent-label') || null;
                 } else {
@@ -5139,6 +5257,7 @@
                 this.updateMapNavigationLine();
                 this.renderMapContextBar();
                 this.renderMapGuideStrip();
+                this.renderMapCoordsBar();
                 this.updateMapStatus();
 
                 if (!this._mapFitDone && this.mapMarkerIndex.size) {
@@ -5167,6 +5286,8 @@
 
             mapFeatureVisible(feature) {
                 if (!feature) return false;
+                if (feature.featureType === 'trail' && !this.mapShowTrails) return false;
+                if (feature.featureType !== 'trail' && !this.mapShowPoi) return false;
                 const scopeAreaId = this.mapCatalogScope?.areaId;
                 if (!scopeAreaId) return true;
                 if (feature.areaId != null && Number(feature.areaId) === Number(scopeAreaId)) return true;
@@ -5175,6 +5296,19 @@
                     if (sector && Number(sector.areaId) === Number(scopeAreaId)) return true;
                 }
                 return false;
+            }
+
+            mapFeatureCoords(feature) {
+                const geom = feature?.geometry;
+                if (!geom) return null;
+                if (geom.type === 'Point' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
+                    return { lat: Number(geom.coordinates[1]), lng: Number(geom.coordinates[0]) };
+                }
+                if (geom.type === 'LineString' && Array.isArray(geom.coordinates) && geom.coordinates.length) {
+                    const mid = geom.coordinates[Math.floor(geom.coordinates.length / 2)];
+                    return { lat: Number(mid[1]), lng: Number(mid[0]) };
+                }
+                return null;
             }
 
             mapFeatureTypeLabel(featureType) {
@@ -5191,6 +5325,14 @@
             buildMapFeaturePopupHtml(feature) {
                 const title = feature.label || this.mapFeatureTypeLabel(feature.featureType);
                 const meta = this.mapFeatureTypeLabel(feature.featureType);
+                const coordsPt = this.mapFeatureCoords(feature);
+                const coords = coordsPt ? this.mapPopupCoordsHtml(coordsPt.lat, coordsPt.lng) : '';
+                const navBtn = coordsPt
+                    ? `<button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.openExternalNavigation?.({ lat: ${coordsPt.lat}, lng: ${coordsPt.lng}, title: '${this.escapeHtml(title).replace(/'/g, "\\'")}' }); return false;"><i class="fas fa-diamond-turn-right"></i> Маршрут</button>`
+                    : '';
+                const targetBtn = coordsPt
+                    ? `<button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.setMapTarget?.({ kind: 'feature', id: ${Number(feature.id)}, title: '${this.escapeHtml(title).replace(/'/g, "\\'")}', lat: ${coordsPt.lat}, lng: ${coordsPt.lng} }); return false;">К точке</button>`
+                    : '';
                 const adminActions = this.mapEditMode && this.isAdmin()
                     ? `
                         <button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.editMapFeatureFromPopup?.(${Number(feature.id)}); return false;">Изменить</button>
@@ -5201,7 +5343,8 @@
                     <div class="map-feature-popup">
                         <strong>${this.escapeHtml(title)}</strong>
                         <div class="map-feature-popup-meta">${this.escapeHtml(meta)}</div>
-                        <div class="map-popup-actions">${adminActions}</div>
+                        ${coords}
+                        <div class="map-popup-actions">${targetBtn}${navBtn}${adminActions}</div>
                     </div>
                 `;
             }
@@ -5362,19 +5505,38 @@
 
             buildMapFeaturePointIcon(featureType, label) {
                 const icons = {
-                    parking: 'P',
-                    camping: '⛺',
-                    area_sign: 'A',
-                    sector_sign: 'S'
+                    parking: '<i class="fas fa-square-parking" aria-hidden="true"></i>',
+                    camping: '<i class="fas fa-campground" aria-hidden="true"></i>',
+                    area_sign: '<i class="fas fa-mountain" aria-hidden="true"></i>',
+                    sector_sign: '<i class="fas fa-thumbtack" aria-hidden="true"></i>'
                 };
                 const cls = `map-feature-icon map-feature-icon--${featureType}`;
-                const text = icons[featureType] || '•';
+                const inner = icons[featureType] || '•';
                 return L.divIcon({
                     className: 'map-feature-point-marker',
-                    html: `<span class="${cls}" title="${this.escapeHtml(label || '')}">${text}</span>`,
-                    iconSize: [28, 28],
-                    iconAnchor: [14, 14]
+                    html: `<span class="${cls}" title="${this.escapeHtml(label || '')}">${inner}</span>`,
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16]
                 });
+            }
+
+            buildMapTrailLayer(latlngs, selected = false) {
+                const halo = L.polyline(latlngs, {
+                    color: '#fff',
+                    weight: selected ? 9 : 7,
+                    opacity: 0.75,
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                });
+                const line = L.polyline(latlngs, {
+                    color: selected ? '#2563eb' : '#92400e',
+                    weight: selected ? 5 : 4,
+                    opacity: 0.95,
+                    dashArray: selected ? null : '8 10',
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                });
+                return L.layerGroup([halo, line]);
             }
 
             createMapFeatureLayer(feature) {
@@ -5383,17 +5545,11 @@
                 const selected = Number(feature.id) === Number(this.mapSelectedFeatureId);
                 if (geom.type === 'LineString' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
                     const latlngs = geom.coordinates.map((c) => [Number(c[1]), Number(c[0])]);
-                    const line = L.polyline(latlngs, {
-                        color: selected ? '#2563eb' : '#ea580c',
-                        weight: selected ? 6 : 4,
-                        opacity: 0.95,
-                        lineJoin: 'round',
-                        lineCap: 'round'
-                    });
-                    line.bindPopup(this.buildMapFeaturePopupHtml(feature));
-                    line._mapFeatureId = feature.id;
-                    this.bindMapFeatureLayerAdminEvents(line, feature);
-                    return line;
+                    const group = this.buildMapTrailLayer(latlngs, selected);
+                    group.bindPopup(this.buildMapFeaturePopupHtml(feature));
+                    group._mapFeatureId = feature.id;
+                    this.bindMapFeatureLayerAdminEvents(group, feature);
+                    return group;
                 }
                 if (geom.type === 'Point' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
                     const lat = Number(geom.coordinates[1]);
@@ -5422,14 +5578,18 @@
                     this.mapFeatureLayers.push(layer);
                 });
                 if (this.mapDraftTrail?.latlngs?.length) {
-                    const draft = L.polyline(this.mapDraftTrail.latlngs, {
-                        color: '#2563eb',
-                        weight: 4,
-                        opacity: 0.85,
-                        dashArray: '8 8'
+                    const draftGroup = this.buildMapTrailLayer(this.mapDraftTrail.latlngs, true);
+                    draftGroup.eachLayer?.((layer) => {
+                        if (layer.setStyle) {
+                            layer.setStyle({
+                                color: '#2563eb',
+                                dashArray: '6 8',
+                                opacity: 0.9
+                            });
+                        }
                     });
-                    draft.addTo(this.map);
-                    this.mapFeatureLayers.push(draft);
+                    draftGroup.addTo(this.map);
+                    this.mapFeatureLayers.push(draftGroup);
                 }
             }
 
@@ -5563,12 +5723,13 @@
                         this.showToast('Тропа обновлена');
                     } else {
                         const areaId = this.mapCatalogScope?.areaId ?? null;
+                        const sectorId = this.mapCatalogScope?.sectorId ?? null;
                         const created = await apiFetch('/api/map-features', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 area_id: areaId,
-                                sector_id: null,
+                                sector_id: sectorId,
                                 feature_type: 'trail',
                                 label,
                                 geometry,
@@ -5805,6 +5966,8 @@
                 if (navBtn) navBtn.disabled = false;
                 this.refreshMapMarkerStyles();
                 this.renderMapGuideStrip();
+                this.renderMapCoordsBar();
+                this.updateMapNavigationLine();
                 this.updateMapStatus();
             }
 
@@ -5908,10 +6071,14 @@
                 return dirs[Math.round(degrees / 45) % 8];
             }
 
-            handleMapMarkerSelection(entry, { openNavigation = true } = {}) {
+            handleMapMarkerSelection(entry, { openNavigation = false, openPopup = true } = {}) {
                 if (!entry || entry.lat == null || entry.lng == null) return;
                 this.setMapTarget(entry);
                 this.setMapScopeForEntry(entry.kind, entry.id);
+                this.renderMapCoordsBar();
+                if (openPopup && entry.marker?.openPopup) {
+                    entry.marker.openPopup();
+                }
                 if (openNavigation && !this.mapEditMode) {
                     this.openExternalNavigation(entry);
                 }
@@ -5931,6 +6098,12 @@
                     && Number.isFinite(Number(this.userLocation.lng))
                     ? `${Number(this.userLocation.lat)},${Number(this.userLocation.lng)}`
                     : '';
+
+                if (this._activeTrailRouteName) {
+                    const params = new URLSearchParams({ daddr: dest, type: 'pedestrian' });
+                    if (origin) params.set('saddr', origin);
+                    return `https://maps.me/route?${params.toString()}`;
+                }
 
                 if (preferYandex) {
                     const rtext = origin ? `${origin}~${dest}` : `~${dest}`;
@@ -5981,11 +6154,15 @@
                 if (this.mapTarget && this.userLocation) {
                     const dist = this.distanceMeters(this.userLocation, this.mapTarget);
                     const bearing = this.formatBearing(this.bearingDegrees(this.userLocation, this.mapTarget));
-                    el.textContent = `${this.mapTarget.title}: ${this.formatDistanceMeters(dist)} по прямой${bearing ? ` · ${bearing}` : ''}. Для маршрута по тропам откройте навигатор.`;
+                    const trailHint = this._activeTrailRouteName
+                        ? ` Маршрут по тропе «${this._activeTrailRouteName}» на карте.`
+                        : ' Пунктир — прямая линия; для ходьбы по тропам откройте навигатор.';
+                    el.textContent = `${this.mapTarget.title}: ${this.formatDistanceMeters(dist)}${bearing ? ` · ${bearing}` : ''}.${trailHint}`;
                     return;
                 }
                 if (this.mapTarget) {
-                    el.textContent = `Цель: ${this.mapTarget.title}. Нажмите «Моё место» или «Маршрут в навигаторе», либо снова ткните маркер.`;
+                    const coords = this.formatMapCoordinates(this.mapTarget.lat, this.mapTarget.lng);
+                    el.textContent = `Цель: ${this.mapTarget.title} (${coords}). Нажмите «Моё место» или «Маршрут в навигаторе».`;
                     return;
                 }
                 const count = this.mapMarkerIndex?.size || 0;
@@ -5994,7 +6171,7 @@
                     return;
                 }
                 const word = count === 1 ? 'объект' : count < 5 ? 'объекта' : 'объектов';
-                el.textContent = `На карте ${count} ${word}. Нажмите маркер — откроется маршрут в картах.`;
+                el.textContent = `На карте ${count} ${word}. Выберите маркер — откроется карточка с координатами.`;
             }
 
             distanceMeters(a, b) {
@@ -6016,10 +6193,207 @@
                 return `${(n / 1000).toFixed(n < 10000 ? 1 : 0)} км`;
             }
 
+            dedupeMapPath(latlngs) {
+                const out = [];
+                (latlngs || []).forEach((pt) => {
+                    if (!Array.isArray(pt) || pt.length < 2) return;
+                    const prev = out[out.length - 1];
+                    if (prev && Math.abs(prev[0] - pt[0]) < 1e-7 && Math.abs(prev[1] - pt[1]) < 1e-7) return;
+                    out.push([Number(pt[0]), Number(pt[1])]);
+                });
+                return out;
+            }
+
+            projectPointOnSegment(a, b, p) {
+                const ax = Number(a.lng);
+                const ay = Number(a.lat);
+                const bx = Number(b.lng);
+                const by = Number(b.lat);
+                const px = Number(p.lng);
+                const py = Number(p.lat);
+                const dx = bx - ax;
+                const dy = by - ay;
+                const len2 = dx * dx + dy * dy;
+                if (len2 <= 1e-12) return { lat: ay, lng: ax, t: 0 };
+                let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+                t = Math.max(0, Math.min(1, t));
+                return { lat: ay + dy * t, lng: ax + dx * t, t };
+            }
+
+            closestPointOnPolyline(latlngs, point) {
+                let best = null;
+                for (let i = 0; i < latlngs.length - 1; i += 1) {
+                    const a = { lat: Number(latlngs[i][0]), lng: Number(latlngs[i][1]) };
+                    const b = { lat: Number(latlngs[i + 1][0]), lng: Number(latlngs[i + 1][1]) };
+                    const proj = this.projectPointOnSegment(a, b, point);
+                    const d = this.distanceMeters(point, proj);
+                    if (!best || d < best.dist) {
+                        best = { dist: d, point: proj, index: i, t: proj.t };
+                    }
+                }
+                return best;
+            }
+
+            findTrailGuidedPath(from, to) {
+                const maxSnap = 180;
+                const trails = getMapFeatures().filter((f) =>
+                    f.featureType === 'trail'
+                    && this.mapShowTrails
+                    && this.mapFeatureVisible(f)
+                    && f.geometry?.type === 'LineString'
+                    && Array.isArray(f.geometry.coordinates)
+                    && f.geometry.coordinates.length >= 2
+                );
+                let best = null;
+                trails.forEach((feature) => {
+                    const latlngs = feature.geometry.coordinates.map((c) => [Number(c[1]), Number(c[0])]);
+                    const fromSnap = this.closestPointOnPolyline(latlngs, from);
+                    const toSnap = this.closestPointOnPolyline(latlngs, to);
+                    if (!fromSnap || !toSnap) return;
+                    if (fromSnap.dist > maxSnap || toSnap.dist > maxSnap) return;
+                    const iA = fromSnap.index + (fromSnap.t >= 0.5 ? 1 : 0);
+                    const iB = toSnap.index + (toSnap.t >= 0.5 ? 1 : 0);
+                    let start = Math.min(iA, iB);
+                    let end = Math.max(iA, iB);
+                    let segment = latlngs.slice(start, end + 1);
+                    if (iA > iB) segment = [...segment].reverse();
+                    const path = this.dedupeMapPath([
+                        [from.lat, from.lng],
+                        [fromSnap.point.lat, fromSnap.point.lng],
+                        ...segment.slice(1, -1),
+                        [toSnap.point.lat, toSnap.point.lng],
+                        [to.lat, to.lng]
+                    ]);
+                    const detour = fromSnap.dist + toSnap.dist;
+                    if (!best || detour < best.detour) {
+                        best = {
+                            path,
+                            viaTrail: true,
+                            detour,
+                            trailName: feature.label || 'тропа'
+                        };
+                    }
+                });
+                return best;
+            }
+
+            buildNavigationPath(from, to) {
+                const guided = this.findTrailGuidedPath(from, to);
+                if (guided?.path?.length >= 2) return guided;
+                return {
+                    path: [[from.lat, from.lng], [to.lat, to.lng]],
+                    viaTrail: false,
+                    trailName: null
+                };
+            }
+
+            ensureUserLocationMarker() {
+                if (!this.map || !this.userLocation) return;
+                const heading = Number.isFinite(Number(this.userLocationHeading))
+                    ? Number(this.userLocationHeading)
+                    : null;
+                const rotate = heading != null ? `transform:rotate(${heading}deg);` : '';
+                const html = `<div class="map-user-marker map-user-marker--pulse" style="${rotate}"><i class="fas fa-location-arrow" aria-hidden="true"></i></div>`;
+                const icon = L.divIcon({
+                    className: 'map-user-marker-wrap',
+                    html,
+                    iconSize: [36, 36],
+                    iconAnchor: [18, 18]
+                });
+                if (!this.userLocationMarker) {
+                    this.userLocationMarker = L.marker([this.userLocation.lat, this.userLocation.lng], {
+                        icon,
+                        zIndexOffset: 2000,
+                        interactive: false
+                    }).addTo(this.map);
+                } else {
+                    this.userLocationMarker.setLatLng([this.userLocation.lat, this.userLocation.lng]);
+                    this.userLocationMarker.setIcon(icon);
+                }
+            }
+
+            renderMapCoordsBar() {
+                const valueEl = document.getElementById('mapCoordsText');
+                const hintEl = document.getElementById('mapCoordsHint');
+                if (!valueEl || !hintEl) return;
+                if (this.mapTarget) {
+                    valueEl.textContent = this.formatMapCoordinates(this.mapTarget.lat, this.mapTarget.lng);
+                    const extra = this.formatMapCoordinatesHint(this.mapTarget.lat, this.mapTarget.lng);
+                    hintEl.textContent = extra ? `Цель: ${this.mapTarget.title || 'точка'} · ${extra}` : `Цель: ${this.mapTarget.title || 'точка'}`;
+                    return;
+                }
+                if (this._mapPointerCoords) {
+                    valueEl.textContent = this.formatMapCoordinates(this._mapPointerCoords.lat, this._mapPointerCoords.lng);
+                    hintEl.textContent = this.formatMapCoordinatesHint(this._mapPointerCoords.lat, this._mapPointerCoords.lng);
+                    return;
+                }
+                if (this.userLocation) {
+                    valueEl.textContent = this.formatMapCoordinates(this.userLocation.lat, this.userLocation.lng);
+                    hintEl.textContent = 'Ваше местоположение';
+                    return;
+                }
+                valueEl.textContent = '—';
+                hintEl.textContent = 'Наведите на карту или выберите объект';
+            }
+
+            attachMapPointerTracking() {
+                if (!this.map || this._mapPointerTrackingBound) return;
+                this._mapPointerTrackingBound = true;
+                this.map.on('mousemove', (e) => {
+                    if (this.mapEditMode) return;
+                    this._mapPointerCoords = { lat: e.latlng.lat, lng: e.latlng.lng };
+                    if (!this.mapTarget) this.renderMapCoordsBar();
+                });
+                this.map.on('mouseout', () => {
+                    this._mapPointerCoords = null;
+                    if (!this.mapTarget) this.renderMapCoordsBar();
+                });
+            }
+
+            syncMapLayerButtons() {
+                document.querySelectorAll('[data-map-layer]').forEach((btn) => {
+                    const layer = btn.getAttribute('data-map-layer');
+                    const active = layer === 'trails' ? this.mapShowTrails : layer === 'poi' ? this.mapShowPoi : true;
+                    btn.classList.toggle('active', active);
+                });
+            }
+
+            toggleMapLayer(layer) {
+                if (layer === 'trails') this.mapShowTrails = !this.mapShowTrails;
+                else if (layer === 'poi') this.mapShowPoi = !this.mapShowPoi;
+                this.syncMapLayerButtons();
+                this.renderMapFeatureLayers();
+                this.updateMapNavigationLine();
+                this.updateMapStatus();
+            }
+
             updateMapNavigationLine() {
-                if (!this.map || !this.mapNavigationLine) return;
-                this.map.removeLayer(this.mapNavigationLine);
-                this.mapNavigationLine = null;
+                if (!this.map) return;
+                this.clearMapNavigationLines();
+                if (!this.userLocation || !this.mapTarget) return;
+                const nav = this.buildNavigationPath(this.userLocation, this.mapTarget);
+                const path = this.dedupeMapPath(nav.path || []);
+                if (path.length < 2) return;
+                if (nav.viaTrail) {
+                    this.mapNavigationTrailLine = L.polyline(path, {
+                        color: '#15803d',
+                        weight: 5,
+                        opacity: 0.92,
+                        lineJoin: 'round',
+                        lineCap: 'round'
+                    }).addTo(this.map);
+                    this._activeTrailRouteName = nav.trailName || 'тропа';
+                } else {
+                    this.mapNavigationLine = L.polyline(path, {
+                        color: '#2563eb',
+                        weight: 4,
+                        opacity: 0.82,
+                        dashArray: '10 8',
+                        lineJoin: 'round',
+                        lineCap: 'round'
+                    }).addTo(this.map);
+                    this._activeTrailRouteName = null;
+                }
             }
 
             startUserLocationWatch() {
@@ -6052,6 +6426,12 @@
                 const coord = this.validMapCoord(pos.coords.latitude, pos.coords.longitude);
                 if (!coord) return;
                 this.userLocation = coord;
+                if (Number.isFinite(Number(pos.coords.heading)) && Number(pos.coords.heading) >= 0) {
+                    this.userLocationHeading = Number(pos.coords.heading);
+                }
+                this.ensureUserLocationMarker();
+                this.updateMapNavigationLine();
+                this.renderMapCoordsBar();
                 if (!this.mapTarget) {
                     this.map.setView([coord.lat, coord.lng], Math.max(this.map.getZoom(), 15), { animate: true });
                 }
@@ -7797,6 +8177,11 @@
                         this.setMapFilter(btn.getAttribute('data-map-filter') || 'all');
                     });
                 });
+                document.querySelectorAll('[data-map-layer]').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        this.toggleMapLayer(btn.getAttribute('data-map-layer') || '');
+                    });
+                });
                 document.getElementById('mapLocateBtn')?.addEventListener('click', () => {
                     this.startUserLocationWatch();
                 });
@@ -8326,28 +8711,17 @@
                 const file = event.target.files[0];
                 if (!file) return;
 
-                if (!isAcceptedImageFile(file)) {
-                    this.showToast('Пожалуйста, выберите файл изображения (JPEG, PNG, HEIC и др.)', true);
-                    return;
-                }
-
-                if (file.size > MAX_PHOTO_SIZE_BYTES) {
-                    this.showToast(`Размер файла не должен превышать ${MAX_PHOTO_SIZE_MB}MB`, true);
-                    return;
-                }
-
                 void (async () => {
                     try {
-                        const scaled = await imageFileToUploadDataUrl(file);
-                        const mime = uploadMimeFromDataUrl(scaled, 'image/jpeg');
-                        const fileName = normalizeUploadedImageFileName(file.name, mime);
+                        this.showToast('Сжимаем фото…', false);
+                        const uploaded = await processImageUploadFile(file, 'climb');
                         const previewContainer = document.getElementById(previewContainerId);
 
                         const previewItem = document.createElement('div');
                         previewItem.className = 'photo-preview-with-markup';
 
                         const img = document.createElement('img');
-                        img.src = scaled;
+                        img.src = uploaded.data;
                         img.alt = 'Preview';
 
                         const actionsDiv = document.createElement('div');
@@ -8376,9 +8750,9 @@
                                 markupEvent.preventDefault();
                                 markupEvent.stopPropagation();
                                 const previewPayload = this.currentPhotoPreview || {
-                                    data: scaled,
-                                    fileName,
-                                    type: mime,
+                                    data: uploaded.data,
+                                    fileName: uploaded.fileName,
+                                    type: uploaded.type,
                                     climbType: climbType,
                                     climbId: `temp-detail-${climbType}-${Date.now()}`,
                                     markup: null
@@ -8406,17 +8780,18 @@
                         previewContainer.appendChild(previewItem);
 
                         this.currentPhotoPreview = {
-                            data: scaled,
-                            fileName,
-                            type: mime,
+                            data: uploaded.data,
+                            fileName: uploaded.fileName,
+                            type: uploaded.type,
                             climbType: climbType,
                             climbId: `temp-detail-${climbType}-${Date.now()}`,
                             markup: null
                         };
 
                         this.applyPhotoPreviewMarkupOverlay(previewItem, this.currentPhotoPreview.markup, climbType);
+                        this.notifyImageCompressionResult(uploaded.originalSize, uploaded.compressedSize);
                     } catch (err) {
-                        this.showToast(`Ошибка чтения файла: ${err.message}`, true);
+                        this.showToast(err.message || 'Ошибка чтения файла', true);
                         event.target.value = '';
                     }
                 })();

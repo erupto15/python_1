@@ -2339,6 +2339,128 @@
             align-items: center;
         }
 
+        .map-filter-row {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .map-layer-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .map-filter-row .filter-btn {
+            font-size: 12px;
+            padding: 6px 10px;
+            min-height: 32px;
+        }
+
+        .map-filter-row .filter-btn i {
+            margin-right: 4px;
+            opacity: 0.9;
+        }
+
+        .map-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 12px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.18);
+            font-size: 11px;
+            color: var(--light-text);
+        }
+
+        .map-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+        }
+
+        .map-legend-user {
+            color: #3b82f6;
+            font-size: 12px;
+        }
+
+        .map-legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 2px solid var(--map-accent);
+            background: rgba(255, 255, 255, 0.9);
+            flex-shrink: 0;
+        }
+
+        .map-legend-trail {
+            width: 22px;
+            height: 0;
+            border-top: 3px dashed #92400e;
+            flex-shrink: 0;
+        }
+
+        .map-legend-poi {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            font-size: 10px;
+            font-weight: 700;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .map-legend-poi--parking { background: #2563eb; }
+        .map-legend-poi--camping { background: #16a34a; font-size: 9px; }
+
+        .map-coords-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 6px 12px;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.22);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 12px;
+        }
+
+        .map-coords-value {
+            color: #e2e8f0;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        .map-coords-hint {
+            color: var(--light-text);
+            font-family: inherit;
+            font-size: 11px;
+        }
+
+        .map-popup-coords {
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid #e5e7eb;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 11px;
+            color: #6b7280;
+            line-height: 1.4;
+        }
+
+        .map-popup-coords small {
+            display: block;
+            margin-top: 2px;
+            color: #9ca3af;
+            font-family: inherit;
+        }
+
         .map-context-bar {
             display: flex;
             flex-wrap: wrap;
@@ -2452,19 +2574,72 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 28px;
-            height: 28px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 700;
             color: #fff;
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+            border: 2px solid rgba(255, 255, 255, 0.92);
         }
 
         .map-feature-icon--parking { background: #2563eb; }
-        .map-feature-icon--camping { background: #16a34a; }
+        .map-feature-icon--camping { background: #16a34a; font-size: 13px; }
         .map-feature-icon--area_sign { background: #7c3aed; }
         .map-feature-icon--sector_sign { background: #db2777; }
+
+        .map-feature-point-marker {
+            background: transparent;
+            border: none;
+        }
+
+        .map-trail-end-icon {
+            display: block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #92400e;
+            border: 2px solid #fff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+        }
+
+        .map-user-marker-wrap {
+            background: transparent;
+            border: none;
+        }
+
+        .map-user-marker {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #2563eb;
+            font-size: 22px;
+            filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.55));
+            transform-origin: center center;
+        }
+
+        .map-user-marker--pulse::after {
+            content: '';
+            position: absolute;
+            inset: 4px;
+            border-radius: 50%;
+            background: rgba(59, 130, 246, 0.22);
+            animation: map-user-pulse 2s ease-out infinite;
+        }
+
+        @keyframes map-user-pulse {
+            0% { transform: scale(0.6); opacity: 0.85; }
+            100% { transform: scale(1.8); opacity: 0; }
+        }
+
+        .parent-label .map-kind-icon {
+            margin-right: 5px;
+            opacity: 0.88;
+            font-size: 11px;
+        }
 
         #mapContainer.map-edit-mode {
             cursor: crosshair;
@@ -2788,6 +2963,20 @@
         }
 
         @media (max-width: 520px) {
+            .map-filter-row .filter-btn {
+                flex: 1 1 calc(50% - 8px);
+                justify-content: center;
+            }
+
+            .map-legend {
+                font-size: 10px;
+            }
+
+            .map-coords-bar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
             .leaflet-control-zoom a {
                 width: 38px !important;
                 height: 38px !important;
