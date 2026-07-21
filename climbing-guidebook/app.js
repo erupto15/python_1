@@ -513,7 +513,7 @@
         const OFFLINE_OUTBOX_KEY = 'climbingApp_sync_outbox_v1';
         const OFFLINE_OUTBOX_LIMIT = 50;
         const ADMIN_EMAIL_HINT = window.CLIMBING_ADMIN_EMAIL || 'admin@climbing-guidebook.local';
-        const MAX_PHOTO_INPUT_MB = 128;
+        const MAX_PHOTO_INPUT_MB = 256;
         const MAX_PHOTO_INPUT_BYTES = MAX_PHOTO_INPUT_MB * 1024 * 1024;
         /** Устаревший алиас — лимит на выбор файла, не на загрузку после сжатия. */
         const MAX_PHOTO_SIZE_MB = MAX_PHOTO_INPUT_MB;
@@ -670,7 +670,15 @@
         function buildUploadOptionsForFile(file, preset = 'climb') {
             const options = uploadPresetOptions(preset);
             const size = Number(file?.size) || 0;
-            if (size > 40 * 1024 * 1024) {
+            if (size > 128 * 1024 * 1024) {
+                options.maxEdge = Math.min(options.maxEdge, 1200);
+                options.targetBytes = Math.min(options.targetBytes, 560000);
+                options.quality = Math.min(options.quality, 0.72);
+            } else if (size > 80 * 1024 * 1024) {
+                options.maxEdge = Math.min(options.maxEdge, 1280);
+                options.targetBytes = Math.min(options.targetBytes, 620000);
+                options.quality = Math.min(options.quality, 0.74);
+            } else if (size > 40 * 1024 * 1024) {
                 options.maxEdge = Math.min(options.maxEdge, 1400);
                 options.targetBytes = Math.min(options.targetBytes, 680000);
                 options.quality = Math.min(options.quality, 0.76);
