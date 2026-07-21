@@ -47,9 +47,11 @@
             /* Карта (V8ROCK-style) */
             --map-accent: #ff6b35;
             --map-panel: rgba(15, 17, 22, 0.85);
-            --map-grade-easy: #22c55e;
-            --map-grade-mid: #facc15;
-            --map-grade-hard: #ef4444;
+            --map-grade-yellow: #f5c518;
+            --map-grade-green: #2e9e4f;
+            --map-grade-orange: #f0851a;
+            --map-grade-red: #e53935;
+            --map-grade-black: #1a1a1a;
             --map-tick-done: #4caf50;
             /* Высота окна Mini App (переопределяется из Telegram.WebApp) */
             --app-height: 100vh;
@@ -764,15 +766,50 @@
             border-radius: 20px;
             font-weight: 600;
             font-size: 14px;
+            color: #fff;
+            background-color: var(--map-grade-green);
+        }
+
+        .grade-badge--yellow {
+            background-color: var(--map-grade-yellow);
+            color: #1a1400;
+        }
+
+        .grade-badge--green {
+            background-color: var(--map-grade-green);
+            color: #fff;
+        }
+
+        .grade-badge--orange {
+            background-color: var(--map-grade-orange);
+            color: #fff;
+        }
+
+        .grade-badge--red {
+            background-color: var(--map-grade-red);
+            color: #fff;
+        }
+
+        .grade-badge--black {
+            background-color: var(--map-grade-black);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+        }
+
+        .grade-badge--all {
+            background-color: color-mix(in srgb, var(--primary-color) 75%, #111);
+            color: #fff;
         }
 
         .grade-route {
-            background-color: rgba(44, 181, 169, 0.1);
+            /* legacy alias */
+            background-color: color-mix(in srgb, var(--route-color) 22%, transparent);
             color: var(--route-color);
         }
 
         .grade-boulder {
-            background-color: rgba(255, 87, 87, 0.1);
+            /* legacy alias */
+            background-color: color-mix(in srgb, var(--boulder-color) 22%, transparent);
             color: var(--boulder-color);
         }
 
@@ -3455,28 +3492,46 @@
             background-color: var(--tg-blue);
         }
 
-        .grade-chip--easy.active {
-            background-color: #2e7d32;
+        .grade-chip--yellow.active {
+            background-color: var(--map-grade-yellow);
+            color: #1a1400;
         }
 
-        .grade-chip--mid.active {
-            background-color: #ef6c00;
+        .grade-chip--green.active {
+            background-color: var(--map-grade-green);
         }
 
-        .grade-chip--hard.active {
-            background-color: #c62828;
+        .grade-chip--orange.active {
+            background-color: var(--map-grade-orange);
         }
 
-        .grade-chip--easy {
-            border-color: color-mix(in srgb, #2e7d32 55%, var(--tg-btn-border));
+        .grade-chip--red.active {
+            background-color: var(--map-grade-red);
         }
 
-        .grade-chip--mid {
-            border-color: color-mix(in srgb, #ef6c00 55%, var(--tg-btn-border));
+        .grade-chip--black.active {
+            background-color: var(--map-grade-black);
+            border-color: rgba(255, 255, 255, 0.28);
         }
 
-        .grade-chip--hard {
-            border-color: color-mix(in srgb, #c62828 55%, var(--tg-btn-border));
+        .grade-chip--yellow {
+            border-color: color-mix(in srgb, var(--map-grade-yellow) 65%, var(--tg-btn-border));
+        }
+
+        .grade-chip--green {
+            border-color: color-mix(in srgb, var(--map-grade-green) 55%, var(--tg-btn-border));
+        }
+
+        .grade-chip--orange {
+            border-color: color-mix(in srgb, var(--map-grade-orange) 55%, var(--tg-btn-border));
+        }
+
+        .grade-chip--red {
+            border-color: color-mix(in srgb, var(--map-grade-red) 55%, var(--tg-btn-border));
+        }
+
+        .grade-chip--black {
+            border-color: color-mix(in srgb, #ffffff 28%, var(--tg-btn-border));
         }
 
         html.tg-mini-app .grade-picker {

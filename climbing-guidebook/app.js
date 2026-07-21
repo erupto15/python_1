@@ -2148,6 +2148,45 @@
             return s;
         }
 
+        /**
+         * Цветовые группы категорий (трассы и боулдеринг):
+         * 4–5 жёлтый, 6 зелёный, 7 оранжевый, 8 красный, 9 чёрный (у боулдера верх — 9A).
+         */
+        const GRADE_BAND_ORDER = ['yellow', 'green', 'orange', 'red', 'black'];
+        const GRADE_BAND_FILLS = {
+            yellow: '#f5c518',
+            green: '#2e9e4f',
+            orange: '#f0851a',
+            red: '#e53935',
+            black: '#1a1a1a',
+            all: '#5d9cff'
+        };
+
+        function gradeBandFromValue(v) {
+            const s = String(v || '').trim();
+            if (!s) return 'all';
+            const m = s.match(/^(\d+)/);
+            const n = m ? Number(m[1]) : NaN;
+            if (!Number.isFinite(n)) return 'all';
+            if (n <= 5) return 'yellow';
+            if (n === 6) return 'green';
+            if (n === 7) return 'orange';
+            if (n === 8) return 'red';
+            return 'black';
+        }
+
+        function gradeBadgeClassName(grade) {
+            return `grade-badge grade-badge--${gradeBandFromValue(grade)}`;
+        }
+
+        function harderGradeBand(a, b) {
+            const ia = GRADE_BAND_ORDER.indexOf(a);
+            const ib = GRADE_BAND_ORDER.indexOf(b);
+            if (ia < 0) return b;
+            if (ib < 0) return a;
+            return ia >= ib ? a : b;
+        }
+
         /** Только форма массивов и next*Id — без подмены районов/секторов (KISS). */
         function recomputeCatalogIds(data) {
             const areaIds = (data.areas || []).map((a) => Number(a.id)).filter(Number.isFinite);
@@ -4504,14 +4543,7 @@
             }
 
             _gradeChipToneByValue(v) {
-                const s = String(v || '').trim();
-                if (!s) return 'all';
-                const m = s.match(/^(\d+)/);
-                const n = m ? Number(m[1]) : NaN;
-                if (!Number.isFinite(n)) return 'all';
-                if (n <= 5) return 'easy';
-                if (n <= 7) return 'mid';
-                return 'hard';
+                return gradeBandFromValue(v);
             }
 
             _buildVisualGradeFilter(selectId, stripId, toggleId, panelId, onSelect) {
@@ -5211,25 +5243,21 @@
             }
 
             mapTierFill(tier) {
-                const fills = { easy: '#22c55e', mid: '#facc15', hard: '#ef4444' };
-                return fills[tier] || fills.mid;
+                return GRADE_BAND_FILLS[tier] || GRADE_BAND_FILLS.green;
             }
 
             mapGradeTier(grade) {
                 const tone = this._gradeChipToneByValue(grade);
-                return tone === 'all' ? 'mid' : tone;
+                return tone === 'all' ? 'green' : tone;
             }
 
             mapDominantTier(items, gradeKey = 'grade') {
-                const counts = { easy: 0, mid: 0, hard: 0 };
+                let hardest = null;
                 (items || []).forEach((item) => {
                     const tier = this.mapGradeTier(item?.[gradeKey]);
-                    if (counts[tier] != null) counts[tier] += 1;
+                    hardest = hardest ? harderGradeBand(hardest, tier) : tier;
                 });
-                if (counts.hard > 0) return 'hard';
-                if (counts.mid >= counts.easy && counts.mid > 0) return 'mid';
-                if (counts.easy > 0) return 'easy';
-                return 'mid';
+                return hardest || 'green';
             }
 
             mapTierForSector(sectorId) {
@@ -5240,11 +5268,12 @@
 
             mapTierForArea(areaId) {
                 const sectors = getSectors().filter((s) => Number(s.areaId) === Number(areaId));
-                const tiers = sectors.map((s) => this.mapTierForSector(s.id));
-                if (tiers.includes('hard')) return 'hard';
-                if (tiers.includes('mid')) return 'mid';
-                if (tiers.includes('easy')) return 'easy';
-                return 'mid';
+                let hardest = null;
+                sectors.forEach((s) => {
+                    const tier = this.mapTierForSector(s.id);
+                    hardest = hardest ? harderGradeBand(hardest, tier) : tier;
+                });
+                return hardest || 'green';
             }
 
             sectorMapPoints(sectorId) {
@@ -7532,7 +7561,7 @@
                                         <div class="item-info">
                                             <h3 style="font-size:16px">${this.escapeHtml(r.name)}</h3>
                                             <div class="item-meta">
-                                                <span>Категория: <span class="grade-badge grade-route">${this.escapeHtml(r.grade)}</span></span>
+                                                <span>Категория: <span class="${gradeBadgeClassName(r.grade)}">${this.escapeHtml(r.grade)}</span></span>
                                                 ${r.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(r.category)}</span>` : ''}
                                                 ${r.rating != null && r.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(r.rating))}</span>` : ''}
                                                 ${r.length ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(r.length)}м</span>` : ''}
@@ -7560,7 +7589,7 @@
                                         <div class="item-info">
                                             <h3 style="font-size:16px">${this.escapeHtml(b.name)}</h3>
                                             <div class="item-meta">
-                                                <span>Категория: <span class="grade-badge grade-boulder">${this.escapeHtml(b.grade)}</span></span>
+                                                <span>Категория: <span class="${gradeBadgeClassName(b.grade)}">${this.escapeHtml(b.grade)}</span></span>
                                                 ${b.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(b.category)}</span>` : ''}
                                                 ${b.rating != null && b.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(b.rating))}</span>` : ''}
                                                 ${b.height ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(b.height)}м</span>` : ''}
@@ -8264,7 +8293,7 @@
                                 <h3>${sent.badge}${this.escapeHtml(route.name)}</h3>
                                 <div class="item-meta">
                                     ${route.sectorId != null && this.getStructureLabel(route.sectorId) ? `<span><i class="fas fa-layer-group"></i> ${this.getStructureLabel(route.sectorId)}</span>` : ''}
-                                    <span>Категория: <span class="grade-badge grade-route">${this.escapeHtml(route.grade)}</span></span>
+                                    <span>Категория: <span class="${gradeBadgeClassName(route.grade)}">${this.escapeHtml(route.grade)}</span></span>
                                     ${route.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(route.category)}</span>` : ''}
                                     ${route.rating != null && route.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(route.rating))}</span>` : ''}
                                     ${route.length ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(route.length)}м</span>` : ''}
@@ -8335,7 +8364,7 @@
                                 <h3>${sent.badge}${this.escapeHtml(boulder.name)}</h3>
                                 <div class="item-meta">
                                     ${boulder.sectorId != null && this.getStructureLabel(boulder.sectorId) ? `<span><i class="fas fa-layer-group"></i> ${this.getStructureLabel(boulder.sectorId)}</span>` : ''}
-                                    <span>Категория: <span class="grade-badge grade-boulder">${this.escapeHtml(boulder.grade)}</span></span>
+                                    <span>Категория: <span class="${gradeBadgeClassName(boulder.grade)}">${this.escapeHtml(boulder.grade)}</span></span>
                                     ${boulder.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(boulder.category)}</span>` : ''}
                                     ${boulder.rating != null && boulder.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(boulder.rating))}</span>` : ''}
                                     ${boulder.height ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(boulder.height)}м</span>` : ''}
@@ -9877,7 +9906,7 @@
                     : '';
                 const grade =
                     climb.grade != null && climb.grade !== ''
-                        ? this.escapeHtml(String(climb.grade))
+                        ? `<span class="${gradeBadgeClassName(climb.grade)}">${this.escapeHtml(String(climb.grade))}</span>`
                         : '—';
                 const kindRu = climbType === 'route' ? 'Трасса' : 'Боулдеринг';
                 let extraBits = '';
@@ -9897,7 +9926,7 @@
                     }
                 }
                 if (metaEl) {
-                    metaEl.innerHTML = `${kindRu} · Категория: <strong>${grade}</strong>${extraBits}${structHtml}`;
+                    metaEl.innerHTML = `${kindRu} · Категория: ${grade}${extraBits}${structHtml}`;
                 }
                 this.syncClimbDetailDescriptionUi({ ...climb, climbType });
 
