@@ -2952,54 +2952,60 @@
             };
         }
 
-        /** Геометрия реально видимой области фото с учетом CSS object-fit. */
+        /** Геометрия реально видимой области фото с учетом CSS object-fit (letterboxing contain). */
         function getMarkupStageGeometry(container) {
             const wrap = findPhotoStageWrap(container);
             const geomRoot = wrap || container;
-            const img = geomRoot?.querySelector('img');
+            const img = geomRoot?.querySelector('img') || container?.querySelector('img');
             const geomRootRect = geomRoot?.getBoundingClientRect?.();
             const containerRect = container?.getBoundingClientRect?.();
-            const cw = Math.max(1, geomRootRect?.width || geomRoot?.clientWidth || geomRoot?.offsetWidth || 1);
-            const ch = Math.max(1, geomRootRect?.height || geomRoot?.clientHeight || geomRoot?.offsetHeight || 1);
+            const cw = Math.max(1, containerRect?.width || geomRootRect?.width || geomRoot?.clientWidth || 1);
+            const ch = Math.max(1, containerRect?.height || geomRootRect?.height || geomRoot?.clientHeight || 1);
             const base = { cw, ch, left: 0, top: 0, iw: cw, ih: ch, ready: false };
-            if (!img || !img.naturalWidth || !img.naturalHeight) {
+            if (!img || !img.naturalWidth || !img.naturalHeight || !containerRect) {
                 return base;
             }
             const imageRect = img.getBoundingClientRect();
-            if (imageRect.width >= 8 && imageRect.height >= 8 && containerRect) {
-                return {
-                    cw: Math.max(1, containerRect.width),
-                    ch: Math.max(1, containerRect.height),
-                    left: imageRect.left - containerRect.left,
-                    top: imageRect.top - containerRect.top,
-                    iw: imageRect.width,
-                    ih: imageRect.height,
-                    ready: true
-                };
+            const boxW = Math.max(1, imageRect.width || img.clientWidth || img.offsetWidth || cw);
+            const boxH = Math.max(1, imageRect.height || img.clientHeight || img.offsetHeight || ch);
+            if (boxW < 8 || boxH < 8) {
+                return base;
             }
-            const boxW = Math.max(1, wrap ? cw : (imageRect.width || img.clientWidth || img.offsetWidth || cw));
-            const boxH = Math.max(1, wrap ? ch : (imageRect.height || img.clientHeight || img.offsetHeight || ch));
+
+            const nw = img.naturalWidth;
+            const nh = img.naturalHeight;
             const imgStyle = window.getComputedStyle(img);
-            const fit = imgStyle.objectFit || 'fill';
-            const scale = fit === 'cover'
-                ? Math.max(boxW / img.naturalWidth, boxH / img.naturalHeight)
-                : Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);
-            const iw = img.naturalWidth * scale;
-            const ih = img.naturalHeight * scale;
+            const fit = String(imgStyle.objectFit || 'fill').toLowerCase();
+            let iw;
+            let ih;
+            if (fit === 'fill') {
+                iw = boxW;
+                ih = boxH;
+            } else if (fit === 'none') {
+                iw = nw;
+                ih = nh;
+            } else if (fit === 'scale-down') {
+                const scale = Math.min(1, Math.min(boxW / nw, boxH / nh));
+                iw = nw * scale;
+                ih = nh * scale;
+            } else if (fit === 'cover') {
+                const scale = Math.max(boxW / nw, boxH / nh);
+                iw = nw * scale;
+                ih = nh * scale;
+            } else {
+                // contain — не брать raw imageRect: при width/height 100% box ≠ видимый кадр
+                const scale = Math.min(boxW / nw, boxH / nh);
+                iw = nw * scale;
+                ih = nh * scale;
+            }
             const pos = parseObjectPositionFraction(imgStyle);
             const offsetX = (boxW - iw) * pos.x;
             const offsetY = (boxH - ih) * pos.y;
-            const originLeft = wrap
-                ? (geomRootRect.left - (containerRect?.left || 0)) + offsetX
-                : (imageRect.left - (containerRect?.left || 0)) + offsetX;
-            const originTop = wrap
-                ? (geomRootRect.top - (containerRect?.top || 0)) + offsetY
-                : (imageRect.top - (containerRect?.top || 0)) + offsetY;
             return {
-                cw: containerRect?.width || container?.clientWidth || cw,
-                ch: containerRect?.height || container?.clientHeight || ch,
-                left: originLeft,
-                top: originTop,
+                cw: Math.max(1, containerRect.width),
+                ch: Math.max(1, containerRect.height),
+                left: (imageRect.left - containerRect.left) + offsetX,
+                top: (imageRect.top - containerRect.top) + offsetY,
                 iw,
                 ih,
                 ready: iw >= 8 && ih >= 8
@@ -8892,7 +8898,9 @@
                 const svg = document.createElementNS(NS, 'svg');
                 svg.setAttribute('class', 'photo-markup-overlay');
                 svg.setAttribute('viewBox', '0 0 1 1');
-                svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+                // Как в диалоге разметки: растягиваем 0–1 по фактическому кадру фото.
+                // meet с квадратным viewBox на неквадратном img даёт уменьшение и сдвиг линии.
+                svg.setAttribute('preserveAspectRatio', 'none');
                 svg.setAttribute('aria-hidden', 'true');
 
                 if (!markup) return svg;
