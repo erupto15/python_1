@@ -602,10 +602,19 @@
 
         let _heicToLoadPromise = null;
 
+        /** MIME/расширения для input[type=file] — включая HEIC и Sony ARW. */
+        const PHOTO_INPUT_ACCEPT = 'image/*,.heic,.heif,.arw,image/heic,image/heif,image/x-sony-arw';
+
         function isHeicImageFile(file) {
             const type = String(file?.type || '').toLowerCase();
             if (type.includes('heic') || type.includes('heif')) return true;
             return /\.(heic|heif|heics)$/i.test(String(file?.name || ''));
+        }
+
+        function isArwImageFile(file) {
+            const type = String(file?.type || '').toLowerCase();
+            if (type.includes('sony-arw') || type === 'image/arw' || type === 'image/x-arw') return true;
+            return /\.arw$/i.test(String(file?.name || ''));
         }
 
         function isHeicDataUrl(dataUrl) {
@@ -623,9 +632,9 @@
 
         function isAcceptedImageFile(file) {
             if (!file) return false;
-            if (isHeicImageFile(file)) return true;
+            if (isHeicImageFile(file) || isArwImageFile(file)) return true;
             if (String(file.type || '').toLowerCase().startsWith('image/')) return true;
-            return /\.(jpe?g|png|webp|gif|heic|heif|heics|bmp|avif)$/i.test(String(file.name || ''));
+            return /\.(jpe?g|png|webp|gif|heic|heif|heics|bmp|avif|arw)$/i.test(String(file.name || ''));
         }
 
         function uploadMimeFromDataUrl(dataUrl, fallback = 'image/jpeg') {
@@ -639,10 +648,48 @@
 
         function normalizeUploadedImageFileName(fileName, mime = 'image/jpeg') {
             let name = String(fileName || 'photo.jpg').trim() || 'photo.jpg';
-            if (mime === 'image/jpeg' && /\.(heic|heif|heics|png|webp|bmp|avif)$/i.test(name)) {
-                name = name.replace(/\.(heic|heif|heics|png|webp|bmp|avif)$/i, '.jpg');
+            if (mime === 'image/jpeg' && /\.(heic|heif|heics|png|webp|bmp|avif|arw)$/i.test(name)) {
+                name = name.replace(/\.(heic|heif|heics|png|webp|bmp|avif|arw)$/i, '.jpg');
             }
             return name;
+        }
+
+        /**
+         * Sony ARW (и похожие TIFF-RAW) содержат встроенный JPEG-превью.
+         * Берём самый крупный JPEG из файла — браузер не декодирует RAW напрямую.
+         */
+        function extractLargestJpegBytesFromBuffer(buffer) {
+            const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+            let bestStart = -1;
+            let bestLen = 0;
+            const maxJpegSpan = 32 * 1024 * 1024;
+            for (let i = 0; i < u8.length - 3; i += 1) {
+                if (u8[i] !== 0xFF || u8[i + 1] !== 0xD8 || u8[i + 2] !== 0xFF) continue;
+                const limit = Math.min(u8.length, i + maxJpegSpan);
+                for (let j = i + 3; j < limit - 1; j += 1) {
+                    if (u8[j] !== 0xFF || u8[j + 1] !== 0xD9) continue;
+                    const len = j + 2 - i;
+                    if (len > bestLen) {
+                        bestLen = len;
+                        bestStart = i;
+                    }
+                    i = j + 1;
+                    break;
+                }
+            }
+            if (bestStart < 0 || bestLen < 2048) return null;
+            return u8.subarray(bestStart, bestStart + bestLen);
+        }
+
+        async function convertArwFileToJpegBlob(file) {
+            const buffer = await file.arrayBuffer();
+            const jpegBytes = extractLargestJpegBytesFromBuffer(buffer);
+            if (!jpegBytes) {
+                throw new Error('Не удалось извлечь превью из ARW. Сохраните снимок как JPEG и загрузите снова.');
+            }
+            const copy = new Uint8Array(jpegBytes.byteLength);
+            copy.set(jpegBytes);
+            return new Blob([copy], { type: 'image/jpeg' });
         }
 
         function estimateDataUrlBytes(dataUrl) {
@@ -890,6 +937,16 @@
                 const jpeg = await convertHeicBlobToJpegDataUrl(file, options);
                 return compressDataUrlForUpload(jpeg, options);
             }
+            if (isArwImageFile(file)) {
+                const jpegBlob = await convertArwFileToJpegBlob(file);
+                try {
+                    const out = await compressImageBlobForUpload(jpegBlob, options);
+                    if (out) return out;
+                } catch (err) {
+                    console.warn('ARW preview compress failed', err);
+                }
+                return compressDataUrlForUpload(await blobToDataUrl(jpegBlob), options);
+            }
             if (typeof createImageBitmap === 'function') {
                 try {
                     const out = await compressImageBlobForUpload(file, options);
@@ -909,7 +966,7 @@
 
         async function processImageUploadFile(file, preset = 'climb') {
             if (!isAcceptedImageFile(file)) {
-                throw new Error('Выберите файл изображения (JPEG, PNG, HEIC и др.)');
+                throw new Error('Выберите файл изображения (JPEG, PNG, HEIC, ARW и др.)');
             }
             const originalSize = Number(file.size) || 0;
             if (originalSize > MAX_PHOTO_INPUT_BYTES) {
@@ -8252,6 +8309,10 @@
                 document.getElementById('areaSubmitBtn')?.addEventListener('click', () => {
                     if (!this.requireAdmin('Сохранение района')) return;
                     this.saveArea();
+                });
+                ['areaPhoto', 'quickRoutePhoto', 'quickBoulderPhoto'].forEach((id) => {
+                    const input = document.getElementById(id);
+                    if (input) input.setAttribute('accept', PHOTO_INPUT_ACCEPT);
                 });
                 document.getElementById('areaPhoto')?.addEventListener('change', (e) => this.onAreaPhotoSelected(e));
                 document.getElementById('areaPhotoClearBtn')?.addEventListener('click', () => this.clearAreaDialogPhoto());
