@@ -753,19 +753,16 @@
                 const minEdge = Number(options.minEdge) > 0 ? Number(options.minEdge) : 640;
                 let maxEdge = Number(options.maxEdge) > 0 ? Number(options.maxEdge) : QUICK_PHOTO_MAX_EDGE;
                 let quality = Number(options.quality) > 0 ? Number(options.quality) : QUICK_PHOTO_JPEG_QUALITY;
+                const orientation = Number(options.orientation) > 0 ? Number(options.orientation) : 1;
 
                 const render = () => {
                     const scale = Math.min(1, maxEdge / Math.max(w0, h0));
-                    const tw = Math.max(1, Math.round(w0 * scale));
-                    const th = Math.max(1, Math.round(h0 * scale));
+                    const sw = Math.max(1, Math.round(w0 * scale));
+                    const sh = Math.max(1, Math.round(h0 * scale));
                     const canvas = document.createElement('canvas');
-                    canvas.width = tw;
-                    canvas.height = th;
                     const ctx = canvas.getContext('2d');
                     if (!ctx) return '';
-                    ctx.fillStyle = '#0d0d0d';
-                    ctx.fillRect(0, 0, tw, th);
-                    ctx.drawImage(source, 0, 0, tw, th);
+                    drawImageWithExifOrientation(ctx, source, orientation, sw, sh, canvas);
                     let q = quality;
                     let out = canvas.toDataURL('image/jpeg', q);
                     while (estimateDataUrlBytes(out) > targetBytes && q > minQuality) {
@@ -788,17 +785,225 @@
             });
         }
 
+        /** JPEG EXIF Orientation (1–8). Без тега — 1. */
+        function readJpegExifOrientation(buffer) {
+            try {
+                const bytes = buffer instanceof ArrayBuffer
+                    ? new Uint8Array(buffer)
+                    : (buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer || []));
+                if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8) return 1;
+                const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+                let offset = 2;
+                while (offset + 4 <= view.byteLength) {
+                    if (view.getUint8(offset) !== 0xFF) break;
+                    const marker = view.getUint16(offset);
+                    offset += 2;
+                    if (marker === 0xFFD9 || marker === 0xFFDA) break;
+                    if (offset + 2 > view.byteLength) break;
+                    const size = view.getUint16(offset);
+                    if (size < 2 || offset + size > view.byteLength) break;
+                    if (marker === 0xFFE1 && size >= 8) {
+                        // 'Exif\0\0'
+                        if (view.getUint32(offset + 2) === 0x45786966 && view.getUint16(offset + 6) === 0) {
+                            const tiff = offset + 8;
+                            const endian = view.getUint16(tiff);
+                            const le = endian === 0x4949;
+                            if (endian !== 0x4949 && endian !== 0x4D4D) {
+                                offset += size;
+                                continue;
+                            }
+                            const u16 = (o) => view.getUint16(o, le);
+                            const u32 = (o) => view.getUint32(o, le);
+                            const ifd0 = tiff + u32(tiff + 4);
+                            if (ifd0 + 2 > view.byteLength) break;
+                            const count = u16(ifd0);
+                            for (let i = 0; i < count; i += 1) {
+                                const entry = ifd0 + 2 + i * 12;
+                                if (entry + 12 > view.byteLength) break;
+                                if (u16(entry) === 0x0112) {
+                                    const value = u16(entry + 8);
+                                    return value >= 1 && value <= 8 ? value : 1;
+                                }
+                            }
+                        }
+                    }
+                    offset += size;
+                }
+            } catch (_) {
+                /* ignore */
+            }
+            return 1;
+        }
+
+        async function readBlobJpegExifOrientation(blob) {
+            if (!(blob instanceof Blob)) return 1;
+            const type = String(blob.type || '').toLowerCase();
+            if (type && !type.includes('jpeg') && !type.includes('jpg') && type !== 'image/x-sony-arw') {
+                // PNG/WebP usually don't need EXIF orientation for canvas; try anyway for jpeg-like
+                if (!type.includes('octet') && type !== '') return 1;
+            }
+            try {
+                const buf = await blob.arrayBuffer();
+                return readJpegExifOrientation(buf);
+            } catch (_) {
+                return 1;
+            }
+        }
+
+        function orientedPixelSize(width, height, orientation) {
+            const o = Number(orientation) || 1;
+            if (o >= 5 && o <= 8) return { width: height, height: width };
+            return { width, height };
+        }
+
+        function drawImageWithExifOrientation(ctx, source, orientation, drawW, drawH, canvas) {
+            const o = Number(orientation) || 1;
+            const size = orientedPixelSize(drawW, drawH, o);
+            canvas.width = size.width;
+            canvas.height = size.height;
+            ctx.fillStyle = '#0d0d0d';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            switch (o) {
+                case 2:
+                    ctx.translate(drawW, 0);
+                    ctx.scale(-1, 1);
+                    break;
+                case 3:
+                    ctx.translate(drawW, drawH);
+                    ctx.rotate(Math.PI);
+                    break;
+                case 4:
+                    ctx.translate(0, drawH);
+                    ctx.scale(1, -1);
+                    break;
+                case 5:
+                    ctx.rotate(0.5 * Math.PI);
+                    ctx.scale(1, -1);
+                    break;
+                case 6:
+                    ctx.rotate(0.5 * Math.PI);
+                    ctx.translate(0, -drawH);
+                    break;
+                case 7:
+                    ctx.rotate(0.5 * Math.PI);
+                    ctx.translate(drawW, -drawH);
+                    ctx.scale(-1, 1);
+                    break;
+                case 8:
+                    ctx.rotate(-0.5 * Math.PI);
+                    ctx.translate(-drawW, 0);
+                    break;
+                default:
+                    break;
+            }
+            ctx.drawImage(source, 0, 0, drawW, drawH);
+            ctx.restore();
+        }
+
+        function transformNormPointByQuarterTurns(point, turnsClockwise) {
+            let x = Number(point?.x);
+            let y = Number(point?.y);
+            if (!Number.isFinite(x) || !Number.isFinite(y)) return point;
+            let t = ((Number(turnsClockwise) % 4) + 4) % 4;
+            while (t > 0) {
+                const nx = 1 - y;
+                const ny = x;
+                x = nx;
+                y = ny;
+                t -= 1;
+            }
+            return { ...point, x, y };
+        }
+
+        function transformPhotoMarkupByQuarterTurns(markup, climbType, turnsClockwise) {
+            const normalized = normalizePhotoMarkup(markup, climbType);
+            if (!normalized) return markup || null;
+            const t = ((Number(turnsClockwise) % 4) + 4) % 4;
+            if (!t) return normalized;
+            if (climbType === 'route') {
+                return {
+                    ...normalized,
+                    points: (normalized.points || []).map((p) => transformNormPointByQuarterTurns(p, t))
+                };
+            }
+            return {
+                ...normalized,
+                startHold: normalized.startHold ? transformNormPointByQuarterTurns(normalized.startHold, t) : null,
+                finishHold: normalized.finishHold ? transformNormPointByQuarterTurns(normalized.finishHold, t) : null,
+                linePoints: (normalized.linePoints || []).map((p) => transformNormPointByQuarterTurns(p, t))
+            };
+        }
+
+        function rotateImageDataUrlQuarterTurns(dataUrl, turnsClockwise = 1, quality = 0.92) {
+            return new Promise((resolve) => {
+                const t = ((Number(turnsClockwise) % 4) + 4) % 4;
+                if (!dataUrl || !t) {
+                    resolve(dataUrl);
+                    return;
+                }
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        const w = img.naturalWidth || img.width;
+                        const h = img.naturalHeight || img.height;
+                        if (!w || !h) {
+                            resolve(dataUrl);
+                            return;
+                        }
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) {
+                            resolve(dataUrl);
+                            return;
+                        }
+                        if (t % 2 === 1) {
+                            canvas.width = h;
+                            canvas.height = w;
+                        } else {
+                            canvas.width = w;
+                            canvas.height = h;
+                        }
+                        if (t === 1) {
+                            ctx.translate(h, 0);
+                            ctx.rotate(Math.PI / 2);
+                        } else if (t === 2) {
+                            ctx.translate(w, h);
+                            ctx.rotate(Math.PI);
+                        } else if (t === 3) {
+                            ctx.translate(0, w);
+                            ctx.rotate(-Math.PI / 2);
+                        }
+                        ctx.drawImage(img, 0, 0);
+                        resolve(canvas.toDataURL('image/jpeg', quality));
+                    } catch (_) {
+                        resolve(dataUrl);
+                    }
+                };
+                img.onerror = () => resolve(dataUrl);
+                img.src = dataUrl;
+            });
+        }
+
         async function compressImageBlobForUpload(blob, options = uploadPresetOptions('climb')) {
             if (!(blob instanceof Blob)) return '';
+            const orientation = await readBlobJpegExifOrientation(blob);
+            const opts = { ...options, orientation };
             if (typeof createImageBitmap === 'function') {
                 try {
-                    const bitmap = await createImageBitmap(blob);
+                    let bitmap = null;
+                    try {
+                        // Сырые пиксели файла — ориентацию рисуем сами по EXIF.
+                        bitmap = await createImageBitmap(blob, { imageOrientation: 'none' });
+                    } catch (_) {
+                        bitmap = await createImageBitmap(blob);
+                    }
                     try {
                         const out = await encodeImageSourceToUploadDataUrl(
                             bitmap,
                             bitmap.width,
                             bitmap.height,
-                            options
+                            opts
                         );
                         if (out) return out;
                     } finally {
@@ -809,7 +1014,8 @@
                 }
             }
             const dataUrl = await blobToDataUrl(blob);
-            return compressDataUrlForUpload(dataUrl, options);
+            // Fallback: не передаём EXIF — <img> в части браузеров уже ориентирует кадр.
+            return compressDataUrlForUpload(dataUrl, { ...options, orientation: 1 });
         }
 
         function normalizeHeicBlob(blob) {
@@ -4623,6 +4829,96 @@
                 }
             }
 
+            async rotateAreaDialogPhoto(turnsClockwise = 1) {
+                if (!this.areaPhotoData?.data) {
+                    this.showToast('Сначала выберите фото', true);
+                    return;
+                }
+                try {
+                    this.showToast('Поворачиваем…', false);
+                    const rotated = await rotateImageDataUrlQuarterTurns(this.areaPhotoData.data, turnsClockwise, 0.9);
+                    this.areaPhotoData = {
+                        ...this.areaPhotoData,
+                        data: rotated,
+                        type: 'image/jpeg',
+                        fileName: normalizeUploadedImageFileName(this.areaPhotoData.fileName || 'cover.jpg', 'image/jpeg')
+                    };
+                    this.renderAreaDialogPhotoPreview(rotated);
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось повернуть фото', true);
+                }
+            }
+
+            async rotateQuickDialogPhoto(kind, turnsClockwise = 1) {
+                const isRoute = kind === 'route';
+                const data = isRoute ? this.quickRoutePhotoData : this.quickBoulderPhotoData;
+                if (!data?.data) {
+                    this.showToast('Сначала прикрепите фото', true);
+                    return;
+                }
+                try {
+                    this.showToast('Поворачиваем…', false);
+                    const climbType = isRoute ? 'route' : 'boulder';
+                    const rotated = await rotateImageDataUrlQuarterTurns(data.data, turnsClockwise, 0.9);
+                    const next = {
+                        ...data,
+                        data: rotated,
+                        type: 'image/jpeg',
+                        fileName: normalizeUploadedImageFileName(data.fileName || 'photo.jpg', 'image/jpeg'),
+                        markup: data.markup
+                            ? transformPhotoMarkupByQuarterTurns(data.markup, climbType, turnsClockwise)
+                            : null
+                    };
+                    if (isRoute) this.quickRoutePhotoData = next;
+                    else this.quickBoulderPhotoData = next;
+                    if (this.currentPhotoPreview
+                        && String(this.currentPhotoPreview.climbId) === String(isRoute ? 'temp-quick-route' : 'temp-quick-boulder')) {
+                        this.currentPhotoPreview = {
+                            ...this.currentPhotoPreview,
+                            data: next.data,
+                            type: next.type,
+                            fileName: next.fileName,
+                            markup: next.markup
+                        };
+                    }
+                    this.renderQuickDialogPhotoPreview(kind);
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось повернуть фото', true);
+                }
+            }
+
+            async rotatePendingPhotoPreview(turnsClockwise = 1) {
+                if (!this.currentPhotoPreview?.data) {
+                    this.showToast('Сначала выберите фото', true);
+                    return;
+                }
+                try {
+                    this.showToast('Поворачиваем…', false);
+                    const climbType = this.currentPhotoPreview.climbType || null;
+                    const rotated = await rotateImageDataUrlQuarterTurns(this.currentPhotoPreview.data, turnsClockwise, 0.9);
+                    this.currentPhotoPreview = {
+                        ...this.currentPhotoPreview,
+                        data: rotated,
+                        type: 'image/jpeg',
+                        fileName: normalizeUploadedImageFileName(this.currentPhotoPreview.fileName || 'photo.jpg', 'image/jpeg'),
+                        markup: this.currentPhotoPreview.markup && climbType
+                            ? transformPhotoMarkupByQuarterTurns(this.currentPhotoPreview.markup, climbType, turnsClockwise)
+                            : this.currentPhotoPreview.markup
+                    };
+                    const boxId = this.currentPhotoPreview.previewBoxId
+                        || (climbType === 'route' ? 'routePhotoPreview' : climbType === 'boulder' ? 'boulderPhotoPreview' : null);
+                    const box = boxId ? document.getElementById(boxId) : null;
+                    const item = box?.querySelector('.photo-preview-with-markup');
+                    if (item) {
+                        const img = item.querySelector('img');
+                        if (img) img.src = rotated;
+                        this.schedulePhotoMarkupOverlay(item, this.currentPhotoPreview.markup, climbType);
+                    }
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось повернуть фото', true);
+                }
+            }
+
             renderQuickDialogPhotoPreview(kind) {
                 const isRoute = kind === 'route';
                 const data = isRoute ? this.quickRoutePhotoData : this.quickBoulderPhotoData;
@@ -8316,6 +8612,12 @@
                 });
                 document.getElementById('areaPhoto')?.addEventListener('change', (e) => this.onAreaPhotoSelected(e));
                 document.getElementById('areaPhotoClearBtn')?.addEventListener('click', () => this.clearAreaDialogPhoto());
+                document.getElementById('areaPhotoRotateLeftBtn')?.addEventListener('click', () => {
+                    void this.rotateAreaDialogPhoto(3);
+                });
+                document.getElementById('areaPhotoRotateRightBtn')?.addEventListener('click', () => {
+                    void this.rotateAreaDialogPhoto(1);
+                });
                 document.getElementById('cancelSectorBtn')?.addEventListener('click', () => this.hideDialog('sectorDialog'));
                 document.getElementById('sectorSubmitBtn')?.addEventListener('click', () => {
                     if (!this.requireAdmin('Сохранение сектора')) return;
@@ -8327,6 +8629,18 @@
                 document.getElementById('saveQuickBoulderBtn')?.addEventListener('click', () => this.saveQuickBoulder());
                 document.getElementById('quickRoutePhoto')?.addEventListener('change', (e) => this.onQuickDialogPhotoSelected('route', e));
                 document.getElementById('quickBoulderPhoto')?.addEventListener('change', (e) => this.onQuickDialogPhotoSelected('boulder', e));
+                document.getElementById('quickRoutePhotoRotateLeftBtn')?.addEventListener('click', () => {
+                    void this.rotateQuickDialogPhoto('route', 3);
+                });
+                document.getElementById('quickRoutePhotoRotateRightBtn')?.addEventListener('click', () => {
+                    void this.rotateQuickDialogPhoto('route', 1);
+                });
+                document.getElementById('quickBoulderPhotoRotateLeftBtn')?.addEventListener('click', () => {
+                    void this.rotateQuickDialogPhoto('boulder', 3);
+                });
+                document.getElementById('quickBoulderPhotoRotateRightBtn')?.addEventListener('click', () => {
+                    void this.rotateQuickDialogPhoto('boulder', 1);
+                });
                 document.getElementById('quickRouteMarkupBtn')?.addEventListener('click', () => this.openQuickDialogPhotoMarkup('route'));
                 document.getElementById('quickBoulderMarkupBtn')?.addEventListener('click', () => this.openQuickDialogPhotoMarkup('boulder'));
                 document.getElementById('quickRoutePhotoClearBtn')?.addEventListener('click', () => this.clearQuickDialogPhoto('route'));
@@ -8892,6 +9206,31 @@
                         const actionsDiv = document.createElement('div');
                         actionsDiv.className = 'photo-preview-actions';
 
+                        const rotateLeftBtn = document.createElement('button');
+                        rotateLeftBtn.type = 'button';
+                        rotateLeftBtn.className = `markup-btn small ${this.isAdmin() ? '' : 'hidden-by-role'}`.trim();
+                        rotateLeftBtn.innerHTML = '<i class="fas fa-undo"></i> 90°';
+                        rotateLeftBtn.title = 'Повернуть влево';
+                        rotateLeftBtn.addEventListener('click', (rotateEvent) => {
+                            rotateEvent.preventDefault();
+                            rotateEvent.stopPropagation();
+                            void this.rotatePendingPhotoPreview(3);
+                        });
+
+                        const rotateRightBtn = document.createElement('button');
+                        rotateRightBtn.type = 'button';
+                        rotateRightBtn.className = `markup-btn small ${this.isAdmin() ? '' : 'hidden-by-role'}`.trim();
+                        rotateRightBtn.innerHTML = '<i class="fas fa-redo"></i> 90°';
+                        rotateRightBtn.title = 'Повернуть вправо';
+                        rotateRightBtn.addEventListener('click', (rotateEvent) => {
+                            rotateEvent.preventDefault();
+                            rotateEvent.stopPropagation();
+                            void this.rotatePendingPhotoPreview(1);
+                        });
+
+                        actionsDiv.appendChild(rotateLeftBtn);
+                        actionsDiv.appendChild(rotateRightBtn);
+
                         const removeBtn = document.createElement('button');
                         removeBtn.type = 'button';
                         removeBtn.className = `remove-btn small ${this.isAdmin() ? '' : 'hidden-by-role'}`.trim();
@@ -8950,6 +9289,7 @@
                             type: uploaded.type,
                             climbType: climbType,
                             climbId: `temp-detail-${climbType}-${Date.now()}`,
+                            previewBoxId: previewContainerId,
                             markup: null
                         };
 
