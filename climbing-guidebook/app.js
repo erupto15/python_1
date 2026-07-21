@@ -51,16 +51,16 @@
                         };
                     }
                     const mkBtn = document.getElementById('climbDetailMarkupBtn');
-                    const saveRow = document.getElementById('climbDetailSaveRow');
+                    const saveBtn = document.getElementById('climbDetailSavePhotoBtn');
                     const hasPhoto = mkBtn && mkBtn.style.display !== 'none';
                     if (!hasPhoto) {
                         return null;
                     }
-                    const showSave = saveRow && !saveRow.classList.contains('hidden');
+                    const showSave = saveBtn && !saveBtn.classList.contains('hidden');
                     return {
                         text: 'Схема на фото',
                         btnId: 'climbDetailMarkupBtn',
-                        secondaryText: showSave ? 'Сохранить со схемой' : '',
+                        secondaryText: showSave ? 'Скачать' : '',
                         secondaryBtnId: showSave ? 'climbDetailSavePhotoBtn' : ''
                     };
                 }
@@ -1202,35 +1202,6 @@
             };
         }
 
-        /** Автосохранение открытых фото в память устройства (Telegram/WebView). */
-        const AUTO_SAVE_OPENED_MEDIA_KEY = 'climbingApp_auto_save_opened_media_v1';
-
-        function getAutoSavedMediaSet() {
-            try {
-                const raw = localStorage.getItem(AUTO_SAVE_OPENED_MEDIA_KEY);
-                if (!raw) return new Set();
-                const arr = JSON.parse(raw);
-                if (!Array.isArray(arr)) return new Set();
-                return new Set(arr.map((x) => String(x || '')).filter(Boolean));
-            } catch (_) {
-                return new Set();
-            }
-        }
-
-        function markMediaAutoSaved(key) {
-            const set = getAutoSavedMediaSet();
-            set.add(String(key || ''));
-            try {
-                localStorage.setItem(AUTO_SAVE_OPENED_MEDIA_KEY, JSON.stringify(Array.from(set).filter(Boolean)));
-            } catch (_) {
-                /* ignore */
-            }
-        }
-
-        function wasMediaAutoSaved(key) {
-            return getAutoSavedMediaSet().has(String(key || ''));
-        }
-
         function guessImageExtFromDataUrl(dataUrl) {
             const s = String(dataUrl || '');
             if (s.startsWith('data:image/jpeg')) return 'jpg';
@@ -1626,10 +1597,68 @@
             });
         }
 
-        async function buildClimbPhotoExportPackage(photo, climbType, climbName) {
+        /** Подпись названия и категории внизу экспортируемого фото. */
+        function addClimbCaptionToDataUrl(dataUrl, climbName, climbGrade) {
+            const title = String(climbName || '').trim();
+            const grade = String(climbGrade || '').trim();
+            const caption = [title, grade].filter(Boolean).join(' · ');
+            if (!dataUrl || !caption) return Promise.resolve(dataUrl);
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        const w = img.naturalWidth || img.width || 0;
+                        const h = img.naturalHeight || img.height || 0;
+                        if (!w || !h) {
+                            resolve(dataUrl);
+                            return;
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) {
+                            resolve(dataUrl);
+                            return;
+                        }
+                        ctx.drawImage(img, 0, 0, w, h);
+                        const barH = Math.max(42, Math.round(h * 0.085));
+                        const grad = ctx.createLinearGradient(0, h - barH, 0, h);
+                        grad.addColorStop(0, 'rgba(0,0,0,0)');
+                        grad.addColorStop(0.35, 'rgba(0,0,0,0.55)');
+                        grad.addColorStop(1, 'rgba(0,0,0,0.88)');
+                        ctx.fillStyle = grad;
+                        ctx.fillRect(0, h - barH, w, barH);
+                        const fontSize = Math.max(16, Math.min(36, Math.round(barH * 0.42)));
+                        ctx.font = `700 ${fontSize}px system-ui, -apple-system, Segoe UI, sans-serif`;
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillStyle = '#ffffff';
+                        ctx.shadowColor = 'rgba(0,0,0,0.65)';
+                        ctx.shadowBlur = 4;
+                        const padX = Math.max(12, Math.round(w * 0.03));
+                        const maxW = w - padX * 2;
+                        let text = caption;
+                        while (text.length > 4 && ctx.measureText(text).width > maxW) {
+                            text = `${text.slice(0, Math.max(1, text.length - 2))}…`;
+                        }
+                        ctx.fillText(text, padX, h - barH * 0.42);
+                        ctx.shadowBlur = 0;
+                        resolve(canvas.toDataURL('image/jpeg', 0.92));
+                    } catch (_) {
+                        resolve(dataUrl);
+                    }
+                };
+                img.onerror = () => resolve(dataUrl);
+                img.src = dataUrl;
+            });
+        }
+
+        async function buildClimbPhotoExportPackage(photo, climbType, climbName, climbGrade = '') {
             const src = await resolvePhotoImageDataUrlForExport(photo);
             if (!src) return null;
-            const dataUrl = await composeMarkupOnDataUrl(src, photo, climbType);
+            const withMarkup = await composeMarkupOnDataUrl(src, photo, climbType);
+            const dataUrl = await addClimbCaptionToDataUrl(withMarkup, climbName, climbGrade);
             const extByMime = {
                 'image/jpeg': 'jpg',
                 'image/png': 'png',
@@ -1642,6 +1671,11 @@
                 .replace(/[^a-z0-9а-яё_-]+/gi, '_')
                 .replace(/^_+|_+$/g, '')
                 .slice(0, 42) || (climbType === 'route' ? 'route' : 'boulder');
+            const gradePart = String(climbGrade || '')
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9+]+/gi, '')
+                .slice(0, 8);
             const pid = String(photo.id || '').trim();
             let outExt = extByMime[mime] || 'jpg';
             if (dataUrl.startsWith('data:image/jpeg')) outExt = 'jpg';
@@ -1649,7 +1683,7 @@
             else if (dataUrl.startsWith('data:image/webp')) outExt = 'webp';
             else if (dataUrl.startsWith('data:image/gif')) outExt = 'gif';
             else outExt = guessImageExtFromDataUrl(dataUrl);
-            const fileName = `${baseName}_${pid || Date.now()}.${outExt}`;
+            const fileName = `${baseName}${gradePart ? `_${gradePart}` : ''}_${pid || Date.now()}.${outExt}`;
             return { dataUrl, fileName };
         }
 
@@ -4696,23 +4730,6 @@
                 }
             }
 
-            async tryAutoSaveOpenedMediaToDevice(photo, climbType, climbName) {
-                if (!photo || !photo.imageData || typeof photo.imageData !== 'string') return;
-                const pid = String(photo.id || '').trim();
-                const key = pid ? `${climbType}:photo:${pid}` : `${climbType}:climb:${String(photo.climbId || '')}:open`;
-                if (!key || wasMediaAutoSaved(key)) return;
-                try {
-                    const pkg = await buildClimbPhotoExportPackage(photo, climbType, climbName);
-                    if (!pkg) return;
-                    const ok = await triggerClimbPhotoSaveToDevice(pkg.dataUrl, pkg.fileName, {
-                        tryShareFirstInTelegram: false
-                    });
-                    if (ok) markMediaAutoSaved(key);
-                } catch (_) {
-                    /* WebView может блокировать загрузку без жеста — есть кнопка «Сохранить фото». */
-                }
-            }
-
             /** Явное сохранение из карточки трассы/боулдера (жест пользователя): share или загрузка файла. */
             async saveClimbDetailPhotoFromUserGesture() {
                 const ctx = this._climbDetailContext;
@@ -4729,20 +4746,29 @@
                     this.showToast('Фото для сохранения не найдено', true);
                     return;
                 }
+                const climb = ctx.climbType === 'route'
+                    ? getRoutes().find((r) => String(r.id) === String(ctx.climbId))
+                    : getBoulders().find((b) => String(b.id) === String(ctx.climbId));
+                const climbName = ctx.climbName || climb?.name || '';
+                const climbGrade = ctx.climbGrade || climb?.grade || '';
                 const btn = document.getElementById('climbDetailSavePhotoBtn');
                 if (btn) {
                     btn.disabled = true;
-                    if (!btn.dataset._saveOrigHtml) btn.dataset._saveOrigHtml = btn.innerHTML;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Готовим файл…';
+                    btn.classList.add('is-busy');
                 }
                 if (typeof window.setTelegramWebAppButtonsBusy === 'function') {
                     window.setTelegramWebAppButtonsBusy(true);
                 }
                 try {
-                    const pkg = await buildClimbPhotoExportPackage(photo, ctx.climbType, ctx.climbName || '');
+                    const pkg = await buildClimbPhotoExportPackage(
+                        photo,
+                        ctx.climbType,
+                        climbName,
+                        climbGrade
+                    );
                     if (!pkg) {
                         this.showToast(
-                            'Не удалось скачать снимок для сборки файла (сеть или CORS). Попробуйте долгое нажатие на фото выше.',
+                            'Не удалось подготовить файл (сеть или CORS). Попробуйте ещё раз.',
                             true
                         );
                         return;
@@ -4751,19 +4777,16 @@
                         tryShareFirstInTelegram: true
                     });
                     if (ok) {
-                        this.showToast('Готово: «Фото», загрузки или пункт в «Поделиться»');
+                        this.showToast('Фото со схемой сохранено');
                     } else {
-                        this.showToast('Сохранение отменено. Нажмите кнопку ещё раз или используйте долгое нажатие на фото.', false);
+                        this.showToast('Сохранение отменено', false);
                     }
                 } catch (e) {
                     this.showToast(`Ошибка: ${e && e.message ? e.message : 'не удалось сохранить'}`, true);
                 } finally {
                     if (btn) {
                         btn.disabled = false;
-                        if (btn.dataset._saveOrigHtml) {
-                            btn.innerHTML = btn.dataset._saveOrigHtml;
-                            delete btn.dataset._saveOrigHtml;
-                        }
+                        btn.classList.remove('is-busy');
                     }
                     if (typeof window.setTelegramWebAppButtonsBusy === 'function') {
                         window.setTelegramWebAppButtonsBusy(false);
@@ -8953,7 +8976,9 @@
                         this.openClimbMarkupView(t, id);
                     }
                 });
-                document.getElementById('climbDetailSavePhotoBtn')?.addEventListener('click', () => {
+                document.getElementById('climbDetailSavePhotoBtn')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     void this.saveClimbDetailPhotoFromUserGesture();
                 });
                 document.getElementById('climbDetailMapBtn')?.addEventListener('click', () => {
@@ -9129,8 +9154,7 @@
                     if (mount) this.applyPhotoPreviewMarkupOverlay(mount, null, detailType);
                     document.getElementById('climbDetailImageWrap')?.classList.add('hidden');
                     document.getElementById('climbDetailNoPhoto')?.classList.add('hidden');
-                    document.getElementById('climbDetailSaveRow')?.classList.add('hidden');
-                    document.getElementById('climbDetailSaveHint')?.classList.add('hidden');
+                    document.getElementById('climbDetailSavePhotoBtn')?.classList.add('hidden');
                 }
                 if (typeof window.syncTelegramMiniAppUi === 'function') {
                     window.syncTelegramMiniAppUi();
@@ -9893,7 +9917,8 @@
                     climbId: idStr,
                     photoId: String(photo.id),
                     shownPhotoId: String(photo.id),
-                    climbName: climb.name || ''
+                    climbName: climb.name || '',
+                    climbGrade: climb.grade || ''
                 };
 
                 const titleEl = document.getElementById('climbDetailTitle');
@@ -9933,6 +9958,7 @@
                 const wrap = document.getElementById('climbDetailImageWrap');
                 wrap?.classList.remove('hidden');
                 document.getElementById('climbDetailNoPhoto')?.classList.add('hidden');
+                document.getElementById('climbDetailSavePhotoBtn')?.classList.remove('hidden');
                 this.showClimbDetailPhotoInMount('detail', photo, climb.name || '');
                 void this.refreshClimbDetailViewPanel(climbType, idStr).then(() => {
                     this.syncClimbDetailFooterActions();
@@ -9994,7 +10020,8 @@
                     climbId: idStr,
                     photoId: preferPhotoId && photo && String(photo.id) === preferPhotoId ? preferPhotoId : null,
                     shownPhotoId: photo && photo.id != null && String(photo.id) !== '' ? String(photo.id) : '',
-                    climbName: climb.name || ''
+                    climbName: climb.name || '',
+                    climbGrade: climb.grade || ''
                 };
 
                 const galleryEntries = this.buildPhotoGalleryEntries(climbType, idStr, photos, {
@@ -10011,15 +10038,16 @@
                 const wrap = document.getElementById('climbDetailImageWrap');
                 const noPh = document.getElementById('climbDetailNoPhoto');
                 const mkBtn = document.getElementById('climbDetailMarkupBtn');
-                const saveRow = document.getElementById('climbDetailSaveRow');
-                const saveHint = document.getElementById('climbDetailSaveHint');
+                const saveBtn = document.getElementById('climbDetailSavePhotoBtn');
 
                 if (titleEl) titleEl.textContent = climb.name || '—';
                 const structLabel =
                     climb.sectorId != null ? this.getStructureLabel(climb.sectorId) : '';
                 const structHtml = structLabel ? `<br><span style="opacity:.92;font-size:13px">${this.escapeHtml(structLabel)}</span>` : '';
                 const grade =
-                    climb.grade != null && climb.grade !== '' ? this.escapeHtml(String(climb.grade)) : '—';
+                    climb.grade != null && climb.grade !== ''
+                        ? `<span class="${gradeBadgeClassName(climb.grade)}">${this.escapeHtml(String(climb.grade))}</span>`
+                        : '—';
                 const kindRu = climbType === 'route' ? 'Трасса' : 'Боулдеринг';
                 let extraBits = '';
                 if (climbType === 'route') {
@@ -10038,7 +10066,7 @@
                     }
                 }
                 if (metaEl) {
-                    metaEl.innerHTML = `${kindRu} · Категория: <strong>${grade}</strong>${extraBits}${structHtml}`;
+                    metaEl.innerHTML = `${kindRu} · Категория: ${grade}${extraBits}${structHtml}`;
                 }
                 this.syncClimbDetailDescriptionUi({ ...climb, climbType });
 
@@ -10050,19 +10078,13 @@
                 this.showDialog('climbDetailDialog');
 
                 if (photoReadyForDetail) {
-                    saveRow?.classList.remove('hidden');
-                    if (saveHint) {
-                        const isTg = document.documentElement.classList.contains('tg-mini-app');
-                        saveHint.classList.toggle('hidden', !isTg);
-                    }
+                    saveBtn?.classList.remove('hidden');
                     wrap?.classList.remove('hidden');
                     noPh?.classList.add('hidden');
                     this.showClimbDetailPhotoInMount('detail', photo, climb.name || '');
                     if (mkBtn) mkBtn.style.display = '';
-                    void this.tryAutoSaveOpenedMediaToDevice(photo, climbType, climb.name || '');
                 } else {
-                    saveRow?.classList.add('hidden');
-                    saveHint?.classList.add('hidden');
+                    saveBtn?.classList.add('hidden');
                     wrap?.classList.add('hidden');
                     noPh?.classList.remove('hidden');
                     const img = document.getElementById('climbDetailImage');
