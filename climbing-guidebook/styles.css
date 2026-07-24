@@ -1847,6 +1847,303 @@
             max-height: calc(100dvh - 120px - env(safe-area-inset-bottom, 0px));
         }
 
+        .climb-detail-media-section {
+            margin: 0 0 14px;
+        }
+
+        .climb-detail-media-label {
+            font-size: 12px;
+            font-weight: 650;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--light-text);
+            margin: 0 0 10px;
+        }
+
+        .climb-detail-media-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.35fr) minmax(112px, 0.7fr);
+            gap: 12px;
+            align-items: stretch;
+        }
+
+        .climb-detail-media-tile--photo {
+            position: relative;
+            min-height: 220px;
+            border-radius: 18px;
+            overflow: hidden;
+            background:
+                linear-gradient(160deg, rgba(255, 255, 255, 0.04), transparent 42%),
+                #12151c;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+        }
+
+        .climb-detail-media-tile--photo.is-empty .climb-detail-photo-panel {
+            display: none;
+        }
+
+        .climb-detail-media-tile--photo:not(.is-empty) .climb-detail-photo-empty {
+            display: none;
+        }
+
+        .climb-detail-photo-empty {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: rgba(255, 255, 255, 0.45);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .climb-detail-photo-empty i {
+            font-size: 34px;
+            opacity: 0.7;
+        }
+
+        .climb-detail-media-tile--photo .climb-detail-photo-panel {
+            width: 100%;
+            height: 100%;
+            min-height: 220px;
+            margin: 0;
+            align-items: stretch;
+            justify-content: center;
+        }
+
+        .climb-detail-media-tile--photo .climb-detail-photo-mount.photo-preview-with-markup {
+            max-width: none;
+            width: 100%;
+            height: 100%;
+            min-height: 220px;
+            border-radius: 0;
+            margin: 0;
+        }
+
+        .climb-detail-media-tile--photo .photo-wrap,
+        .climb-detail-media-tile--photo .photo-wrap .stage {
+            width: 100%;
+            max-width: none;
+            height: 100%;
+            border-radius: 0;
+        }
+
+        .climb-detail-media-tile--photo .photo-wrap img,
+        .climb-detail-media-tile--photo .climb-detail-photo-mount > img,
+        .climb-detail-media-tile--photo .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed) .photo-wrap img {
+            max-width: 100%;
+            max-height: min(48vh, 420px);
+            width: 100%;
+            height: auto !important;
+            object-fit: cover;
+            border-radius: 0;
+        }
+
+        .climb-detail-media-tile--photo .climb-detail-photo-swipe-hint {
+            max-width: none;
+            color: rgba(255, 255, 255, 0.55);
+            font-size: 12px;
+            padding: 8px 12px 12px;
+        }
+
+        .climb-detail-media-videos {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .climb-detail-videos-rail {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            height: 100%;
+            min-height: 220px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 2px;
+            scrollbar-width: thin;
+        }
+
+        .climb-detail-video-tile,
+        .climb-detail-video-add {
+            position: relative;
+            flex: 0 0 auto;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: #10131a;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+        }
+
+        .climb-detail-video-tile video {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: #000;
+        }
+
+        .climb-detail-video-tile.is-playing video {
+            object-fit: contain;
+            background: #000;
+        }
+
+        .climb-detail-video-play {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 0;
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.45));
+            color: #fff;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        .climb-detail-video-play span {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.18);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+            font-size: 18px;
+            padding-left: 3px;
+        }
+
+        .climb-detail-video-tile:hover .climb-detail-video-play span {
+            transform: scale(1.05);
+            background: rgba(93, 156, 255, 0.35);
+        }
+
+        .climb-detail-video-tile.is-playing .climb-detail-video-play {
+            display: none;
+        }
+
+        .climb-detail-video-tile .climb-video-delete {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            z-index: 3;
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            border: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(20, 20, 24, 0.72);
+            color: #fff;
+            cursor: pointer;
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+        }
+
+        .climb-detail-video-add {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: 1.5px dashed rgba(93, 156, 255, 0.55);
+            background:
+                radial-gradient(circle at 50% 35%, rgba(93, 156, 255, 0.18), transparent 58%),
+                linear-gradient(160deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.2));
+            color: #9ec0ff;
+            cursor: pointer;
+            transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .climb-detail-video-add:hover,
+        .climb-detail-video-add:focus-visible {
+            border-color: rgba(93, 156, 255, 0.95);
+            transform: translateY(-1px);
+            outline: none;
+        }
+
+        .climb-detail-video-add-plus {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 34px;
+            font-weight: 300;
+            line-height: 1;
+            color: #fff;
+            background: linear-gradient(145deg, #6aa8ff, #3d7dff);
+            box-shadow: 0 10px 28px rgba(61, 125, 255, 0.45);
+        }
+
+        .climb-detail-video-add-label {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            opacity: 0.92;
+        }
+
+        .climb-detail-video-add-hint {
+            font-size: 11px;
+            opacity: 0.55;
+            text-align: center;
+            padding: 0 10px;
+            line-height: 1.3;
+        }
+
+        .climb-detail-videos-empty-inline {
+            font-size: 12px;
+            color: var(--light-text);
+            text-align: center;
+            padding: 8px 4px;
+            opacity: 0.75;
+        }
+
+        @media (max-width: 640px) {
+            .climb-detail-media-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .climb-detail-videos-rail {
+                flex-direction: row;
+                overflow-x: auto;
+                overflow-y: hidden;
+                min-height: 0;
+                height: auto;
+                gap: 10px;
+                padding-bottom: 4px;
+                scroll-snap-type: x mandatory;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .climb-detail-video-tile,
+            .climb-detail-video-add {
+                flex: 0 0 132px;
+                width: 132px;
+                scroll-snap-align: start;
+            }
+
+            .climb-detail-video-add-plus {
+                width: 54px;
+                height: 54px;
+                font-size: 30px;
+            }
+        }
+
         .climb-detail-image-wrap {
             position: relative;
             flex-shrink: 0;
@@ -3108,6 +3405,11 @@
             padding-top: 12px;
         }
 
+        #climbDetailDialog .climb-detail-media-section {
+            margin-left: -2px;
+            margin-right: -2px;
+        }
+
         #climbDetailDialog .climb-detail-image-wrap {
             margin-left: -4px;
             margin-right: -4px;
@@ -3759,32 +4061,12 @@
             background: var(--card-bg);
         }
 
-        .climb-detail-videos-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-top: 8px;
-        }
-
-        .climb-detail-video-card {
-            position: relative;
+        .climb-comments-panel {
+            margin-bottom: 14px;
+            padding: 12px 14px;
+            border: 2px solid var(--border-color);
             border-radius: 8px;
-            overflow: hidden;
-            background: #0f0f0f;
-        }
-
-        .climb-detail-video-card video {
-            display: block;
-            width: 100%;
-            max-height: 420px;
-            background: #000;
-        }
-
-        .climb-detail-video-card .climb-video-delete {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            z-index: 2;
+            background: var(--card-bg);
         }
 
         .climb-detail-videos-empty {

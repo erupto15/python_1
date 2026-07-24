@@ -9216,10 +9216,6 @@
                         this.showEditBoulderDialog(Number(ctx.climbId));
                     }
                 });
-                document.getElementById('climbDetailAddVideoBtn')?.addEventListener('click', () => {
-                    if (!this.requireAdmin('Добавление видео')) return;
-                    document.getElementById('climbDetailVideoInput')?.click();
-                });
                 document.getElementById('climbDetailVideoInput')?.addEventListener('change', (e) => {
                     void this.onClimbDetailVideoSelected(e);
                 });
@@ -9238,6 +9234,36 @@
                     this.renderClimbCommentMediaPreview();
                 });
                 document.getElementById('climbDetailVideosList')?.addEventListener('click', (e) => {
+                    const addBtn = e.target.closest('[data-action="add-climb-video"]');
+                    if (addBtn) {
+                        e.preventDefault();
+                        if (!this.requireAdmin('Добавление видео')) return;
+                        document.getElementById('climbDetailVideoInput')?.click();
+                        return;
+                    }
+                    const playBtn = e.target.closest('[data-action="play-climb-video"]');
+                    if (playBtn) {
+                        e.preventDefault();
+                        const tile = playBtn.closest('.climb-detail-video-tile');
+                        const video = tile?.querySelector('video');
+                        if (!video) return;
+                        document.querySelectorAll('.climb-detail-video-tile.is-playing').forEach((el) => {
+                            if (el === tile) return;
+                            el.classList.remove('is-playing');
+                            const other = el.querySelector('video');
+                            if (other) {
+                                other.pause();
+                                other.removeAttribute('controls');
+                            }
+                        });
+                        tile.classList.add('is-playing');
+                        video.setAttribute('controls', 'controls');
+                        const playPromise = video.play();
+                        if (playPromise && typeof playPromise.catch === 'function') {
+                            playPromise.catch(() => {});
+                        }
+                        return;
+                    }
                     const btn = e.target.closest('[data-action="delete-climb-video"]');
                     if (!btn) return;
                     e.preventDefault();
@@ -10392,12 +10418,14 @@
                 if (photoReadyForDetail) {
                     saveBtn?.classList.remove('hidden');
                     wrap?.classList.remove('hidden');
+                    wrap?.classList.remove('is-empty');
                     noPh?.classList.add('hidden');
                     this.showClimbDetailPhotoInMount('detail', photo, climb.name || '');
                     if (mkBtn) mkBtn.style.display = '';
                 } else {
                     saveBtn?.classList.add('hidden');
-                    wrap?.classList.add('hidden');
+                    wrap?.classList.remove('hidden');
+                    wrap?.classList.add('is-empty');
                     noPh?.classList.remove('hidden');
                     const img = document.getElementById('climbDetailImage');
                     if (img) {
@@ -11508,31 +11536,48 @@
             async refreshClimbDetailVideos(climbType, climbId) {
                 const list = document.getElementById('climbDetailVideosList');
                 if (!list) return;
-                list.innerHTML = '<p class="climb-detail-videos-empty">Загрузка видео…</p>';
+                list.innerHTML = '<p class="climb-detail-videos-empty-inline">Загрузка…</p>';
                 const path = climbType === 'route'
                     ? `/api/videos/by-route/${encodeURIComponent(climbId)}`
                     : `/api/videos/by-boulder/${encodeURIComponent(climbId)}`;
                 try {
                     const videos = await apiFetch(path).catch(() => []);
                     this._climbDetailVideos = Array.isArray(videos) ? videos : [];
-                    if (!this._climbDetailVideos.length) {
-                        list.innerHTML = '<p class="climb-detail-videos-empty">Видео пока нет</p>';
-                        return;
-                    }
-                    list.innerHTML = this._climbDetailVideos.map((v) => {
+                    const tiles = this._climbDetailVideos.map((v) => {
                         const src = resolvePublicMediaUrl(v.file_url);
                         const delBtn = this.isAdmin()
-                            ? `<button type="button" class="btn btn-danger btn-small climb-video-delete" data-action="delete-climb-video" data-video-id="${v.id}" title="Удалить видео"><i class="fas fa-trash"></i></button>`
+                            ? `<button type="button" class="climb-video-delete" data-action="delete-climb-video" data-video-id="${v.id}" title="Удалить видео" aria-label="Удалить видео"><i class="fas fa-trash" aria-hidden="true"></i></button>`
                             : '';
                         return `
-                            <div class="climb-detail-video-card" data-video-id="${v.id}">
+                            <div class="climb-detail-video-tile" data-video-id="${v.id}">
                                 ${delBtn}
-                                <video controls playsinline preload="metadata" src="${this.escapeHtml(src)}"></video>
+                                <video playsinline preload="metadata" src="${this.escapeHtml(src)}"></video>
+                                <button type="button" class="climb-detail-video-play" data-action="play-climb-video" aria-label="Смотреть видео">
+                                    <span><i class="fas fa-play" aria-hidden="true"></i></span>
+                                </button>
                             </div>
                         `;
-                    }).join('');
+                    });
+                    if (this.isAdmin()) {
+                        tiles.unshift(`
+                            <button type="button" class="climb-detail-video-add" data-action="add-climb-video" aria-label="Добавить видео">
+                                <span class="climb-detail-video-add-plus" aria-hidden="true">+</span>
+                                <span class="climb-detail-video-add-label">Видео</span>
+                                <span class="climb-detail-video-add-hint">до 1080p · MOV/MP4</span>
+                            </button>
+                        `);
+                    } else if (!tiles.length) {
+                        tiles.push('<p class="climb-detail-videos-empty-inline">Видео пока нет</p>');
+                    }
+                    list.innerHTML = tiles.join('');
                 } catch (err) {
-                    list.innerHTML = `<p class="climb-detail-videos-empty">Не удалось загрузить видео: ${this.escapeHtml(err.message || '')}</p>`;
+                    const adminTile = this.isAdmin()
+                        ? `<button type="button" class="climb-detail-video-add" data-action="add-climb-video" aria-label="Добавить видео">
+                                <span class="climb-detail-video-add-plus" aria-hidden="true">+</span>
+                                <span class="climb-detail-video-add-label">Видео</span>
+                           </button>`
+                        : '';
+                    list.innerHTML = `${adminTile}<p class="climb-detail-videos-empty-inline">Не удалось загрузить видео</p>`;
                 }
             }
 

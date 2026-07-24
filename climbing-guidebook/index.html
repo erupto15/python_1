@@ -903,19 +903,29 @@
                 <button type="button" class="dialog-close-btn" id="closeClimbDetailDialogBtn" data-close-dialog="climbDetailDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
-                <div id="climbDetailNoPhoto" class="hidden" style="padding:16px;text-align:center;color:var(--light-text);border:1px dashed var(--border-color);border-radius:8px;margin-bottom:12px;">
-                    Фото ещё не добавлено — его можно прикрепить при редактировании или во вкладке «Фотоальбом».
-                </div>
-                <div id="climbDetailImageWrap" class="climb-detail-image-wrap hidden">
-                    <div class="climb-detail-photo-panel" aria-label="Фото трассы или боулдера">
-                        <div id="climbDetailPhotoCounter" class="climb-detail-photo-counter hidden" aria-hidden="true"></div>
-                        <div id="climbDetailPhotoMount" class="photo-preview-with-markup climb-detail-photo-mount climb-detail-photo-swipe" role="button" tabindex="0" aria-label="Фото: свайп для переключения, нажатие для полного экрана">
-                            <img id="climbDetailImage" src="" alt="">
+                <div id="climbDetailMediaSection" class="climb-detail-media-section">
+                    <div class="climb-detail-media-label">Медиа</div>
+                    <div class="climb-detail-media-grid" id="climbDetailMediaGrid">
+                        <div id="climbDetailImageWrap" class="climb-detail-media-tile climb-detail-media-tile--photo">
+                            <div id="climbDetailNoPhoto" class="climb-detail-photo-empty hidden">
+                                <i class="fas fa-image" aria-hidden="true"></i>
+                                <span>Нет фото</span>
+                            </div>
+                            <div class="climb-detail-photo-panel" aria-label="Фото трассы или боулдера">
+                                <div id="climbDetailPhotoCounter" class="climb-detail-photo-counter hidden" aria-hidden="true"></div>
+                                <div id="climbDetailPhotoMount" class="photo-preview-with-markup climb-detail-photo-mount climb-detail-photo-swipe" role="button" tabindex="0" aria-label="Фото: свайп для переключения, нажатие для полного экрана">
+                                    <img id="climbDetailImage" src="" alt="">
+                                </div>
+                                <button type="button" class="climb-detail-download-btn hidden" id="climbDetailSavePhotoBtn" title="Скачать фото со схемой" aria-label="Скачать фото со схемой">
+                                    <i class="fas fa-download" aria-hidden="true"></i>
+                                </button>
+                                <p id="climbDetailPhotoSwipeHint" class="climb-detail-photo-swipe-hint hidden">Свайп · полный экран</p>
+                            </div>
                         </div>
-                        <button type="button" class="climb-detail-download-btn hidden" id="climbDetailSavePhotoBtn" title="Скачать фото со схемой" aria-label="Скачать фото со схемой">
-                            <i class="fas fa-download" aria-hidden="true"></i>
-                        </button>
-                        <p id="climbDetailPhotoSwipeHint" class="climb-detail-photo-swipe-hint hidden">Свайп влево/вправо · нажмите для полного экрана</p>
+                        <div id="climbDetailVideos" class="climb-detail-media-videos">
+                            <input type="file" id="climbDetailVideoInput" class="hidden" accept="video/*,.mov,.m4v,.3gp,.mp4,.webm,.avi" capture="environment">
+                            <div id="climbDetailVideosList" class="climb-detail-videos-rail" aria-label="Видео трассы"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="climb-detail-map-row">
@@ -932,17 +942,6 @@
                             <i class="fas fa-times" aria-hidden="true"></i>
                         </button>
                     </div>
-                </div>
-                <div id="climbDetailVideos" class="climb-detail-videos-panel">
-                    <div class="guide-desc-head">
-                        <div class="guide-desc-label">Видео</div>
-                        <button type="button" class="btn btn-secondary btn-small admin-only hidden-by-role" id="climbDetailAddVideoBtn">
-                            <i class="fas fa-video"></i> Добавить видео
-                        </button>
-                    </div>
-                    <input type="file" id="climbDetailVideoInput" class="hidden" accept="video/*,.mov,.m4v,.3gp,.mp4,.webm,.avi" capture="environment">
-                    <p class="form-hint" id="climbDetailVideoHint">До 1080p HD · MP4, MOV и другие форматы с телефона</p>
-                    <div id="climbDetailVideosList" class="climb-detail-videos-list"></div>
                 </div>
                 <div id="climbDetailCommunity" class="climb-community-panel hidden">
                     <div class="form-label" style="margin-bottom:6px;">Сообщество</div>
