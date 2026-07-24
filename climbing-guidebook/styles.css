@@ -720,6 +720,45 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
+        .list-item.is-route-draggable {
+            gap: 10px;
+            cursor: default;
+        }
+
+        .list-item.is-route-draggable.is-dragging {
+            opacity: 0.55;
+            transform: none;
+            box-shadow: var(--shadow);
+        }
+
+        .route-drag-handle {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 36px;
+            color: var(--light-text);
+            cursor: grab;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .route-drag-handle:active {
+            cursor: grabbing;
+        }
+
+        .route-reorder-hint {
+            margin: 0 0 10px;
+            font-size: 13px;
+            color: var(--light-text);
+        }
+
+        .routes-reorder-list {
+            display: flex;
+            flex-direction: column;
+        }
+
         /* Тач / Telegram WebView: клик по div часто не срабатывает — основная зона строки = button */
         .catalog-climb-row {
             touch-action: manipulation;
@@ -1663,7 +1702,9 @@
             background: transparent;
         }
 
-        .photo-markup-overlay .topo-line {
+        .photo-markup-overlay .topo-line,
+        .photo-markup-overlay .topo-line-end-dot,
+        .photo-markup-overlay .topo-line-end-arrow {
             filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.85)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
         }
 
@@ -3707,6 +3748,156 @@
             border: 2px solid var(--border-color);
             border-radius: 8px;
             background: var(--card-bg);
+        }
+
+        .climb-detail-videos-panel,
+        .climb-comments-panel {
+            margin-bottom: 14px;
+            padding: 12px 14px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+        }
+
+        .climb-detail-videos-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .climb-detail-video-card {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #0f0f0f;
+        }
+
+        .climb-detail-video-card video {
+            display: block;
+            width: 100%;
+            max-height: 420px;
+            background: #000;
+        }
+
+        .climb-detail-video-card .climb-video-delete {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            z-index: 2;
+        }
+
+        .climb-detail-videos-empty {
+            font-size: 13px;
+            color: var(--light-text);
+            margin: 4px 0 0;
+        }
+
+        .climb-comments-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin: 8px 0 14px;
+            max-height: 360px;
+            overflow-y: auto;
+        }
+
+        .climb-comment-item {
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--bg-color) 70%, var(--card-bg));
+            border: 1px solid var(--border-color);
+        }
+
+        .climb-comment-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: var(--light-text);
+        }
+
+        .climb-comment-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: var(--border-color);
+        }
+
+        .climb-comment-author {
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .climb-comment-body {
+            font-size: 14px;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .climb-comment-attachments {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .climb-comment-attachments img,
+        .climb-comment-attachments video {
+            max-width: 100%;
+            max-height: 220px;
+            border-radius: 6px;
+            background: #000;
+        }
+
+        .climb-comment-attachments video {
+            width: 100%;
+        }
+
+        .climb-comment-composer .form-textarea {
+            margin-bottom: 8px;
+        }
+
+        .climb-comment-attach-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .climb-comment-attach-label {
+            cursor: pointer;
+            margin: 0;
+        }
+
+        .climb-comment-media-preview {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            width: 100%;
+        }
+
+        .climb-comment-media-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: var(--border-color);
+            font-size: 12px;
+            max-width: 100%;
+        }
+
+        .climb-comment-media-chip button {
+            border: 0;
+            background: transparent;
+            cursor: pointer;
+            color: var(--light-text);
+            padding: 0 2px;
         }
 
         .climb-community-stats {

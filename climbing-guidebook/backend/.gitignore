@@ -13,3 +13,4 @@ data/local_db/
 .pytest_cache/
 *.pem
 *.key
+uploads/

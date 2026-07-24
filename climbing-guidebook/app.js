@@ -1463,7 +1463,7 @@
             return direct || '';
         }
 
-        function composeMarkupOnDataUrl(srcDataUrl, photo, climbType) {
+        function composeMarkupOnDataUrl(srcDataUrl, photo, climbType, climbGrade = '') {
             return new Promise((resolve) => {
                 const markup = normalizePhotoMarkup(photo.markup, climbType);
                 if (!markup) {
@@ -1489,6 +1489,13 @@
                         }
                         ctx.drawImage(img, 0, 0, w, h);
 
+                        const gradeForLine = climbType === 'route'
+                            ? (climbGrade || resolveRouteGradeForMarkup(photo?.climbId || photo?.route_id, ''))
+                            : '';
+                        const lineColor = climbType === 'route'
+                            ? topoLineColorFromGrade(gradeForLine)
+                            : TOPO_MARKUP.lineColor;
+
                         const toPx = (p) => ({ x: Number(p?.x) * w, y: Number(p?.y) * h });
                         const drawLine = (pts) => {
                             if (!Array.isArray(pts) || pts.length < 2) return;
@@ -1499,7 +1506,7 @@
                                 if (i === 0) ctx.moveTo(q.x, q.y);
                                 else ctx.lineTo(q.x, q.y);
                             });
-                            ctx.strokeStyle = '#d32f2f';
+                            ctx.strokeStyle = lineColor;
                             ctx.lineWidth = Math.max(2, Math.round(Math.min(w, h) * 0.006));
                             ctx.lineJoin = 'round';
                             ctx.lineCap = 'round';
@@ -1532,7 +1539,7 @@
                                     const r = Math.max(3, Math.round(Math.min(w, h) * 0.004));
                                     ctx.beginPath();
                                     ctx.arc(q.x, q.y, r, 0, Math.PI * 2);
-                                    ctx.fillStyle = '#d32f2f';
+                                    ctx.fillStyle = lineColor;
                                     ctx.fill();
                                 };
                                 if (style === 'dots-both') {
@@ -1557,7 +1564,7 @@
                                 ctx.lineTo(leftX, leftY);
                                 ctx.lineTo(rightX, rightY);
                                 ctx.closePath();
-                                ctx.fillStyle = '#d32f2f';
+                                ctx.fillStyle = lineColor;
                                 ctx.fill();
                             }
                         };
@@ -1657,7 +1664,7 @@
         async function buildClimbPhotoExportPackage(photo, climbType, climbName, climbGrade = '') {
             const src = await resolvePhotoImageDataUrlForExport(photo);
             if (!src) return null;
-            const withMarkup = await composeMarkupOnDataUrl(src, photo, climbType);
+            const withMarkup = await composeMarkupOnDataUrl(src, photo, climbType, climbGrade);
             const dataUrl = await addClimbCaptionToDataUrl(withMarkup, climbName, climbGrade);
             const extByMime = {
                 'image/jpeg': 'jpg',
@@ -1999,6 +2006,11 @@
             if (auth.accessToken) {
                 headers.Authorization = `Bearer ${auth.accessToken}`;
             }
+            // FormData: браузер сам выставит multipart boundary — не трогаем Content-Type.
+            if (typeof FormData !== 'undefined' && options.body instanceof FormData) {
+                delete headers['Content-Type'];
+                delete headers['content-type'];
+            }
             const method = String(options.method || 'GET').toUpperCase();
             const timeoutMs = options.timeoutMs ?? (method === 'GET' ? 20000 : 60000);
             const controller = !options.signal && typeof AbortController !== 'undefined'
@@ -2033,6 +2045,90 @@
             if (res.status === 204) return null;
             const text = await res.text();
             return text ? JSON.parse(text) : null;
+        }
+
+        function resolvePublicMediaUrl(url) {
+            const s = String(url || '').trim();
+            if (!s) return '';
+            if (/^(https?:|data:|blob:)/i.test(s)) return s;
+            if (s.startsWith('/')) {
+                return API_BASE_URL ? `${API_BASE_URL.replace(/\/$/, '')}${s}` : s;
+            }
+            return s;
+        }
+
+        function isVideoLikeFile(file) {
+            const mime = String(file?.type || '').toLowerCase();
+            if (mime.startsWith('video/')) return true;
+            const name = String(file?.name || '').toLowerCase();
+            return /\.(mov|m4v|3gp|mp4|webm|avi|mkv)$/i.test(name);
+        }
+
+        function isWithin1080p(width, height) {
+            const w = Number(width);
+            const h = Number(height);
+            if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return true;
+            return Math.max(w, h) <= 1920 && Math.min(w, h) <= 1080;
+        }
+
+        function probeVideoMetadata(file) {
+            return new Promise((resolve) => {
+                const objectUrl = URL.createObjectURL(file);
+                const video = document.createElement('video');
+                video.preload = 'metadata';
+                video.muted = true;
+                video.playsInline = true;
+                const done = (meta) => {
+                    URL.revokeObjectURL(objectUrl);
+                    resolve(meta);
+                };
+                video.onloadedmetadata = () => {
+                    done({
+                        width: video.videoWidth || null,
+                        height: video.videoHeight || null,
+                        duration_sec: Number.isFinite(video.duration) ? video.duration : null
+                    });
+                };
+                video.onerror = () => done({ width: null, height: null, duration_sec: null });
+                video.src = objectUrl;
+            });
+        }
+
+        async function uploadMediaFile(file, kind = 'auto') {
+            if (!file) throw new Error('Файл не выбран');
+            if (file.size > 200 * 1024 * 1024) {
+                throw new Error('Файл больше 200 МБ');
+            }
+            let meta = { width: null, height: null, duration_sec: null };
+            if (kind === 'video' || (kind === 'auto' && isVideoLikeFile(file))) {
+                meta = await probeVideoMetadata(file);
+                if (!isWithin1080p(meta.width, meta.height)) {
+                    throw new Error('Видео должно быть не выше 1080p HD (макс. 1920×1080)');
+                }
+            }
+            const fd = new FormData();
+            fd.append('file', file, file.name || 'upload.bin');
+            if (kind && kind !== 'auto') fd.append('kind', kind);
+            else fd.append('kind', 'auto');
+            const uploaded = await apiFetchDirect('/api/media/upload', {
+                method: 'POST',
+                body: fd,
+                timeoutMs: 300000
+            });
+            return { ...uploaded, ...meta };
+        }
+
+        async function uploadImageDataUrlAsMedia(dataUrl, fileName = 'photo.jpg') {
+            const res = await fetch(dataUrl);
+            const blob = await res.blob();
+            const fd = new FormData();
+            fd.append('file', blob, fileName);
+            fd.append('kind', 'image');
+            return apiFetchDirect('/api/media/upload', {
+                method: 'POST',
+                body: fd,
+                timeoutMs: 180000
+            });
         }
 
         async function apiFetch(path, options = {}) {
@@ -2687,6 +2783,7 @@
                 rating: r.rating ?? null,
                 latitude: r.latitude,
                 longitude: r.longitude,
+                sortOrder: r.sort_order ?? r.id ?? 0,
                 createdAt: r.created_at,
                 updatedAt: r.updated_at
             };
@@ -3538,7 +3635,7 @@
             return px / iw;
         }
 
-        function appendTopoLineEndpointDot(svg, NS, point, geom) {
+        function appendTopoLineEndpointDot(svg, NS, point, geom, lineColor = TOPO_MARKUP.lineColor) {
             const ax = Number(point?.x);
             const ay = Number(point?.y);
             if (!Number.isFinite(ax) || !Number.isFinite(ay)) return;
@@ -3548,16 +3645,16 @@
             c.setAttribute('cx', String(Math.max(0, Math.min(1, ax))));
             c.setAttribute('cy', String(Math.max(0, Math.min(1, ay))));
             c.setAttribute('r', String(r));
-            c.setAttribute('fill', TOPO_MARKUP.lineColor);
+            c.setAttribute('fill', lineColor);
             c.setAttribute('stroke', 'none');
             svg.appendChild(c);
         }
 
-        function appendTopoLineEndMarker(svg, NS, linePts, geom, endStyle) {
+        function appendTopoLineEndMarker(svg, NS, linePts, geom, endStyle, lineColor = TOPO_MARKUP.lineColor) {
             if (!isMarkupStageReady(geom) || !linePts || linePts.length < 2 || !endStyle) return;
             if (endStyle === 'dots-both') {
-                appendTopoLineEndpointDot(svg, NS, linePts[0], geom);
-                appendTopoLineEndpointDot(svg, NS, linePts[linePts.length - 1], geom);
+                appendTopoLineEndpointDot(svg, NS, linePts[0], geom, lineColor);
+                appendTopoLineEndpointDot(svg, NS, linePts[linePts.length - 1], geom, lineColor);
                 return;
             }
             const last = linePts[linePts.length - 1];
@@ -3575,7 +3672,7 @@
                 c.setAttribute('cx', String(ax));
                 c.setAttribute('cy', String(ay));
                 c.setAttribute('r', String(r));
-                c.setAttribute('fill', TOPO_MARKUP.lineColor);
+                c.setAttribute('fill', lineColor);
                 c.setAttribute('stroke', 'none');
                 svg.appendChild(c);
                 return;
@@ -3594,15 +3691,30 @@
                 const poly = document.createElementNS(NS, 'polygon');
                 poly.setAttribute('class', 'topo-line-end-arrow');
                 poly.setAttribute('points', `${tipX},${tipY} ${leftX},${leftY} ${rightX},${rightY}`);
-                poly.setAttribute('fill', TOPO_MARKUP.lineColor);
+                poly.setAttribute('fill', lineColor);
                 poly.setAttribute('stroke', 'none');
                 svg.appendChild(poly);
             }
         }
 
-        function appendTopoLineSvg(svg, NS, linePts, geom, endStyle = null) {
+        function topoLineColorFromGrade(grade) {
+            const band = gradeBandFromValue(grade);
+            if (!band || band === 'all') return TOPO_MARKUP.lineColor;
+            return GRADE_BAND_FILLS[band] || TOPO_MARKUP.lineColor;
+        }
+
+        function resolveRouteGradeForMarkup(climbId, explicitGrade = '') {
+            const g = String(explicitGrade || '').trim();
+            if (g) return g;
+            if (climbId == null || climbId === '') return '';
+            const route = getRoutes().find((r) => String(r.id) === String(climbId));
+            return route?.grade ? String(route.grade) : '';
+        }
+
+        function appendTopoLineSvg(svg, NS, linePts, geom, endStyle = null, lineColor = TOPO_MARKUP.lineColor) {
             if (!isMarkupStageReady(geom)) return;
             if (!linePts || linePts.length < 2) return;
+            const stroke = lineColor || TOPO_MARKUP.lineColor;
             const pairs = linePts
                 .map((p) => {
                     const x = Number(p.x);
@@ -3618,12 +3730,12 @@
             pl.setAttribute('class', 'topo-line');
             pl.setAttribute('points', pairs.join(' '));
             pl.setAttribute('fill', 'none');
-            pl.setAttribute('stroke', TOPO_MARKUP.lineColor);
+            pl.setAttribute('stroke', stroke);
             pl.setAttribute('stroke-width', String(topoStrokeNorm(geom, TOPO_MARKUP.lineStrokePx)));
             pl.setAttribute('stroke-linecap', 'round');
             pl.setAttribute('stroke-linejoin', 'round');
             svg.appendChild(pl);
-            appendTopoLineEndMarker(svg, NS, linePts, geom, endStyle);
+            appendTopoLineEndMarker(svg, NS, linePts, geom, endStyle, stroke);
         }
 
         function appendTopoHoldSvg(svg, NS, hold, geom, options = {}) {
@@ -3734,7 +3846,23 @@
         }
 
         function getRoutes() {
-            return getClimbingData().routes;
+            return [...(getClimbingData().routes || [])].sort((a, b) => {
+                const ao = Number(a.sortOrder ?? a.id ?? 0);
+                const bo = Number(b.sortOrder ?? b.id ?? 0);
+                if (ao !== bo) return ao - bo;
+                return Number(a.id) - Number(b.id);
+            });
+        }
+
+        function applyRoutesOrderLocally(orderedIds) {
+            const data = getClimbingData();
+            const byId = new Map((data.routes || []).map((r) => [Number(r.id), { ...r }]));
+            orderedIds.forEach((id, index) => {
+                const route = byId.get(Number(id));
+                if (route) route.sortOrder = index;
+            });
+            data.routes = [...byId.values()];
+            saveClimbingData(data);
         }
 
         function getBoulders() {
@@ -4967,7 +5095,9 @@
                     if (item) {
                         const img = item.querySelector('img');
                         if (img) img.src = rotated;
-                        this.schedulePhotoMarkupOverlay(item, this.currentPhotoPreview.markup, climbType);
+                        this.schedulePhotoMarkupOverlay(item, this.currentPhotoPreview.markup, climbType, {
+                            climbId: this.currentPhotoPreview.climbId
+                        });
                     }
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось повернуть фото', true);
@@ -4992,10 +5122,14 @@
                 const img = document.createElement('img');
                 img.alt = 'Preview';
                 const applyOverlay = () => {
+                    const grade = isRoute
+                        ? (document.getElementById('quickRouteGrade')?.value || '')
+                        : '';
                     this.schedulePhotoMarkupOverlay(
                         item,
                         data.markup,
-                        isRoute ? 'route' : 'boulder'
+                        isRoute ? 'route' : 'boulder',
+                        { grade }
                     );
                 };
                 img.onload = () => {
@@ -7574,12 +7708,18 @@
                     const rs = getRoutes().filter(r => Number(r.sectorId) === Number(this.catalog.sectorId));
                     const bs = getBoulders().filter(b => Number(b.sectorId) === Number(this.catalog.sectorId));
                     const blocks = [];
+                    const canReorderRoutes = this.isAdmin() && !APP_BOULDER_ONLY && rs.length > 1;
                     if (!APP_BOULDER_ONLY && rs.length) {
                         blocks.push('<h4 style="margin:12px 0 8px;color:var(--light-text)">Трассы</h4>');
+                        if (canReorderRoutes) {
+                            blocks.push('<p class="route-reorder-hint">Перетащите за ⋮⋮, чтобы изменить порядок</p>');
+                        }
+                        blocks.push(`<div class="routes-reorder-list" id="catalogSectorRoutesList" data-reorder-scope="sector">`);
                         rs.forEach(r => {
                             const routeDesc = String(r.description || '').trim();
                             blocks.push(`
-                                <div class="list-item catalog-climb-row" style="margin-bottom:8px" data-open-climb="route" data-open-climb-id="${r.id}">
+                                <div class="list-item catalog-climb-row${canReorderRoutes ? ' is-route-draggable' : ''}" style="margin-bottom:8px" data-id="${r.id}" data-open-climb="route" data-open-climb-id="${r.id}" ${canReorderRoutes ? 'draggable="true"' : ''}>
+                                    ${canReorderRoutes ? '<span class="route-drag-handle" title="Перетащить" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span>' : ''}
                                     <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(r.name)}">
                                         <div class="item-info">
                                             <h3 style="font-size:16px">${this.escapeHtml(r.name)}</h3>
@@ -7601,6 +7741,7 @@
                                     </div>
                                 </div>`);
                         });
+                        blocks.push('</div>');
                     }
                     if (bs.length) {
                         blocks.push('<h4 style="margin:16px 0 8px;color:var(--light-text)">Боулдеринг</h4>');
@@ -7636,6 +7777,7 @@
                         blocks.push(`<div class="empty-state"><p>${msg}</p></div>`);
                     }
                     list.innerHTML = blocks.join('');
+                    this.bindRouteListDragDrop(document.getElementById('catalogSectorRoutesList'));
                 }
                 if (typeof window.syncTelegramMiniAppUi === 'function') window.syncTelegramMiniAppUi();
             }
@@ -8307,10 +8449,19 @@
                     return;
                 }
 
-                routesList.innerHTML = filteredRoutes.map(route => {
+                const canReorder = this.isAdmin()
+                    && !searchTerm
+                    && !gradeFilter
+                    && !hideSent
+                    && filteredRoutes.length > 1;
+
+                routesList.innerHTML = `
+                    ${canReorder ? '<p class="route-reorder-hint">Перетащите за ⋮⋮, чтобы изменить порядок</p>' : ''}
+                    ${filteredRoutes.map(route => {
                     const sent = this.climbSentRowAttrs('route', route.id);
                     return `
-                    <div class="list-item catalog-climb-row${sent.className}" data-id="${route.id}" data-open-climb="route" data-open-climb-id="${route.id}">
+                    <div class="list-item catalog-climb-row${sent.className}${canReorder ? ' is-route-draggable' : ''}" data-id="${route.id}" data-open-climb="route" data-open-climb-id="${route.id}" ${canReorder ? 'draggable="true"' : ''}>
+                        ${canReorder ? '<span class="route-drag-handle" title="Перетащить" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span>' : ''}
                         <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(route.name)}">
                             <div class="item-info">
                                 <h3>${sent.badge}${this.escapeHtml(route.name)}</h3>
@@ -8331,7 +8482,73 @@
                         </div>
                     </div>
                 `;
-                }).join('');
+                }).join('')}`;
+                this.bindRouteListDragDrop(routesList);
+            }
+
+            bindRouteListDragDrop(listEl) {
+                if (!listEl || !this.isAdmin()) return;
+                if (listEl.dataset.routeDndBound === '1') return;
+                listEl.dataset.routeDndBound = '1';
+
+                const rows = () => [...listEl.querySelectorAll(':scope > .list-item.is-route-draggable[data-id]')];
+
+                let dragEl = null;
+                let didReorder = false;
+
+                listEl.addEventListener('dragstart', (e) => {
+                    const row = e.target.closest('.list-item.is-route-draggable');
+                    if (!row || !listEl.contains(row) || row.parentElement !== listEl) return;
+                    if (!e.target.closest('.route-drag-handle')) {
+                        e.preventDefault();
+                        return;
+                    }
+                    dragEl = row;
+                    didReorder = false;
+                    row.classList.add('is-dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                    try {
+                        e.dataTransfer.setData('text/plain', String(row.dataset.id || ''));
+                    } catch (_) { /* ignore */ }
+                });
+
+                listEl.addEventListener('dragover', (e) => {
+                    if (!dragEl) return;
+                    e.preventDefault();
+                    const over = e.target.closest('.list-item.is-route-draggable');
+                    if (!over || over === dragEl || over.parentElement !== listEl) return;
+                    const rect = over.getBoundingClientRect();
+                    const before = e.clientY < rect.top + rect.height / 2;
+                    listEl.insertBefore(dragEl, before ? over : over.nextSibling);
+                    didReorder = true;
+                });
+
+                listEl.addEventListener('drop', (e) => {
+                    if (!dragEl) return;
+                    e.preventDefault();
+                });
+
+                listEl.addEventListener('dragend', async () => {
+                    if (!dragEl) return;
+                    dragEl.classList.remove('is-dragging');
+                    const orderedIds = rows().map((el) => Number(el.dataset.id)).filter(Boolean);
+                    dragEl = null;
+                    if (!didReorder || orderedIds.length < 2) return;
+                    try {
+                        await apiFetch('/api/routes/reorder', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ordered_ids: orderedIds })
+                        });
+                        applyRoutesOrderLocally(orderedIds);
+                        this.data = getClimbingData();
+                        this.showToast('Порядок трасс сохранён');
+                    } catch (err) {
+                        this.showToast(`Не удалось сохранить порядок: ${err.message}`, true);
+                        this.renderRoutes();
+                        this.renderCatalog();
+                    }
+                });
             }
 
             renderBoulders() {
@@ -8541,7 +8758,9 @@
                         loadImageIntoElement(img, photo);
                     }
                     if (photo?.markup) {
-                        this.schedulePhotoMarkupOverlay(tile, photo.markup, photo.type);
+                        this.schedulePhotoMarkupOverlay(tile, photo.markup, photo.type, {
+                            climbId: photo.climbId
+                        });
                     }
                 });
 
@@ -8997,6 +9216,66 @@
                         this.showEditBoulderDialog(Number(ctx.climbId));
                     }
                 });
+                document.getElementById('climbDetailAddVideoBtn')?.addEventListener('click', () => {
+                    if (!this.requireAdmin('Добавление видео')) return;
+                    document.getElementById('climbDetailVideoInput')?.click();
+                });
+                document.getElementById('climbDetailVideoInput')?.addEventListener('change', (e) => {
+                    void this.onClimbDetailVideoSelected(e);
+                });
+                document.getElementById('climbDetailCommentMedia')?.addEventListener('change', (e) => {
+                    void this.onClimbCommentMediaSelected(e);
+                });
+                document.getElementById('climbDetailCommentSubmitBtn')?.addEventListener('click', () => {
+                    void this.submitClimbDetailComment();
+                });
+                document.getElementById('climbDetailCommentMediaPreview')?.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-action="remove-comment-draft"]');
+                    if (!btn) return;
+                    const idx = Number(btn.dataset.index);
+                    if (!Number.isFinite(idx)) return;
+                    this._commentDraftAttachments = (this._commentDraftAttachments || []).filter((_, i) => i !== idx);
+                    this.renderClimbCommentMediaPreview();
+                });
+                document.getElementById('climbDetailVideosList')?.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-action="delete-climb-video"]');
+                    if (!btn) return;
+                    e.preventDefault();
+                    void (async () => {
+                        if (!this.requireAdmin('Удаление видео')) return;
+                        const videoId = Number(btn.dataset.videoId);
+                        if (!Number.isFinite(videoId)) return;
+                        const ok = await confirmDestructive('Удалить это видео?');
+                        if (!ok) return;
+                        try {
+                            await apiFetch(`/api/videos/${videoId}`, { method: 'DELETE' });
+                            const ctx = this._climbDetailContext;
+                            if (ctx) await this.refreshClimbDetailVideos(ctx.climbType, ctx.climbId);
+                            this.showToast('Видео удалено');
+                        } catch (err) {
+                            this.showToast(err.message || 'Не удалось удалить видео', true);
+                        }
+                    })();
+                });
+                document.getElementById('climbDetailCommentsList')?.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-action="delete-climb-comment"]');
+                    if (!btn) return;
+                    e.preventDefault();
+                    void (async () => {
+                        const commentId = Number(btn.dataset.commentId);
+                        if (!Number.isFinite(commentId)) return;
+                        const ok = await confirmDestructive('Удалить комментарий?');
+                        if (!ok) return;
+                        try {
+                            await apiFetch(`/api/comments/${commentId}`, { method: 'DELETE' });
+                            const ctx = this._climbDetailContext;
+                            if (ctx) await this.refreshClimbDetailComments(ctx.climbType, ctx.climbId);
+                            this.showToast('Комментарий удалён');
+                        } catch (err) {
+                            this.showToast(err.message || 'Не удалось удалить комментарий', true);
+                        }
+                    })();
+                });
                 document.getElementById('climbDetailEditDescBtn')?.addEventListener('click', () => {
                     const ctx = this._climbDetailContext;
                     if (!ctx) return;
@@ -9085,7 +9364,8 @@
                             window.app.schedulePhotoMarkupOverlay(
                                 viewerMount,
                                 entry.photo.markup || null,
-                                entry.climbType
+                                entry.climbType,
+                                { climbId: entry.climbId }
                             );
                         }
                     }
@@ -9355,7 +9635,7 @@
                 })();
             }
 
-            buildPhotoMarkupOverlaySvg(markup, climbType, geom = null) {
+            buildPhotoMarkupOverlaySvg(markup, climbType, geom = null, options = {}) {
                 const NS = 'http://www.w3.org/2000/svg';
                 const svg = document.createElementNS(NS, 'svg');
                 svg.setAttribute('class', 'photo-markup-overlay');
@@ -9367,17 +9647,37 @@
 
                 if (!markup) return svg;
 
+                const lineColor = options.lineColor || TOPO_MARKUP.lineColor;
+
                 if (climbType === 'route' && markup.type === 'route-line') {
                     const pts = markup.points || [];
-                    appendTopoLineSvg(svg, NS, pts, geom, 'dots-both');
+                    appendTopoLineSvg(svg, NS, pts, geom, 'dots-both', lineColor);
                 } else if (climbType === 'boulder' && markup.type === 'boulder-holds') {
                     const linePts = markup.linePoints || [];
-                    appendTopoLineSvg(svg, NS, linePts, geom, 'arrow');
+                    appendTopoLineSvg(svg, NS, linePts, geom, 'arrow', TOPO_MARKUP.lineColor);
                     if (markup.startHold) appendTopoHoldSvg(svg, NS, markup.startHold, geom, { label: 'Старт' });
                     if (markup.finishHold) appendTopoHoldSvg(svg, NS, markup.finishHold, geom, { label: 'Финиш' });
                 }
 
                 return svg;
+            }
+
+            resolveTopoLineColor(climbType, previewItem = null, opts = {}) {
+                if (climbType !== 'route') return TOPO_MARKUP.lineColor;
+                const climbId = opts.climbId
+                    ?? previewItem?._markupClimbId
+                    ?? previewItem?.dataset?.climbId
+                    ?? (this._climbDetailContext?.climbType === 'route' ? this._climbDetailContext.climbId : null)
+                    ?? this.currentRouteLineMarkup?.climbId
+                    ?? null;
+                const grade = resolveRouteGradeForMarkup(
+                    climbId,
+                    opts.grade
+                        || previewItem?._markupClimbGrade
+                        || (this._climbDetailContext?.climbType === 'route' ? this._climbDetailContext.climbGrade : '')
+                        || ''
+                );
+                return topoLineColorFromGrade(grade);
             }
 
             updatePreviewMarkupBadge(previewItem, hasMarkup) {
@@ -9394,11 +9694,13 @@
                 }
             }
 
-            schedulePhotoMarkupOverlay(previewItem, markup, climbType) {
+            schedulePhotoMarkupOverlay(previewItem, markup, climbType, opts = {}) {
                 if (!previewItem) return;
                 const normalized = normalizePhotoMarkup(markup, climbType);
                 previewItem._pendingPhotoMarkup = normalized;
                 previewItem._pendingPhotoMarkupType = climbType;
+                if (opts.climbId != null) previewItem._markupClimbId = opts.climbId;
+                if (opts.grade != null) previewItem._markupClimbGrade = opts.grade;
                 previewItem._markupOverlayAttempts = 0;
                 if (previewItem.classList.contains('climb-detail-photo-mount')
                     || previewItem.classList.contains('climb-photo-viewer-mount')) {
@@ -9475,7 +9777,8 @@
                         };
                     }
 
-                    const svg = this.buildPhotoMarkupOverlaySvg(markupForSvg, climbType, geom);
+                    const lineColor = this.resolveTopoLineColor(climbType, previewItem);
+                    const svg = this.buildPhotoMarkupOverlaySvg(markupForSvg, climbType, geom, { lineColor });
                     placeMarkupOverlaySvg(svg, previewItem, geom);
                     const stage = previewItem.querySelector('.photo-wrap .stage');
                     if (stage) {
@@ -9545,7 +9848,10 @@
                     );
                     photo = pickClimbDetailPhoto(photos, ctx.shownPhotoId || ctx.photoId);
                 }
-                this.schedulePhotoMarkupOverlay(mount, photo?.markup || null, ctx.climbType);
+                this.schedulePhotoMarkupOverlay(mount, photo?.markup || null, ctx.climbType, {
+                    climbId: ctx.climbId,
+                    grade: ctx.climbGrade
+                });
             }
 
             refreshDialogPhotoMarkupAfterMarkupSave() {
@@ -9558,7 +9864,8 @@
                 this.schedulePhotoMarkupOverlay(
                     item,
                     this.currentPhotoPreview.markup,
-                    this.currentPhotoPreview.climbType
+                    this.currentPhotoPreview.climbType,
+                    { climbId: this.currentPhotoPreview.climbId }
                 );
                 this.syncMarkupButtonOnPreviewItem(item, !!this.currentPhotoPreview.markup);
                 if (boxId === 'quickRoutePhotoPreview' && this.quickRoutePhotoData) {
@@ -9624,7 +9931,9 @@
                 previewItem.appendChild(actionsDiv);
 
                 previewContainer.appendChild(previewItem);
-                this.schedulePhotoMarkupOverlay(previewItem, photo.markup, climbType);
+                this.schedulePhotoMarkupOverlay(previewItem, photo.markup, climbType, {
+                    climbId
+                });
             }
 
             async savePhoto(climbId, type) {
@@ -9858,7 +10167,10 @@
                 }
                 ensurePhotoStageWrap(mount, { enableZoom: which !== 'detail' });
                 const applyMarkup = () => {
-                    this.schedulePhotoMarkupOverlay(mount, photo.markup || null, climbType);
+                    this.schedulePhotoMarkupOverlay(mount, photo.markup || null, climbType, {
+                        climbId: this._climbDetailContext?.climbId || photo.climbId,
+                        grade: this._climbDetailContext?.climbGrade || ''
+                    });
                 };
                 this._setClimbDetailImageSrc(img, photo, climbName, applyMarkup, which);
             }
@@ -10108,6 +10420,9 @@
                         window.syncTelegramWebAppButtons('climbDetailDialog');
                     }
                 });
+                void this.refreshClimbDetailVideos(climbType, idStr);
+                this.clearClimbCommentDraft();
+                void this.refreshClimbDetailComments(climbType, idStr);
             }
 
             syncClimbDetailFooterActions() {
@@ -10330,7 +10645,13 @@
                 svg.setAttribute('preserveAspectRatio', 'none');
 
                 const pts = this.currentRouteLineMarkup?.points || [];
-                appendTopoLineSvg(svg, 'http://www.w3.org/2000/svg', pts, geom, 'dots-both');
+                const lineColor = this.resolveTopoLineColor('route', null, {
+                    climbId: this.currentRouteLineMarkup?.climbId,
+                    grade: this._climbDetailContext?.climbType === 'route'
+                        ? this._climbDetailContext.climbGrade
+                        : ''
+                });
+                appendTopoLineSvg(svg, 'http://www.w3.org/2000/svg', pts, geom, 'dots-both', lineColor);
             }
 
             deleteNearestRouteMarkupAt(x, y, geom) {
@@ -11143,6 +11464,248 @@
                 } catch (err) {
                     statsEl.textContent = 'Не удалось загрузить статистику';
                     console.warn('community stats', err);
+                }
+            }
+
+            syncClimbCommentComposerAuth() {
+                const hint = document.getElementById('climbDetailCommentLoginHint');
+                const submit = document.getElementById('climbDetailCommentSubmitBtn');
+                const body = document.getElementById('climbDetailCommentBody');
+                const media = document.getElementById('climbDetailCommentMedia');
+                const loggedIn = this.isLoggedIn();
+                hint?.classList.toggle('hidden', loggedIn);
+                if (submit) submit.disabled = !loggedIn;
+                if (body) body.disabled = !loggedIn;
+                if (media) media.disabled = !loggedIn;
+            }
+
+            clearClimbCommentDraft() {
+                this._commentDraftAttachments = [];
+                const body = document.getElementById('climbDetailCommentBody');
+                const media = document.getElementById('climbDetailCommentMedia');
+                if (body) body.value = '';
+                if (media) media.value = '';
+                this.renderClimbCommentMediaPreview();
+            }
+
+            renderClimbCommentMediaPreview() {
+                const box = document.getElementById('climbDetailCommentMediaPreview');
+                if (!box) return;
+                const items = this._commentDraftAttachments || [];
+                if (!items.length) {
+                    box.innerHTML = '';
+                    return;
+                }
+                box.innerHTML = items.map((item, index) => `
+                    <span class="climb-comment-media-chip" data-draft-index="${index}">
+                        <i class="fas ${item.media_kind === 'video' ? 'fa-video' : 'fa-image'}"></i>
+                        ${this.escapeHtml(item.file_name || item.media_kind)}
+                        <button type="button" data-action="remove-comment-draft" data-index="${index}" aria-label="Убрать">&times;</button>
+                    </span>
+                `).join('');
+            }
+
+            async refreshClimbDetailVideos(climbType, climbId) {
+                const list = document.getElementById('climbDetailVideosList');
+                if (!list) return;
+                list.innerHTML = '<p class="climb-detail-videos-empty">Загрузка видео…</p>';
+                const path = climbType === 'route'
+                    ? `/api/videos/by-route/${encodeURIComponent(climbId)}`
+                    : `/api/videos/by-boulder/${encodeURIComponent(climbId)}`;
+                try {
+                    const videos = await apiFetch(path).catch(() => []);
+                    this._climbDetailVideos = Array.isArray(videos) ? videos : [];
+                    if (!this._climbDetailVideos.length) {
+                        list.innerHTML = '<p class="climb-detail-videos-empty">Видео пока нет</p>';
+                        return;
+                    }
+                    list.innerHTML = this._climbDetailVideos.map((v) => {
+                        const src = resolvePublicMediaUrl(v.file_url);
+                        const delBtn = this.isAdmin()
+                            ? `<button type="button" class="btn btn-danger btn-small climb-video-delete" data-action="delete-climb-video" data-video-id="${v.id}" title="Удалить видео"><i class="fas fa-trash"></i></button>`
+                            : '';
+                        return `
+                            <div class="climb-detail-video-card" data-video-id="${v.id}">
+                                ${delBtn}
+                                <video controls playsinline preload="metadata" src="${this.escapeHtml(src)}"></video>
+                            </div>
+                        `;
+                    }).join('');
+                } catch (err) {
+                    list.innerHTML = `<p class="climb-detail-videos-empty">Не удалось загрузить видео: ${this.escapeHtml(err.message || '')}</p>`;
+                }
+            }
+
+            async refreshClimbDetailComments(climbType, climbId) {
+                const list = document.getElementById('climbDetailCommentsList');
+                if (!list) return;
+                this.syncClimbCommentComposerAuth();
+                list.innerHTML = '<p class="climb-detail-videos-empty">Загрузка комментариев…</p>';
+                const path = climbType === 'route'
+                    ? `/api/comments/by-route/${encodeURIComponent(climbId)}`
+                    : `/api/comments/by-boulder/${encodeURIComponent(climbId)}`;
+                try {
+                    const comments = await apiFetch(path).catch(() => []);
+                    this._climbDetailComments = Array.isArray(comments) ? comments : [];
+                    if (!this._climbDetailComments.length) {
+                        list.innerHTML = '<p class="climb-detail-videos-empty">Пока нет комментариев — будьте первым</p>';
+                        return;
+                    }
+                    list.innerHTML = this._climbDetailComments.map((c) => {
+                        const author = this.escapeHtml(c.author_name || 'Пользователь');
+                        const when = c.created_at ? this.escapeHtml(String(c.created_at).replace('T', ' ').slice(0, 16)) : '';
+                        const avatar = c.author_photo_url
+                            ? `<img class="climb-comment-avatar" src="${this.escapeHtml(c.author_photo_url)}" alt="">`
+                            : `<span class="climb-comment-avatar" aria-hidden="true"></span>`;
+                        const attachments = (c.attachments || []).map((a) => {
+                            const src = resolvePublicMediaUrl(a.file_url);
+                            if (a.media_kind === 'video') {
+                                return `<video controls playsinline preload="metadata" src="${this.escapeHtml(src)}"></video>`;
+                            }
+                            return `<a href="${this.escapeHtml(src)}" target="_blank" rel="noopener"><img src="${this.escapeHtml(src)}" alt=""></a>`;
+                        }).join('');
+                        const canDelete = this.isLoggedIn()
+                            && getAuthData().currentUser
+                            && String(getAuthData().currentUser.id) === String(c.user_id);
+                        const del = canDelete
+                            ? `<button type="button" class="btn btn-ghost btn-small" data-action="delete-climb-comment" data-comment-id="${c.id}">Удалить</button>`
+                            : '';
+                        return `
+                            <div class="climb-comment-item" data-comment-id="${c.id}">
+                                <div class="climb-comment-meta">
+                                    ${avatar}
+                                    <span class="climb-comment-author">${author}</span>
+                                    <span>${when}</span>
+                                    ${del}
+                                </div>
+                                <div class="climb-comment-body">${this.escapeHtml(c.body || '')}</div>
+                                ${attachments ? `<div class="climb-comment-attachments">${attachments}</div>` : ''}
+                            </div>
+                        `;
+                    }).join('');
+                } catch (err) {
+                    list.innerHTML = `<p class="climb-detail-videos-empty">Не удалось загрузить комментарии: ${this.escapeHtml(err.message || '')}</p>`;
+                }
+            }
+
+            async onClimbDetailVideoSelected(event) {
+                const input = event?.target;
+                const file = input?.files?.[0];
+                if (input) input.value = '';
+                if (!file) return;
+                if (!this.requireAdmin('Добавление видео')) return;
+                const ctx = this._climbDetailContext;
+                if (!ctx) return;
+                this.showToast('Загрузка видео…');
+                try {
+                    const uploaded = await uploadMediaFile(file, 'video');
+                    await apiFetch('/api/videos', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            climb_type: ctx.climbType,
+                            route_id: ctx.climbType === 'route' ? Number(ctx.climbId) : null,
+                            boulder_id: ctx.climbType === 'boulder' ? Number(ctx.climbId) : null,
+                            file_url: uploaded.url,
+                            file_name: uploaded.file_name || file.name,
+                            mime_type: uploaded.mime_type || file.type || null,
+                            file_size_bytes: uploaded.file_size_bytes || file.size,
+                            width: uploaded.width,
+                            height: uploaded.height,
+                            duration_sec: uploaded.duration_sec
+                        })
+                    });
+                    this.showToast('Видео добавлено');
+                    await this.refreshClimbDetailVideos(ctx.climbType, ctx.climbId);
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось загрузить видео', true);
+                }
+            }
+
+            async onClimbCommentMediaSelected(event) {
+                const input = event?.target;
+                const files = [...(input?.files || [])];
+                if (input) input.value = '';
+                if (!files.length) return;
+                if (!this.isLoggedIn()) {
+                    this.showToast('Войдите, чтобы прикрепить файл', true);
+                    return;
+                }
+                if (!this._commentDraftAttachments) this._commentDraftAttachments = [];
+                this.showToast(`Загрузка файлов (${files.length})…`);
+                try {
+                    for (const file of files) {
+                        let uploaded;
+                        if (isVideoLikeFile(file)) {
+                            uploaded = await uploadMediaFile(file, 'video');
+                            this._commentDraftAttachments.push({
+                                media_kind: 'video',
+                                file_url: uploaded.url,
+                                file_name: uploaded.file_name || file.name,
+                                mime_type: uploaded.mime_type || file.type || null,
+                                file_size_bytes: uploaded.file_size_bytes || file.size
+                            });
+                        } else {
+                            try {
+                                const processed = await processImageUploadFile(file, 'climb');
+                                uploaded = await uploadImageDataUrlAsMedia(
+                                    processed.data,
+                                    processed.fileName || file.name || 'photo.jpg'
+                                );
+                            } catch (_) {
+                                uploaded = await uploadMediaFile(file, 'image');
+                            }
+                            this._commentDraftAttachments.push({
+                                media_kind: 'image',
+                                file_url: uploaded.url,
+                                file_name: uploaded.file_name || file.name,
+                                mime_type: uploaded.mime_type || file.type || null,
+                                file_size_bytes: uploaded.file_size_bytes || file.size
+                            });
+                        }
+                    }
+                    this.renderClimbCommentMediaPreview();
+                    this.showToast('Файлы прикреплены');
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось прикрепить файл', true);
+                }
+            }
+
+            async submitClimbDetailComment() {
+                if (!this.isLoggedIn()) {
+                    this.showToast('Войдите через Telegram, чтобы комментировать', true);
+                    return;
+                }
+                const ctx = this._climbDetailContext;
+                if (!ctx) return;
+                const bodyEl = document.getElementById('climbDetailCommentBody');
+                const body = String(bodyEl?.value || '').trim();
+                const attachments = this._commentDraftAttachments || [];
+                if (!body && !attachments.length) {
+                    this.showToast('Напишите текст или прикрепите фото/видео', true);
+                    return;
+                }
+                const btn = document.getElementById('climbDetailCommentSubmitBtn');
+                if (btn) btn.disabled = true;
+                try {
+                    await apiFetch('/api/comments', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            climb_type: ctx.climbType,
+                            route_id: ctx.climbType === 'route' ? Number(ctx.climbId) : null,
+                            boulder_id: ctx.climbType === 'boulder' ? Number(ctx.climbId) : null,
+                            body: body || ' ',
+                            attachments
+                        })
+                    });
+                    this.clearClimbCommentDraft();
+                    this.showToast('Комментарий опубликован');
+                    await this.refreshClimbDetailComments(ctx.climbType, ctx.climbId);
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось отправить комментарий', true);
+                } finally {
+                    this.syncClimbCommentComposerAuth();
                 }
             }
 

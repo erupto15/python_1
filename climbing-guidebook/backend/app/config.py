@@ -148,5 +148,17 @@ class Settings(BaseSettings):
     telegram_webhook_secret: str = ""
     public_url: str = ""
 
+    # Медиа-хранилище (фото/видео к маршрутам и вложения комментариев)
+    media_upload_dir: str = ""
+    media_max_upload_bytes: int = 200 * 1024 * 1024
+    media_url_prefix: str = "/uploads"
+
+    @property
+    def media_upload_path(self) -> Path:
+        raw = (self.media_upload_dir or "").strip()
+        if raw:
+            return Path(raw).expanduser().resolve()
+        return Path(__file__).resolve().parents[1] / "uploads"
+
 
 settings = Settings()

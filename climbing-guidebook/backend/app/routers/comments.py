@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app import schemas
 from app.db import get_db
 from app.deps import assert_owner, get_current_user
-from app.models import Boulder, Comment, Route, User
+from app.models import Boulder, Comment, CommentAttachment, Route, User
 
 router = APIRouter(prefix="/comments", tags=["comments"])
 
@@ -34,28 +34,42 @@ def _validate_comment_payload(payload: schemas.CommentCreate) -> None:
             raise HTTPException(status_code=400, detail="boulder_id required and route_id must be null")
 
 
+def _serialize_comment(comment: Comment) -> schemas.CommentRead:
+    """Comment → CommentRead, дополняя данными автора (join с User)."""
+    data = schemas.CommentRead.model_validate(comment)
+    user = comment.user
+    if user is not None:
+        data.author_name = user.display_name or None
+        data.author_photo_url = user.telegram_photo_url
+    return data
+
+
 @router.get("/by-route/{route_id}", response_model=list[schemas.CommentRead])
-def list_comments_route(route_id: int, db: Session = Depends(get_db)) -> list[Comment]:
+def list_comments_route(route_id: int, db: Session = Depends(get_db)) -> list[schemas.CommentRead]:
     if not _active_route(db, route_id):
         raise HTTPException(status_code=404, detail="Route not found")
-    return (
+    comments = (
         db.query(Comment)
+        .options(joinedload(Comment.user), joinedload(Comment.attachments))
         .filter(Comment.climb_type == "route", Comment.route_id == route_id, Comment.deleted_at.is_(None))
         .order_by(Comment.id)
         .all()
     )
+    return [_serialize_comment(c) for c in comments]
 
 
 @router.get("/by-boulder/{boulder_id}", response_model=list[schemas.CommentRead])
-def list_comments_boulder(boulder_id: int, db: Session = Depends(get_db)) -> list[Comment]:
+def list_comments_boulder(boulder_id: int, db: Session = Depends(get_db)) -> list[schemas.CommentRead]:
     if not _active_boulder(db, boulder_id):
         raise HTTPException(status_code=404, detail="Boulder not found")
-    return (
+    comments = (
         db.query(Comment)
+        .options(joinedload(Comment.user), joinedload(Comment.attachments))
         .filter(Comment.climb_type == "boulder", Comment.boulder_id == boulder_id, Comment.deleted_at.is_(None))
         .order_by(Comment.id)
         .all()
     )
+    return [_serialize_comment(c) for c in comments]
 
 
 @router.post("", response_model=schemas.CommentRead, status_code=201)
@@ -63,19 +77,22 @@ def create_comment(
     payload: schemas.CommentCreate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-) -> Comment:
+) -> schemas.CommentRead:
     _validate_comment_payload(payload)
     if payload.climb_type == "route" and not _active_route(db, payload.route_id):
         raise HTTPException(status_code=404, detail="Route not found")
     if payload.climb_type == "boulder" and not _active_boulder(db, payload.boulder_id):
         raise HTTPException(status_code=404, detail="Boulder not found")
-    data = payload.model_dump()
+    data = payload.model_dump(exclude={"attachments"})
     data["user_id"] = user.id
     comment = Comment(**data)
+    for attachment in payload.attachments:
+        comment.attachments.append(CommentAttachment(**attachment.model_dump()))
     db.add(comment)
     db.commit()
     db.refresh(comment)
-    return comment
+    comment.user = user
+    return _serialize_comment(comment)
 
 
 @router.patch("/{comment_id}", response_model=schemas.CommentRead)
@@ -84,7 +101,7 @@ def update_comment(
     payload: schemas.CommentUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-) -> Comment:
+) -> schemas.CommentRead:
     c = db.get(Comment, comment_id)
     if not c or c.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Comment not found")
@@ -92,7 +109,7 @@ def update_comment(
     c.body = payload.body
     db.commit()
     db.refresh(c)
-    return c
+    return _serialize_comment(c)
 
 
 @router.delete("/{comment_id}", status_code=204)

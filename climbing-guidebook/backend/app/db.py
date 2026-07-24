@@ -70,6 +70,7 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS parking TEXT",
             "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS approach TEXT",
             "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS warnings TEXT",
+            "ALTER TABLE routes ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0",
         ]
     else:
         statements = [
@@ -96,6 +97,7 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE sectors ADD COLUMN parking TEXT",
             "ALTER TABLE sectors ADD COLUMN approach TEXT",
             "ALTER TABLE sectors ADD COLUMN warnings TEXT",
+            "ALTER TABLE routes ADD COLUMN sort_order INTEGER DEFAULT 0",
         ]
     with engine.begin() as conn:
         for stmt in statements:
@@ -142,3 +144,17 @@ def ensure_optional_columns() -> None:
             except Exception:
                 # Keep startup resilient if one DB backend rejects a statement.
                 pass
+
+        # One-time: if every route still has the column default (0), seed from id.
+        try:
+            stats = conn.execute(
+                text(
+                    "SELECT COUNT(*), COALESCE(MAX(sort_order), 0), COALESCE(MIN(sort_order), 0) "
+                    "FROM routes"
+                )
+            ).one()
+            count, max_so, min_so = int(stats[0] or 0), int(stats[1] or 0), int(stats[2] or 0)
+            if count > 0 and max_so == 0 and min_so == 0:
+                conn.execute(text("UPDATE routes SET sort_order = id"))
+        except Exception:
+            pass

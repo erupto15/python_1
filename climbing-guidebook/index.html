@@ -933,10 +933,42 @@
                         </button>
                     </div>
                 </div>
+                <div id="climbDetailVideos" class="climb-detail-videos-panel">
+                    <div class="guide-desc-head">
+                        <div class="guide-desc-label">Видео</div>
+                        <button type="button" class="btn btn-secondary btn-small admin-only hidden-by-role" id="climbDetailAddVideoBtn">
+                            <i class="fas fa-video"></i> Добавить видео
+                        </button>
+                    </div>
+                    <input type="file" id="climbDetailVideoInput" class="hidden" accept="video/*,.mov,.m4v,.3gp,.mp4,.webm,.avi" capture="environment">
+                    <p class="form-hint" id="climbDetailVideoHint">До 1080p HD · MP4, MOV и другие форматы с телефона</p>
+                    <div id="climbDetailVideosList" class="climb-detail-videos-list"></div>
+                </div>
                 <div id="climbDetailCommunity" class="climb-community-panel hidden">
                     <div class="form-label" style="margin-bottom:6px;">Сообщество</div>
                     <div class="climb-community-stats" id="climbDetailCommunityStats">Загрузка…</div>
                     <div class="climb-community-sends" id="climbDetailCommunitySends"></div>
+                </div>
+                <div id="climbDetailComments" class="climb-comments-panel">
+                    <div class="guide-desc-head">
+                        <div class="guide-desc-label">Комментарии</div>
+                    </div>
+                    <div id="climbDetailCommentsList" class="climb-comments-list"></div>
+                    <div id="climbDetailCommentComposer" class="climb-comment-composer">
+                        <label class="form-label" for="climbDetailCommentBody">Оставить комментарий</label>
+                        <textarea class="form-textarea" id="climbDetailCommentBody" rows="3" placeholder="Напишите отзыв о трассе или боулдеринге…" maxlength="4000"></textarea>
+                        <div class="climb-comment-attach-row">
+                            <label class="btn btn-secondary btn-small climb-comment-attach-label" for="climbDetailCommentMedia">
+                                <i class="fas fa-paperclip"></i> Фото / видео
+                            </label>
+                            <input type="file" id="climbDetailCommentMedia" class="hidden" multiple accept="image/*,video/*,.heic,.heif,.mov,.m4v,.3gp,.mp4,.webm,.jpg,.jpeg,.png,.webp">
+                            <div id="climbDetailCommentMediaPreview" class="climb-comment-media-preview"></div>
+                        </div>
+                        <button type="button" class="btn btn-primary" id="climbDetailCommentSubmitBtn">
+                            <i class="fas fa-comment"></i> Оставить комментарий
+                        </button>
+                        <p id="climbDetailCommentLoginHint" class="form-hint hidden">Войдите через Telegram, чтобы оставлять комментарии и прикреплять материалы.</p>
+                    </div>
                 </div>
                 <div class="form-group guide-desc-block" style="margin-bottom:0;">
                     <div class="guide-desc-head">

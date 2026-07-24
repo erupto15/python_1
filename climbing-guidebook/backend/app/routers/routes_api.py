@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app import schemas
@@ -37,7 +38,7 @@ def list_routes(
         q = q.filter(Route.sector_id == sector_id)
     if not include_deleted:
         q = q.filter(Route.deleted_at.is_(None))
-    return q.order_by(Route.id).all()
+    return q.order_by(Route.sort_order, Route.id).all()
 
 
 @router.post("", response_model=schemas.RouteRead, status_code=201)
@@ -51,11 +52,48 @@ def create_route(
     data.pop("created_by", None)
     _validate_active_sector_area(db, payload.sector_id, payload.area_id)
     data["created_by"] = user.id
+    if data.get("sort_order") is None:
+        max_so = (
+            db.query(func.max(Route.sort_order))
+            .filter(Route.sector_id == payload.sector_id, Route.deleted_at.is_(None))
+            .scalar()
+        )
+        data["sort_order"] = int(max_so or 0) + 1
     route = Route(**data)
     db.add(route)
     db.commit()
     db.refresh(route)
     return route
+
+
+@router.post("/reorder", response_model=list[schemas.RouteRead])
+def reorder_routes(
+    payload: schemas.RouteReorderRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[Route]:
+    assert_admin(user)
+    ordered_ids = list(dict.fromkeys(payload.ordered_ids))
+    if not ordered_ids:
+        raise HTTPException(status_code=400, detail="ordered_ids is required")
+    routes = (
+        db.query(Route)
+        .filter(Route.id.in_(ordered_ids), Route.deleted_at.is_(None))
+        .all()
+    )
+    by_id = {route.id: route for route in routes}
+    missing = [rid for rid in ordered_ids if rid not in by_id]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"Routes not found: {missing}")
+    for index, route_id in enumerate(ordered_ids):
+        by_id[route_id].sort_order = index
+    db.commit()
+    return (
+        db.query(Route)
+        .filter(Route.id.in_(ordered_ids), Route.deleted_at.is_(None))
+        .order_by(Route.sort_order, Route.id)
+        .all()
+    )
 
 
 @router.get("/{route_id}", response_model=schemas.RouteRead)

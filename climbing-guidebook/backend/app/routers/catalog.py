@@ -17,7 +17,7 @@ def _catalog_rows(
 ) -> tuple[list[Area], list[Sector], list[Route], list[Boulder], list[MapFeature]]:
     areas = db.query(Area).filter(Area.deleted_at.is_(None)).order_by(Area.id).all()
     sectors = db.query(Sector).filter(Sector.deleted_at.is_(None)).order_by(Sector.id).all()
-    routes = db.query(Route).filter(Route.deleted_at.is_(None)).order_by(Route.id).all()
+    routes = db.query(Route).filter(Route.deleted_at.is_(None)).order_by(Route.sort_order, Route.id).all()
     boulders = db.query(Boulder).filter(Boulder.deleted_at.is_(None)).order_by(Boulder.id).all()
     map_features = db.query(MapFeature).order_by(MapFeature.id).all()
     return areas, sectors, routes, boulders, map_features

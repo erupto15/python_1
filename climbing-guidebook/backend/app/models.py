@@ -102,11 +102,16 @@ class Route(Base):
     rating: Mapped[Optional[float]] = mapped_column(Float)
     latitude: Mapped[Optional[float]] = mapped_column(Float)
     longitude: Mapped[Optional[float]] = mapped_column(Float)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     photos: Mapped[list["Photo"]] = relationship(
+        back_populates="route",
+        cascade="all, delete-orphan",
+    )
+    videos: Mapped[list["Video"]] = relationship(
         back_populates="route",
         cascade="all, delete-orphan",
     )
@@ -136,6 +141,10 @@ class Boulder(Base):
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     photos: Mapped[list["Photo"]] = relationship(
+        back_populates="boulder",
+        cascade="all, delete-orphan",
+    )
+    videos: Mapped[list["Video"]] = relationship(
         back_populates="boulder",
         cascade="all, delete-orphan",
     )
@@ -175,6 +184,36 @@ class Photo(Base):
     boulder: Mapped[Optional["Boulder"]] = relationship(back_populates="photos", foreign_keys=[boulder_id])
 
 
+class Video(Base):
+    __tablename__ = "videos"
+    __table_args__ = (
+        CheckConstraint(
+            "(climb_type = 'route' AND route_id IS NOT NULL AND boulder_id IS NULL) "
+            "OR (climb_type = 'boulder' AND boulder_id IS NOT NULL AND route_id IS NULL)",
+            name="videos_one_climb",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    climb_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    route_id: Mapped[Optional[int]] = mapped_column(ForeignKey("routes.id", ondelete="CASCADE"), index=True)
+    boulder_id: Mapped[Optional[int]] = mapped_column(ForeignKey("boulders.id", ondelete="CASCADE"), index=True)
+    uploaded_by: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("users.id", ondelete="SET NULL"))
+    file_url: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    file_name: Mapped[Optional[str]] = mapped_column(String(255))
+    mime_type: Mapped[Optional[str]] = mapped_column(String(128))
+    file_size_bytes: Mapped[Optional[int]] = mapped_column(BigInteger().with_variant(Integer, "sqlite"))
+    width: Mapped[Optional[int]] = mapped_column(Integer)
+    height: Mapped[Optional[int]] = mapped_column(Integer)
+    duration_sec: Mapped[Optional[float]] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    route: Mapped[Optional["Route"]] = relationship(back_populates="videos", foreign_keys=[route_id])
+    boulder: Mapped[Optional["Boulder"]] = relationship(back_populates="videos", foreign_keys=[boulder_id])
+
+
 class Comment(Base):
     __tablename__ = "comments"
     __table_args__ = (
@@ -199,6 +238,28 @@ class Comment(Base):
     user: Mapped["User"] = relationship(back_populates="comments")
     route: Mapped[Optional["Route"]] = relationship(back_populates="comments", foreign_keys=[route_id])
     boulder: Mapped[Optional["Boulder"]] = relationship(back_populates="comments", foreign_keys=[boulder_id])
+    attachments: Mapped[list["CommentAttachment"]] = relationship(
+        back_populates="comment",
+        cascade="all, delete-orphan",
+    )
+
+
+class CommentAttachment(Base):
+    __tablename__ = "comment_attachments"
+    __table_args__ = (
+        CheckConstraint("media_kind IN ('image', 'video')", name="comment_attachments_media_kind"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    comment_id: Mapped[int] = mapped_column(ForeignKey("comments.id", ondelete="CASCADE"), nullable=False, index=True)
+    media_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    file_url: Mapped[str] = mapped_column(Text, nullable=False)
+    file_name: Mapped[Optional[str]] = mapped_column(String(255))
+    mime_type: Mapped[Optional[str]] = mapped_column(String(128))
+    file_size_bytes: Mapped[Optional[int]] = mapped_column(BigInteger().with_variant(Integer, "sqlite"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    comment: Mapped["Comment"] = relationship(back_populates="attachments")
 
 
 class ClimbAscent(Base):

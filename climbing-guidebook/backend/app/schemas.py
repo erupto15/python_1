@@ -171,6 +171,7 @@ class RouteCreate(BaseModel):
     rating: Optional[float] = Field(None, ge=0, le=3)
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    sort_order: Optional[int] = None
     created_by: Optional[str] = None
 
 
@@ -187,6 +188,11 @@ class RouteUpdate(BaseModel):
     rating: Optional[float] = Field(None, ge=0, le=3)
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    sort_order: Optional[int] = None
+
+
+class RouteReorderRequest(BaseModel):
+    ordered_ids: list[int] = Field(min_length=1)
 
 
 class RouteRead(BaseModel):
@@ -206,6 +212,7 @@ class RouteRead(BaseModel):
     rating: Optional[float]
     latitude: Optional[float]
     longitude: Optional[float]
+    sort_order: int = 0
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime]
@@ -299,12 +306,90 @@ class PhotoRead(BaseModel):
     updated_at: datetime
 
 
+class VideoCreate(BaseModel):
+    climb_type: Literal["route", "boulder"]
+    route_id: Optional[int] = None
+    boulder_id: Optional[int] = None
+    file_url: str
+    description: Optional[str] = None
+    file_name: Optional[str] = Field(None, max_length=255)
+    mime_type: Optional[str] = Field(None, max_length=128)
+    file_size_bytes: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    duration_sec: Optional[float] = None
+
+
+class VideoUpdate(BaseModel):
+    file_url: Optional[str] = None
+    description: Optional[str] = None
+    file_name: Optional[str] = Field(None, max_length=255)
+    mime_type: Optional[str] = Field(None, max_length=128)
+    file_size_bytes: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    duration_sec: Optional[float] = None
+
+
+class VideoRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    climb_type: str
+    route_id: Optional[int]
+    boulder_id: Optional[int]
+    uploaded_by: Optional[str]
+    file_url: str
+    description: Optional[str]
+    file_name: Optional[str]
+    mime_type: Optional[str]
+    file_size_bytes: Optional[int]
+    width: Optional[int]
+    height: Optional[int]
+    duration_sec: Optional[float]
+    created_at: datetime
+    updated_at: datetime
+
+
+MediaKind = Literal["image", "video"]
+
+
+class CommentAttachmentIn(BaseModel):
+    media_kind: MediaKind
+    file_url: str
+    file_name: Optional[str] = Field(None, max_length=255)
+    mime_type: Optional[str] = Field(None, max_length=128)
+    file_size_bytes: Optional[int] = None
+
+
+class CommentAttachmentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    comment_id: int
+    media_kind: str
+    file_url: str
+    file_name: Optional[str]
+    mime_type: Optional[str]
+    file_size_bytes: Optional[int]
+    created_at: datetime
+
+
+class MediaUploadResponse(BaseModel):
+    url: str
+    file_name: Optional[str] = None
+    mime_type: Optional[str] = None
+    file_size_bytes: int
+    media_kind: MediaKind
+
+
 class CommentCreate(BaseModel):
     climb_type: Literal["route", "boulder"]
     route_id: Optional[int] = None
     boulder_id: Optional[int] = None
     body: str
     parent_id: Optional[int] = None
+    attachments: list[CommentAttachmentIn] = Field(default_factory=list)
 
 
 class CommentUpdate(BaseModel):
@@ -324,6 +409,9 @@ class CommentRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime]
+    attachments: list[CommentAttachmentRead] = Field(default_factory=list)
+    author_name: Optional[str] = None
+    author_photo_url: Optional[str] = None
 
 
 AscentStyle = Literal["onsight", "flash", "redpoint"]

@@ -78,6 +78,7 @@ jobs:
               "TELEGRAM_WEBHOOK_SECRET": os.environ["TELEGRAM_WEBHOOK_SECRET"],
               "PUBLIC_URL": os.environ["PUBLIC_URL"],
               "DISABLE_CATALOG_SEED": os.environ["DISABLE_CATALOG_SEED"],
+              "MEDIA_UPLOAD_DIR": "/var/lib/guide-rus/uploads",
           }
           with open(os.environ["BACKEND_ENV"], "w", encoding="utf-8") as handle:
               for key, value in pairs.items():
@@ -115,6 +116,7 @@ jobs:
           install -d -m 700 /etc/guide-rus
           install -m 600 /tmp/guide-rus-backend.env /etc/guide-rus/backend.env
           rm -f /tmp/guide-rus-backend.env
+          install -d -m 755 /var/lib/guide-rus/uploads
 
           cd "$APP_DIR"
           if [ ! -d .git ]; then
@@ -141,7 +143,14 @@ jobs:
           ${CADDY_HOST} {
             encode gzip
 
+            handle /uploads/* {
+              reverse_proxy 127.0.0.1:8000
+            }
+
             handle /api/* {
+              request_body {
+                max_size 220MB
+              }
               reverse_proxy 127.0.0.1:8000
             }
 

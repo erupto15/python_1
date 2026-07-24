@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 import logging
 
@@ -14,8 +15,9 @@ from app.db import Base, SessionLocal, engine, ensure_optional_columns
 
 logger = logging.getLogger(__name__)
 from app.models import Area, Boulder, Photo, Route, Sector
-from app.routers import areas, auth, boulders, catalog, comments, community, map_features, photos, routes_api, sectors, telegram, users
+from app.routers import areas, auth, boulders, catalog, comments, community, map_features, media, photos, routes_api, sectors, telegram, users, videos
 from app.seed import bootstrap_catalog
+from app.services.media_storage import ensure_upload_dir
 from app.services.telegram_bot import call_telegram_api, close_telegram_client
 
 FRONTEND_ROOT = Path(__file__).resolve().parents[2]
@@ -40,6 +42,7 @@ async def lifespan(_: FastAPI):
 
     Base.metadata.create_all(bind=engine)
     ensure_optional_columns()
+    ensure_upload_dir()
     db = SessionLocal()
     try:
         bootstrap_catalog(db)
@@ -70,9 +73,19 @@ app.include_router(boulders.router, prefix="/api")
 app.include_router(catalog.router, prefix="/api")
 app.include_router(map_features.router, prefix="/api")
 app.include_router(photos.router, prefix="/api")
+app.include_router(videos.router, prefix="/api")
+app.include_router(media.router, prefix="/api")
 app.include_router(comments.router, prefix="/api")
 app.include_router(community.router, prefix="/api")
 app.include_router(telegram.router, prefix="/api")
+
+# Смонтировать раздачу загруженных файлов ДО catch-all фронтенд-роута ниже.
+ensure_upload_dir()
+app.mount(
+    settings.media_url_prefix,
+    StaticFiles(directory=str(settings.media_upload_path)),
+    name="uploads",
+)
 
 
 @app.get("/health")
