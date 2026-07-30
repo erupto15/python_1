@@ -137,9 +137,13 @@
                 const tp = tg.themeParams || {};
                 const root = document.documentElement;
                 const bg = hexColor(tp.bg_color);
-                const lightTheme = bg ? isLightTelegramColor(bg) : false;
+                const userTheme = getStoredThemePreference();
+                const lightTheme = userTheme
+                    ? userTheme === 'light'
+                    : (bg ? isLightTelegramColor(bg) : false);
                 root.classList.toggle('tg-theme-light', lightTheme);
                 root.classList.toggle('tg-theme-dark', !lightTheme);
+                applyAppTheme(lightTheme ? 'light' : 'dark', { persist: false });
                 const txt = hexColor(tp.text_color);
                 const hint = hexColor(tp.hint_color);
                 const link = hexColor(tp.link_color);
@@ -148,32 +152,35 @@
                 const sectionBg = hexColor(tp.section_bg_color);
                 const destructive = hexColor(tp.destructive_text_color);
 
-                if (bg) root.style.setProperty('--background-color', bg);
-                if (txt) root.style.setProperty('--text-color', txt);
-                if (hint) root.style.setProperty('--light-text', hint);
+                // Если пользователь вручную выбрал тему — не перетираем базовую палитру TG-цветами фона.
+                if (!userTheme) {
+                    if (bg) root.style.setProperty('--background-color', bg);
+                    if (txt) root.style.setProperty('--text-color', txt);
+                    if (hint) root.style.setProperty('--light-text', hint);
+                    const card = secondaryBg || sectionBg;
+                    if (card) root.style.setProperty('--card-bg', card);
+                    if (txt && bg) {
+                        root.style.setProperty(
+                            '--border-color',
+                            `color-mix(in srgb, ${txt} 14%, ${bg})`
+                        );
+                    } else if (hint) {
+                        root.style.setProperty('--border-color', hint);
+                    }
+                }
                 if (link) root.style.setProperty('--primary-color', link);
                 if (btn) {
                     root.style.setProperty('--tg-blue', btn);
                     root.style.setProperty('--tg-blue-hover', btn);
                     root.style.setProperty('--tg-blue-active', btn);
                 }
-                const card = secondaryBg || sectionBg;
-                if (card) root.style.setProperty('--card-bg', card);
                 if (destructive) {
                     root.style.setProperty('--tg-danger', destructive);
                     root.style.setProperty('--danger-color', destructive);
                 }
-                if (txt && bg) {
-                    root.style.setProperty(
-                        '--border-color',
-                        `color-mix(in srgb, ${txt} 14%, ${bg})`
-                    );
-                } else if (hint) {
-                    root.style.setProperty('--border-color', hint);
-                }
 
                 try {
-                    if (bg) {
+                    if (bg && !userTheme) {
                         tg.setHeaderColor(bg);
                         tg.setBackgroundColor(bg);
                     }
@@ -507,12 +514,81 @@
             return '';
         })();
         const AUTH_STORAGE_KEY = 'climbingApp_auth';
+        const THEME_STORAGE_KEY = '6a9a-theme';
         const CLIMBING_DATA_STORAGE_KEY = 'climbingApp_catalog_v2';
         const CLIMBING_OFFLINE_META_KEY = 'climbingApp_offline_meta_v1';
         const CLIMBING_OFFLINE_PACKS_KEY = 'climbingApp_offline_packs_v1';
         const OFFLINE_OUTBOX_KEY = 'climbingApp_sync_outbox_v1';
         const OFFLINE_OUTBOX_LIMIT = 50;
         const ADMIN_EMAIL_HINT = window.CLIMBING_ADMIN_EMAIL || 'admin@climbing-guidebook.local';
+
+        function getStoredThemePreference() {
+            try {
+                const v = localStorage.getItem(THEME_STORAGE_KEY);
+                return v === 'light' || v === 'dark' ? v : null;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        function resolveAppTheme() {
+            const stored = getStoredThemePreference();
+            if (stored) return stored;
+            try {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+                    return 'light';
+                }
+            } catch (_) { /* ignore */ }
+            return 'dark';
+        }
+
+        function syncThemeToggleUi(theme) {
+            const isLight = theme === 'light';
+            const btn = document.getElementById('themeToggleBtn');
+            const icon = document.getElementById('themeToggleIcon');
+            const text = document.getElementById('themeToggleText');
+            if (btn) {
+                btn.setAttribute('aria-pressed', isLight ? 'true' : 'false');
+                btn.title = isLight ? 'Включить тёмную тему' : 'Включить светлую тему';
+                btn.setAttribute('aria-label', btn.title);
+            }
+            if (icon) {
+                icon.className = isLight ? 'fas fa-sun' : 'fas fa-moon';
+            }
+            if (text) {
+                text.textContent = isLight ? 'Светлая' : 'Тёмная';
+            }
+        }
+
+        function applyAppTheme(theme, { persist = false } = {}) {
+            const next = theme === 'light' ? 'light' : 'dark';
+            const root = document.documentElement;
+            root.classList.toggle('theme-light', next === 'light');
+            root.classList.toggle('theme-dark', next === 'dark');
+            root.style.colorScheme = next;
+            if (persist) {
+                try {
+                    localStorage.setItem(THEME_STORAGE_KEY, next);
+                } catch (_) { /* ignore */ }
+                // Сбрасываем inline-цвета Telegram, чтобы сработала наша палитра темы.
+                [
+                    '--background-color',
+                    '--text-color',
+                    '--light-text',
+                    '--card-bg',
+                    '--border-color'
+                ].forEach((prop) => root.style.removeProperty(prop));
+            }
+            syncThemeToggleUi(next);
+            return next;
+        }
+
+        function toggleAppTheme() {
+            const current = document.documentElement.classList.contains('theme-light') ? 'light' : 'dark';
+            return applyAppTheme(current === 'light' ? 'dark' : 'light', { persist: true });
+        }
+
+        applyAppTheme(resolveAppTheme());
         const MAX_PHOTO_INPUT_MB = 256;
         const MAX_PHOTO_INPUT_BYTES = MAX_PHOTO_INPUT_MB * 1024 * 1024;
         /** Устаревший алиас — лимит на выбор файла, не на загрузку после сжатия. */
@@ -2288,8 +2364,8 @@
             green: '#2e9e4f',
             orange: '#f0851a',
             red: '#e53935',
-            black: '#1a1a1a',
-            all: '#5d9cff'
+            black: '#2a2a2e',
+            all: '#3db8a8'
         };
 
         function gradeBandFromValue(v) {
@@ -7614,8 +7690,8 @@
                         const rc = getRoutes().filter(r => Number(r.areaId) === Number(a.id)).length;
                         const bcnt = getBoulders().filter(b => Number(b.areaId) === Number(a.id)).length;
                         const meta = APP_BOULDER_ONLY
-                            ? `${sc} секторов · ${bcnt} боулдеров`
-                            : `${sc} секторов · ${rc} трасс · ${bcnt} боулдеров`;
+                            ? `${sc} сект. · ${bcnt} боулд.`
+                            : `${sc} сект. · ${rc} трасс · ${bcnt} боулд.`;
                         const imageUrl = resolvePhotoDisplayUrl(a.imageData);
                         const thumb = imageUrl
                             ? `<img class="catalog-area-card-image" src="${this.escapeHtml(imageUrl)}" alt="${this.escapeHtml(a.name)}" loading="lazy">`
@@ -8821,6 +8897,21 @@
 
             setupEventListeners() {
                 this.setupAuthEventListeners();
+                document.getElementById('themeToggleBtn')?.addEventListener('click', () => {
+                    toggleAppTheme();
+                    if (window.isTelegramMiniApp && window.isTelegramMiniApp()) {
+                        try {
+                            const tg = window.Telegram?.WebApp;
+                            const bg = getComputedStyle(document.documentElement)
+                                .getPropertyValue('--background-color')
+                                .trim();
+                            if (tg && bg) {
+                                tg.setHeaderColor?.(bg);
+                                tg.setBackgroundColor?.(bg);
+                            }
+                        } catch (_) { /* ignore */ }
+                    }
+                });
                 document.addEventListener('click', (e) => {
                     const loadPhotosBtn = e.target.closest('[data-action="load-photos"]');
                     if (!loadPhotosBtn || loadPhotosBtn.disabled) return;
