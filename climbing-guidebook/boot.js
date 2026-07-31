@@ -32,7 +32,10 @@
     const script = document.createElement('script');
     script.src = '/app.js';
     script.async = true;
-    script.onload = signalReady;
+    script.onload = function () {
+        revealShell();
+        signalReady();
+    };
     script.onerror = function () {
         const overlay = document.getElementById('tgBootOverlay');
         if (overlay) {
@@ -45,4 +48,7 @@
         signalReady();
     };
     document.body.appendChild(script);
+
+    // Если app.js долго не отвечает — всё равно показать оболочку.
+    setTimeout(revealShell, 5000);
 })();
