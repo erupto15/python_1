@@ -731,119 +731,280 @@
         }
 
         /**
-         * Sony ARW (и похожие TIFF-RAW) содержат встроенный JPEG-превью.
-         * Берём самый крупный JPEG — браузер не декодирует RAW напрямую.
-         * Сканируем голову/хвост файла и парсим маркеры JPEG (O(n), без вложенного O(n·m)).
+         * Конец JPEG от SOI: парсим маркеры до EOI (после SOS ищем FFD9 в данных).
+         * Возвращает exclusive end offset или -1.
          */
-        function extractLargestJpegBytesFromBuffer(buffer) {
+        function findJpegEndOffset(u8, start, maxEnd) {
+            const n = Math.min(u8.length, maxEnd);
+            if (start < 0 || start + 4 >= n) return -1;
+            if (u8[start] !== 0xFF || u8[start + 1] !== 0xD8) return -1;
+            let pos = start + 2;
+            while (pos < n - 1) {
+                if (u8[pos] !== 0xFF) {
+                    pos += 1;
+                    continue;
+                }
+                let markerPos = pos + 1;
+                while (markerPos < n && u8[markerPos] === 0xFF) markerPos += 1;
+                if (markerPos >= n) return -1;
+                const marker = u8[markerPos];
+                if (marker === 0xD9) return markerPos + 1;
+                if (marker === 0xD8) return -1;
+                if ((marker >= 0xD0 && marker <= 0xD7) || marker === 0x01 || marker === 0x00) {
+                    pos = markerPos + 1;
+                    continue;
+                }
+                if (marker === 0xDA) {
+                    let p = markerPos + 1;
+                    if (p + 1 < n) {
+                        const segLen = (u8[p] << 8) | u8[p + 1];
+                        if (segLen >= 2 && p + segLen < n) p += segLen;
+                        else p += 2;
+                    }
+                    while (p < n - 1) {
+                        if (u8[p] === 0xFF && u8[p + 1] === 0xD9) return p + 2;
+                        // stuff byte FF 00 — не EOI
+                        p += 1;
+                    }
+                    return -1;
+                }
+                if (markerPos + 2 >= n) return -1;
+                const segLen = (u8[markerPos + 1] << 8) | u8[markerPos + 2];
+                if (segLen < 2) {
+                    pos = markerPos + 1;
+                    continue;
+                }
+                pos = markerPos + 1 + segLen;
+            }
+            return -1;
+        }
+
+        /** JPEG из TIFF-тегов Sony ARW (JPEGInterchangeFormat / StripOffsets). */
+        function extractJpegRangesFromTiff(u8) {
+            const n = u8.length;
+            if (n < 16) return [];
+            const le = u8[0] === 0x49 && u8[1] === 0x49;
+            const be = u8[0] === 0x4D && u8[1] === 0x4D;
+            if (!le && !be) return [];
+            const view = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+            const u16 = (o) => view.getUint16(o, le);
+            const u32 = (o) => view.getUint32(o, le);
+            if (u16(2) !== 42) return [];
+            const ranges = [];
+            const seen = new Set();
+
+            const pushRange = (offset, length) => {
+                const off = Number(offset) || 0;
+                const len = Number(length) || 0;
+                if (off < 0 || len < 4096 || off + len > n) return;
+                if (u8[off] !== 0xFF || u8[off + 1] !== 0xD8) return;
+                const key = `${off}:${len}`;
+                if (seen.has(key)) return;
+                seen.add(key);
+                ranges.push([off, len]);
+            };
+
+            const readValueU32 = (entry, type, count) => {
+                if (type === 4 && count >= 1) {
+                    if (count === 1) return [u32(entry + 8)];
+                    const dataOff = u32(entry + 8);
+                    const out = [];
+                    for (let i = 0; i < Math.min(count, 32); i += 1) {
+                        const o = dataOff + i * 4;
+                        if (o + 4 > n) break;
+                        out.push(u32(o));
+                    }
+                    return out;
+                }
+                if (type === 3 && count >= 1) {
+                    if (count === 1) return [u16(entry + 8)];
+                    if (count === 2) return [u16(entry + 8), u16(entry + 10)];
+                    const dataOff = u32(entry + 8);
+                    const out = [];
+                    for (let i = 0; i < Math.min(count, 32); i += 1) {
+                        const o = dataOff + i * 2;
+                        if (o + 2 > n) break;
+                        out.push(u16(o));
+                    }
+                    return out;
+                }
+                return [];
+            };
+
+            const visitIFD = (offset, depth = 0) => {
+                if (!Number.isFinite(offset) || offset < 8 || offset + 2 > n || depth > 8) return;
+                if (seen.has(`ifd:${offset}`)) return;
+                seen.add(`ifd:${offset}`);
+                const count = u16(offset);
+                if (count <= 0 || count > 512 || offset + 2 + count * 12 + 4 > n) return;
+
+                let jpegOffset = 0;
+                let jpegLength = 0;
+                let stripOffsets = [];
+                let stripBytes = [];
+                let compression = 0;
+                const subIfds = [];
+
+                for (let i = 0; i < count; i += 1) {
+                    const entry = offset + 2 + i * 12;
+                    const tag = u16(entry);
+                    const type = u16(entry + 2);
+                    const num = u32(entry + 4);
+                    if (tag === 0x0201) jpegOffset = u32(entry + 8);
+                    else if (tag === 0x0202) jpegLength = u32(entry + 8);
+                    else if (tag === 0x0103) compression = u16(entry + 8);
+                    else if (tag === 0x0111) stripOffsets = readValueU32(entry, type, num);
+                    else if (tag === 0x0117) stripBytes = readValueU32(entry, type, num);
+                    else if (tag === 0x014A || tag === 0x8769 || tag === 0x8825 || tag === 0xC4A5) {
+                        for (const v of readValueU32(entry, type, num)) {
+                            if (v > 0) subIfds.push(v);
+                        }
+                    }
+                }
+
+                if (jpegOffset && jpegLength) pushRange(jpegOffset, jpegLength);
+                // Compression 6/7 = JPEG; иногда превью лежит одним strip'ом.
+                if ((compression === 6 || compression === 7) && stripOffsets.length && stripBytes.length) {
+                    const off = stripOffsets[0];
+                    const len = stripBytes[0];
+                    pushRange(off, len);
+                } else if (stripOffsets.length === 1 && stripBytes.length === 1 && stripBytes[0] >= 4096) {
+                    const off = stripOffsets[0];
+                    if (off < n && u8[off] === 0xFF && u8[off + 1] === 0xD8) {
+                        pushRange(off, stripBytes[0]);
+                    }
+                }
+
+                for (const sub of subIfds) visitIFD(sub, depth + 1);
+                const next = u32(offset + 2 + count * 12);
+                if (next) visitIFD(next, depth + 1);
+            };
+
+            try {
+                visitIFD(u32(4));
+            } catch (_) {
+                /* ignore broken TIFF */
+            }
+            return ranges;
+        }
+
+        /**
+         * Sony ARW / TIFF-RAW: кандидаты встроенного JPEG (TIFF-теги + скан SOI/EOI).
+         * Браузер не декодирует RAW напрямую — берём валидное превью.
+         */
+        function findEmbeddedJpegCandidates(buffer) {
             const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
             const n = u8.length;
-            if (n < 2048) return null;
+            if (n < 4096) return [];
 
-            const ranges = [];
-            const head = Math.min(n, 8 * 1024 * 1024);
-            ranges.push([0, head]);
-            if (n > head + 1024) {
-                const tailStart = Math.max(head, n - 4 * 1024 * 1024);
-                ranges.push([tailStart, n]);
-            }
-            // На очень больших RAW превью иногда ближе к середине файла.
-            if (n > 24 * 1024 * 1024) {
-                const mid = Math.floor(n / 2);
-                const midFrom = Math.max(head, mid - 2 * 1024 * 1024);
-                const midTo = Math.min(n, mid + 2 * 1024 * 1024);
-                if (midTo > midFrom + 2048) ranges.push([midFrom, midTo]);
-            }
-
-            let bestStart = -1;
-            let bestLen = 0;
-
-            const consider = (start, endExclusive) => {
-                const len = endExclusive - start;
-                if (len >= 2048 && len > bestLen) {
-                    bestLen = len;
-                    bestStart = start;
-                }
+            const found = new Map();
+            const add = (start, len) => {
+                if (len < 4096 || start < 0 || start + len > n) return;
+                if (u8[start] !== 0xFF || u8[start + 1] !== 0xD8) return;
+                const prev = found.get(start);
+                if (!prev || len > prev) found.set(start, len);
             };
 
-            const scanRange = (from, to) => {
-                let i = from;
-                while (i < to - 3) {
-                    if (u8[i] !== 0xFF || u8[i + 1] !== 0xD8 || u8[i + 2] !== 0xFF) {
-                        i += 1;
-                        continue;
-                    }
-                    const start = i;
-                    let pos = i + 2;
-                    let resolved = false;
-                    while (pos < n - 1 && pos - start < 20 * 1024 * 1024) {
-                        if (u8[pos] !== 0xFF) {
-                            pos += 1;
-                            continue;
-                        }
-                        let markerPos = pos + 1;
-                        while (markerPos < n && u8[markerPos] === 0xFF) markerPos += 1;
-                        if (markerPos >= n) break;
-                        const marker = u8[markerPos];
-                        if (marker === 0xD9) {
-                            consider(start, markerPos + 1);
-                            i = markerPos + 1;
-                            resolved = true;
-                            break;
-                        }
-                        if (marker === 0xD8) {
-                            // Вложенный SOI — продолжим с него на следующем круге.
-                            break;
-                        }
-                        // Standalone markers without length.
-                        if ((marker >= 0xD0 && marker <= 0xD7) || marker === 0x01 || marker === 0x00) {
-                            pos = markerPos + 1;
-                            continue;
-                        }
-                        if (marker === 0xDA) {
-                            // После SOS ищем EOI в entropy-coded data.
-                            let p = markerPos + 1;
-                            if (p + 1 < n) {
-                                const segLen = (u8[p] << 8) | u8[p + 1];
-                                if (segLen >= 2) p += segLen;
-                            }
-                            while (p < n - 1 && p - start < 20 * 1024 * 1024) {
-                                if (u8[p] === 0xFF && u8[p + 1] === 0xD9) {
-                                    consider(start, p + 2);
-                                    i = p + 2;
-                                    resolved = true;
-                                    break;
-                                }
-                                p += 1;
-                            }
-                            break;
-                        }
-                        if (markerPos + 2 >= n) break;
-                        const segLen = (u8[markerPos + 1] << 8) | u8[markerPos + 2];
-                        if (segLen < 2) {
-                            pos = markerPos + 1;
-                            continue;
-                        }
-                        pos = markerPos + 1 + segLen;
-                    }
-                    if (!resolved) i = start + 2;
-                }
-            };
+            for (const [start, len] of extractJpegRangesFromTiff(u8)) add(start, len);
 
-            for (const [from, to] of ranges) scanRange(from, to);
-            if (bestStart < 0 || bestLen < 2048) return null;
-            return u8.subarray(bestStart, bestStart + bestLen);
+            // SOI ищем в первой половине файла (у Sony превью почти всегда здесь).
+            const soiLimit = Math.min(n - 3, Math.max(16 * 1024 * 1024, Math.floor(n * 0.55)));
+            const maxSpan = 32 * 1024 * 1024;
+            let i = 0;
+            while (i < soiLimit) {
+                if (u8[i] !== 0xFF || u8[i + 1] !== 0xD8 || u8[i + 2] !== 0xFF) {
+                    i += 1;
+                    continue;
+                }
+                // Отсекаем явный мусор: после SOI должен быть маркер сегмента.
+                const m = u8[i + 3];
+                if (m === 0x00 || m === 0xFF || m === 0xD8 || m === 0xD9) {
+                    i += 2;
+                    continue;
+                }
+                const end = findJpegEndOffset(u8, i, Math.min(n, i + maxSpan));
+                if (end > i + 4096) {
+                    add(i, end - i);
+                    i = end;
+                    continue;
+                }
+                // Fallback: первое FFD9 после SOI (старый алгоритм — совместимость).
+                const limit = Math.min(n, i + maxSpan);
+                let j = i + 4;
+                let hit = -1;
+                while (j < limit - 1) {
+                    if (u8[j] === 0xFF && u8[j + 1] === 0xD9) {
+                        hit = j + 2;
+                        break;
+                    }
+                    j += 1;
+                }
+                if (hit > i + 4096) {
+                    add(i, hit - i);
+                    i = hit;
+                    continue;
+                }
+                i += 2;
+            }
+
+            return [...found.entries()]
+                .map(([start, len]) => [start, len])
+                .sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+        }
+
+        function extractLargestJpegBytesFromBuffer(buffer) {
+            const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+            const candidates = findEmbeddedJpegCandidates(u8);
+            if (!candidates.length) return null;
+            const [start, len] = candidates[0];
+            return u8.subarray(start, start + len);
+        }
+
+        async function isDecodableJpegBlob(blob) {
+            if (!(blob instanceof Blob) || blob.size < 4096) return false;
+            if (typeof createImageBitmap === 'function') {
+                try {
+                    const bitmap = await createImageBitmap(blob);
+                    const ok = (bitmap.width || 0) >= 32 && (bitmap.height || 0) >= 32;
+                    if (typeof bitmap.close === 'function') bitmap.close();
+                    return ok;
+                } catch (_) {
+                    /* try <img> below */
+                }
+            }
+            let objectUrl = '';
+            try {
+                objectUrl = URL.createObjectURL(blob);
+                const img = await loadImageElement(objectUrl, 20000);
+                return (img.naturalWidth || img.width || 0) >= 32
+                    && (img.naturalHeight || img.height || 0) >= 32;
+            } catch (_) {
+                return false;
+            } finally {
+                if (objectUrl) URL.revokeObjectURL(objectUrl);
+            }
         }
 
         async function convertArwFileToJpegBlob(file) {
             const buffer = await file.arrayBuffer();
-            const jpegBytes = extractLargestJpegBytesFromBuffer(buffer);
-            if (!jpegBytes) {
+            const u8 = new Uint8Array(buffer);
+            const candidates = findEmbeddedJpegCandidates(u8);
+            if (!candidates.length) {
                 throw new Error('Не удалось извлечь превью из ARW. Сохраните снимок как JPEG и загрузите снова.');
             }
-            const copy = new Uint8Array(jpegBytes.byteLength);
-            copy.set(jpegBytes);
-            return new Blob([copy], { type: 'image/jpeg' });
+            let lastErr = null;
+            // Пробуем от самого крупного к мелкому, пока браузер не декодирует.
+            for (const [start, len] of candidates.slice(0, 10)) {
+                const copy = u8.slice(start, start + len);
+                const blob = new Blob([copy], { type: 'image/jpeg' });
+                try {
+                    if (await isDecodableJpegBlob(blob)) return blob;
+                } catch (err) {
+                    lastErr = err;
+                }
+            }
+            console.warn('ARW JPEG candidates failed decode', candidates.length, lastErr);
+            throw new Error('Не удалось извлечь превью из ARW. Сохраните снимок как JPEG и загрузите снова.');
         }
 
         function estimateDataUrlBytes(dataUrl) {
@@ -1407,8 +1568,28 @@
             }
             if (isArwImageFile(file)) {
                 const jpegBlob = await convertArwFileToJpegBlob(file);
-                const out = await compressImageBlobForUpload(jpegBlob, options);
-                if (out) return out;
+                // Пресет по размеру JPEG-превью, не сырого ARW (иначе maxEdge/quality занижаются зря).
+                const previewOptions = buildUploadOptionsForFile(
+                    { size: jpegBlob.size, name: 'preview.jpg', type: 'image/jpeg' },
+                    preset
+                );
+                try {
+                    const out = await compressImageBlobForUpload(jpegBlob, previewOptions);
+                    if (out) return out;
+                } catch (err) {
+                    console.warn('ARW preview compress failed', err);
+                }
+                try {
+                    const viaDataUrl = await compressDataUrlForUpload(await blobToDataUrl(jpegBlob), previewOptions);
+                    if (viaDataUrl) return viaDataUrl;
+                } catch (err) {
+                    console.warn('ARW preview dataURL compress failed', err);
+                }
+                // Запасной путь: декодируемое превью уже JPEG — отдать как есть, если влезает.
+                const rawPreview = await blobToDataUrl(jpegBlob);
+                if (rawPreview && rawPreview.startsWith('data:image/jpeg') && estimateDataUrlBytes(rawPreview) <= 4 * 1024 * 1024) {
+                    return rawPreview;
+                }
                 throw new Error('Не удалось сжать превью ARW. Сохраните снимок как JPEG и загрузите снова.');
             }
             try {
