@@ -8223,14 +8223,14 @@
                     if (!APP_BOULDER_ONLY && rs.length) {
                         blocks.push('<h4 style="margin:12px 0 8px;color:var(--light-text)">Трассы</h4>');
                         if (canReorderRoutes) {
-                            blocks.push('<p class="route-reorder-hint">Перетащите за ⋮⋮, чтобы изменить порядок</p>');
+                            blocks.push('<p class="route-reorder-hint">Зажмите ⋮⋮ и перетащите трассу, чтобы поменять местами</p>');
                         }
                         blocks.push(`<div class="routes-reorder-list" id="catalogSectorRoutesList" data-reorder-scope="sector">`);
                         rs.forEach(r => {
                             const routeDesc = String(r.description || '').trim();
                             blocks.push(`
-                                <div class="list-item catalog-climb-row${canReorderRoutes ? ' is-route-draggable' : ''}" style="margin-bottom:8px" data-id="${r.id}" data-open-climb="route" data-open-climb-id="${r.id}" ${canReorderRoutes ? 'draggable="true"' : ''}>
-                                    ${canReorderRoutes ? '<span class="route-drag-handle" title="Перетащить" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span>' : ''}
+                                <div class="list-item catalog-climb-row${canReorderRoutes ? ' is-route-draggable' : ''}" style="margin-bottom:8px" data-id="${r.id}" data-open-climb="route" data-open-climb-id="${r.id}">
+                                    ${canReorderRoutes ? '<button type="button" class="route-drag-handle" title="Перетащить" aria-label="Перетащить трассу"><i class="fas fa-grip-vertical" aria-hidden="true"></i></button>' : ''}
                                     <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(r.name)}">
                                         <div class="item-info">
                                             <h3 style="font-size:16px">${this.escapeHtml(r.name)}</h3>
@@ -8343,7 +8343,12 @@
                     return;
                 }
                 const climbOpen = e.target.closest('[data-open-climb]');
-                if (climbOpen && !e.target.closest('[data-action]')) {
+                if (
+                    climbOpen
+                    && !e.target.closest('[data-action]')
+                    && !e.target.closest('.route-drag-handle')
+                    && climbOpen.closest('.routes-reorder-list')?.dataset.suppressClimbOpen !== '1'
+                ) {
                     const oc = climbOpen.getAttribute('data-open-climb');
                     const oid = Number(climbOpen.dataset.openClimbId);
                     if ((oc === 'route' || oc === 'boulder') && Number.isFinite(oid)) {
@@ -8966,13 +8971,14 @@
                     && !hideSent
                     && filteredRoutes.length > 1;
 
+                routesList.classList.toggle('routes-reorder-list', canReorder);
                 routesList.innerHTML = `
-                    ${canReorder ? '<p class="route-reorder-hint">Перетащите за ⋮⋮, чтобы изменить порядок</p>' : ''}
+                    ${canReorder ? '<p class="route-reorder-hint">Зажмите ⋮⋮ и перетащите трассу, чтобы поменять местами</p>' : ''}
                     ${filteredRoutes.map(route => {
                     const sent = this.climbSentRowAttrs('route', route.id);
                     return `
-                    <div class="list-item catalog-climb-row${sent.className}${canReorder ? ' is-route-draggable' : ''}" data-id="${route.id}" data-open-climb="route" data-open-climb-id="${route.id}" ${canReorder ? 'draggable="true"' : ''}>
-                        ${canReorder ? '<span class="route-drag-handle" title="Перетащить" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span>' : ''}
+                    <div class="list-item catalog-climb-row${sent.className}${canReorder ? ' is-route-draggable' : ''}" data-id="${route.id}" data-open-climb="route" data-open-climb-id="${route.id}">
+                        ${canReorder ? '<button type="button" class="route-drag-handle" title="Перетащить" aria-label="Перетащить трассу"><i class="fas fa-grip-vertical" aria-hidden="true"></i></button>' : ''}
                         <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(route.name)}">
                             <div class="item-info">
                                 <h3>${sent.badge}${this.escapeHtml(route.name)}</h3>
@@ -9005,46 +9011,29 @@
                 const rows = () => [...listEl.querySelectorAll(':scope > .list-item.is-route-draggable[data-id]')];
 
                 let dragEl = null;
+                let pointerId = null;
                 let didReorder = false;
+                let movedEnough = false;
+                let startY = 0;
+                let originOrder = '';
 
-                listEl.addEventListener('dragstart', (e) => {
-                    const row = e.target.closest('.list-item.is-route-draggable');
-                    if (!row || !listEl.contains(row) || row.parentElement !== listEl) return;
-                    if (!e.target.closest('.route-drag-handle')) {
-                        e.preventDefault();
-                        return;
-                    }
-                    dragEl = row;
-                    didReorder = false;
-                    row.classList.add('is-dragging');
-                    e.dataTransfer.effectAllowed = 'move';
-                    try {
-                        e.dataTransfer.setData('text/plain', String(row.dataset.id || ''));
-                    } catch (_) { /* ignore */ }
-                });
-
-                listEl.addEventListener('dragover', (e) => {
-                    if (!dragEl) return;
-                    e.preventDefault();
-                    const over = e.target.closest('.list-item.is-route-draggable');
-                    if (!over || over === dragEl || over.parentElement !== listEl) return;
-                    const rect = over.getBoundingClientRect();
-                    const before = e.clientY < rect.top + rect.height / 2;
-                    listEl.insertBefore(dragEl, before ? over : over.nextSibling);
-                    didReorder = true;
-                });
-
-                listEl.addEventListener('drop', (e) => {
-                    if (!dragEl) return;
-                    e.preventDefault();
-                });
-
-                listEl.addEventListener('dragend', async () => {
+                const finishDrag = async () => {
                     if (!dragEl) return;
                     dragEl.classList.remove('is-dragging');
+                    listEl.classList.remove('is-reordering');
                     const orderedIds = rows().map((el) => Number(el.dataset.id)).filter(Boolean);
+                    const nextOrder = orderedIds.join(',');
+                    const shouldSave = didReorder && orderedIds.length >= 2 && nextOrder !== originOrder;
+                    if (movedEnough || didReorder) {
+                        listEl.dataset.suppressClimbOpen = '1';
+                        setTimeout(() => { listEl.dataset.suppressClimbOpen = ''; }, 280);
+                    }
                     dragEl = null;
-                    if (!didReorder || orderedIds.length < 2) return;
+                    pointerId = null;
+                    didReorder = false;
+                    movedEnough = false;
+                    originOrder = '';
+                    if (!shouldSave) return;
                     try {
                         await apiFetch('/api/routes/reorder', {
                             method: 'POST',
@@ -9059,7 +9048,60 @@
                         this.renderRoutes();
                         this.renderCatalog();
                     }
+                };
+
+                listEl.addEventListener('pointerdown', (e) => {
+                    if (e.button != null && e.button !== 0) return;
+                    const handle = e.target.closest('.route-drag-handle');
+                    if (!handle || !listEl.contains(handle)) return;
+                    const row = handle.closest('.list-item.is-route-draggable');
+                    if (!row || row.parentElement !== listEl) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dragEl = row;
+                    pointerId = e.pointerId;
+                    startY = e.clientY;
+                    didReorder = false;
+                    movedEnough = false;
+                    originOrder = rows().map((el) => String(el.dataset.id || '')).join(',');
+                    row.classList.add('is-dragging');
+                    listEl.classList.add('is-reordering');
+                    try {
+                        handle.setPointerCapture(e.pointerId);
+                    } catch (_) { /* ignore */ }
                 });
+
+                listEl.addEventListener('pointermove', (e) => {
+                    if (!dragEl || pointerId == null || e.pointerId !== pointerId) return;
+                    e.preventDefault();
+                    if (Math.abs(e.clientY - startY) > 4) movedEnough = true;
+                    const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+                    const over = elUnder?.closest?.('.list-item.is-route-draggable');
+                    if (!over || over === dragEl || over.parentElement !== listEl) return;
+                    const rect = over.getBoundingClientRect();
+                    const before = e.clientY < rect.top + rect.height / 2;
+                    const reference = before ? over : over.nextSibling;
+                    if (reference === dragEl) return;
+                    listEl.insertBefore(dragEl, reference);
+                    didReorder = true;
+                });
+
+                listEl.addEventListener('pointerup', (e) => {
+                    if (pointerId == null || e.pointerId !== pointerId) return;
+                    void finishDrag();
+                });
+                listEl.addEventListener('pointercancel', (e) => {
+                    if (pointerId == null || e.pointerId !== pointerId) return;
+                    void finishDrag();
+                });
+
+                // Не открывать карточку трассы сразу после drag.
+                listEl.addEventListener('click', (e) => {
+                    if (listEl.dataset.suppressClimbOpen !== '1') return;
+                    if (!e.target.closest('[data-open-climb], .climb-row-open')) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, true);
             }
 
             renderBoulders() {
@@ -9681,7 +9723,12 @@
                         return;
                     }
                     const row = e.target.closest('[data-open-climb="route"]');
-                    if (row && !e.target.closest('[data-action]')) {
+                    if (
+                        row
+                        && !e.target.closest('[data-action]')
+                        && !e.target.closest('.route-drag-handle')
+                        && document.getElementById('routesList')?.dataset.suppressClimbOpen !== '1'
+                    ) {
                         const oid = Number(row.dataset.openClimbId);
                         if (Number.isFinite(oid)) this.showClimbDetailDialog('route', oid);
                     }

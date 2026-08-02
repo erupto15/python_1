@@ -820,14 +820,17 @@
         }
 
         .list-item.is-route-draggable {
-            gap: 10px;
+            gap: 8px;
             cursor: default;
         }
 
         .list-item.is-route-draggable.is-dragging {
-            opacity: 0.55;
-            transform: none;
-            box-shadow: var(--shadow);
+            opacity: 0.92;
+            transform: scale(1.01);
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+            z-index: 3;
+            position: relative;
+            border-color: var(--primary, #2a9d8f);
         }
 
         .route-drag-handle {
@@ -835,15 +838,30 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 28px;
-            height: 36px;
+            width: 40px;
+            min-width: 40px;
+            height: 44px;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            border-radius: 10px;
+            background: transparent;
             color: var(--light-text);
             cursor: grab;
             touch-action: none;
             user-select: none;
+            -webkit-user-select: none;
         }
 
-        .route-drag-handle:active {
+        .route-drag-handle:hover,
+        .route-drag-handle:focus-visible {
+            color: var(--text-color, inherit);
+            background: rgba(127, 127, 127, 0.12);
+            outline: none;
+        }
+
+        .route-drag-handle:active,
+        .list-item.is-dragging .route-drag-handle {
             cursor: grabbing;
         }
 
@@ -856,6 +874,15 @@
         .routes-reorder-list {
             display: flex;
             flex-direction: column;
+        }
+
+        .routes-reorder-list.is-reordering {
+            touch-action: none;
+            user-select: none;
+        }
+
+        .routes-reorder-list.is-reordering .list-item {
+            touch-action: none;
         }
 
         /* Тач / Telegram WebView: клик по div часто не срабатывает — основная зона строки = button */
