@@ -126,4 +126,12 @@ def frontend_index() -> FileResponse:
 def frontend_fallback(path: str) -> FileResponse:
     if path.startswith("api/"):
         raise HTTPException(status_code=404, detail="Not found")
+    # Отдаём реальные фронтовые файлы (app.js, styles.css, vendor/...), иначе SPA-fallback.
+    candidate = (FRONTEND_ROOT / path).resolve()
+    try:
+        candidate.relative_to(FRONTEND_ROOT.resolve())
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Not found") from exc
+    if candidate.is_file():
+        return FileResponse(candidate)
     return FileResponse(FRONTEND_INDEX, headers=FRONTEND_HEADERS)

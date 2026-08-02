@@ -732,27 +732,105 @@
 
         /**
          * Sony ARW (и похожие TIFF-RAW) содержат встроенный JPEG-превью.
-         * Берём самый крупный JPEG из файла — браузер не декодирует RAW напрямую.
+         * Берём самый крупный JPEG — браузер не декодирует RAW напрямую.
+         * Сканируем голову/хвост файла и парсим маркеры JPEG (O(n), без вложенного O(n·m)).
          */
         function extractLargestJpegBytesFromBuffer(buffer) {
             const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+            const n = u8.length;
+            if (n < 2048) return null;
+
+            const ranges = [];
+            const head = Math.min(n, 8 * 1024 * 1024);
+            ranges.push([0, head]);
+            if (n > head + 1024) {
+                const tailStart = Math.max(head, n - 4 * 1024 * 1024);
+                ranges.push([tailStart, n]);
+            }
+            // На очень больших RAW превью иногда ближе к середине файла.
+            if (n > 24 * 1024 * 1024) {
+                const mid = Math.floor(n / 2);
+                const midFrom = Math.max(head, mid - 2 * 1024 * 1024);
+                const midTo = Math.min(n, mid + 2 * 1024 * 1024);
+                if (midTo > midFrom + 2048) ranges.push([midFrom, midTo]);
+            }
+
             let bestStart = -1;
             let bestLen = 0;
-            const maxJpegSpan = 32 * 1024 * 1024;
-            for (let i = 0; i < u8.length - 3; i += 1) {
-                if (u8[i] !== 0xFF || u8[i + 1] !== 0xD8 || u8[i + 2] !== 0xFF) continue;
-                const limit = Math.min(u8.length, i + maxJpegSpan);
-                for (let j = i + 3; j < limit - 1; j += 1) {
-                    if (u8[j] !== 0xFF || u8[j + 1] !== 0xD9) continue;
-                    const len = j + 2 - i;
-                    if (len > bestLen) {
-                        bestLen = len;
-                        bestStart = i;
-                    }
-                    i = j + 1;
-                    break;
+
+            const consider = (start, endExclusive) => {
+                const len = endExclusive - start;
+                if (len >= 2048 && len > bestLen) {
+                    bestLen = len;
+                    bestStart = start;
                 }
-            }
+            };
+
+            const scanRange = (from, to) => {
+                let i = from;
+                while (i < to - 3) {
+                    if (u8[i] !== 0xFF || u8[i + 1] !== 0xD8 || u8[i + 2] !== 0xFF) {
+                        i += 1;
+                        continue;
+                    }
+                    const start = i;
+                    let pos = i + 2;
+                    let resolved = false;
+                    while (pos < n - 1 && pos - start < 20 * 1024 * 1024) {
+                        if (u8[pos] !== 0xFF) {
+                            pos += 1;
+                            continue;
+                        }
+                        let markerPos = pos + 1;
+                        while (markerPos < n && u8[markerPos] === 0xFF) markerPos += 1;
+                        if (markerPos >= n) break;
+                        const marker = u8[markerPos];
+                        if (marker === 0xD9) {
+                            consider(start, markerPos + 1);
+                            i = markerPos + 1;
+                            resolved = true;
+                            break;
+                        }
+                        if (marker === 0xD8) {
+                            // Вложенный SOI — продолжим с него на следующем круге.
+                            break;
+                        }
+                        // Standalone markers without length.
+                        if ((marker >= 0xD0 && marker <= 0xD7) || marker === 0x01 || marker === 0x00) {
+                            pos = markerPos + 1;
+                            continue;
+                        }
+                        if (marker === 0xDA) {
+                            // После SOS ищем EOI в entropy-coded data.
+                            let p = markerPos + 1;
+                            if (p + 1 < n) {
+                                const segLen = (u8[p] << 8) | u8[p + 1];
+                                if (segLen >= 2) p += segLen;
+                            }
+                            while (p < n - 1 && p - start < 20 * 1024 * 1024) {
+                                if (u8[p] === 0xFF && u8[p + 1] === 0xD9) {
+                                    consider(start, p + 2);
+                                    i = p + 2;
+                                    resolved = true;
+                                    break;
+                                }
+                                p += 1;
+                            }
+                            break;
+                        }
+                        if (markerPos + 2 >= n) break;
+                        const segLen = (u8[markerPos + 1] << 8) | u8[markerPos + 2];
+                        if (segLen < 2) {
+                            pos = markerPos + 1;
+                            continue;
+                        }
+                        pos = markerPos + 1 + segLen;
+                    }
+                    if (!resolved) i = start + 2;
+                }
+            };
+
+            for (const [from, to] of ranges) scanRange(from, to);
             if (bestStart < 0 || bestLen < 2048) return null;
             return u8.subarray(bestStart, bestStart + bestLen);
         }
@@ -816,49 +894,130 @@
             return options;
         }
 
+        /**
+         * Пошагово уменьшает огромный кадр (iOS/WebView лимит площади canvas ~16MP),
+         * чтобы toDataURL не падал на 40–100 Мп исходниках.
+         */
+        function downscaleSourceForUpload(source, width, height, maxEdge) {
+            let cur = source;
+            let w = Math.max(1, Math.round(Number(width) || 1));
+            let h = Math.max(1, Math.round(Number(height) || 1));
+            const target = Math.max(64, Math.round(Number(maxEdge) || QUICK_PHOTO_MAX_EDGE));
+            let guard = 0;
+            while (Math.max(w, h) > target * 2 && guard < 8) {
+                const nw = Math.max(1, Math.round(w / 2));
+                const nh = Math.max(1, Math.round(h / 2));
+                const canvas = document.createElement('canvas');
+                canvas.width = nw;
+                canvas.height = nh;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) break;
+                ctx.drawImage(cur, 0, 0, nw, nh);
+                if (cur && typeof cur.close === 'function' && cur !== source) {
+                    try { cur.close(); } catch (_) { /* ignore */ }
+                }
+                cur = canvas;
+                w = nw;
+                h = nh;
+                guard += 1;
+            }
+            return { source: cur, width: w, height: h };
+        }
+
+        function canvasToJpegDataUrl(canvas, quality) {
+            try {
+                const out = canvas.toDataURL('image/jpeg', quality);
+                if (out && out.startsWith('data:image/jpeg')) return out;
+            } catch (err) {
+                console.warn('canvas.toDataURL failed', err);
+            }
+            return '';
+        }
+
         function encodeImageSourceToUploadDataUrl(source, naturalWidth, naturalHeight, options = uploadPresetOptions('climb')) {
             return new Promise((resolve) => {
-                const w0 = Number(naturalWidth);
-                const h0 = Number(naturalHeight);
-                if (!Number.isFinite(w0) || !Number.isFinite(h0) || w0 <= 0 || h0 <= 0) {
-                    resolve('');
-                    return;
-                }
-                const targetBytes = Number(options.targetBytes) > 0 ? Number(options.targetBytes) : QUICK_PHOTO_DATAURL_SOFT_CAP;
-                const minQuality = Number(options.minQuality) > 0 ? Number(options.minQuality) : 0.52;
-                const minEdge = Number(options.minEdge) > 0 ? Number(options.minEdge) : 640;
-                let maxEdge = Number(options.maxEdge) > 0 ? Number(options.maxEdge) : QUICK_PHOTO_MAX_EDGE;
-                let quality = Number(options.quality) > 0 ? Number(options.quality) : QUICK_PHOTO_JPEG_QUALITY;
-                const orientation = Number(options.orientation) > 0 ? Number(options.orientation) : 1;
-
-                const render = () => {
-                    const scale = Math.min(1, maxEdge / Math.max(w0, h0));
-                    const sw = Math.max(1, Math.round(w0 * scale));
-                    const sh = Math.max(1, Math.round(h0 * scale));
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    if (!ctx) return '';
-                    drawImageWithExifOrientation(ctx, source, orientation, sw, sh, canvas);
-                    let q = quality;
-                    let out = canvas.toDataURL('image/jpeg', q);
-                    while (estimateDataUrlBytes(out) > targetBytes && q > minQuality) {
-                        q = Math.max(minQuality, q - 0.08);
-                        out = canvas.toDataURL('image/jpeg', q);
-                        if (q <= minQuality) break;
+                try {
+                    const w0 = Number(naturalWidth);
+                    const h0 = Number(naturalHeight);
+                    if (!Number.isFinite(w0) || !Number.isFinite(h0) || w0 <= 0 || h0 <= 0) {
+                        resolve('');
+                        return;
                     }
-                    return out;
-                };
+                    const targetBytes = Number(options.targetBytes) > 0 ? Number(options.targetBytes) : QUICK_PHOTO_DATAURL_SOFT_CAP;
+                    const minQuality = Number(options.minQuality) > 0 ? Number(options.minQuality) : 0.52;
+                    const minEdge = Number(options.minEdge) > 0 ? Number(options.minEdge) : 640;
+                    let maxEdge = Number(options.maxEdge) > 0 ? Number(options.maxEdge) : QUICK_PHOTO_MAX_EDGE;
+                    let quality = Number(options.quality) > 0 ? Number(options.quality) : QUICK_PHOTO_JPEG_QUALITY;
+                    const orientation = Number(options.orientation) > 0 ? Number(options.orientation) : 1;
 
-                let out = render();
-                let attempts = 0;
-                while (out && estimateDataUrlBytes(out) > targetBytes && maxEdge > minEdge && attempts < 8) {
-                    maxEdge = Math.max(minEdge, Math.round(maxEdge * 0.84));
-                    quality = Math.max(minQuality, quality - 0.04);
-                    out = render();
-                    attempts += 1;
+                    const prepared = downscaleSourceForUpload(source, w0, h0, maxEdge);
+                    const src = prepared.source;
+                    const baseW = prepared.width;
+                    const baseH = prepared.height;
+
+                    const render = () => {
+                        const scale = Math.min(1, maxEdge / Math.max(baseW, baseH));
+                        const sw = Math.max(1, Math.round(baseW * scale));
+                        const sh = Math.max(1, Math.round(baseH * scale));
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d', { alpha: false });
+                        if (!ctx) return '';
+                        try {
+                            drawImageWithExifOrientation(ctx, src, orientation, sw, sh, canvas);
+                        } catch (err) {
+                            console.warn('drawImageWithExifOrientation failed', err);
+                            return '';
+                        }
+                        let q = quality;
+                        let out = canvasToJpegDataUrl(canvas, q);
+                        while (out && estimateDataUrlBytes(out) > targetBytes && q > minQuality) {
+                            q = Math.max(minQuality, q - 0.08);
+                            out = canvasToJpegDataUrl(canvas, q);
+                            if (q <= minQuality) break;
+                        }
+                        return out;
+                    };
+
+                    let out = render();
+                    let attempts = 0;
+                    while (out && estimateDataUrlBytes(out) > targetBytes && maxEdge > minEdge && attempts < 8) {
+                        maxEdge = Math.max(minEdge, Math.round(maxEdge * 0.84));
+                        quality = Math.max(minQuality, quality - 0.04);
+                        out = render();
+                        attempts += 1;
+                    }
+                    resolve(out || '');
+                } catch (err) {
+                    console.warn('encodeImageSourceToUploadDataUrl failed', err);
+                    resolve('');
                 }
-                resolve(out || '');
             });
+        }
+
+        async function createUploadImageBitmap(blob, maxEdge) {
+            if (typeof createImageBitmap !== 'function') {
+                throw new Error('createImageBitmap unavailable');
+            }
+            const edge = Math.max(64, Math.round(Number(maxEdge) || QUICK_PHOTO_MAX_EDGE));
+            const attempts = [
+                { imageOrientation: 'none', resizeWidth: edge, resizeQuality: 'medium' },
+                { imageOrientation: 'none', resizeHeight: edge, resizeQuality: 'medium' },
+                { imageOrientation: 'none' },
+                { resizeWidth: edge, resizeQuality: 'medium' },
+                {}
+            ];
+            let lastErr = null;
+            for (const opts of attempts) {
+                try {
+                    if (!Object.keys(opts).length) {
+                        return await createImageBitmap(blob);
+                    }
+                    return await createImageBitmap(blob, opts);
+                } catch (err) {
+                    lastErr = err;
+                }
+            }
+            throw lastErr || new Error('createImageBitmap failed');
         }
 
         /** JPEG EXIF Orientation (1–8). Без тега — 1. */
@@ -1061,19 +1220,15 @@
             });
         }
 
-        async function compressImageBlobForUpload(blob, options = uploadPresetOptions('climb')) {
+        async function compressImageBlobForUpload(blob, options = uploadPresetOptions('climb'), flags = {}) {
             if (!(blob instanceof Blob)) return '';
+            const allowDataUrlFallback = flags.allowDataUrlFallback !== false;
             const orientation = await readBlobJpegExifOrientation(blob);
             const opts = { ...options, orientation };
+            const maxEdge = Number(options.maxEdge) > 0 ? Number(options.maxEdge) : QUICK_PHOTO_MAX_EDGE;
             if (typeof createImageBitmap === 'function') {
                 try {
-                    let bitmap = null;
-                    try {
-                        // Сырые пиксели файла — ориентацию рисуем сами по EXIF.
-                        bitmap = await createImageBitmap(blob, { imageOrientation: 'none' });
-                    } catch (_) {
-                        bitmap = await createImageBitmap(blob);
-                    }
+                    const bitmap = await createUploadImageBitmap(blob, maxEdge);
                     try {
                         const out = await encodeImageSourceToUploadDataUrl(
                             bitmap,
@@ -1089,8 +1244,20 @@
                     console.warn('createImageBitmap compress failed', err);
                 }
             }
+            // Fallback через <img>: для больших файлов сначала object URL, не data: URL.
+            try {
+                const objectUrl = URL.createObjectURL(blob);
+                try {
+                    const out = await compressObjectUrlForUpload(objectUrl, { ...options, orientation: 1 });
+                    if (out) return out;
+                } finally {
+                    URL.revokeObjectURL(objectUrl);
+                }
+            } catch (err) {
+                console.warn('object URL compress failed', err);
+            }
+            if (!allowDataUrlFallback) return '';
             const dataUrl = await blobToDataUrl(blob);
-            // Fallback: не передаём EXIF — <img> в части браузеров уже ориентирует кадр.
             return compressDataUrlForUpload(dataUrl, { ...options, orientation: 1 });
         }
 
@@ -1117,46 +1284,62 @@
                 throw new Error('createImageBitmap unavailable');
             }
             const source = normalizeHeicBlob(blob);
-            const bitmap = await createImageBitmap(source);
+            const maxEdge = Number(options.maxEdge) > 0 ? Number(options.maxEdge) : QUICK_PHOTO_MAX_EDGE;
+            const bitmap = await createUploadImageBitmap(source, maxEdge);
             try {
-                const w = bitmap.width;
-                const h = bitmap.height;
-                if (!w || !h) throw new Error('empty bitmap');
-                const maxEdge = Number(options.maxEdge) > 0 ? Number(options.maxEdge) : QUICK_PHOTO_MAX_EDGE;
-                const scale = Math.min(1, maxEdge / Math.max(w, h));
-                const tw = Math.max(1, Math.round(w * scale));
-                const th = Math.max(1, Math.round(h * scale));
-                const canvas = document.createElement('canvas');
-                canvas.width = tw;
-                canvas.height = th;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) throw new Error('canvas unavailable');
-                ctx.fillStyle = '#0d0d0d';
-                ctx.fillRect(0, 0, tw, th);
-                ctx.drawImage(bitmap, 0, 0, tw, th);
-                return canvas.toDataURL('image/jpeg', Number(options.quality) || QUICK_PHOTO_JPEG_QUALITY);
+                const out = await encodeImageSourceToUploadDataUrl(
+                    bitmap,
+                    bitmap.width,
+                    bitmap.height,
+                    { ...options, orientation: 1 }
+                );
+                if (!out) throw new Error('empty bitmap encode');
+                return out;
             } finally {
                 if (typeof bitmap.close === 'function') bitmap.close();
             }
         }
 
+        function loadHeicToScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = true;
+                script.dataset.heicToLoader = '1';
+                script.onload = () => {
+                    if (typeof HeicTo === 'function') resolve();
+                    else reject(new Error('HeicTo global missing after load'));
+                };
+                script.onerror = () => {
+                    script.remove();
+                    reject(new Error(`heic-to load failed: ${src}`));
+                };
+                document.head.appendChild(script);
+            });
+        }
+
         function ensureHeicToLoaded() {
             if (typeof HeicTo === 'function') return Promise.resolve();
             if (_heicToLoadPromise) return _heicToLoadPromise;
-            _heicToLoadPromise = new Promise((resolve, reject) => {
-                const existing = document.querySelector('script[data-heic-to-loader]');
-                if (existing) {
-                    existing.addEventListener('load', () => resolve(), { once: true });
-                    existing.addEventListener('error', () => reject(new Error('heic-to load failed')), { once: true });
-                    return;
+            const sources = [
+                '/vendor/heic-to.js',
+                'https://cdn.jsdelivr.net/npm/heic-to@1.5.2/dist/iife/heic-to.js',
+                'https://unpkg.com/heic-to@1.5.2/dist/iife/heic-to.js'
+            ];
+            _heicToLoadPromise = (async () => {
+                let lastErr = null;
+                for (const src of sources) {
+                    try {
+                        await loadHeicToScript(src);
+                        return;
+                    } catch (err) {
+                        lastErr = err;
+                    }
                 }
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/heic-to@1.5.2/dist/iife/heic-to.js';
-                script.async = true;
-                script.dataset.heicToLoader = '1';
-                script.onload = () => resolve();
-                script.onerror = () => reject(new Error('heic-to load failed'));
-                document.head.appendChild(script);
+                throw lastErr || new Error('heic-to load failed');
+            })().catch((err) => {
+                _heicToLoadPromise = null;
+                throw err;
             });
             return _heicToLoadPromise;
         }
@@ -1175,7 +1358,7 @@
 
         async function convertHeicBlobToJpegDataUrl(blob, options = uploadPresetOptions('climb')) {
             const source = normalizeHeicBlob(blob);
-            const quality = Number(options.quality) || QUICK_PHOTO_JPEG_QUALITY;
+            const quality = Math.min(0.92, Number(options.quality) || QUICK_PHOTO_JPEG_QUALITY);
             try {
                 await ensureHeicToLoaded();
                 const jpegBlob = await HeicTo({
@@ -1183,7 +1366,11 @@
                     type: 'image/jpeg',
                     quality
                 });
-                return await blobToDataUrl(Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob);
+                const asBlob = Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob;
+                // Сразу дожимаем до upload-пресета, без гигантского data: URL roundtrip.
+                const compressed = await compressImageBlobForUpload(asBlob, options);
+                if (compressed) return compressed;
+                return await blobToDataUrl(asBlob);
             } catch (primaryErr) {
                 try {
                     return await convertHeicViaNativeBitmap(source, options);
@@ -1216,34 +1403,31 @@
         async function imageFileToUploadDataUrl(file, preset = 'climb', optionsOverride = null) {
             const options = optionsOverride || buildUploadOptionsForFile(file, preset);
             if (isHeicImageFile(file)) {
-                const jpeg = await convertHeicBlobToJpegDataUrl(file, options);
-                return compressDataUrlForUpload(jpeg, options);
+                return convertHeicBlobToJpegDataUrl(file, options);
             }
             if (isArwImageFile(file)) {
                 const jpegBlob = await convertArwFileToJpegBlob(file);
-                try {
-                    const out = await compressImageBlobForUpload(jpegBlob, options);
-                    if (out) return out;
-                } catch (err) {
-                    console.warn('ARW preview compress failed', err);
-                }
-                return compressDataUrlForUpload(await blobToDataUrl(jpegBlob), options);
+                const out = await compressImageBlobForUpload(jpegBlob, options);
+                if (out) return out;
+                throw new Error('Не удалось сжать превью ARW. Сохраните снимок как JPEG и загрузите снова.');
             }
-            if (typeof createImageBitmap === 'function') {
-                try {
-                    const out = await compressImageBlobForUpload(file, options);
-                    if (out) return out;
-                } catch (err) {
-                    console.warn('direct file bitmap compress failed', err);
-                }
+            try {
+                const out = await compressImageBlobForUpload(file, options);
+                if (out) return out;
+            } catch (err) {
+                console.warn('direct file bitmap compress failed', err);
             }
             const dataUrl = await readImageFileAsDataUrl(file);
             if (isHeicDataUrl(dataUrl)) {
                 const blob = await fetch(dataUrl).then((res) => res.blob());
-                const jpeg = await convertHeicBlobToJpegDataUrl(blob, options);
-                return compressDataUrlForUpload(jpeg, options);
+                return convertHeicBlobToJpegDataUrl(blob, options);
             }
-            return compressDataUrlForUpload(dataUrl, options);
+            const compressed = await compressDataUrlForUpload(dataUrl, options);
+            if (compressed && compressed !== dataUrl) return compressed;
+            if (compressed && estimateDataUrlBytes(compressed) <= Math.max(options.targetBytes || QUICK_PHOTO_DATAURL_SOFT_CAP, 420000) * 1.35) {
+                return compressed;
+            }
+            throw new Error('Не удалось обработать фото. Попробуйте другой снимок или формат JPEG.');
         }
 
         async function processImageUploadFile(file, preset = 'climb') {
@@ -1258,7 +1442,14 @@
                 );
             }
             const options = buildUploadOptionsForFile(file, preset);
-            const data = await imageFileToUploadDataUrl(file, preset, options);
+            let data;
+            try {
+                data = await imageFileToUploadDataUrl(file, preset, options);
+            } catch (err) {
+                const msg = String(err?.message || err || '').trim();
+                if (msg) throw err instanceof Error ? err : new Error(msg);
+                throw new Error('Не удалось обработать фото. Попробуйте другой снимок или формат JPEG.');
+            }
             if (!data || !String(data).startsWith('data:image/')) {
                 throw new Error('Не удалось обработать фото. Попробуйте другой снимок или формат JPEG.');
             }
@@ -1266,6 +1457,23 @@
             const compressedSize = estimateDataUrlBytes(data);
             const maxUploadBytes = Math.max(options.targetBytes || QUICK_PHOTO_DATAURL_SOFT_CAP, 420000) * 1.35;
             if (compressedSize > maxUploadBytes) {
+                // Последняя попытка — ещё агрессивнее.
+                const retryOptions = {
+                    ...options,
+                    maxEdge: Math.min(options.maxEdge || QUICK_PHOTO_MAX_EDGE, 1280),
+                    targetBytes: Math.min(options.targetBytes || QUICK_PHOTO_DATAURL_SOFT_CAP, 520000),
+                    quality: Math.min(options.quality || QUICK_PHOTO_JPEG_QUALITY, 0.7),
+                    minQuality: 0.45
+                };
+                const retry = await compressDataUrlForUpload(data, retryOptions);
+                if (retry && estimateDataUrlBytes(retry) <= maxUploadBytes) {
+                    data = retry;
+                } else if (retry && estimateDataUrlBytes(retry) < compressedSize) {
+                    data = retry;
+                }
+            }
+            const finalSize = estimateDataUrlBytes(data);
+            if (finalSize > maxUploadBytes) {
                 throw new Error('Не удалось сжать фото до приемлемого размера. Попробуйте кадр меньшего разрешения.');
             }
             return {
@@ -1273,7 +1481,7 @@
                 fileName: normalizeUploadedImageFileName(file.name, mime),
                 type: mime,
                 originalSize,
-                compressedSize,
+                compressedSize: finalSize,
                 wasLargeInput: originalSize > 8 * 1024 * 1024
             };
         }
@@ -1812,26 +2020,72 @@
         }
 
         /** Всегда перекодируем в JPEG, уменьшаем длинную сторону и при необходимости снижаем quality. */
-        function compressDataUrlForUpload(dataUrl, options = uploadPresetOptions('climb')) {
+        function loadImageElement(src, timeoutMs = 45000) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                let settled = false;
+                const timer = setTimeout(() => {
+                    if (settled) return;
+                    settled = true;
+                    reject(new Error('Таймаут декодирования изображения'));
+                }, timeoutMs);
+                img.onload = () => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timer);
+                    resolve(img);
+                };
+                img.onerror = () => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timer);
+                    reject(new Error('Не удалось декодировать изображение'));
+                };
+                img.src = src;
+            });
+        }
+
+        async function compressObjectUrlForUpload(objectUrl, options = uploadPresetOptions('climb')) {
+            const img = await loadImageElement(objectUrl);
+            return encodeImageSourceToUploadDataUrl(
+                img,
+                img.naturalWidth || img.width,
+                img.naturalHeight || img.height,
+                options
+            );
+        }
+
+        async function compressDataUrlForUpload(dataUrl, options = uploadPresetOptions('climb')) {
             if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
-                return Promise.resolve(dataUrl);
+                return dataUrl;
             }
             if (isHeicDataUrl(dataUrl)) {
-                return normalizeDisplayableDataUrl(dataUrl).then((normalized) => compressDataUrlForUpload(normalized, options));
+                const normalized = await normalizeDisplayableDataUrl(dataUrl);
+                return compressDataUrlForUpload(normalized, options);
             }
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.onload = () => {
-                    void encodeImageSourceToUploadDataUrl(
-                        img,
-                        img.naturalWidth || img.width,
-                        img.naturalHeight || img.height,
-                        options
-                    ).then((out) => resolve(out || dataUrl));
-                };
-                img.onerror = () => resolve(dataUrl);
-                img.src = dataUrl;
-            });
+            try {
+                // Для data: URL сначала bitmap/objectURL — без повторного dataURL-fallback (иначе рекурсия).
+                if (typeof fetch === 'function') {
+                    try {
+                        const blob = await fetch(dataUrl).then((res) => res.blob());
+                        const out = await compressImageBlobForUpload(blob, options, { allowDataUrlFallback: false });
+                        if (out) return out;
+                    } catch (err) {
+                        console.warn('dataURL bitmap compress failed', err);
+                    }
+                }
+                const img = await loadImageElement(dataUrl);
+                const out = await encodeImageSourceToUploadDataUrl(
+                    img,
+                    img.naturalWidth || img.width,
+                    img.naturalHeight || img.height,
+                    options
+                );
+                return out || '';
+            } catch (err) {
+                console.warn('compressDataUrlForUpload failed', err);
+                return '';
+            }
         }
 
         const downscaleDataUrlForUpload = compressDataUrlForUpload;
