@@ -70,6 +70,8 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS parking TEXT",
             "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS approach TEXT",
             "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS warnings TEXT",
+            "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION",
+            "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION",
             "ALTER TABLE routes ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0",
         ]
     else:
@@ -97,6 +99,8 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE sectors ADD COLUMN parking TEXT",
             "ALTER TABLE sectors ADD COLUMN approach TEXT",
             "ALTER TABLE sectors ADD COLUMN warnings TEXT",
+            "ALTER TABLE sectors ADD COLUMN latitude REAL",
+            "ALTER TABLE sectors ADD COLUMN longitude REAL",
             "ALTER TABLE routes ADD COLUMN sort_order INTEGER DEFAULT 0",
         ]
     with engine.begin() as conn:

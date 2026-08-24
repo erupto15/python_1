@@ -3296,6 +3296,8 @@
                 parking: s.parking || '',
                 approach: s.approach || '',
                 warnings: s.warnings || '',
+                latitude: s.latitude,
+                longitude: s.longitude,
                 createdAt: s.created_at,
                 updatedAt: s.updated_at
             };
@@ -5900,7 +5902,28 @@
                 return kind;
             }
 
+            formatLocationInput(lat, lng) {
+                const la = Number(lat);
+                const ln = Number(lng);
+                if (!Number.isFinite(la) || !Number.isFinite(ln)) return '';
+                return `${la}, ${ln}`;
+            }
+
+            parseLocationField(inputId, label = 'Местоположение') {
+                const el = document.getElementById(inputId);
+                const raw = String(el?.value || '').trim();
+                if (!raw) return { latitude: null, longitude: null };
+                const parsed = this.parseCoordinates(raw);
+                if (!parsed) {
+                    throw new Error(`${label}: укажите координаты как «широта, долгота»`);
+                }
+                return parsed;
+            }
+
             sectorMapCoordinate(sectorId) {
+                const sector = getSectors().find((s) => Number(s.id) === Number(sectorId));
+                const explicit = this.validMapCoord(sector?.latitude, sector?.longitude);
+                if (explicit) return explicit;
                 const points = [];
                 if (!APP_BOULDER_ONLY) {
                     getRoutes().forEach((r) => {
@@ -7676,26 +7699,8 @@
             }
 
             guideFieldRows(entity) {
-                const fields = [
-                    ['access', 'Доступ', 'fa-door-open'],
-                    ['season', 'Сезон', 'fa-cloud-sun'],
-                    ['parking', 'Парковка', 'fa-square-parking'],
-                    ['approach', 'Подход', 'fa-person-hiking'],
-                    ['warnings', 'Важно', 'fa-triangle-exclamation']
-                ];
-                return fields
-                    .map(([key, label, icon]) => {
-                        const value = String(entity?.[key] || '').trim();
-                        if (!value) return '';
-                        return `
-                            <div class="catalog-guide-field catalog-guide-field--${key}">
-                                <div class="catalog-guide-field-title"><i class="fas ${icon}"></i> ${label}</div>
-                                <div class="catalog-guide-field-text">${this.escapeHtml(value)}</div>
-                            </div>
-                        `;
-                    })
-                    .filter(Boolean)
-                    .join('');
+                // Guide-поля (доступ/сезон/парковка/…) убраны из UI районов и секторов.
+                return '';
             }
 
             renderActionBtn(variant, attrs) {
@@ -8425,13 +8430,7 @@
                 document.getElementById('areaId').value = '';
                 document.getElementById('areaName').value = '';
                 document.getElementById('areaDescription').value = '';
-                document.getElementById('areaAccess').value = '';
-                document.getElementById('areaSeason').value = '';
-                document.getElementById('areaParking').value = '';
-                document.getElementById('areaApproach').value = '';
-                document.getElementById('areaWarnings').value = '';
-                document.getElementById('areaLatitude').value = '';
-                document.getElementById('areaLongitude').value = '';
+                document.getElementById('areaLocation').value = '';
                 this.clearAreaDialogPhoto({ markRemove: false });
                 this.showDialog('areaDialog');
             }
@@ -8444,13 +8443,7 @@
                 document.getElementById('areaId').value = area.id;
                 document.getElementById('areaName').value = area.name;
                 document.getElementById('areaDescription').value = area.description || '';
-                document.getElementById('areaAccess').value = area.access || '';
-                document.getElementById('areaSeason').value = area.season || '';
-                document.getElementById('areaParking').value = area.parking || '';
-                document.getElementById('areaApproach').value = area.approach || '';
-                document.getElementById('areaWarnings').value = area.warnings || '';
-                document.getElementById('areaLatitude').value = area.latitude ?? '';
-                document.getElementById('areaLongitude').value = area.longitude ?? '';
+                document.getElementById('areaLocation').value = this.formatLocationInput(area.latitude, area.longitude);
                 this.areaPhotoData = null;
                 this.areaPhotoRemove = false;
                 const input = document.getElementById('areaPhoto');
@@ -8470,16 +8463,23 @@
                     this.showToast('Укажите название района', true);
                     return;
                 }
+                let location;
+                try {
+                    location = this.parseLocationField('areaLocation');
+                } catch (err) {
+                    this.showToast(err.message || 'Некорректное местоположение', true);
+                    return;
+                }
                 const payload = {
                     name,
                     description: document.getElementById('areaDescription').value.trim(),
-                    access: document.getElementById('areaAccess').value.trim() || null,
-                    season: document.getElementById('areaSeason').value.trim() || null,
-                    parking: document.getElementById('areaParking').value.trim() || null,
-                    approach: document.getElementById('areaApproach').value.trim() || null,
-                    warnings: document.getElementById('areaWarnings').value.trim() || null,
-                    latitude: document.getElementById('areaLatitude').value ? parseFloat(document.getElementById('areaLatitude').value) : null,
-                    longitude: document.getElementById('areaLongitude').value ? parseFloat(document.getElementById('areaLongitude').value) : null
+                    access: null,
+                    season: null,
+                    parking: null,
+                    approach: null,
+                    warnings: null,
+                    latitude: location.latitude,
+                    longitude: location.longitude
                 };
                 if (this.areaPhotoData?.data) {
                     payload.image_url = this.areaPhotoData.data;
@@ -8569,11 +8569,7 @@
                 document.getElementById('sectorAreaId').value = String(areaId);
                 document.getElementById('sectorName').value = '';
                 document.getElementById('sectorDescription').value = '';
-                document.getElementById('sectorAccess').value = '';
-                document.getElementById('sectorSeason').value = '';
-                document.getElementById('sectorParking').value = '';
-                document.getElementById('sectorApproach').value = '';
-                document.getElementById('sectorWarnings').value = '';
+                document.getElementById('sectorLocation').value = '';
                 this.showDialog('sectorDialog');
             }
 
@@ -8586,11 +8582,7 @@
                 document.getElementById('sectorAreaId').value = sector.areaId;
                 document.getElementById('sectorName').value = sector.name;
                 document.getElementById('sectorDescription').value = sector.description || '';
-                document.getElementById('sectorAccess').value = sector.access || '';
-                document.getElementById('sectorSeason').value = sector.season || '';
-                document.getElementById('sectorParking').value = sector.parking || '';
-                document.getElementById('sectorApproach').value = sector.approach || '';
-                document.getElementById('sectorWarnings').value = sector.warnings || '';
+                document.getElementById('sectorLocation').value = this.formatLocationInput(sector.latitude, sector.longitude);
                 this.showDialog('sectorDialog');
                 if (opts.focusDescription) {
                     requestAnimationFrame(() => document.getElementById('sectorDescription')?.focus());
@@ -8844,14 +8836,23 @@
                     this.showToast('Укажите название сектора', true);
                     return;
                 }
+                let location;
+                try {
+                    location = this.parseLocationField('sectorLocation');
+                } catch (err) {
+                    this.showToast(err.message || 'Некорректное местоположение', true);
+                    return;
+                }
                 const payload = {
                     name,
                     description: document.getElementById('sectorDescription').value.trim(),
-                    access: document.getElementById('sectorAccess').value.trim() || null,
-                    season: document.getElementById('sectorSeason').value.trim() || null,
-                    parking: document.getElementById('sectorParking').value.trim() || null,
-                    approach: document.getElementById('sectorApproach').value.trim() || null,
-                    warnings: document.getElementById('sectorWarnings').value.trim() || null
+                    access: null,
+                    season: null,
+                    parking: null,
+                    approach: null,
+                    warnings: null,
+                    latitude: location.latitude,
+                    longitude: location.longitude
                 };
                 try {
                     const savedSector = id

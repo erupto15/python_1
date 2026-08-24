@@ -680,29 +680,10 @@
                         <label class="form-label" for="areaDescription">Описание</label>
                         <textarea class="form-textarea" id="areaDescription" rows="2"></textarea>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label" for="areaAccess">Доступ</label>
-                            <textarea class="form-textarea" id="areaAccess" rows="2" placeholder="Пропуска, правила доступа, ограничения"></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="areaSeason">Сезон</label>
-                            <textarea class="form-textarea" id="areaSeason" rows="2" placeholder="Лучшее время, солнце, ветер, влажность"></textarea>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label" for="areaParking">Парковка</label>
-                            <textarea class="form-textarea" id="areaParking" rows="2" placeholder="Где оставить машину"></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="areaApproach">Подход</label>
-                            <textarea class="form-textarea" id="areaApproach" rows="2" placeholder="Как дойти до массива"></textarea>
-                        </div>
-                    </div>
                     <div class="form-group">
-                        <label class="form-label" for="areaWarnings">Предупреждения</label>
-                        <textarea class="form-textarea" id="areaWarnings" rows="2" placeholder="Опасности, запреты, важные замечания"></textarea>
+                        <label class="form-label" for="areaLocation">Местоположение</label>
+                        <input type="text" class="form-input" id="areaLocation" placeholder="61.110053, 29.165610" autocomplete="off">
+                        <p class="form-hint">Координаты для карты: широта, долгота</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="areaPhoto">Картинка района</label>
@@ -713,16 +694,6 @@
                             <button type="button" class="btn btn-secondary btn-small" id="areaPhotoRotateLeftBtn" title="Повернуть влево"><i class="fas fa-undo"></i> 90°</button>
                             <button type="button" class="btn btn-secondary btn-small" id="areaPhotoRotateRightBtn" title="Повернуть вправо"><i class="fas fa-redo"></i> 90°</button>
                             <button type="button" class="btn btn-danger btn-small" id="areaPhotoClearBtn"><i class="fas fa-trash"></i> Удалить картинку</button>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label" for="areaLatitude">Широта</label>
-                            <input type="number" class="form-input" id="areaLatitude" step="0.000001">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="areaLongitude">Долгота</label>
-                            <input type="number" class="form-input" id="areaLongitude" step="0.000001">
                         </div>
                     </div>
                 </form>
@@ -755,29 +726,10 @@
                         <label class="form-label" for="sectorDescription">Описание</label>
                         <textarea class="form-textarea" id="sectorDescription" rows="2"></textarea>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label" for="sectorAccess">Доступ</label>
-                            <textarea class="form-textarea" id="sectorAccess" rows="2" placeholder="Особенности доступа к сектору"></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="sectorSeason">Сезон</label>
-                            <textarea class="form-textarea" id="sectorSeason" rows="2" placeholder="Когда сектор лучше всего работает"></textarea>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label" for="sectorParking">Парковка</label>
-                            <textarea class="form-textarea" id="sectorParking" rows="2" placeholder="Ближайшая парковка или ориентир"></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="sectorApproach">Подход</label>
-                            <textarea class="form-textarea" id="sectorApproach" rows="2" placeholder="Подход от парковки / тропы"></textarea>
-                        </div>
-                    </div>
                     <div class="form-group">
-                        <label class="form-label" for="sectorWarnings">Предупреждения</label>
-                        <textarea class="form-textarea" id="sectorWarnings" rows="2" placeholder="Камнепад, ограничения, локальная этика"></textarea>
+                        <label class="form-label" for="sectorLocation">Местоположение</label>
+                        <input type="text" class="form-input" id="sectorLocation" placeholder="61.110053, 29.165610" autocomplete="off">
+                        <p class="form-hint">Координаты для карты: широта, долгота</p>
                     </div>
                 </form>
             </div>

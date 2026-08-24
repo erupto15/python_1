@@ -127,6 +127,8 @@ class SectorCreate(BaseModel):
     parking: Optional[str] = None
     approach: Optional[str] = None
     warnings: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     created_by: Optional[str] = None
 
 
@@ -138,6 +140,8 @@ class SectorUpdate(BaseModel):
     parking: Optional[str] = None
     approach: Optional[str] = None
     warnings: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class SectorRead(BaseModel):
@@ -152,6 +156,8 @@ class SectorRead(BaseModel):
     parking: Optional[str]
     approach: Optional[str]
     warnings: Optional[str]
+    latitude: Optional[float]
+    longitude: Optional[float]
     created_by: Optional[str]
     created_at: datetime
     updated_at: datetime
