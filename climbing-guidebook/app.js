@@ -2036,35 +2036,62 @@
                                 ctx.fill();
                             }
                         };
-                        const drawHoldHand = (p, text, mirror = false) => {
+                        const drawPawEllipse = (cx, cy, rx, ry, colorStops) => {
+                            const grd = ctx.createRadialGradient(
+                                cx - rx * 0.35, cy - ry * 0.4, Math.max(1, rx * 0.08),
+                                cx, cy, Math.max(rx, ry)
+                            );
+                            colorStops.forEach(([t, c]) => grd.addColorStop(t, c));
+                            ctx.beginPath();
+                            ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+                            ctx.fillStyle = grd;
+                            ctx.fill();
+                            ctx.strokeStyle = 'rgba(120, 20, 60, 0.25)';
+                            ctx.lineWidth = 1.2;
+                            ctx.stroke();
+                            ctx.beginPath();
+                            ctx.ellipse(cx - rx * 0.22, cy - ry * 0.32, rx * 0.38, ry * 0.28, 0, 0, Math.PI * 2);
+                            ctx.fillStyle = 'rgba(255,255,255,0.55)';
+                            ctx.fill();
+                        };
+                        const drawHoldPaw = (p, text, mirror = false) => {
                             const q = toPx(p);
                             if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return;
-                            const size = Math.max(16, Math.round(Math.min(w, h) * 0.012));
-                            const path = new Path2D(topoHoldHandPathD());
+                            const size = Math.max(28, Math.round(Math.min(w, h) * 0.028));
                             ctx.save();
                             ctx.translate(q.x, q.y);
                             ctx.scale((mirror ? -size : size) / 100, size / 100);
-                            ctx.translate(-50, -52);
-                            ctx.lineJoin = 'round';
-                            ctx.lineCap = 'round';
-                            ctx.strokeStyle = TOPO_MARKUP.holdStroke;
-                            ctx.lineWidth = Math.max(3.4, (TOPO_MARKUP.holdStrokePx / size) * 100);
-                            ctx.stroke(path);
+                            ctx.translate(-50, -48);
+                            ctx.shadowColor = 'rgba(0,0,0,0.45)';
+                            ctx.shadowBlur = 4;
+                            ctx.shadowOffsetY = 1.5;
+                            TOPO_PAW_TOES.forEach((t) => {
+                                drawPawEllipse(t.cx, t.cy, t.rx, t.ry, [
+                                    [0, '#ffeaf2'],
+                                    [0.48, '#ff8fbf'],
+                                    [1, '#c2185b']
+                                ]);
+                            });
+                            drawPawEllipse(TOPO_PAW_MAIN.cx, TOPO_PAW_MAIN.cy, TOPO_PAW_MAIN.rx, TOPO_PAW_MAIN.ry, [
+                                [0, '#ffe0ec'],
+                                [0.42, '#ff7eb3'],
+                                [1, '#d81b60']
+                            ]);
                             ctx.restore();
                             if (text) {
                                 ctx.fillStyle = TOPO_MARKUP.holdLabelColor;
-                                ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+                                ctx.strokeStyle = 'rgba(0,0,0,0.65)';
                                 ctx.lineWidth = 3;
-                                ctx.font = `700 ${Math.max(8, Math.round(size * 0.36))}px system-ui, sans-serif`;
+                                ctx.font = `700 ${Math.max(10, Math.round(size * 0.28))}px system-ui, sans-serif`;
                                 ctx.textAlign = 'center';
                                 ctx.textBaseline = 'top';
-                                ctx.strokeText(text, q.x, q.y + size * 0.55);
-                                ctx.fillText(text, q.x, q.y + size * 0.55);
+                                ctx.strokeText(text, q.x, q.y + size * 0.52);
+                                ctx.fillText(text, q.x, q.y + size * 0.52);
                             }
                         };
                         const drawLabeledHold = (p, text) => {
                             const mirror = /финиш|finish/i.test(String(text || ''));
-                            drawHoldHand(p, text, mirror);
+                            drawHoldPaw(p, text, mirror);
                         };
 
                         if (climbType === 'route') {
@@ -4138,42 +4165,185 @@
         /** Тап vs проведение пальцем/мышью (px). */
         const MARKUP_TAP_MAX_MOVE_PX = 14;
 
-        /** Общий стиль топо-разметки: тонкая линия, руки-зацепы старт/финиш. */
+        /** Общий стиль топо-разметки: тонкая линия, 3D-лапки старт/финиш. */
         const TOPO_MARKUP = {
-            holdDiameterPx: 14,
-            holdRadiusPx: 7,
-            labeledHoldDiameterPx: 22,
-            labeledHoldRadiusPx: 11,
-            holdStrokePx: 1.75,
-            holdFill: 'none',
-            holdStroke: '#d32f2f',
-            holdNumberColor: '#c62828',
-            holdLabelColor: '#b71c1c',
+            holdDiameterPx: 28,
+            holdRadiusPx: 14,
+            labeledHoldDiameterPx: 40,
+            labeledHoldRadiusPx: 20,
+            holdStrokePx: 1.5,
+            holdFill: '#ff7eb3',
+            holdStroke: '#e83e8c',
+            holdNumberColor: '#ffffff',
+            holdLabelColor: '#ffe4ef',
             lineStrokePx: 2,
             lineColor: '#d32f2f',
             lineEndDotPx: 8,
             lineEndArrowLenPx: 14,
             lineEndArrowWingPx: 8,
-            hitRadiusPx: 14,
+            hitRadiusPx: 22,
             linePointDiameterPx: 8
         };
         const BOULDER_MARKUP = TOPO_MARKUP;
 
-        /**
-         * Силуэт руки, хватающей скалу (viewBox 0 0 100 100, центр ~50,52).
-         * Пальцы вниз — как будто тони вцепляются в зацеп.
-         */
-        const TOPO_HOLD_HAND_PATH =
-            'M50 14c-10 0-17 8-18 18l-1 14c-9-2-16 4-16 13 0 8 7 13 15 10'
-            + 'l1 11c-3 7 1 14 8 13l4 7c4 5 12 3 12-4l1-6c3 7 12 8 16 1l2-7'
-            + 'c4 7 13 5 13-4l-2-22c8-3 11-13 5-20-5-5-13-2-16 4l-2-10C71 21 62 14 50 14Z';
-
-        function topoHoldHandPathD() {
-            return TOPO_HOLD_HAND_PATH;
-        }
+        /** Геометрия лапки в viewBox 0 0 100 100 (центр ~50,48). */
+        const TOPO_PAW_MAIN = { cx: 50, cy: 64, rx: 28, ry: 23 };
+        const TOPO_PAW_TOES = [
+            { cx: 27, cy: 34, rx: 11, ry: 14 },
+            { cx: 42, cy: 23, rx: 11.5, ry: 14.5 },
+            { cx: 58, cy: 23, rx: 11.5, ry: 14.5 },
+            { cx: 73, cy: 34, rx: 11, ry: 14 }
+        ];
 
         function topoHoldSizePx(labeled = false) {
             return labeled ? TOPO_MARKUP.labeledHoldDiameterPx : TOPO_MARKUP.holdDiameterPx;
+        }
+
+        function ensureTopoPawDefs(svg, NS) {
+            const existing = svg.querySelector('[data-topo-paw-defs="1"]');
+            if (existing) {
+                return {
+                    pad: existing.getAttribute('data-pad-id'),
+                    toe: existing.getAttribute('data-toe-id'),
+                    shadow: existing.getAttribute('data-shadow-id')
+                };
+            }
+            const uid = `p${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
+            const padId = `topo-paw-pad-${uid}`;
+            const toeId = `topo-paw-toe-${uid}`;
+            const shadowId = `topo-paw-shadow-${uid}`;
+
+            const defs = document.createElementNS(NS, 'defs');
+            defs.setAttribute('data-topo-paw-defs', '1');
+            defs.setAttribute('data-pad-id', padId);
+            defs.setAttribute('data-toe-id', toeId);
+            defs.setAttribute('data-shadow-id', shadowId);
+
+            const padGrad = document.createElementNS(NS, 'radialGradient');
+            padGrad.setAttribute('id', padId);
+            padGrad.setAttribute('cx', '32%');
+            padGrad.setAttribute('cy', '28%');
+            padGrad.setAttribute('r', '78%');
+            [
+                ['0%', '#ffe0ec'],
+                ['42%', '#ff7eb3'],
+                ['100%', '#d81b60']
+            ].forEach(([offset, color]) => {
+                const stop = document.createElementNS(NS, 'stop');
+                stop.setAttribute('offset', offset);
+                stop.setAttribute('stop-color', color);
+                padGrad.appendChild(stop);
+            });
+            defs.appendChild(padGrad);
+
+            const toeGrad = document.createElementNS(NS, 'radialGradient');
+            toeGrad.setAttribute('id', toeId);
+            toeGrad.setAttribute('cx', '34%');
+            toeGrad.setAttribute('cy', '28%');
+            toeGrad.setAttribute('r', '75%');
+            [
+                ['0%', '#ffeaf2'],
+                ['48%', '#ff8fbf'],
+                ['100%', '#c2185b']
+            ].forEach(([offset, color]) => {
+                const stop = document.createElementNS(NS, 'stop');
+                stop.setAttribute('offset', offset);
+                stop.setAttribute('stop-color', color);
+                toeGrad.appendChild(stop);
+            });
+            defs.appendChild(toeGrad);
+
+            const shadow = document.createElementNS(NS, 'filter');
+            shadow.setAttribute('id', shadowId);
+            shadow.setAttribute('x', '-35%');
+            shadow.setAttribute('y', '-35%');
+            shadow.setAttribute('width', '170%');
+            shadow.setAttribute('height', '170%');
+            const fe = document.createElementNS(NS, 'feDropShadow');
+            fe.setAttribute('dx', '0');
+            fe.setAttribute('dy', '1.6');
+            fe.setAttribute('stdDeviation', '1.8');
+            fe.setAttribute('flood-color', '#000');
+            fe.setAttribute('flood-opacity', '0.55');
+            shadow.appendChild(fe);
+            defs.appendChild(shadow);
+
+            svg.insertBefore(defs, svg.firstChild);
+            return { pad: padId, toe: toeId, shadow: shadowId };
+        }
+
+        function appendTopoPawShapes(parent, NS, ids) {
+            const padFill = ids?.pad ? `url(#${ids.pad})` : TOPO_MARKUP.holdFill;
+            const toeFill = ids?.toe ? `url(#${ids.toe})` : TOPO_MARKUP.holdFill;
+
+            TOPO_PAW_TOES.forEach((toe) => {
+                const el = document.createElementNS(NS, 'ellipse');
+                el.setAttribute('class', 'topo-hold-paw-toe');
+                el.setAttribute('cx', String(toe.cx));
+                el.setAttribute('cy', String(toe.cy));
+                el.setAttribute('rx', String(toe.rx));
+                el.setAttribute('ry', String(toe.ry));
+                el.setAttribute('fill', toeFill);
+                el.setAttribute('stroke', 'rgba(120, 20, 60, 0.22)');
+                el.setAttribute('stroke-width', '1.2');
+                parent.appendChild(el);
+
+                const hi = document.createElementNS(NS, 'ellipse');
+                hi.setAttribute('class', 'topo-hold-paw-highlight');
+                hi.setAttribute('cx', String(toe.cx - toe.rx * 0.22));
+                hi.setAttribute('cy', String(toe.cy - toe.ry * 0.32));
+                hi.setAttribute('rx', String(toe.rx * 0.38));
+                hi.setAttribute('ry', String(toe.ry * 0.28));
+                hi.setAttribute('fill', 'rgba(255,255,255,0.55)');
+                parent.appendChild(hi);
+            });
+
+            const pad = document.createElementNS(NS, 'ellipse');
+            pad.setAttribute('class', 'topo-hold-paw-pad');
+            pad.setAttribute('cx', String(TOPO_PAW_MAIN.cx));
+            pad.setAttribute('cy', String(TOPO_PAW_MAIN.cy));
+            pad.setAttribute('rx', String(TOPO_PAW_MAIN.rx));
+            pad.setAttribute('ry', String(TOPO_PAW_MAIN.ry));
+            pad.setAttribute('fill', padFill);
+            pad.setAttribute('stroke', 'rgba(120, 20, 60, 0.25)');
+            pad.setAttribute('stroke-width', '1.4');
+            parent.appendChild(pad);
+
+            const padHi = document.createElementNS(NS, 'ellipse');
+            padHi.setAttribute('class', 'topo-hold-paw-highlight');
+            padHi.setAttribute('cx', String(TOPO_PAW_MAIN.cx - 8));
+            padHi.setAttribute('cy', String(TOPO_PAW_MAIN.cy - 8));
+            padHi.setAttribute('rx', '12');
+            padHi.setAttribute('ry', '8');
+            padHi.setAttribute('fill', 'rgba(255,255,255,0.5)');
+            parent.appendChild(padHi);
+        }
+
+        function topoPawMarkerSvgHtml(idSuffix = 'ui') {
+            const padId = `hold-paw-pad-${idSuffix}`;
+            const toeId = `hold-paw-toe-${idSuffix}`;
+            return `
+                <svg class="hold-paw-icon" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+                    <defs>
+                        <radialGradient id="${padId}" cx="32%" cy="28%" r="78%">
+                            <stop offset="0%" stop-color="#ffe0ec"/>
+                            <stop offset="42%" stop-color="#ff7eb3"/>
+                            <stop offset="100%" stop-color="#d81b60"/>
+                        </radialGradient>
+                        <radialGradient id="${toeId}" cx="34%" cy="28%" r="75%">
+                            <stop offset="0%" stop-color="#ffeaf2"/>
+                            <stop offset="48%" stop-color="#ff8fbf"/>
+                            <stop offset="100%" stop-color="#c2185b"/>
+                        </radialGradient>
+                    </defs>
+                    ${TOPO_PAW_TOES.map((t) => `
+                        <ellipse cx="${t.cx}" cy="${t.cy}" rx="${t.rx}" ry="${t.ry}" fill="url(#${toeId})" stroke="rgba(120,20,60,0.22)" stroke-width="1.2"/>
+                        <ellipse cx="${t.cx - t.rx * 0.22}" cy="${t.cy - t.ry * 0.32}" rx="${t.rx * 0.38}" ry="${t.ry * 0.28}" fill="rgba(255,255,255,0.55)"/>
+                    `).join('')}
+                    <ellipse cx="${TOPO_PAW_MAIN.cx}" cy="${TOPO_PAW_MAIN.cy}" rx="${TOPO_PAW_MAIN.rx}" ry="${TOPO_PAW_MAIN.ry}" fill="url(#${padId})" stroke="rgba(120,20,60,0.25)" stroke-width="1.4"/>
+                    <ellipse cx="${TOPO_PAW_MAIN.cx - 8}" cy="${TOPO_PAW_MAIN.cy - 8}" rx="12" ry="8" fill="rgba(255,255,255,0.5)"/>
+                </svg>
+            `;
         }
 
         function topoHoldRadiusNorm(geom, labeled = false) {
@@ -4302,45 +4472,38 @@
             const ih = geom?.ih > 0 ? geom.ih : iw;
             const scaleX = sizePx / iw;
             const scaleY = sizePx / ih;
-            const swPath = Math.max(3.4, (TOPO_MARKUP.holdStrokePx / sizePx) * 100);
             const mirror = options.mirror === true
                 || /финиш|finish/i.test(String(labelText || ''));
 
+            const pawIds = ensureTopoPawDefs(svg, NS);
+
             const g = document.createElementNS(NS, 'g');
-            g.setAttribute('class', labeled ? 'topo-hold topo-hold--labeled topo-hold-hand' : 'topo-hold topo-hold-hand');
+            g.setAttribute('class', labeled ? 'topo-hold topo-hold--labeled topo-hold-paw' : 'topo-hold topo-hold-paw');
             g.setAttribute('transform', `translate(${nx} ${ny})`);
             g.setAttribute('pointer-events', 'none');
 
-            const handG = document.createElementNS(NS, 'g');
+            const pawG = document.createElementNS(NS, 'g');
             const sx = mirror ? -scaleX : scaleX;
-            handG.setAttribute('transform', `scale(${sx} ${scaleY}) translate(-50 -52)`);
-
-            const path = document.createElementNS(NS, 'path');
-            path.setAttribute('class', 'topo-hold-hand-path');
-            path.setAttribute('d', topoHoldHandPathD());
-            path.setAttribute('fill', 'none');
-            path.setAttribute('stroke', TOPO_MARKUP.holdStroke);
-            path.setAttribute('stroke-width', String(swPath));
-            path.setAttribute('stroke-linejoin', 'round');
-            path.setAttribute('stroke-linecap', 'round');
-            handG.appendChild(path);
-            g.appendChild(handG);
+            pawG.setAttribute('transform', `scale(${sx} ${scaleY}) translate(-50 -48)`);
+            if (pawIds.shadow) pawG.setAttribute('filter', `url(#${pawIds.shadow})`);
+            appendTopoPawShapes(pawG, NS, pawIds);
+            g.appendChild(pawG);
 
             if (labeled || options.index != null) {
                 const label = document.createElementNS(NS, 'text');
                 label.setAttribute('class', labeled ? 'topo-hold-label' : 'topo-hold-num');
                 label.setAttribute('x', '0');
-                label.setAttribute('y', String(scaleY * 58));
+                label.setAttribute('y', String(scaleY * 56));
                 label.setAttribute('text-anchor', 'middle');
                 label.setAttribute('dominant-baseline', 'hanging');
                 label.setAttribute('fill', labeled ? TOPO_MARKUP.holdLabelColor : TOPO_MARKUP.holdNumberColor);
-                const fontPx = labeled ? 8 : 7;
+                const fontPx = labeled ? 9 : 8;
                 label.setAttribute('font-size', String(topoStrokeNorm(geom, fontPx)));
                 label.setAttribute('font-weight', '700');
                 label.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, sans-serif');
                 label.setAttribute('paint-order', 'stroke');
-                label.setAttribute('stroke', 'rgba(0,0,0,0.55)');
-                label.setAttribute('stroke-width', String(topoStrokeNorm(geom, 2.5)));
+                label.setAttribute('stroke', 'rgba(0,0,0,0.65)');
+                label.setAttribute('stroke-width', String(topoStrokeNorm(geom, 2.8)));
                 label.setAttribute('pointer-events', 'none');
                 label.textContent = labeled ? labelText : String((options.index ?? 0) + 1);
                 g.appendChild(label);
@@ -11756,17 +11919,13 @@
                         if (!hold) return;
                         const pos = markupPxFromNorm(hold.x, hold.y, geom);
                         const marker = document.createElement('div');
-                        marker.className = 'hold-marker hold-marker--labeled hold-marker--hand';
+                        marker.className = 'hold-marker hold-marker--labeled hold-marker--paw';
                         marker.style.left = `${pos.x}px`;
                         marker.style.top = `${pos.y}px`;
                         marker.dataset.role = roleKey;
                         if (roleKey === 'finishHold') marker.classList.add('hold-marker--mirror');
 
-                        marker.innerHTML = `
-                            <svg class="hold-hand-icon" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-                                <path d="${topoHoldHandPathD()}" fill="none" stroke="currentColor" stroke-width="5.2" stroke-linejoin="round" stroke-linecap="round"></path>
-                            </svg>
-                        `;
+                        marker.innerHTML = topoPawMarkerSvgHtml(roleKey);
 
                         const labelEl = document.createElement('div');
                         labelEl.className = 'hold-label';

@@ -1178,11 +1178,11 @@
             background-color: #ff5252;
         }
 
-        /* Боулдеринг: рука-захват, прозрачная с красным контуром */
+        /* Боулдеринг: 3D-лапка старт/финиш */
         .hold-marker {
             position: absolute;
-            width: 14px;
-            height: 14px;
+            width: 28px;
+            height: 28px;
             background-color: transparent;
             border: none;
             border-radius: 0;
@@ -1190,31 +1190,32 @@
             cursor: move;
             z-index: 10;
             box-shadow: none;
-            color: #d32f2f;
-            transition: transform 0.15s, color 0.15s, filter 0.15s;
-            filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55));
+            color: #ff7eb3;
+            transition: transform 0.15s, filter 0.15s;
+            filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
         }
 
         .hold-marker:hover {
             transform: translate(-50%, -50%) scale(1.1);
-            color: #b71c1c;
         }
 
         .hold-marker.active {
-            color: #b71c1c;
             transform: translate(-50%, -50%) scale(1.14);
         }
 
-        .hold-marker--hand {
-            width: 22px;
-            height: 22px;
+        .hold-marker--hand,
+        .hold-marker--paw {
+            width: 40px;
+            height: 40px;
         }
 
-        .hold-marker--mirror .hold-hand-icon {
+        .hold-marker--mirror .hold-hand-icon,
+        .hold-marker--mirror .hold-paw-icon {
             transform: scaleX(-1);
         }
 
-        .hold-hand-icon {
+        .hold-hand-icon,
+        .hold-paw-icon {
             display: block;
             width: 100%;
             height: 100%;
@@ -1256,8 +1257,8 @@
         }
 
         .hold-marker--labeled {
-            width: 22px;
-            height: 22px;
+            width: 40px;
+            height: 40px;
         }
 
         .hold-label {
@@ -1265,14 +1266,14 @@
             top: calc(100% + 1px);
             left: 50%;
             transform: translate(-50%, 0);
-            color: #ffcdd2;
-            font-size: 8px;
+            color: #ffe4ef;
+            font-size: 9px;
             font-weight: 700;
             line-height: 1.05;
             text-align: center;
             pointer-events: none;
             user-select: none;
-            max-width: 48px;
+            max-width: 56px;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
             white-space: nowrap;
         }
@@ -1878,11 +1879,6 @@
         .photo-markup-overlay .topo-line-end-dot,
         .photo-markup-overlay .topo-line-end-arrow {
             filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.85)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
-        }
-
-        .photo-markup-overlay .topo-hold,
-        .photo-markup-overlay .topo-hold-hand-path {
-            filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.75)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
         }
 
         .photo-wrap {
