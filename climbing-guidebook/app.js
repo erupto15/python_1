@@ -2057,13 +2057,16 @@
                         const drawHoldPaw = (p, text, mirror = false) => {
                             const q = toPx(p);
                             if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return;
-                            const size = Math.max(18, Math.round(Math.min(w, h) * 0.014));
+                            const size = Math.max(16, Math.min(
+                                TOPO_MARKUP.labeledHoldDiameterPx,
+                                Math.round(Math.min(w, h) * 0.07)
+                            ));
                             ctx.save();
                             ctx.translate(q.x, q.y);
                             ctx.scale((mirror ? -size : size) / 100, size / 100);
                             ctx.translate(-50, -48);
-                            ctx.shadowColor = 'rgba(0,0,0,0.35)';
-                            ctx.shadowBlur = 1.5;
+                            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                            ctx.shadowBlur = 1;
                             ctx.shadowOffsetY = 0.5;
                             TOPO_PAW_TOES.forEach((t) => {
                                 drawPawEllipse(t.cx, t.cy, t.rx, t.ry, [
@@ -4165,13 +4168,13 @@
         /** Тап vs проведение пальцем/мышью (px). */
         const MARKUP_TAP_MAX_MOVE_PX = 14;
 
-        /** Общий стиль топо-разметки: тонкая линия, компактные 3D-лапки старт/финиш (как старые кружки). */
+        /** Общий стиль топо-разметки: тонкая линия, лапки старт/финиш = размер старых кружков. */
         const TOPO_MARKUP = {
-            holdDiameterPx: 22,
-            holdRadiusPx: 11,
-            labeledHoldDiameterPx: 24,
-            labeledHoldRadiusPx: 12,
-            holdStrokePx: 1.5,
+            holdDiameterPx: 28,
+            holdRadiusPx: 14,
+            labeledHoldDiameterPx: 28,
+            labeledHoldRadiusPx: 14,
+            holdStrokePx: 2,
             holdFill: '#ff7eb3',
             holdStroke: '#e83e8c',
             holdNumberColor: '#ffffff',
@@ -4449,11 +4452,13 @@
             if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
             const labelText = options.label || null;
             const labeled = !!labelText;
-            const sizePx = topoHoldSizePx(labeled);
+            // Как у старых кружков: радиус в долях кадра (px / iw), диаметр = 2r.
+            // Жёсткий потолок — лапка не больше ~7% ширины фото.
+            const r = Math.min(topoHoldRadiusNorm(geom, labeled), 0.035);
             const iw = geom?.iw > 0 ? geom.iw : 400;
             const ih = geom?.ih > 0 ? geom.ih : iw;
-            const scaleX = sizePx / iw;
-            const scaleY = sizePx / ih;
+            const diamX = 2 * r;
+            const diamY = 2 * r * (iw / ih);
             const mirror = options.mirror === true
                 || /финиш|finish/i.test(String(labelText || ''));
 
@@ -4465,8 +4470,8 @@
             g.setAttribute('pointer-events', 'none');
 
             const pawG = document.createElementNS(NS, 'g');
-            const sx = mirror ? -scaleX : scaleX;
-            pawG.setAttribute('transform', `scale(${sx} ${scaleY}) translate(-50 -48)`);
+            const sx = mirror ? -diamX : diamX;
+            pawG.setAttribute('transform', `scale(${sx} ${diamY}) translate(-50 -48)`);
             appendTopoPawShapes(pawG, NS, pawIds);
             g.appendChild(pawG);
 
@@ -4474,17 +4479,19 @@
                 const label = document.createElementNS(NS, 'text');
                 label.setAttribute('class', labeled ? 'topo-hold-label' : 'topo-hold-num');
                 label.setAttribute('x', '0');
-                label.setAttribute('y', String(scaleY * 56));
+                label.setAttribute('y', String(diamY * 52));
                 label.setAttribute('text-anchor', 'middle');
                 label.setAttribute('dominant-baseline', 'hanging');
                 label.setAttribute('fill', labeled ? TOPO_MARKUP.holdLabelColor : TOPO_MARKUP.holdNumberColor);
-                const fontPx = labeled ? 9 : 8;
+                const fontPx = labeled
+                    ? Math.max(7, TOPO_MARKUP.labeledHoldRadiusPx * 0.38)
+                    : TOPO_MARKUP.holdRadiusPx * 0.88;
                 label.setAttribute('font-size', String(topoStrokeNorm(geom, fontPx)));
                 label.setAttribute('font-weight', '700');
                 label.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, sans-serif');
                 label.setAttribute('paint-order', 'stroke');
                 label.setAttribute('stroke', 'rgba(0,0,0,0.65)');
-                label.setAttribute('stroke-width', String(topoStrokeNorm(geom, 2.8)));
+                label.setAttribute('stroke-width', String(topoStrokeNorm(geom, 2.2)));
                 label.setAttribute('pointer-events', 'none');
                 label.textContent = labeled ? labelText : String((options.index ?? 0) + 1);
                 g.appendChild(label);
