@@ -2057,9 +2057,9 @@
                         const drawHoldPaw = (p, text, mirror = false) => {
                             const q = toPx(p);
                             if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return;
-                            const size = Math.max(16, Math.min(
+                            const size = Math.max(8, Math.min(
                                 TOPO_MARKUP.labeledHoldDiameterPx,
-                                Math.round(Math.min(w, h) * 0.07)
+                                Math.round(Math.min(w, h) * 0.024)
                             ));
                             ctx.save();
                             ctx.translate(q.x, q.y);
@@ -4168,13 +4168,13 @@
         /** Тап vs проведение пальцем/мышью (px). */
         const MARKUP_TAP_MAX_MOVE_PX = 14;
 
-        /** Общий стиль топо-разметки: тонкая линия, лапки старт/финиш = размер старых кружков. */
+        /** Общий стиль топо-разметки: тонкая линия, лапки старт/финиш = 4px (как компактные кружки). */
         const TOPO_MARKUP = {
-            holdDiameterPx: 28,
-            holdRadiusPx: 14,
-            labeledHoldDiameterPx: 28,
-            labeledHoldRadiusPx: 14,
-            holdStrokePx: 2,
+            holdDiameterPx: 8,
+            holdRadiusPx: 4,
+            labeledHoldDiameterPx: 8,
+            labeledHoldRadiusPx: 4,
+            holdStrokePx: 1.25,
             holdFill: '#ff7eb3',
             holdStroke: '#e83e8c',
             holdNumberColor: '#ffffff',
@@ -4184,7 +4184,7 @@
             lineEndDotPx: 8,
             lineEndArrowLenPx: 14,
             lineEndArrowWingPx: 8,
-            hitRadiusPx: 14,
+            hitRadiusPx: 12,
             linePointDiameterPx: 8
         };
         const BOULDER_MARKUP = TOPO_MARKUP;
@@ -4454,7 +4454,7 @@
             const labeled = !!labelText;
             // Как у старых кружков: радиус в долях кадра (px / iw), диаметр = 2r.
             // Жёсткий потолок — лапка не больше ~7% ширины фото.
-            const r = Math.min(topoHoldRadiusNorm(geom, labeled), 0.035);
+            const r = Math.min(topoHoldRadiusNorm(geom, labeled), 0.012);
             const iw = geom?.iw > 0 ? geom.iw : 400;
             const ih = geom?.ih > 0 ? geom.ih : iw;
             const diamX = 2 * r;
