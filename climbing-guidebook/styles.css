@@ -3610,8 +3610,20 @@
             display: flex;
             flex-wrap: wrap;
             justify-content: flex-end;
+            align-items: center;
             gap: 8px;
             margin: 0 0 12px;
+        }
+
+        .climb-detail-admin-row .row-action-group {
+            display: inline-flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #climbDetailEditMarkupBtn {
+            white-space: nowrap;
         }
 
         @media (max-width: 520px) {
