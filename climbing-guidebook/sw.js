@@ -1,5 +1,5 @@
 /* Service Worker: только оболочка Mini App (index.html). API не перехватываем — иначе зависает старт. */
-const SHELL_CACHE = 'guidebook-shell-v4';
+const SHELL_CACHE = 'guidebook-shell-v5';
 const SHELL_URLS = ['/', '/index.html', '/styles.css', '/boot.js', '/telegram-web-app.js'];
 
 function fetchWithTimeout(request, ms) {

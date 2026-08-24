@@ -1178,11 +1178,11 @@
             background-color: #ff5252;
         }
 
-        /* Боулдеринг: 3D-лапка старт/финиш */
+        /* Боулдеринг: компактная 3D-лапка старт/финиш (~размер старых кружков) */
         .hold-marker {
             position: absolute;
-            width: 28px;
-            height: 28px;
+            width: 22px;
+            height: 22px;
             background-color: transparent;
             border: none;
             border-radius: 0;
@@ -1192,7 +1192,7 @@
             box-shadow: none;
             color: #ff7eb3;
             transition: transform 0.15s, filter 0.15s;
-            filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+            filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
         }
 
         .hold-marker:hover {
@@ -1205,8 +1205,8 @@
 
         .hold-marker--hand,
         .hold-marker--paw {
-            width: 40px;
-            height: 40px;
+            width: 24px;
+            height: 24px;
         }
 
         .hold-marker--mirror .hold-hand-icon,
@@ -1257,8 +1257,8 @@
         }
 
         .hold-marker--labeled {
-            width: 40px;
-            height: 40px;
+            width: 24px;
+            height: 24px;
         }
 
         .hold-label {
@@ -1267,13 +1267,13 @@
             left: 50%;
             transform: translate(-50%, 0);
             color: #ffe4ef;
-            font-size: 9px;
+            font-size: 8px;
             font-weight: 700;
             line-height: 1.05;
             text-align: center;
             pointer-events: none;
             user-select: none;
-            max-width: 56px;
+            max-width: 48px;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
             white-space: nowrap;
         }

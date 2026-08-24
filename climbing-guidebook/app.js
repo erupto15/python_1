@@ -2057,14 +2057,14 @@
                         const drawHoldPaw = (p, text, mirror = false) => {
                             const q = toPx(p);
                             if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return;
-                            const size = Math.max(28, Math.round(Math.min(w, h) * 0.028));
+                            const size = Math.max(18, Math.round(Math.min(w, h) * 0.014));
                             ctx.save();
                             ctx.translate(q.x, q.y);
                             ctx.scale((mirror ? -size : size) / 100, size / 100);
                             ctx.translate(-50, -48);
-                            ctx.shadowColor = 'rgba(0,0,0,0.45)';
-                            ctx.shadowBlur = 4;
-                            ctx.shadowOffsetY = 1.5;
+                            ctx.shadowColor = 'rgba(0,0,0,0.35)';
+                            ctx.shadowBlur = 1.5;
+                            ctx.shadowOffsetY = 0.5;
                             TOPO_PAW_TOES.forEach((t) => {
                                 drawPawEllipse(t.cx, t.cy, t.rx, t.ry, [
                                     [0, '#ffeaf2'],
@@ -4165,12 +4165,12 @@
         /** Тап vs проведение пальцем/мышью (px). */
         const MARKUP_TAP_MAX_MOVE_PX = 14;
 
-        /** Общий стиль топо-разметки: тонкая линия, 3D-лапки старт/финиш. */
+        /** Общий стиль топо-разметки: тонкая линия, компактные 3D-лапки старт/финиш (как старые кружки). */
         const TOPO_MARKUP = {
-            holdDiameterPx: 28,
-            holdRadiusPx: 14,
-            labeledHoldDiameterPx: 40,
-            labeledHoldRadiusPx: 20,
+            holdDiameterPx: 22,
+            holdRadiusPx: 11,
+            labeledHoldDiameterPx: 24,
+            labeledHoldRadiusPx: 12,
             holdStrokePx: 1.5,
             holdFill: '#ff7eb3',
             holdStroke: '#e83e8c',
@@ -4181,7 +4181,7 @@
             lineEndDotPx: 8,
             lineEndArrowLenPx: 14,
             lineEndArrowWingPx: 8,
-            hitRadiusPx: 22,
+            hitRadiusPx: 14,
             linePointDiameterPx: 8
         };
         const BOULDER_MARKUP = TOPO_MARKUP;
@@ -4204,20 +4204,17 @@
             if (existing) {
                 return {
                     pad: existing.getAttribute('data-pad-id'),
-                    toe: existing.getAttribute('data-toe-id'),
-                    shadow: existing.getAttribute('data-shadow-id')
+                    toe: existing.getAttribute('data-toe-id')
                 };
             }
             const uid = `p${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
             const padId = `topo-paw-pad-${uid}`;
             const toeId = `topo-paw-toe-${uid}`;
-            const shadowId = `topo-paw-shadow-${uid}`;
 
             const defs = document.createElementNS(NS, 'defs');
             defs.setAttribute('data-topo-paw-defs', '1');
             defs.setAttribute('data-pad-id', padId);
             defs.setAttribute('data-toe-id', toeId);
-            defs.setAttribute('data-shadow-id', shadowId);
 
             const padGrad = document.createElementNS(NS, 'radialGradient');
             padGrad.setAttribute('id', padId);
@@ -4253,23 +4250,8 @@
             });
             defs.appendChild(toeGrad);
 
-            const shadow = document.createElementNS(NS, 'filter');
-            shadow.setAttribute('id', shadowId);
-            shadow.setAttribute('x', '-35%');
-            shadow.setAttribute('y', '-35%');
-            shadow.setAttribute('width', '170%');
-            shadow.setAttribute('height', '170%');
-            const fe = document.createElementNS(NS, 'feDropShadow');
-            fe.setAttribute('dx', '0');
-            fe.setAttribute('dy', '1.6');
-            fe.setAttribute('stdDeviation', '1.8');
-            fe.setAttribute('flood-color', '#000');
-            fe.setAttribute('flood-opacity', '0.55');
-            shadow.appendChild(fe);
-            defs.appendChild(shadow);
-
             svg.insertBefore(defs, svg.firstChild);
-            return { pad: padId, toe: toeId, shadow: shadowId };
+            return { pad: padId, toe: toeId };
         }
 
         function appendTopoPawShapes(parent, NS, ids) {
@@ -4485,7 +4467,6 @@
             const pawG = document.createElementNS(NS, 'g');
             const sx = mirror ? -scaleX : scaleX;
             pawG.setAttribute('transform', `scale(${sx} ${scaleY}) translate(-50 -48)`);
-            if (pawIds.shadow) pawG.setAttribute('filter', `url(#${pawIds.shadow})`);
             appendTopoPawShapes(pawG, NS, pawIds);
             g.appendChild(pawG);
 
