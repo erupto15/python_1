@@ -1178,31 +1178,48 @@
             background-color: #ff5252;
         }
 
-        /* Боулдеринг: прозрачные кружки с красной обводкой (линия — SVG под маркерами) */
+        /* Боулдеринг: рука-захват, прозрачная с красным контуром */
         .hold-marker {
             position: absolute;
-            width: 28px;
-            height: 28px;
-            background-color: rgba(255, 255, 255, 0.84);
-            border: 2px solid #d32f2f;
-            border-radius: 50%;
+            width: 14px;
+            height: 14px;
+            background-color: transparent;
+            border: none;
+            border-radius: 0;
             transform: translate(-50%, -50%);
             cursor: move;
             z-index: 10;
             box-shadow: none;
-            transition: transform 0.15s, border-color 0.15s, background-color 0.15s;
+            color: #d32f2f;
+            transition: transform 0.15s, color 0.15s, filter 0.15s;
+            filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55));
         }
 
         .hold-marker:hover {
-            transform: translate(-50%, -50%) scale(1.08);
-            border-color: #b71c1c;
-            background-color: rgba(255, 255, 255, 0.92);
+            transform: translate(-50%, -50%) scale(1.1);
+            color: #b71c1c;
         }
 
         .hold-marker.active {
-            background-color: rgba(255, 255, 255, 0.96);
-            border-color: #b71c1c;
-            transform: translate(-50%, -50%) scale(1.1);
+            color: #b71c1c;
+            transform: translate(-50%, -50%) scale(1.14);
+        }
+
+        .hold-marker--hand {
+            width: 22px;
+            height: 22px;
+        }
+
+        .hold-marker--mirror .hold-hand-icon {
+            transform: scaleX(-1);
+        }
+
+        .hold-hand-icon {
+            display: block;
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+            pointer-events: none;
         }
 
         .route-markup-mode-btn:not(.active),
@@ -1239,23 +1256,25 @@
         }
 
         .hold-marker--labeled {
-            width: 44px;
-            height: 44px;
+            width: 22px;
+            height: 22px;
         }
 
         .hold-label {
             position: absolute;
-            top: 50%;
+            top: calc(100% + 1px);
             left: 50%;
-            transform: translate(-50%, -50%);
-            color: #b71c1c;
-            font-size: 9px;
+            transform: translate(-50%, 0);
+            color: #ffcdd2;
+            font-size: 8px;
             font-weight: 700;
             line-height: 1.05;
             text-align: center;
             pointer-events: none;
             user-select: none;
-            max-width: 38px;
+            max-width: 48px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+            white-space: nowrap;
         }
 
         .markup-instructions {
@@ -1861,8 +1880,9 @@
             filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.85)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
         }
 
-        .photo-markup-overlay .topo-hold {
-            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+        .photo-markup-overlay .topo-hold,
+        .photo-markup-overlay .topo-hold-hand-path {
+            filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.75)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
         }
 
         .photo-wrap {

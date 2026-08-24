@@ -2033,16 +2033,35 @@
                                 ctx.fill();
                             }
                         };
-                        const drawLabeledHold = (p, text) => {
+                        const drawHoldHand = (p, text, mirror = false) => {
                             const q = toPx(p);
                             if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return;
-                            const rHold = Math.max(14, Math.round(Math.min(w, h) * 0.022));
-                            drawCircle(p, rHold, TOPO_MARKUP.holdFill, TOPO_MARKUP.holdStroke, TOPO_MARKUP.holdStrokePx);
-                            ctx.fillStyle = TOPO_MARKUP.holdLabelColor;
-                            ctx.font = `700 ${Math.max(9, Math.round(rHold * 0.55))}px system-ui, sans-serif`;
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText(text, q.x, q.y);
+                            const size = Math.max(16, Math.round(Math.min(w, h) * 0.012));
+                            const path = new Path2D(topoHoldHandPathD());
+                            ctx.save();
+                            ctx.translate(q.x, q.y);
+                            ctx.scale((mirror ? -size : size) / 100, size / 100);
+                            ctx.translate(-50, -52);
+                            ctx.lineJoin = 'round';
+                            ctx.lineCap = 'round';
+                            ctx.strokeStyle = TOPO_MARKUP.holdStroke;
+                            ctx.lineWidth = Math.max(3.4, (TOPO_MARKUP.holdStrokePx / size) * 100);
+                            ctx.stroke(path);
+                            ctx.restore();
+                            if (text) {
+                                ctx.fillStyle = TOPO_MARKUP.holdLabelColor;
+                                ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+                                ctx.lineWidth = 3;
+                                ctx.font = `700 ${Math.max(8, Math.round(size * 0.36))}px system-ui, sans-serif`;
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'top';
+                                ctx.strokeText(text, q.x, q.y + size * 0.55);
+                                ctx.fillText(text, q.x, q.y + size * 0.55);
+                            }
+                        };
+                        const drawLabeledHold = (p, text) => {
+                            const mirror = /финиш|finish/i.test(String(text || ''));
+                            drawHoldHand(p, text, mirror);
                         };
 
                         if (climbType === 'route') {
@@ -4114,14 +4133,14 @@
         /** Тап vs проведение пальцем/мышью (px). */
         const MARKUP_TAP_MAX_MOVE_PX = 14;
 
-        /** Общий стиль топо-разметки: тонкая линия, подписанные кружки старт/финиш. */
+        /** Общий стиль топо-разметки: тонкая линия, руки-зацепы старт/финиш. */
         const TOPO_MARKUP = {
-            holdDiameterPx: 28,
-            holdRadiusPx: 14,
-            labeledHoldDiameterPx: 44,
-            labeledHoldRadiusPx: 22,
-            holdStrokePx: 2,
-            holdFill: 'rgba(255, 255, 255, 0.84)',
+            holdDiameterPx: 14,
+            holdRadiusPx: 7,
+            labeledHoldDiameterPx: 22,
+            labeledHoldRadiusPx: 11,
+            holdStrokePx: 1.75,
+            holdFill: 'none',
             holdStroke: '#d32f2f',
             holdNumberColor: '#c62828',
             holdLabelColor: '#b71c1c',
@@ -4130,10 +4149,27 @@
             lineEndDotPx: 8,
             lineEndArrowLenPx: 14,
             lineEndArrowWingPx: 8,
-            hitRadiusPx: 16,
+            hitRadiusPx: 14,
             linePointDiameterPx: 8
         };
         const BOULDER_MARKUP = TOPO_MARKUP;
+
+        /**
+         * Силуэт руки, хватающей скалу (viewBox 0 0 100 100, центр ~50,52).
+         * Пальцы вниз — как будто тони вцепляются в зацеп.
+         */
+        const TOPO_HOLD_HAND_PATH =
+            'M50 14c-10 0-17 8-18 18l-1 14c-9-2-16 4-16 13 0 8 7 13 15 10'
+            + 'l1 11c-3 7 1 14 8 13l4 7c4 5 12 3 12-4l1-6c3 7 12 8 16 1l2-7'
+            + 'c4 7 13 5 13-4l-2-22c8-3 11-13 5-20-5-5-13-2-16 4l-2-10C71 21 62 14 50 14Z';
+
+        function topoHoldHandPathD() {
+            return TOPO_HOLD_HAND_PATH;
+        }
+
+        function topoHoldSizePx(labeled = false) {
+            return labeled ? TOPO_MARKUP.labeledHoldDiameterPx : TOPO_MARKUP.holdDiameterPx;
+        }
 
         function topoHoldRadiusNorm(geom, labeled = false) {
             const iw = geom?.iw > 0 ? geom.iw : 400;
@@ -4256,34 +4292,56 @@
             if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
             const labelText = options.label || null;
             const labeled = !!labelText;
-            const r = topoHoldRadiusNorm(geom, labeled);
-            const sw = topoStrokeNorm(geom, TOPO_MARKUP.holdStrokePx);
-            const c = document.createElementNS(NS, 'circle');
-            c.setAttribute('class', labeled ? 'topo-hold topo-hold--labeled' : 'topo-hold');
-            c.setAttribute('cx', String(nx));
-            c.setAttribute('cy', String(ny));
-            c.setAttribute('r', String(r));
-            c.setAttribute('fill', TOPO_MARKUP.holdFill);
-            c.setAttribute('stroke', TOPO_MARKUP.holdStroke);
-            c.setAttribute('stroke-width', String(sw));
-            svg.appendChild(c);
+            const sizePx = topoHoldSizePx(labeled);
+            const iw = geom?.iw > 0 ? geom.iw : 400;
+            const ih = geom?.ih > 0 ? geom.ih : iw;
+            const scaleX = sizePx / iw;
+            const scaleY = sizePx / ih;
+            const swPath = Math.max(3.4, (TOPO_MARKUP.holdStrokePx / sizePx) * 100);
+            const mirror = options.mirror === true
+                || /финиш|finish/i.test(String(labelText || ''));
 
-            const label = document.createElementNS(NS, 'text');
-            label.setAttribute('class', labeled ? 'topo-hold-label' : 'topo-hold-num');
-            label.setAttribute('x', String(nx));
-            label.setAttribute('y', String(ny));
-            label.setAttribute('text-anchor', 'middle');
-            label.setAttribute('dominant-baseline', 'central');
-            label.setAttribute('fill', labeled ? TOPO_MARKUP.holdLabelColor : TOPO_MARKUP.holdNumberColor);
-            const fontPx = labeled
-                ? Math.max(7, TOPO_MARKUP.labeledHoldRadiusPx * 0.38)
-                : TOPO_MARKUP.holdRadiusPx * 0.88;
-            label.setAttribute('font-size', String(topoStrokeNorm(geom, fontPx)));
-            label.setAttribute('font-weight', '700');
-            label.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, sans-serif');
-            label.setAttribute('pointer-events', 'none');
-            label.textContent = labeled ? labelText : String((options.index ?? 0) + 1);
-            svg.appendChild(label);
+            const g = document.createElementNS(NS, 'g');
+            g.setAttribute('class', labeled ? 'topo-hold topo-hold--labeled topo-hold-hand' : 'topo-hold topo-hold-hand');
+            g.setAttribute('transform', `translate(${nx} ${ny})`);
+            g.setAttribute('pointer-events', 'none');
+
+            const handG = document.createElementNS(NS, 'g');
+            const sx = mirror ? -scaleX : scaleX;
+            handG.setAttribute('transform', `scale(${sx} ${scaleY}) translate(-50 -52)`);
+
+            const path = document.createElementNS(NS, 'path');
+            path.setAttribute('class', 'topo-hold-hand-path');
+            path.setAttribute('d', topoHoldHandPathD());
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', TOPO_MARKUP.holdStroke);
+            path.setAttribute('stroke-width', String(swPath));
+            path.setAttribute('stroke-linejoin', 'round');
+            path.setAttribute('stroke-linecap', 'round');
+            handG.appendChild(path);
+            g.appendChild(handG);
+
+            if (labeled || options.index != null) {
+                const label = document.createElementNS(NS, 'text');
+                label.setAttribute('class', labeled ? 'topo-hold-label' : 'topo-hold-num');
+                label.setAttribute('x', '0');
+                label.setAttribute('y', String(scaleY * 58));
+                label.setAttribute('text-anchor', 'middle');
+                label.setAttribute('dominant-baseline', 'hanging');
+                label.setAttribute('fill', labeled ? TOPO_MARKUP.holdLabelColor : TOPO_MARKUP.holdNumberColor);
+                const fontPx = labeled ? 8 : 7;
+                label.setAttribute('font-size', String(topoStrokeNorm(geom, fontPx)));
+                label.setAttribute('font-weight', '700');
+                label.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, sans-serif');
+                label.setAttribute('paint-order', 'stroke');
+                label.setAttribute('stroke', 'rgba(0,0,0,0.55)');
+                label.setAttribute('stroke-width', String(topoStrokeNorm(geom, 2.5)));
+                label.setAttribute('pointer-events', 'none');
+                label.textContent = labeled ? labelText : String((options.index ?? 0) + 1);
+                g.appendChild(label);
+            }
+
+            svg.appendChild(g);
         }
 
         const appendBoulderLineSvg = appendTopoLineSvg;
@@ -11631,10 +11689,17 @@
                         if (!hold) return;
                         const pos = markupPxFromNorm(hold.x, hold.y, geom);
                         const marker = document.createElement('div');
-                        marker.className = 'hold-marker hold-marker--labeled';
+                        marker.className = 'hold-marker hold-marker--labeled hold-marker--hand';
                         marker.style.left = `${pos.x}px`;
                         marker.style.top = `${pos.y}px`;
                         marker.dataset.role = roleKey;
+                        if (roleKey === 'finishHold') marker.classList.add('hold-marker--mirror');
+
+                        marker.innerHTML = `
+                            <svg class="hold-hand-icon" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+                                <path d="${topoHoldHandPathD()}" fill="none" stroke="currentColor" stroke-width="5.2" stroke-linejoin="round" stroke-linecap="round"></path>
+                            </svg>
+                        `;
 
                         const labelEl = document.createElement('div');
                         labelEl.className = 'hold-label';
