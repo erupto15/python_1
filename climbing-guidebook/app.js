@@ -57,8 +57,11 @@
                         return null;
                     }
                     const showSave = saveBtn && !saveBtn.classList.contains('hidden');
+                    const adminEdit = !!(app && app.isAdmin && app.isAdmin());
                     return {
-                        text: 'Схема на фото',
+                        text: adminEdit
+                            ? ((mkBtn.textContent || '').includes('Разметить') ? 'Разметить фото' : 'Изменить разметку')
+                            : 'Схема на фото',
                         btnId: 'climbDetailMarkupBtn',
                         secondaryText: showSave ? 'Скачать' : '',
                         secondaryBtnId: showSave ? 'climbDetailSavePhotoBtn' : ''
@@ -9820,11 +9823,26 @@
                     const t = ctx.climbType;
                     const id = ctx.climbId;
                     const pid = ctx.shownPhotoId || ctx.photoId;
+                    // Админ всегда открывает редактор разметки текущего фото.
+                    if (this.isAdmin() && pid) {
+                        this.editPhotoMarkup(pid);
+                        return;
+                    }
                     if (pid) {
                         this.openPhotoMarkupView(pid);
                     } else {
                         this.openClimbMarkupView(t, id);
                     }
+                });
+                document.getElementById('climbDetailEditMarkupBtn')?.addEventListener('click', () => {
+                    if (!this.requireAdmin('Изменение разметки')) return;
+                    const ctx = this._climbDetailContext;
+                    const pid = ctx?.shownPhotoId || ctx?.photoId;
+                    if (!pid) {
+                        this.showToast('Сначала откройте фото трассы или боулдера', true);
+                        return;
+                    }
+                    this.editPhotoMarkup(pid);
                 });
                 document.getElementById('climbDetailSavePhotoBtn')?.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -10857,6 +10875,7 @@
                             ctx?.climbName || ''
                         );
                         this.refreshClimbDetailMarkupOverlayIfOpen();
+                        this.syncClimbDetailMarkupActionUi();
                     }
                 }
 
@@ -11086,9 +11105,49 @@
 
             syncClimbDetailFooterActions() {
                 const logBtn = document.getElementById('climbDetailOpenLogBtn');
-                if (!logBtn) return;
-                const canLog = this.isLoggedIn() && this.isTelegramUser();
-                logBtn.classList.toggle('hidden', !canLog);
+                if (logBtn) {
+                    const canLog = this.isLoggedIn() && this.isTelegramUser();
+                    logBtn.classList.toggle('hidden', !canLog);
+                }
+                this.syncClimbDetailMarkupActionUi();
+            }
+
+            syncClimbDetailMarkupActionUi() {
+                const mkBtn = document.getElementById('climbDetailMarkupBtn');
+                const editMkBtn = document.getElementById('climbDetailEditMarkupBtn');
+                const ctx = this._climbDetailContext;
+                const pid = ctx?.shownPhotoId || ctx?.photoId;
+                const photo = pid
+                    ? getPhotos().find((p) => String(p.id) === String(pid))
+                    : null;
+                const hasPhoto = !!photo && !!resolvePhotoDisplayUrl(photo?.imageData);
+                const isAdmin = this.isAdmin();
+                const hasMarkup = !!(photo?.markup);
+
+                if (mkBtn) {
+                    mkBtn.style.display = hasPhoto ? '' : 'none';
+                    if (isAdmin) {
+                        mkBtn.innerHTML = hasMarkup
+                            ? '<i class="fas fa-draw-polygon"></i> Изменить разметку'
+                            : '<i class="fas fa-draw-polygon"></i> Разметить фото';
+                    } else {
+                        mkBtn.innerHTML = '<i class="fas fa-draw-polygon"></i> Схема на фото';
+                    }
+                }
+                if (editMkBtn) {
+                    const showEdit = isAdmin && hasPhoto;
+                    editMkBtn.classList.toggle('hidden', !showEdit);
+                    editMkBtn.classList.toggle('hidden-by-role', !showEdit);
+                    editMkBtn.innerHTML = hasMarkup
+                        ? '<i class="fas fa-draw-polygon"></i> Изменить разметку'
+                        : '<i class="fas fa-draw-polygon"></i> Разметить фото';
+                }
+                if (typeof window.syncTelegramWebAppButtons === 'function') {
+                    const dlg = document.getElementById('climbDetailDialog');
+                    if (dlg && !dlg.classList.contains('hidden')) {
+                        window.syncTelegramWebAppButtons('climbDetailDialog');
+                    }
+                }
             }
 
             openClimbMarkupView(climbType, climbId) {
@@ -11167,11 +11226,14 @@
             applyRouteMarkupViewOnlyUi(viewOnly) {
                 const dlg = document.getElementById('routeLineMarkupDialog');
                 if (!dlg) return;
+                const title = dlg.querySelector('.dialog-title');
+                const subtitle = dlg.querySelector('.dialog-subtitle');
                 if (viewOnly) {
-                    const title = dlg.querySelector('.dialog-title');
-                    const subtitle = dlg.querySelector('.dialog-subtitle');
                     if (title) title.textContent = 'Трасса на фото';
                     if (subtitle) subtitle.textContent = 'Просмотр линии хода';
+                } else {
+                    if (title) title.textContent = 'Разметка трассы';
+                    if (subtitle) subtitle.textContent = 'Редактируйте линию хода и сохраните';
                 }
                 ['clearRouteLineMarkupBtn', 'saveRouteLineMarkupBtn'].forEach((id) => {
                     const el = document.getElementById(id);
@@ -11191,11 +11253,14 @@
             applyBoulderMarkupViewOnlyUi(viewOnly) {
                 const dlg = document.getElementById('boulderHoldsMarkupDialog');
                 if (!dlg) return;
+                const title = dlg.querySelector('.dialog-title');
+                const subtitle = dlg.querySelector('.dialog-subtitle');
                 if (viewOnly) {
-                    const title = dlg.querySelector('.dialog-title');
-                    const subtitle = dlg.querySelector('.dialog-subtitle');
                     if (title) title.textContent = 'Боулдеринг на фото';
                     if (subtitle) subtitle.textContent = 'Просмотр зацепок и линии';
+                } else {
+                    if (title) title.textContent = 'Разметка боулдеринга';
+                    if (subtitle) subtitle.textContent = 'Правьте старт, финиш и линию, затем сохраните';
                 }
                 ['clearBoulderHoldsMarkupBtn', 'saveBoulderHoldsMarkupBtn'].forEach((id) => {
                     const el = document.getElementById(id);
@@ -11466,6 +11531,7 @@
                 this.refreshClimbDetailMarkupOverlayIfOpen();
                 this.hideDialog('routeLineMarkupDialog');
                 this.renderPhotoAlbum();
+                this.syncClimbDetailMarkupActionUi();
             }
 
             syncBoulderMarkupModeUI() {
@@ -11814,7 +11880,9 @@
                 }
 
                 this.hideDialog('boulderHoldsMarkupDialog');
+                this.refreshClimbDetailMarkupOverlayIfOpen();
                 this.renderPhotoAlbum();
+                this.syncClimbDetailMarkupActionUi();
             }
 
             setupCommunityListeners() {
