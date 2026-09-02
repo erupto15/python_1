@@ -28,12 +28,15 @@ if ! python3 "$PG_URL_PY" is-local --url "$DATABASE_URL"; then
   exit 0
 fi
 
-install -d -m 700 "$BACKUP_DIR"
+install -d -m 750 -g postgres "$BACKUP_DIR"
+chmod 750 "$BACKUP_DIR"
+chgrp postgres "$BACKUP_DIR" 2>/dev/null || true
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 target="${BACKUP_DIR}/guide-rus-${stamp}.dump"
 libpq_url="$(python3 "$PG_URL_PY" libpq --url "$DATABASE_URL" --sslmode disable)"
 
 pg_dump --format=custom --no-owner --file="$target" "$libpq_url"
-chmod 600 "$target"
+chgrp postgres "$target"
+chmod 640 "$target"
 find "$BACKUP_DIR" -type f -name 'guide-rus-*.dump' -mtime +"${KEEP_DAYS}" -delete
 echo "wrote $target"

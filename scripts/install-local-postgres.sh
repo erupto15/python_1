@@ -17,7 +17,9 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y postgresql postgresql-contrib postgresql-client
 
-install -d -m 700 "$BACKUP_DIR"
+install -d -m 750 -g postgres "$BACKUP_DIR"
+chmod 750 "$BACKUP_DIR"
+chgrp postgres "$BACKUP_DIR" 2>/dev/null || true
 
 preset_url="${DATABASE_URL:-}"
 if [ -f "$BACKEND_ENV" ]; then

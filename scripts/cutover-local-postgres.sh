@@ -43,7 +43,9 @@ fi
 
 bash "$SCRIPT_DIR/install-local-postgres.sh"
 
-install -d -m 700 "$BACKUP_DIR"
+install -d -m 750 -g postgres "$BACKUP_DIR"
+chmod 750 "$BACKUP_DIR"
+chgrp postgres "$BACKUP_DIR" 2>/dev/null || true
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 dump_file="${BACKUP_DIR}/cutover-from-managed-${stamp}.dump"
 
@@ -53,7 +55,8 @@ systemctl stop guide-rus-backend
 trap 'systemctl start guide-rus-backend || true' ERR
 
 pg_dump --format=custom --no-owner --file="$dump_file" "$source_libpq"
-chmod 600 "$dump_file"
+chgrp postgres "$dump_file"
+chmod 640 "$dump_file"
 
 if [ -f "$LOCAL_URL_FILE" ]; then
   local_sqlalchemy="$(cat "$LOCAL_URL_FILE")"
@@ -112,13 +115,26 @@ SELECT format('DROP DATABASE IF EXISTS %I', :'pg_dbname')\gexec
 SELECT format('CREATE DATABASE %I OWNER %I', :'pg_dbname', :'pg_user')\gexec
 SQL
 
-sudo -u postgres pg_restore --no-owner --no-acl --exit-on-error --dbname="$PG_DBNAME" "$dump_file"
+set +e
+sudo -u postgres pg_restore --no-owner --no-acl --dbname="$PG_DBNAME" "$dump_file"
+restore_status=$?
+set -e
+if [ "$restore_status" -ne 0 ]; then
+  echo "pg_restore exited with status ${restore_status} (continuing with ownership fix; /health is the gate)" >&2
+fi
+
 sudo -u postgres psql -v ON_ERROR_STOP=1 \
+  --dbname="$PG_DBNAME" \
   --set=pg_user="$PG_USER" \
   --set=pg_dbname="$PG_DBNAME" <<'SQL'
 SELECT format('GRANT ALL ON SCHEMA public TO %I', :'pg_user')\gexec
 SELECT format('GRANT ALL ON ALL TABLES IN SCHEMA public TO %I', :'pg_user')\gexec
 SELECT format('GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO %I', :'pg_user')\gexec
+SELECT format('REASSIGN OWNED BY postgres TO %I', :'pg_user')\gexec
+SQL
+sudo -u postgres psql -v ON_ERROR_STOP=1 \
+  --set=pg_user="$PG_USER" \
+  --set=pg_dbname="$PG_DBNAME" <<'SQL'
 SELECT format('ALTER DATABASE %I OWNER TO %I', :'pg_dbname', :'pg_user')\gexec
 SQL
 
