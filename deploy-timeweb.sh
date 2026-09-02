@@ -14,6 +14,10 @@ ssh -i "$DEPLOY_KEY" -o IdentitiesOnly=yes "$DEPLOY_USER@$DEPLOY_HOST" \
    git fetch origin
    git checkout '$DEPLOY_BRANCH'
    git pull --ff-only
+   if [ -f /etc/guide-rus/local-database.url ]; then
+     python3 scripts/pg_url.py overlay --url-file /etc/guide-rus/local-database.url --env-file /etc/guide-rus/backend.env
+   fi
+   bash scripts/install-local-postgres.sh
    cd climbing-guidebook/backend
    python3 -m venv .venv
    . .venv/bin/activate

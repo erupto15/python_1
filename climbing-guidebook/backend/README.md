@@ -43,7 +43,7 @@ Important runtime variables:
 
 ```dotenv
 APP_ENV=production
-DATABASE_URL=postgresql+psycopg2://USER:PASSWORD@HOST:5432/DB?sslmode=require
+DATABASE_URL=postgresql+psycopg2://guide_rus:PASSWORD@127.0.0.1:5432/guide_rus
 JWT_SECRET=<long-random-secret>
 ADMIN_EMAIL=<admin-email>
 ADMIN_PASSWORD=<admin-password>
@@ -53,7 +53,7 @@ TELEGRAM_AUTH_MAX_AGE_SEC=86400
 DISABLE_CATALOG_SEED=1
 ```
 
-Local development can keep `DATABASE_URL=sqlite:///./climbing-guidebook/backend/climbing.db`. In `APP_ENV=production`, SQLite is rejected to avoid accidental data loss.
+Local development can keep `DATABASE_URL=sqlite:///./climbing-guidebook/backend/climbing.db`. In `APP_ENV=production`, SQLite is rejected to avoid accidental data loss. Production PostgreSQL runs on the VPS at `127.0.0.1`; coworkers do not need it locally.
 
 ## Bootstrap
 
@@ -92,4 +92,4 @@ Catalog mutations require an authenticated admin user. Telegram auth validates `
 
 ## Deployment
 
-Use the repository-level `DEPLOYMENT.md` for Timeweb VPS, Caddy, systemd and Git deploy workflow.
+Use the repository-level `DEPLOYMENT.md` for Timeweb VPS, local PostgreSQL, Caddy, systemd and Git deploy workflow.

@@ -133,6 +133,15 @@ jobs:
           git checkout main
           git pull --ff-only origin main
 
+          if [ -f /etc/guide-rus/local-database.url ]; then
+            python3 "$APP_DIR/scripts/pg_url.py" overlay \
+              --url-file /etc/guide-rus/local-database.url \
+              --env-file /etc/guide-rus/backend.env
+            echo "DATABASE_URL overlaid from /etc/guide-rus/local-database.url"
+          fi
+
+          bash "$APP_DIR/scripts/install-local-postgres.sh"
+
           cd climbing-guidebook/backend
           python3 -m venv .venv
           . .venv/bin/activate

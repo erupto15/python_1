@@ -1,6 +1,6 @@
 # Guide Rus Deployment
 
-Документ описывает новую операционную модель: frontend и backend живут на Timeweb VPS, PostgreSQL — в Timeweb Managed PostgreSQL, внешний HTTPS и reverse proxy — через Caddy.
+Документ описывает операционную модель: frontend, backend и PostgreSQL живут на одном Timeweb VPS. Медиафайлы — на диске VPS (`/var/lib/guide-rus/uploads`). Timeweb S3 приложение не использует. Внешний HTTPS и reverse proxy — через Caddy.
 
 ## Окружения
 
@@ -18,7 +18,7 @@ window.CLIMBING_API_BASE_URL = '';
 
 ### Production
 
-Единственный сервер на Timeweb VPS. Caddy принимает HTTPS и проксирует весь трафик в FastAPI на `127.0.0.1:8000`; FastAPI отдаёт и frontend, и API. Данные лежат в Timeweb Managed PostgreSQL.
+Единственный сервер на Timeweb VPS (2 vCPU / 4 GB). Caddy принимает HTTPS и проксирует весь трафик в FastAPI на `127.0.0.1:8000`; FastAPI отдаёт frontend, API и `/uploads`. Каталог лежит в PostgreSQL на той же машине (`127.0.0.1`), Postgres слушает только localhost.
 
 ## Локальный Запуск
 
@@ -36,7 +36,7 @@ cp .env.example .env
 TELEGRAM_BOT_TOKEN=<token-of-test-bot>
 ```
 
-Production-токен и production PostgreSQL при локальном запуске не используются.
+Production-токен и production PostgreSQL при локальном запуске не используются. Коворкерам достаточно SQLite из `.env.example`.
 
 2. Запустите приложение:
 
@@ -63,7 +63,7 @@ open http://127.0.0.1:8000
 
 ```dotenv
 APP_ENV=production
-DATABASE_URL=postgresql+psycopg2://USER:PASSWORD@HOST:5432/DB?sslmode=require
+DATABASE_URL=postgresql+psycopg2://guide_rus:PASSWORD@127.0.0.1:5432/guide_rus
 JWT_SECRET=<long-random-secret>
 ADMIN_EMAIL=<admin-email>
 ADMIN_PASSWORD=<admin-password>
@@ -159,8 +159,8 @@ mv /opt/guide-rus/current /opt/guide-rus/current.manual-backup.$(date +%Y%m%d%H%
 ```ini
 [Unit]
 Description=Guide Rus FastAPI backend
-After=network-online.target
-Wants=network-online.target
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
 
 [Service]
 Type=simple
@@ -235,7 +235,7 @@ GitHub repository secrets:
 | Secret | Значение |
 |--------|----------|
 | `TIMEWEB_SSH_KEY` | private key для подключения GitHub Actions к VPS |
-| `DATABASE_URL` | PostgreSQL URL Timeweb |
+| `DATABASE_URL` | PostgreSQL URL на VPS, `127.0.0.1` (после cutover) |
 | `JWT_SECRET` | JWT secret |
 | `ADMIN_PASSWORD` | пароль админа |
 | `TELEGRAM_BOT_TOKEN` | токен production Telegram bot |
@@ -268,6 +268,7 @@ cd /opt/guide-rus/current
 GIT_SSH_COMMAND='ssh -i ~/.ssh/id_ed25519_guide_rus_deploy -o IdentitiesOnly=yes' git fetch origin
 GIT_SSH_COMMAND='ssh -i ~/.ssh/id_ed25519_guide_rus_deploy -o IdentitiesOnly=yes' git checkout main
 GIT_SSH_COMMAND='ssh -i ~/.ssh/id_ed25519_guide_rus_deploy -o IdentitiesOnly=yes' git pull --ff-only
+bash /opt/guide-rus/current/scripts/install-local-postgres.sh
 cd climbing-guidebook/backend
 . .venv/bin/activate
 pip install -r requirements.txt
@@ -296,6 +297,50 @@ journalctl -u guide-rus-backend -n 100 --no-pager
 3. Workflow сам обновит `/etc/guide-rus/backend.env`, уберёт custom menu button и настроит webhook.
 
 `?v=<deploy-id>` помогает Telegram WebView не открыть старый кешированный `index.html`.
+
+## PostgreSQL на VPS
+
+Прод ходит в Postgres на той же машине. Локальная разработка по-прежнему SQLite.
+
+Один раз после появления этих скриптов в `main`:
+
+1. Задеплойте ветку (`Deploy to Timeweb` или `git pull` на VPS). Workflow ставит пакет `postgresql`, `listen_addresses = localhost` и nightly `pg_dump`.
+2. На VPS выполните cutover (короткий downtime):
+
+```bash
+ssh root@<server>
+bash /opt/guide-rus/current/scripts/cutover-local-postgres.sh
+```
+
+Скрипт останавливает backend, снимает `pg_dump` с текущего `DATABASE_URL`, поднимает роль/БД `guide_rus` на `127.0.0.1`, восстанавливает дамп, переписывает `/etc/guide-rus/backend.env` и копирует URL в `/etc/guide-rus/local-database.url`. `/health` должен показать `"database_host":"127.0.0.1"` и ненулевой каталог.
+
+3. Сразу скопируйте новый `DATABASE_URL` в GitHub Secret. Пока секрет не обновлён, каждый Deploy перезапишет `backend.env` managed-URL, а затем вернёт localhost из `local-database.url`. После обновления секрета overlay становится страховкой.
+
+Медиа не в S3: видео и вложения уже в `/var/lib/guide-rus/uploads`. Топо-фото — base64 в Postgres.
+
+### Бэкапы
+
+- Снапшоты диска Timeweb VPS (тариф VPS) — Postgres data dir + `uploads`.
+- Логический дамп: `15 3 * * *` → `/var/lib/guide-rus/pg-backups/guide-rus-*.dump`, ротация 7 дней. Cutover-дамп managed-базы тоже лежит там (`cutover-from-managed-*.dump`).
+
+### Откат на managed PostgreSQL (пока её не удалили)
+
+```bash
+# вернуть DATABASE_URL managed-базы в /etc/guide-rus/backend.env
+rm -f /etc/guide-rus/local-database.url
+systemctl restart guide-rus-backend
+```
+
+И верните GitHub Secret `DATABASE_URL` на managed URL. Записи, сделанные только в local Postgres за это окно, на managed не вернутся.
+
+### Удаление managed PostgreSQL и S3
+
+Не раньше чем через 24–48 часов после успешного cutover:
+
+```bash
+TIMEWEB_TOKEN=... bash scripts/teardown-managed-timeweb.sh          # dry-run
+TIMEWEB_TOKEN=... CONFIRM=yes bash scripts/teardown-managed-timeweb.sh
+```
 
 ## Rollback
 
