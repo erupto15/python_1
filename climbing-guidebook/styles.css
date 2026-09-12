@@ -3580,8 +3580,20 @@
 
         .climb-detail-map-row {
             display: flex;
+            flex-wrap: wrap;
             justify-content: flex-end;
+            gap: 8px;
             margin: 0 0 12px;
+        }
+
+        .maps-chooser-dialog {
+            max-width: 420px;
+        }
+
+        .maps-chooser-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
         }
 
         .climb-detail-admin-row {

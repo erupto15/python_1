@@ -7268,44 +7268,121 @@
                 }
             }
 
-            buildExternalNavigationUrl(target) {
+            navTargetFromKindId(kind, id) {
+                const k = this.normalizeMapKind(kind);
+                const coord = this.resolveMapEntryCoord(k, id);
+                if (!coord) return null;
+                let title = '';
+                if (k === 'area') title = getAreas().find((a) => Number(a.id) === Number(id))?.name || 'Район';
+                else if (k === 'sector') title = getSectors().find((s) => Number(s.id) === Number(id))?.name || 'Сектор';
+                else if (k === 'route') title = getRoutes().find((r) => Number(r.id) === Number(id))?.name || 'Трасса';
+                else title = getBoulders().find((b) => Number(b.id) === Number(id))?.name || 'Боулдер';
+                return { kind: k, id, title, lat: coord.lat, lng: coord.lng };
+            }
+
+            mapsOrigin() {
+                if (
+                    this.userLocation
+                    && Number.isFinite(Number(this.userLocation.lat))
+                    && Number.isFinite(Number(this.userLocation.lng))
+                ) {
+                    return {
+                        lat: Number(this.userLocation.lat),
+                        lng: Number(this.userLocation.lng)
+                    };
+                }
+                return null;
+            }
+
+            buildMapsUrl(target, provider = 'yandex', mode = 'dir') {
                 const lat = Number(target?.lat);
                 const lng = Number(target?.lng);
                 if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
                 const dest = `${lat},${lng}`;
-                const ua = navigator.userAgent || '';
-                const isIOS = /iPad|iPhone|iPod/i.test(ua);
-                const isAndroid = /Android/i.test(ua);
-                const preferYandex = (navigator.language || '').toLowerCase().startsWith('ru');
-                const origin = this.userLocation
-                    && Number.isFinite(Number(this.userLocation.lat))
-                    && Number.isFinite(Number(this.userLocation.lng))
-                    ? `${Number(this.userLocation.lat)},${Number(this.userLocation.lng)}`
-                    : '';
+                const destRev = `${lng},${lat}`;
+                const q = encodeURIComponent(target.title || dest);
+                const origin = this.mapsOrigin();
+                const originStr = origin ? `${origin.lat},${origin.lng}` : '';
 
-                if (this._activeTrailRouteName) {
-                    const params = new URLSearchParams({ daddr: dest, type: 'pedestrian' });
-                    if (origin) params.set('saddr', origin);
-                    return `https://maps.me/route?${params.toString()}`;
-                }
-
-                if (preferYandex) {
-                    const rtext = origin ? `${origin}~${dest}` : `~${dest}`;
+                if (provider === 'yandex') {
+                    if (mode === 'view') {
+                        return `https://yandex.ru/maps/?ll=${encodeURIComponent(destRev)}&z=16&pt=${encodeURIComponent(destRev)}`;
+                    }
+                    const rtext = originStr ? `${originStr}~${dest}` : `~${dest}`;
                     return `https://yandex.ru/maps/?rtext=${encodeURIComponent(rtext)}&rtt=pd`;
                 }
-                if (isIOS) {
-                    return `maps://?daddr=${encodeURIComponent(dest)}&dirflg=w`;
-                }
-                const params = new URLSearchParams({
-                    api: '1',
-                    destination: dest,
-                    travelmode: 'walking'
-                });
-                if (origin) params.set('origin', origin);
-                if (isAndroid) {
+                if (provider === 'google') {
+                    if (mode === 'view') {
+                        return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dest)}`;
+                    }
+                    const params = new URLSearchParams({
+                        api: '1',
+                        destination: dest,
+                        travelmode: 'walking'
+                    });
+                    if (originStr) params.set('origin', originStr);
                     return `https://www.google.com/maps/dir/?${params.toString()}`;
                 }
-                return `https://www.google.com/maps/dir/?${params.toString()}`;
+                if (provider === 'apple') {
+                    if (mode === 'view') {
+                        return `https://maps.apple.com/?ll=${encodeURIComponent(dest)}&q=${q}`;
+                    }
+                    const params = new URLSearchParams({ daddr: dest, dirflg: 'w' });
+                    if (originStr) params.set('saddr', originStr);
+                    return `https://maps.apple.com/?${params.toString()}`;
+                }
+                if (provider === 'gis') {
+                    if (mode === 'view') {
+                        return `https://2gis.ru/geo/${encodeURIComponent(destRev)}`;
+                    }
+                    const to = encodeURIComponent(destRev);
+                    if (originStr) {
+                        const from = encodeURIComponent(`${origin.lng},${origin.lat}`);
+                        return `https://2gis.ru/routeSearch/rsType/pedestrian/from/${from}/to/${to}`;
+                    }
+                    return `https://2gis.ru/routeSearch/rsType/pedestrian/to/${to}`;
+                }
+                return null;
+            }
+
+            buildExternalNavigationUrl(target) {
+                const preferYandex = (navigator.language || '').toLowerCase().startsWith('ru');
+                const ua = navigator.userAgent || '';
+                const isIOS = /iPad|iPhone|iPod/i.test(ua);
+                if (preferYandex) return this.buildMapsUrl(target, 'yandex', 'dir');
+                if (isIOS) return this.buildMapsUrl(target, 'apple', 'dir');
+                return this.buildMapsUrl(target, 'google', 'dir');
+            }
+
+            openMapsLink(url) {
+                if (!url) return;
+                if (window.Telegram?.WebApp?.openLink) {
+                    window.Telegram.WebApp.openLink(url);
+                } else {
+                    window.open(url, '_blank', 'noopener');
+                }
+            }
+
+            openMapsChooser(entry = null, preferredMode = '') {
+                const target = entry || this.mapTarget;
+                if (!target || !Number.isFinite(Number(target.lat)) || !Number.isFinite(Number(target.lng))) {
+                    this.showToast('У объекта нет координат для карт', true);
+                    return;
+                }
+                this._mapsChooserTarget = {
+                    lat: Number(target.lat),
+                    lng: Number(target.lng),
+                    title: target.title || 'точка'
+                };
+                const titleEl = document.getElementById('mapsChooserTitle');
+                const subEl = document.getElementById('mapsChooserSubtitle');
+                if (titleEl) titleEl.textContent = this._mapsChooserTarget.title;
+                if (subEl) {
+                    subEl.textContent = preferredMode === 'view'
+                        ? 'Открыть точку во внешнем приложении карт'
+                        : 'Проложить маршрут или открыть точку';
+                }
+                this.showDialog('mapsChooserDialog');
             }
 
             openExternalNavigation(entry = null) {
@@ -7314,18 +7391,8 @@
                     this.showToast('Сначала выберите точку на карте', true);
                     return;
                 }
-                const url = this.buildExternalNavigationUrl(target);
-                if (!url) {
-                    this.showToast('У объекта нет координат для маршрута', true);
-                    return;
-                }
-                const title = target.title || 'цель';
-                if (window.Telegram?.WebApp?.openLink) {
-                    window.Telegram.WebApp.openLink(url);
-                } else {
-                    window.open(url, '_blank', 'noopener');
-                }
-                this.updateMapStatus(`Открываю маршрут к «${title}» в картах…`);
+                this.openMapsChooser(target, 'dir');
+                this.updateMapStatus(`Выберите карты для маршрута к «${target.title || 'цели'}»`);
             }
 
             updateMapStatus(message = '') {
@@ -7799,6 +7866,12 @@
                         <div class="catalog-guide-actions">
                             <button type="button" class="btn btn-secondary btn-small" data-catalog-act="show-map" data-map-kind="${scope}" data-id="${entity.id}">
                                 <i class="fas fa-map-location-dot"></i> На карте
+                            </button>
+                            <button type="button" class="btn btn-primary btn-small" data-catalog-act="nav-route" data-map-kind="${scope}" data-id="${entity.id}">
+                                <i class="fas fa-diamond-turn-right"></i> Маршрут
+                            </button>
+                            <button type="button" class="btn btn-ghost btn-small" data-catalog-act="open-maps" data-map-kind="${scope}" data-id="${entity.id}">
+                                <i class="fas fa-map"></i> Открыть карты
                             </button>
                             <button type="button" class="btn btn-ghost btn-small" data-catalog-act="save-offline-pack" data-pack-scope="${scope}" data-id="${entity.id}">
                                 <i class="fas fa-download"></i> ${this.escapeHtml(this.offlinePackLabel(pack))}
@@ -8327,6 +8400,13 @@
                     if (action === 'show-map') {
                         const kind = act.dataset.mapKind || '';
                         if (kind && id != null) void this.focusMapTarget(kind, id);
+                    }
+                    if (action === 'nav-route' || action === 'open-maps') {
+                        const kind = act.dataset.mapKind || '';
+                        if (kind && id != null) {
+                            const target = this.navTargetFromKindId(kind, id);
+                            this.openMapsChooser(target, action === 'open-maps' ? 'view' : 'dir');
+                        }
                     }
                     if (action === 'save-offline-pack') {
                         const scope = act.dataset.packScope === 'sector' ? 'sector' : 'area';
@@ -9800,6 +9880,30 @@
                     const ctx = this._climbDetailContext;
                     if (!ctx) return;
                     void this.focusMapTarget(ctx.climbType, ctx.climbId);
+                });
+                document.getElementById('climbDetailRouteBtn')?.addEventListener('click', () => {
+                    const ctx = this._climbDetailContext;
+                    if (!ctx) return;
+                    this.openMapsChooser(this.navTargetFromKindId(ctx.climbType, ctx.climbId), 'dir');
+                });
+                document.getElementById('climbDetailOpenMapsBtn')?.addEventListener('click', () => {
+                    const ctx = this._climbDetailContext;
+                    if (!ctx) return;
+                    this.openMapsChooser(this.navTargetFromKindId(ctx.climbType, ctx.climbId), 'view');
+                });
+                document.getElementById('mapsChooserDialog')?.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-maps-provider]');
+                    if (!btn) return;
+                    const target = this._mapsChooserTarget;
+                    const url = this.buildMapsUrl(target, btn.dataset.mapsProvider, btn.dataset.mapsMode || 'dir');
+                    if (!url) {
+                        this.showToast('Не удалось открыть карты', true);
+                        return;
+                    }
+                    this.hideDialog('mapsChooserDialog');
+                    this.openMapsLink(url);
+                    const modeLabel = btn.dataset.mapsMode === 'view' ? 'Открываю точку' : 'Прокладываю маршрут';
+                    this.updateMapStatus(`${modeLabel} к «${target?.title || 'цели'}»`);
                 });
                 document.getElementById('climbDetailEditBtn')?.addEventListener('click', () => {
                     const ctx = this._climbDetailContext;

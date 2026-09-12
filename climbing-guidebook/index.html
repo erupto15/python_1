@@ -921,6 +921,12 @@
                     <button type="button" class="btn btn-secondary btn-small" id="climbDetailMapBtn">
                         <i class="fas fa-map-location-dot"></i> На карте
                     </button>
+                    <button type="button" class="btn btn-primary btn-small" id="climbDetailRouteBtn">
+                        <i class="fas fa-diamond-turn-right"></i> Маршрут
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-small" id="climbDetailOpenMapsBtn">
+                        <i class="fas fa-map"></i> Открыть карты
+                    </button>
                 </div>
                 <div class="climb-detail-admin-row admin-only hidden-by-role" id="climbDetailAdminActions">
                     <div class="row-action-group">
@@ -1015,6 +1021,34 @@
             <div class="dialog-footer dialog-footer--tg-native">
                 <button type="button" class="climb-tg-log-proxy" id="climbTgLogConfirmBtn" tabindex="-1" aria-hidden="true">Записать пролаз</button>
                 <button type="button" class="btn btn-primary" id="climbLogConfirmBtn"><i class="fas fa-check"></i> Записать пролаз</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="dialog-overlay hidden" id="mapsChooserDialog" style="z-index: 1100;">
+        <div class="dialog-content maps-chooser-dialog">
+            <div class="dialog-header">
+                <div class="dialog-header-text">
+                    <div class="dialog-title" id="mapsChooserTitle">Карты</div>
+                    <div class="dialog-subtitle" id="mapsChooserSubtitle">Выберите приложение</div>
+                </div>
+                <button type="button" class="dialog-close-btn" data-close-dialog="mapsChooserDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
+            </div>
+            <div class="dialog-body">
+                <p class="form-label">Проложить маршрут</p>
+                <div class="maps-chooser-grid" id="mapsChooserDir">
+                    <button type="button" class="btn btn-primary" data-maps-provider="yandex" data-maps-mode="dir">Яндекс</button>
+                    <button type="button" class="btn btn-secondary" data-maps-provider="google" data-maps-mode="dir">Google</button>
+                    <button type="button" class="btn btn-secondary" data-maps-provider="apple" data-maps-mode="dir">Apple</button>
+                    <button type="button" class="btn btn-secondary" data-maps-provider="gis" data-maps-mode="dir">2ГИС</button>
+                </div>
+                <p class="form-label" style="margin-top:14px;">Открыть точку</p>
+                <div class="maps-chooser-grid" id="mapsChooserView">
+                    <button type="button" class="btn btn-ghost" data-maps-provider="yandex" data-maps-mode="view">Яндекс</button>
+                    <button type="button" class="btn btn-ghost" data-maps-provider="google" data-maps-mode="view">Google</button>
+                    <button type="button" class="btn btn-ghost" data-maps-provider="apple" data-maps-mode="view">Apple</button>
+                    <button type="button" class="btn btn-ghost" data-maps-provider="gis" data-maps-mode="view">2ГИС</button>
+                </div>
             </div>
         </div>
     </div>
