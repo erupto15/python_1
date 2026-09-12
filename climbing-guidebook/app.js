@@ -1985,7 +1985,7 @@
                             if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return;
                             ctx.beginPath();
                             ctx.arc(q.x, q.y, rPx, 0, Math.PI * 2);
-                            if (fill) {
+                            if (fill && fill !== 'none' && fill !== 'transparent') {
                                 ctx.fillStyle = fill;
                                 ctx.fill();
                             }
@@ -4129,7 +4129,7 @@
             labeledHoldDiameterPx: 22,
             labeledHoldRadiusPx: 11,
             holdStrokePx: 2.5,
-            holdFill: 'rgba(255, 255, 255, 0.84)',
+            holdFill: 'none',
             holdStroke: '#d32f2f',
             holdNumberColor: '#c62828',
             holdLabelColor: '#b71c1c',
