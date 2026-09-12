@@ -5177,6 +5177,7 @@
                     else el.classList.add('hidden-by-role');
                 });
                 this.syncMapEditUi();
+                this.syncAssistantDialogForRole();
                 const showSentFilter = loggedIn && this.isTelegramUser();
                 document.getElementById('hideSentRoutesWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
                 document.getElementById('hideSentBouldersWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
@@ -8460,9 +8461,31 @@
                 }
             }
 
+            syncAssistantDialogForRole() {
+                const isAdmin = this.isAdmin();
+                const subtitle = document.getElementById('assistantSubtitle');
+                const promptEl = document.getElementById('assistantPrompt');
+                const btn = document.getElementById('assistantParseBtn');
+                if (subtitle) {
+                    subtitle.textContent = isAdmin
+                        ? 'Можно искать трассы и прокладывать маршрут. Админу также доступно добавление района, сектора или трассы по тексту и фото — черновик откроется в обычной форме.'
+                        : 'Найдите трассу, район или сектор и проложите маршрут в навигаторе.';
+                }
+                if (promptEl) {
+                    promptEl.placeholder = isAdmin
+                        ? 'Например: найди болдер Рыжий · как доехать до Мохбурга · добавь болдер «Рыжий» 6B в секторе Красный угол'
+                        : 'Например: найди болдер Рыжий · как доехать до Мохбурга';
+                }
+                if (btn) {
+                    btn.innerHTML = isAdmin
+                        ? '<i class="fas fa-wand-magic-sparkles"></i> Выполнить'
+                        : '<i class="fas fa-wand-magic-sparkles"></i> Найти';
+                }
+            }
+
             openAssistantDialog() {
-                if (!this.requireAdmin('ИИ-помощник')) return;
                 this._assistantDraft = null;
+                this.syncAssistantDialogForRole();
                 const promptEl = document.getElementById('assistantPrompt');
                 const box = document.getElementById('assistantDraftBox');
                 const preview = document.getElementById('assistantPhotoPreview');
@@ -8472,12 +8495,82 @@
                     box.classList.add('hidden');
                     box.innerHTML = '';
                 }
-                if (input) input.value = '';
-                if (preview) {
-                    preview.classList.add('hidden');
-                    preview.innerHTML = '';
+                if (!this.isAdmin()) {
+                    this._assistantPhotoPayload = null;
+                    if (input) input.value = '';
+                    if (preview) {
+                        preview.classList.add('hidden');
+                        preview.innerHTML = '';
+                    }
                 }
                 this.showDialog('assistantDialog');
+                promptEl?.focus();
+            }
+
+            classifyAssistantIntent(text) {
+                const t = String(text || '').toLowerCase();
+                if (/\b(как доехать|как добраться|как попасть|проложи|проложить|навигатор|маршрут до|дорогу до|доехать до)\b/.test(t)) {
+                    return 'navigate';
+                }
+                if (/\b(добав(?:ь|ить)|создай|создать|новый район|новый сектор|новую трассу|новый болдер|новый боулдер)\b/.test(t)) {
+                    return 'create';
+                }
+                return 'search';
+            }
+
+            normalizeAssistantQuery(text) {
+                return String(text || '')
+                    .replace(/[«»"']/g, ' ')
+                    .replace(/^(найди|найти|покажи|открой|ищи|поиск)\s+/i, '')
+                    .replace(/^(как\s+(?:доехать|добраться|попасть)\s+(?:до|к)\s+)/i, '')
+                    .replace(/^(проложи(?:ть)?\s+(?:маршрут\s+)?(?:до|к)\s+)/i, '')
+                    .replace(/^(маршрут\s+(?:до|к)\s+)/i, '')
+                    .replace(/^(добав(?:ь|ить)|создай|создать)\s+/i, '')
+                    .replace(/\s+(?:в навигаторе|на карте)$/i, '')
+                    .replace(/\b(?:болдер(?:инг)?|боулдер(?:инг)?|трасс[ауиые]?|сектор[аеу]?|район[аеу]?)\b/gi, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            }
+
+            assistantKindHint(text) {
+                const t = String(text || '').toLowerCase();
+                if (/\b(?:боулдер|болдер)/.test(t)) return 'boulder';
+                if (/\bтрасс/.test(t)) return 'route';
+                if (/\bсектор/.test(t)) return 'sector';
+                if (/\bрайон/.test(t)) return 'area';
+                return null;
+            }
+
+            assistantWordMatches(word, hay, title) {
+                const w = String(word || '').toLowerCase();
+                const h = String(hay || '').toLowerCase();
+                const t = String(title || '').toLowerCase();
+                if (!w) return true;
+                if (h.includes(w) || t.includes(w)) return true;
+                return w.length >= 3 && t.length >= 3 && w.includes(t);
+            }
+
+            searchCatalogForAssistant(text) {
+                const kindHint = this.assistantKindHint(text);
+                const query = this.normalizeAssistantQuery(text).toLowerCase();
+                const words = query.split(/\s+/).filter((w) => w.length >= 2);
+                const source = kindHint
+                    ? this.buildGlobalSearchIndex().filter((item) => item.kind === kindHint)
+                    : this.buildGlobalSearchIndex();
+                if (!words.length && !kindHint) return [];
+                return source
+                    .map((item) => {
+                        const hay = String(item.search || '').toLowerCase();
+                        const title = String(item.title || '').toLowerCase();
+                        const all = !words.length || words.every((w) => this.assistantWordMatches(w, hay, title));
+                        if (!all) return null;
+                        const joined = query || title;
+                        const score = title === joined ? 4 : title.includes(joined) ? 3 : joined.includes(title) && title.length >= 3 ? 3 : 1;
+                        return { ...item, score };
+                    })
+                    .filter(Boolean)
+                    .sort((a, b) => b.score - a.score || String(a.title).localeCompare(String(b.title), 'ru'))
+                    .slice(0, 8);
             }
 
             matchCatalogByName(items, name) {
@@ -8489,6 +8582,10 @@
             }
 
             async onAssistantPhotoSelected(event) {
+                if (!this.isAdmin()) {
+                    this._assistantPhotoPayload = null;
+                    return;
+                }
                 const file = event?.target?.files?.[0];
                 if (!file) {
                     this._assistantPhotoPayload = null;
@@ -8517,26 +8614,98 @@
             }
 
             async parseAssistantDraft() {
-                if (!this.requireAdmin('ИИ-помощник')) return;
                 const prompt = String(document.getElementById('assistantPrompt')?.value || '').trim();
-                const file = this._assistantPhotoPayload?.file || document.getElementById('assistantPhoto')?.files?.[0] || null;
+                const isAdmin = this.isAdmin();
+                const file = isAdmin
+                    ? (this._assistantPhotoPayload?.file || document.getElementById('assistantPhoto')?.files?.[0] || null)
+                    : null;
                 if (!prompt && !file) {
-                    this.showToast('Напишите описание или прикрепите фото', true);
+                    this.showToast(isAdmin ? 'Напишите запрос или прикрепите фото' : 'Напишите, что найти или куда проложить маршрут', true);
                     return;
                 }
-                const btn = document.getElementById('assistantParseBtn');
-                if (btn) btn.disabled = true;
-                try {
-                    const body = new FormData();
-                    body.append('prompt', prompt);
-                    if (file) body.append('photo', file, file.name || 'photo.jpg');
-                    const draft = await apiFetch('/api/assistant/parse', { method: 'POST', body });
-                    this._assistantDraft = draft;
-                    this.renderAssistantDraft(draft);
-                } catch (err) {
-                    this.showToast(err.message || 'Не удалось разобрать черновик', true);
-                } finally {
-                    if (btn) btn.disabled = false;
+                const intent = this.classifyAssistantIntent(prompt);
+                if (!isAdmin && file) {
+                    this.showToast('Добавление по фото доступно только администратору', true);
+                }
+                if (intent === 'create' && !isAdmin) {
+                    this.showToast('Добавление трасс и районов доступно только администратору', true);
+                    this.renderAssistantLookup(prompt, { preferNavigate: false });
+                    return;
+                }
+                const wantsCreate = isAdmin && (intent === 'create' || (!!file && intent !== 'search' && intent !== 'navigate'));
+                if (wantsCreate) {
+                    const btn = document.getElementById('assistantParseBtn');
+                    if (btn) btn.disabled = true;
+                    try {
+                        const body = new FormData();
+                        body.append('prompt', prompt);
+                        if (file) body.append('photo', file, file.name || 'photo.jpg');
+                        const draft = await apiFetch('/api/assistant/parse', { method: 'POST', body });
+                        this._assistantDraft = draft;
+                        this.renderAssistantDraft(draft);
+                    } catch (err) {
+                        this.showToast(err.message || 'Не удалось разобрать черновик', true);
+                    } finally {
+                        if (btn) btn.disabled = false;
+                    }
+                    return;
+                }
+                this.renderAssistantLookup(prompt, { preferNavigate: intent === 'navigate' });
+            }
+
+            renderAssistantLookup(prompt, { preferNavigate = false } = {}) {
+                const box = document.getElementById('assistantDraftBox');
+                if (!box) return;
+                const results = this.searchCatalogForAssistant(prompt);
+                const kindLabels = { area: 'Район', sector: 'Сектор', route: 'Трасса', boulder: 'Боулдер' };
+                box.classList.remove('hidden');
+                if (!results.length) {
+                    box.innerHTML = '<p>Ничего не нашлось. Попробуйте название трассы, сектора или района.</p>';
+                    return;
+                }
+                box.innerHTML = results.map((item) => {
+                    const target = this.navTargetFromKindId(item.kind, item.id);
+                    const canNav = !!(target && Number.isFinite(Number(target.lat)) && Number.isFinite(Number(target.lng)));
+                    return `
+                        <div class="assistant-result">
+                            <div>
+                                <strong>${this.escapeHtml(kindLabels[item.kind] || item.kind)}: ${this.escapeHtml(item.title || '')}</strong>
+                                <div class="assistant-result-meta">${this.escapeHtml(item.subtitle || '')}</div>
+                            </div>
+                            <div class="assistant-draft-actions">
+                                <button type="button" class="btn btn-primary btn-small" data-assistant-open="${item.kind}" data-id="${item.id}">
+                                    <i class="fas fa-eye"></i> Открыть
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-small" data-assistant-nav="${item.kind}" data-id="${item.id}" ${canNav ? '' : 'disabled'}>
+                                    <i class="fas fa-route"></i> Маршрут
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                box.querySelectorAll('[data-assistant-open]').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        this.hideDialog('assistantDialog');
+                        this.openGlobalSearchResult(btn.dataset.assistantOpen, Number(btn.dataset.id));
+                    });
+                });
+                box.querySelectorAll('[data-assistant-nav]').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        const target = this.navTargetFromKindId(btn.dataset.assistantNav, Number(btn.dataset.id));
+                        if (!target) {
+                            this.showToast('У объекта нет координат для карт', true);
+                            return;
+                        }
+                        this.hideDialog('assistantDialog');
+                        this.openMapsChooser(target, 'dir');
+                    });
+                });
+                const topHits = results.filter((item) => item.score >= 3);
+                const best = topHits[0];
+                const bestTarget = best ? this.navTargetFromKindId(best.kind, best.id) : null;
+                if (preferNavigate && topHits.length === 1 && bestTarget) {
+                    this.hideDialog('assistantDialog');
+                    this.openMapsChooser(bestTarget, 'dir');
                 }
             }
 
@@ -8566,6 +8735,7 @@
             }
 
             applyAssistantDraftToForm(draft) {
+                if (!this.requireAdmin('Добавление через ИИ')) return;
                 if (!draft) return;
                 const photo = this._assistantPhotoPayload;
                 const loc = (draft.latitude != null && draft.longitude != null)
@@ -9736,9 +9906,16 @@
                     if (input) input.setAttribute('accept', PHOTO_INPUT_ACCEPT);
                 });
                 document.getElementById('areaPhoto')?.addEventListener('change', (e) => this.onAreaPhotoSelected(e));
+                document.getElementById('openAssistantBtn')?.addEventListener('click', () => this.openAssistantDialog());
                 document.getElementById('assistantPhoto')?.addEventListener('change', (e) => this.onAssistantPhotoSelected(e));
                 document.getElementById('assistantParseBtn')?.addEventListener('click', () => {
                     void this.parseAssistantDraft();
+                });
+                document.getElementById('assistantPrompt')?.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        void this.parseAssistantDraft();
+                    }
                 });
                 document.getElementById('areaPhotoClearBtn')?.addEventListener('click', () => this.clearAreaDialogPhoto());
                 document.getElementById('areaPhotoRotateLeftBtn')?.addEventListener('click', () => {
