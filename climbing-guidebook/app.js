@@ -8554,11 +8554,9 @@
                 const kindHint = this.assistantKindHint(text);
                 const query = this.normalizeAssistantQuery(text).toLowerCase();
                 const words = query.split(/\s+/).filter((w) => w.length >= 2);
-                const source = kindHint
-                    ? this.buildGlobalSearchIndex().filter((item) => item.kind === kindHint)
-                    : this.buildGlobalSearchIndex();
+                const index = this.buildGlobalSearchIndex();
                 if (!words.length && !kindHint) return [];
-                return source
+                const rank = (source) => source
                     .map((item) => {
                         const hay = String(item.search || '').toLowerCase();
                         const title = String(item.title || '').toLowerCase();
@@ -8571,6 +8569,9 @@
                     .filter(Boolean)
                     .sort((a, b) => b.score - a.score || String(a.title).localeCompare(String(b.title), 'ru'))
                     .slice(0, 8);
+                const narrowed = kindHint ? rank(index.filter((item) => item.kind === kindHint)) : [];
+                if (narrowed.length) return narrowed;
+                return rank(index);
             }
 
             matchCatalogByName(items, name) {
