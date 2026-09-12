@@ -4630,6 +4630,8 @@
                 this.currentPhotoPreview = null;
                 this.quickRoutePhotoData = null;
                 this.quickBoulderPhotoData = null;
+                this._assistantPhotoPayload = null;
+                this._assistantDraft = null;
 
                 this.routeMarkupMode = 'line';
                 this.boulderMarkupMode = 'start';
@@ -8204,6 +8206,9 @@
                     tb.innerHTML = this.isAdmin() ? `
                         <button type="button" class="btn btn-primary" data-catalog-act="add-area">
                             <i class="fas fa-plus"></i> Добавить район
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-catalog-act="ai-assistant">
+                            <i class="fas fa-wand-magic-sparkles"></i> ИИ-помощник
                         </button>` : '';
                     list.innerHTML = areas.length ? areas.map(a => {
                         const sc = sectors.filter(s => Number(s.areaId) === Number(a.id)).length;
@@ -8248,6 +8253,9 @@
                         <button type="button" class="btn btn-ghost" data-catalog-act="nav-areas"><i class="fas fa-arrow-left"></i> Назад</button>
                         <button type="button" class="btn btn-primary" data-catalog-act="add-sector" data-id="${this.catalog.areaId}">
                             <i class="fas fa-plus"></i> Добавить сектор
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-catalog-act="ai-assistant">
+                            <i class="fas fa-wand-magic-sparkles"></i> ИИ-помощник
                         </button>` : `
                         <button type="button" class="btn btn-ghost" data-catalog-act="nav-areas"><i class="fas fa-arrow-left"></i> Назад</button>`;
                     const listSectors = sectors.filter(s => Number(s.areaId) === Number(this.catalog.areaId));
@@ -8299,7 +8307,8 @@
                     ` : '';
                     tb.innerHTML = `
                         <button type="button" class="btn btn-ghost" data-catalog-act="nav-area" data-id="${this.catalog.areaId}"><i class="fas fa-arrow-left"></i> К секторам</button>
-                        ${addButtons}`;
+                        ${addButtons}
+                        ${this.isAdmin() ? `<button type="button" class="btn btn-secondary" data-catalog-act="ai-assistant"><i class="fas fa-wand-magic-sparkles"></i> ИИ-помощник</button>` : ''}`;
 
                     const rs = getRoutes().filter(r => Number(r.sectorId) === Number(this.catalog.sectorId));
                     const bs = getBoulders().filter(b => Number(b.sectorId) === Number(this.catalog.sectorId));
@@ -8385,6 +8394,7 @@
                     e.preventDefault();
                     const id = act.dataset.id ? Number(act.dataset.id) : null;
                     const action = act.dataset.catalogAct;
+                    if (action === 'ai-assistant') { this.openAssistantDialog(); return; }
                     if (action === 'add-area') { if (!this.requireAdmin('Добавление района')) return; this.showAddAreaDialog(); }
                     if (action === 'edit-area') { if (!this.requireAdmin('Редактирование района')) return; this.showEditAreaDialog(id); }
                     if (action === 'edit-area-desc') { if (!this.requireAdmin('Редактирование описания района')) return; this.showEditAreaDialog(id, { focusDescription: true }); }
@@ -8448,6 +8458,194 @@
                         this.showClimbDetailDialog(oc, oid);
                     }
                 }
+            }
+
+            openAssistantDialog() {
+                if (!this.requireAdmin('ИИ-помощник')) return;
+                this._assistantDraft = null;
+                const promptEl = document.getElementById('assistantPrompt');
+                const box = document.getElementById('assistantDraftBox');
+                const preview = document.getElementById('assistantPhotoPreview');
+                const input = document.getElementById('assistantPhoto');
+                if (promptEl && !promptEl.value) promptEl.value = '';
+                if (box) {
+                    box.classList.add('hidden');
+                    box.innerHTML = '';
+                }
+                if (input) input.value = '';
+                if (preview) {
+                    preview.classList.add('hidden');
+                    preview.innerHTML = '';
+                }
+                this.showDialog('assistantDialog');
+            }
+
+            matchCatalogByName(items, name) {
+                const q = String(name || '').trim().toLowerCase();
+                if (!q || !Array.isArray(items)) return null;
+                return items.find((item) => String(item.name || '').toLowerCase() === q)
+                    || items.find((item) => String(item.name || '').toLowerCase().includes(q))
+                    || null;
+            }
+
+            async onAssistantPhotoSelected(event) {
+                const file = event?.target?.files?.[0];
+                if (!file) {
+                    this._assistantPhotoPayload = null;
+                    return;
+                }
+                try {
+                    this.showToast('Сжимаем фото…', false);
+                    const uploaded = await processImageUploadFile(file, 'climb');
+                    this._assistantPhotoPayload = {
+                        data: uploaded.data,
+                        fileName: uploaded.fileName,
+                        type: uploaded.type,
+                        markup: null,
+                        file
+                    };
+                    const preview = document.getElementById('assistantPhotoPreview');
+                    if (preview) {
+                        preview.classList.remove('hidden');
+                        preview.innerHTML = `<img src="${this.escapeHtml(uploaded.data)}" alt="Фото для помощника">`;
+                    }
+                    this.notifyImageCompressionResult(uploaded.originalSize, uploaded.compressedSize, uploaded.wasLargeInput);
+                } catch (err) {
+                    this._assistantPhotoPayload = null;
+                    this.showToast(err.message || 'Не удалось прочитать фото', true);
+                }
+            }
+
+            async parseAssistantDraft() {
+                if (!this.requireAdmin('ИИ-помощник')) return;
+                const prompt = String(document.getElementById('assistantPrompt')?.value || '').trim();
+                const file = this._assistantPhotoPayload?.file || document.getElementById('assistantPhoto')?.files?.[0] || null;
+                if (!prompt && !file) {
+                    this.showToast('Напишите описание или прикрепите фото', true);
+                    return;
+                }
+                const btn = document.getElementById('assistantParseBtn');
+                if (btn) btn.disabled = true;
+                try {
+                    const body = new FormData();
+                    body.append('prompt', prompt);
+                    if (file) body.append('photo', file, file.name || 'photo.jpg');
+                    const draft = await apiFetch('/api/assistant/parse', { method: 'POST', body });
+                    this._assistantDraft = draft;
+                    this.renderAssistantDraft(draft);
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось разобрать черновик', true);
+                } finally {
+                    if (btn) btn.disabled = false;
+                }
+            }
+
+            renderAssistantDraft(draft) {
+                const box = document.getElementById('assistantDraftBox');
+                if (!box || !draft) return;
+                const kindLabels = { area: 'Район', sector: 'Сектор', route: 'Трасса', boulder: 'Боулдер' };
+                const loc = (draft.latitude != null && draft.longitude != null)
+                    ? `${draft.latitude}, ${draft.longitude}`
+                    : '—';
+                box.classList.remove('hidden');
+                box.innerHTML = `
+                    <p><strong>${kindLabels[draft.kind] || draft.kind}:</strong> ${this.escapeHtml(draft.name || 'без названия')}</p>
+                    <p>Категория: ${this.escapeHtml(draft.grade || '—')} · Координаты: ${this.escapeHtml(loc)}</p>
+                    <p>Район: ${this.escapeHtml(draft.area_name || '—')} · Сектор: ${this.escapeHtml(draft.sector_name || '—')}</p>
+                    <p>${this.escapeHtml(draft.description || '')}</p>
+                    ${draft.note ? `<p class="form-hint">${this.escapeHtml(draft.note)}</p>` : ''}
+                    <div class="assistant-draft-actions">
+                        <button type="button" class="btn btn-primary" id="assistantOpenFormBtn">
+                            <i class="fas fa-pen"></i> Открыть форму и править
+                        </button>
+                    </div>
+                `;
+                document.getElementById('assistantOpenFormBtn')?.addEventListener('click', () => {
+                    this.applyAssistantDraftToForm(draft);
+                });
+            }
+
+            applyAssistantDraftToForm(draft) {
+                if (!draft) return;
+                const photo = this._assistantPhotoPayload;
+                const loc = (draft.latitude != null && draft.longitude != null)
+                    ? this.formatLocationInput(draft.latitude, draft.longitude)
+                    : '';
+                this.hideDialog('assistantDialog');
+
+                if (draft.kind === 'area') {
+                    this.showAddAreaDialog();
+                    document.getElementById('areaName').value = draft.name || '';
+                    document.getElementById('areaDescription').value = draft.description || '';
+                    document.getElementById('areaLocation').value = loc;
+                    if (photo?.data) {
+                        this.areaPhotoData = { data: photo.data, fileName: photo.fileName, type: photo.type };
+                        this.renderAreaDialogPhotoPreview(photo.data);
+                    }
+                    this.showToast('Проверьте район и сохраните', false);
+                    return;
+                }
+
+                if (draft.kind === 'sector') {
+                    const area = this.matchCatalogByName(getAreas(), draft.area_name)
+                        || getAreas().find((a) => Number(a.id) === Number(this.catalog.areaId));
+                    if (!area) {
+                        this.showToast('Сначала укажите существующий район в описании или откройте его в каталоге', true);
+                        this.showDialog('assistantDialog');
+                        return;
+                    }
+                    this.showAddSectorDialog(area.id);
+                    document.getElementById('sectorName').value = draft.name || '';
+                    document.getElementById('sectorDescription').value = draft.description || '';
+                    document.getElementById('sectorLocation').value = loc;
+                    this.showToast(`Сектор будет в районе «${area.name}». Проверьте и сохраните`, false);
+                    return;
+                }
+
+                const sector = this.matchCatalogByName(getSectors(), draft.sector_name)
+                    || getSectors().find((s) => Number(s.id) === Number(this.catalog.sectorId));
+                if (!sector) {
+                    this.showToast('Сначала укажите существующий сектор в описании или откройте его в каталоге', true);
+                    this.showDialog('assistantDialog');
+                    return;
+                }
+
+                if (draft.kind === 'route') {
+                    void this.quickAddRouteInSector(sector.id).then(() => {
+                        document.getElementById('quickRouteName').value = draft.name || '';
+                        document.getElementById('quickRouteGrade').value = draft.grade || '6a';
+                        document.getElementById('quickRouteDescription').value = draft.description || '';
+                        document.getElementById('quickRouteCoordinates').value = loc;
+                        if (photo?.data) {
+                            this.quickRoutePhotoData = {
+                                data: photo.data,
+                                fileName: photo.fileName,
+                                type: photo.type,
+                                markup: null
+                            };
+                            this.renderQuickDialogPhotoPreview('route');
+                        }
+                    });
+                    this.showToast(`Трасса в секторе «${sector.name}». Поправьте и сохраните`, false);
+                    return;
+                }
+
+                void this.quickAddBoulderInSector(sector.id).then(() => {
+                    document.getElementById('quickBoulderName').value = draft.name || '';
+                    document.getElementById('quickBoulderGrade').value = draft.grade || '7A';
+                    document.getElementById('quickBoulderDescription').value = draft.description || '';
+                    document.getElementById('quickBoulderCoordinates').value = loc;
+                    if (photo?.data) {
+                        this.quickBoulderPhotoData = {
+                            data: photo.data,
+                            fileName: photo.fileName,
+                            type: photo.type,
+                            markup: null
+                        };
+                        this.renderQuickDialogPhotoPreview('boulder');
+                    }
+                });
+                this.showToast(`Боулдер в секторе «${sector.name}». Поправьте и сохраните`, false);
             }
 
             showAddAreaDialog() {
@@ -9538,6 +9736,10 @@
                     if (input) input.setAttribute('accept', PHOTO_INPUT_ACCEPT);
                 });
                 document.getElementById('areaPhoto')?.addEventListener('change', (e) => this.onAreaPhotoSelected(e));
+                document.getElementById('assistantPhoto')?.addEventListener('change', (e) => this.onAssistantPhotoSelected(e));
+                document.getElementById('assistantParseBtn')?.addEventListener('click', () => {
+                    void this.parseAssistantDraft();
+                });
                 document.getElementById('areaPhotoClearBtn')?.addEventListener('click', () => this.clearAreaDialogPhoto());
                 document.getElementById('areaPhotoRotateLeftBtn')?.addEventListener('click', () => {
                     void this.rotateAreaDialogPhoto(3);

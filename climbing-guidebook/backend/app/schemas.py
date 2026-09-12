@@ -570,3 +570,19 @@ class MapFeatureRead(BaseModel):
     created_by: Optional[str]
     created_at: datetime
     updated_at: datetime
+
+
+AssistantKind = Literal["area", "sector", "route", "boulder"]
+
+
+class AssistantDraft(BaseModel):
+    kind: AssistantKind
+    name: str = ""
+    description: str = ""
+    grade: Optional[str] = None
+    area_name: Optional[str] = None
+    sector_name: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    source: str = "heuristic"
+    note: Optional[str] = None

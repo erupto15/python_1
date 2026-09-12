@@ -15,7 +15,7 @@ from app.db import Base, SessionLocal, engine, ensure_optional_columns
 
 logger = logging.getLogger(__name__)
 from app.models import Area, Boulder, Photo, Route, Sector
-from app.routers import areas, auth, boulders, catalog, comments, community, map_features, media, photos, routes_api, sectors, telegram, users, videos
+from app.routers import areas, assistant, auth, boulders, catalog, comments, community, map_features, media, photos, routes_api, sectors, telegram, users, videos
 from app.seed import bootstrap_catalog
 from app.services.media_storage import ensure_upload_dir
 from app.services.telegram_bot import call_telegram_api, close_telegram_client
@@ -78,6 +78,7 @@ app.include_router(media.router, prefix="/api")
 app.include_router(comments.router, prefix="/api")
 app.include_router(community.router, prefix="/api")
 app.include_router(telegram.router, prefix="/api")
+app.include_router(assistant.router, prefix="/api")
 
 # Смонтировать раздачу загруженных файлов ДО catch-all фронтенд-роута ниже.
 ensure_upload_dir()

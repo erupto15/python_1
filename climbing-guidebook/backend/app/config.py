@@ -153,6 +153,11 @@ class Settings(BaseSettings):
     media_max_upload_bytes: int = 200 * 1024 * 1024
     media_url_prefix: str = "/uploads"
 
+    # ИИ-помощник каталога (OpenAI-compatible). Без ключа работает локальный разбор текста.
+    assistant_api_key: str = ""
+    assistant_api_base: str = "https://api.openai.com/v1"
+    assistant_model: str = "gpt-4o-mini"
+
     @property
     def media_upload_path(self) -> Path:
         raw = (self.media_upload_dir or "").strip()

@@ -1025,6 +1025,33 @@
         </div>
     </div>
 
+    <div class="dialog-overlay hidden" id="assistantDialog" style="z-index: 1090;">
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <div class="dialog-header-text">
+                    <div class="dialog-title">ИИ-помощник</div>
+                    <div class="dialog-subtitle">Опишите район, сектор или трассу и при желании прикрепите фото. Черновик откроется в обычной форме — его можно поправить перед сохранением.</div>
+                </div>
+                <button type="button" class="dialog-close-btn" data-close-dialog="assistantDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
+            </div>
+            <div class="dialog-body">
+                <div class="form-group">
+                    <label class="form-label" for="assistantPrompt">Описание</label>
+                    <textarea class="form-textarea" id="assistantPrompt" rows="4" placeholder="Например: добавь болдер «Рыжий» 6B в секторе Красный угол района Ладога. Старт с двух полок, топ на ребре."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="assistantPhoto">Фото трассы или района</label>
+                    <input type="file" class="form-input" id="assistantPhoto" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp">
+                    <div class="area-photo-preview hidden" id="assistantPhotoPreview"></div>
+                </div>
+                <button type="button" class="btn btn-primary" id="assistantParseBtn">
+                    <i class="fas fa-wand-magic-sparkles"></i> Разобрать черновик
+                </button>
+                <div id="assistantDraftBox" class="assistant-draft hidden"></div>
+            </div>
+        </div>
+    </div>
+
     <div class="dialog-overlay hidden" id="mapsChooserDialog" style="z-index: 1100;">
         <div class="dialog-content maps-chooser-dialog">
             <div class="dialog-header">

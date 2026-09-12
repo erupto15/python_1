@@ -3596,6 +3596,27 @@
             gap: 8px;
         }
 
+        .assistant-draft {
+            margin-top: 14px;
+            padding: 12px;
+            border: 1px solid var(--tg-btn-border);
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--card-bg) 88%, transparent);
+        }
+
+        .assistant-draft p {
+            margin: 0 0 8px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .assistant-draft-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
         .climb-detail-admin-row {
             display: flex;
             flex-wrap: wrap;
