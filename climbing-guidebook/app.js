@@ -2039,13 +2039,16 @@
                         const drawLabeledHold = (p, text) => {
                             const q = toPx(p);
                             if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return;
-                            const rHold = Math.max(14, Math.round(Math.min(w, h) * 0.022));
+                            const rHold = Math.max(11, Math.round(Math.min(w, h) * 0.028));
                             drawCircle(p, rHold, TOPO_MARKUP.holdFill, TOPO_MARKUP.holdStroke, TOPO_MARKUP.holdStrokePx);
                             ctx.fillStyle = TOPO_MARKUP.holdLabelColor;
-                            ctx.font = `700 ${Math.max(9, Math.round(rHold * 0.55))}px system-ui, sans-serif`;
+                            ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+                            ctx.lineWidth = 3;
+                            ctx.font = `700 ${Math.max(9, Math.round(rHold * 0.7))}px system-ui, sans-serif`;
                             ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText(text, q.x, q.y);
+                            ctx.textBaseline = 'top';
+                            ctx.strokeText(text, q.x, q.y + rHold + 2);
+                            ctx.fillText(text, q.x, q.y + rHold + 2);
                         };
 
                         if (climbType === 'route') {
@@ -4119,13 +4122,13 @@
         /** Тап vs проведение пальцем/мышью (px). */
         const MARKUP_TAP_MAX_MOVE_PX = 14;
 
-        /** Общий стиль топо-разметки: тонкая линия, подписанные кружки старт/финиш. */
+        /** Общий стиль топо-разметки: кружки старт/финиш как в Climbzilla (~6% ширины кадра). */
         const TOPO_MARKUP = {
-            holdDiameterPx: 28,
-            holdRadiusPx: 14,
-            labeledHoldDiameterPx: 44,
-            labeledHoldRadiusPx: 22,
-            holdStrokePx: 2,
+            holdDiameterPx: 22,
+            holdRadiusPx: 11,
+            labeledHoldDiameterPx: 22,
+            labeledHoldRadiusPx: 11,
+            holdStrokePx: 2.5,
             holdFill: 'rgba(255, 255, 255, 0.84)',
             holdStroke: '#d32f2f',
             holdNumberColor: '#c62828',
@@ -4276,16 +4279,17 @@
             const label = document.createElementNS(NS, 'text');
             label.setAttribute('class', labeled ? 'topo-hold-label' : 'topo-hold-num');
             label.setAttribute('x', String(nx));
-            label.setAttribute('y', String(ny));
+            label.setAttribute('y', labeled ? String(ny + r + topoStrokeNorm(geom, 3)) : String(ny));
             label.setAttribute('text-anchor', 'middle');
-            label.setAttribute('dominant-baseline', 'central');
+            label.setAttribute('dominant-baseline', labeled ? 'hanging' : 'central');
             label.setAttribute('fill', labeled ? TOPO_MARKUP.holdLabelColor : TOPO_MARKUP.holdNumberColor);
-            const fontPx = labeled
-                ? Math.max(7, TOPO_MARKUP.labeledHoldRadiusPx * 0.38)
-                : TOPO_MARKUP.holdRadiusPx * 0.88;
+            const fontPx = labeled ? 8 : TOPO_MARKUP.holdRadiusPx * 0.88;
             label.setAttribute('font-size', String(topoStrokeNorm(geom, fontPx)));
             label.setAttribute('font-weight', '700');
             label.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, sans-serif');
+            label.setAttribute('paint-order', 'stroke');
+            label.setAttribute('stroke', 'rgba(0,0,0,0.55)');
+            label.setAttribute('stroke-width', String(topoStrokeNorm(geom, 2)));
             label.setAttribute('pointer-events', 'none');
             label.textContent = labeled ? labelText : String((options.index ?? 0) + 1);
             svg.appendChild(label);
