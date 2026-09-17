@@ -147,45 +147,20 @@
                 root.classList.toggle('tg-theme-light', lightTheme);
                 root.classList.toggle('tg-theme-dark', !lightTheme);
                 applyAppTheme(lightTheme ? 'light' : 'dark', { persist: false });
-                const txt = hexColor(tp.text_color);
-                const hint = hexColor(tp.hint_color);
-                const link = hexColor(tp.link_color);
-                const btn = hexColor(tp.button_color);
-                const secondaryBg = hexColor(tp.secondary_bg_color);
-                const sectionBg = hexColor(tp.section_bg_color);
                 const destructive = hexColor(tp.destructive_text_color);
 
-                // Если пользователь вручную выбрал тему — не перетираем базовую палитру TG-цветами фона.
-                if (!userTheme) {
-                    if (bg) root.style.setProperty('--background-color', bg);
-                    if (txt) root.style.setProperty('--text-color', txt);
-                    if (hint) root.style.setProperty('--light-text', hint);
-                    const card = secondaryBg || sectionBg;
-                    if (card) root.style.setProperty('--card-bg', card);
-                    if (txt && bg) {
-                        root.style.setProperty(
-                            '--border-color',
-                            `color-mix(in srgb, ${txt} 14%, ${bg})`
-                        );
-                    } else if (hint) {
-                        root.style.setProperty('--border-color', hint);
-                    }
-                }
-                if (link) root.style.setProperty('--primary-color', link);
-                if (btn) {
-                    root.style.setProperty('--tg-blue', btn);
-                    root.style.setProperty('--tg-blue-hover', btn);
-                    root.style.setProperty('--tg-blue-active', btn);
-                }
+                // Брендовая палитра из styles.css — не перетираем синим link/button_color Telegram.
+                clearBrandThemeInlineOverrides(root);
                 if (destructive) {
                     root.style.setProperty('--tg-danger', destructive);
                     root.style.setProperty('--danger-color', destructive);
                 }
 
                 try {
-                    if (bg && !userTheme) {
-                        tg.setHeaderColor(bg);
-                        tg.setBackgroundColor(bg);
+                    const chromeBg = readCssColorVar('--background-color');
+                    if (chromeBg) {
+                        tg.setHeaderColor(chromeBg);
+                        tg.setBackgroundColor(chromeBg);
                     }
                 } catch (e) {
                     /* старые клиенты / ограничения WebView */
@@ -361,24 +336,14 @@
         window.applyTelegramThemeToNativeButtons = function applyTelegramThemeToNativeButtons(tg) {
             if (!tg) return;
             const tp = tg.themeParams || {};
-            const btn = (() => {
-                const c = tp.button_color;
-                if (c == null || c === '') return '';
-                const s = String(c).trim();
-                return s.startsWith('#') ? s : `#${s}`;
-            })();
+            const btn = readCssColorVar('--primary-color', '#e8472a');
             const btnText = (() => {
                 const c = tp.button_text_color;
-                if (c == null || c === '') return '';
+                if (c == null || c === '') return '#ffffff';
                 const s = String(c).trim();
                 return s.startsWith('#') ? s : `#${s}`;
             })();
-            const secBg = (() => {
-                const c = tp.secondary_bg_color || tp.bg_color;
-                if (c == null || c === '') return '';
-                const s = String(c).trim();
-                return s.startsWith('#') ? s : `#${s}`;
-            })();
+            const secBg = readCssColorVar('--surface-elevated', readCssColorVar('--card-bg', '#141416'));
             try {
                 if (btn && tg.MainButton) tg.MainButton.color = btn;
                 if (btnText && tg.MainButton) tg.MainButton.textColor = btnText;
@@ -518,6 +483,35 @@
         })();
         const AUTH_STORAGE_KEY = 'climbingApp_auth';
         const THEME_STORAGE_KEY = '6a9a-theme';
+        /** Inline-переменные, которые Telegram themeParams не должны перетирать. */
+        const BRAND_THEME_INLINE_VARS = [
+            '--primary-color',
+            '--tg-blue',
+            '--tg-blue-hover',
+            '--tg-blue-active',
+            '--background-color',
+            '--text-color',
+            '--light-text',
+            '--card-bg',
+            '--border-color',
+            '--surface-elevated',
+            '--map-accent',
+            '--accent-soft',
+            '--accent-glow'
+        ];
+
+        function clearBrandThemeInlineOverrides(root = document.documentElement) {
+            BRAND_THEME_INLINE_VARS.forEach((prop) => root.style.removeProperty(prop));
+        }
+
+        function readCssColorVar(name, fallback = '') {
+            try {
+                const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+                return value || fallback;
+            } catch (_) {
+                return fallback;
+            }
+        }
         const CLIMBING_DATA_STORAGE_KEY = 'climbingApp_catalog_v2';
         const CLIMBING_OFFLINE_META_KEY = 'climbingApp_offline_meta_v1';
         const CLIMBING_OFFLINE_PACKS_KEY = 'climbingApp_offline_packs_v1';
@@ -574,13 +568,7 @@
                     localStorage.setItem(THEME_STORAGE_KEY, next);
                 } catch (_) { /* ignore */ }
                 // Сбрасываем inline-цвета Telegram, чтобы сработала наша палитра темы.
-                [
-                    '--background-color',
-                    '--text-color',
-                    '--light-text',
-                    '--card-bg',
-                    '--border-color'
-                ].forEach((prop) => root.style.removeProperty(prop));
+                clearBrandThemeInlineOverrides(root);
             }
             syncThemeToggleUi(next);
             return next;
