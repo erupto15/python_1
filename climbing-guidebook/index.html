@@ -763,10 +763,14 @@
                         <label class="form-label" for="quickRouteName">Название *</label>
                         <input type="text" class="form-input" id="quickRouteName" required>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label" for="quickRouteGrade">Категория *</label>
-                            <input type="text" class="form-input" id="quickRouteGrade" value="6a" required>
+                    <div class="form-group">
+                        <span class="form-label">Категория *</span>
+                        <input type="hidden" id="quickRouteGrade" value="6a" required>
+                        <div class="grade-picker grade-picker--form" id="quickRouteGradePicker">
+                            <button type="button" class="grade-picker-toggle grade-picker-toggle--green" id="quickRouteGradeToggle" aria-expanded="false" aria-controls="quickRouteGradeDropdown">6a</button>
+                            <div class="grade-picker-dropdown" id="quickRouteGradeDropdown">
+                                <div class="grade-visual-strip" id="quickRouteGradeStrip" role="listbox" aria-label="Категория трассы"></div>
+                            </div>
                         </div>
                     </div>
                     <div class="form-row">
@@ -836,10 +840,14 @@
                         <label class="form-label" for="quickBoulderName">Название *</label>
                         <input type="text" class="form-input" id="quickBoulderName" required>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label" for="quickBoulderGrade">Категория *</label>
-                            <input type="text" class="form-input" id="quickBoulderGrade" value="7A" required>
+                    <div class="form-group">
+                        <span class="form-label">Категория *</span>
+                        <input type="hidden" id="quickBoulderGrade" value="7A" required>
+                        <div class="grade-picker grade-picker--form" id="quickBoulderGradePicker">
+                            <button type="button" class="grade-picker-toggle grade-picker-toggle--orange" id="quickBoulderGradeToggle" aria-expanded="false" aria-controls="quickBoulderGradeDropdown">7A</button>
+                            <div class="grade-picker-dropdown" id="quickBoulderGradeDropdown">
+                                <div class="grade-visual-strip" id="quickBoulderGradeStrip" role="listbox" aria-label="Категория боулдеринга"></div>
+                            </div>
                         </div>
                     </div>
                     <div class="form-row">

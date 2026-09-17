@@ -2826,6 +2826,22 @@
             return `grade-badge grade-badge--${gradeBandFromValue(grade)}`;
         }
 
+        const ROUTE_GRADE_OPTIONS = [
+            '4', '4+', '5', '5+',
+            '6a', '6a+', '6b', '6b+', '6c', '6c+',
+            '7a', '7a+', '7b', '7b+', '7c', '7c+',
+            '8a', '8a+', '8b', '8b+', '8c', '8c+',
+            '9a', '9a+', '9b', '9b+', '9c'
+        ];
+
+        const BOULDER_GRADE_OPTIONS = [
+            '4', '5',
+            '6A', '6A+', '6B', '6B+', '6C', '6C+',
+            '7A', '7A+', '7B', '7B+', '7C', '7C+',
+            '8A', '8A+', '8B', '8B+', '8C', '8C+',
+            '9A', '9A+'
+        ];
+
         function harderGradeBand(a, b) {
             const ia = GRADE_BAND_ORDER.indexOf(a);
             const ib = GRADE_BAND_ORDER.indexOf(b);
@@ -5231,6 +5247,106 @@
 
             _gradeChipToneByValue(v) {
                 return gradeBandFromValue(v);
+            }
+
+            _formGradeToggleToneClass(tone) {
+                return `grade-picker-toggle--${tone || 'all'}`;
+            }
+
+            _syncFormGradePicker(strip, selectedValue, toggle, cfg) {
+                strip?.querySelectorAll('.grade-chip').forEach((chip) => {
+                    const active = String(chip.dataset.value || '') === String(selectedValue || '');
+                    chip.classList.toggle('active', active);
+                    chip.setAttribute('aria-selected', active ? 'true' : 'false');
+                });
+                if (!toggle) return;
+                const display = selectedValue || cfg.emptyLabel || cfg.placeholder || 'Категория';
+                toggle.textContent = display;
+                toggle.classList.remove(
+                    'grade-picker-toggle--yellow',
+                    'grade-picker-toggle--green',
+                    'grade-picker-toggle--orange',
+                    'grade-picker-toggle--red',
+                    'grade-picker-toggle--black',
+                    'grade-picker-toggle--all'
+                );
+                toggle.classList.add(this._formGradeToggleToneClass(gradeBandFromValue(selectedValue)));
+            }
+
+            _initFormGradePicker({ hiddenId, stripId, toggleId, options, normalize, defaultValue, emptyLabel, placeholder }) {
+                const hidden = document.getElementById(hiddenId);
+                const strip = document.getElementById(stripId);
+                const toggle = document.getElementById(toggleId);
+                const picker = toggle?.closest('.grade-picker');
+                if (!hidden || !strip || !toggle || !picker) return;
+                this._formGradeConfigs = this._formGradeConfigs || {};
+                const cfg = { stripId, toggleId, normalize, defaultValue, emptyLabel, placeholder };
+                this._formGradeConfigs[hiddenId] = cfg;
+                strip.innerHTML = '';
+                options.forEach((value) => {
+                    const chip = document.createElement('button');
+                    chip.type = 'button';
+                    const tone = value ? this._gradeChipToneByValue(value) : 'all';
+                    chip.className = `grade-chip grade-chip--${tone}`;
+                    chip.dataset.value = value;
+                    chip.textContent = value || emptyLabel || '—';
+                    chip.setAttribute('role', 'option');
+                    chip.setAttribute('aria-selected', 'false');
+                    chip.addEventListener('click', () => {
+                        this.setFormGradeValue(hiddenId, value);
+                        this._setGradePickerOpen(picker, toggle, false);
+                    });
+                    strip.appendChild(chip);
+                });
+                toggle.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const open = picker.classList.contains('open');
+                    this._closeAllGradePickers();
+                    this._setGradePickerOpen(picker, toggle, !open);
+                    if (!open) {
+                        requestAnimationFrame(() => {
+                            strip.querySelector('.grade-chip.active')?.scrollIntoView({ block: 'nearest' });
+                        });
+                    }
+                });
+                const initial = hidden.value || defaultValue || '';
+                this.setFormGradeValue(hiddenId, initial, { scroll: false });
+            }
+
+            setFormGradeValue(hiddenId, rawValue, opts = {}) {
+                const cfg = (this._formGradeConfigs || {})[hiddenId] || {};
+                const normalize = cfg.normalize || (v => v);
+                const value = normalize(String(rawValue ?? '').trim());
+                const hidden = document.getElementById(hiddenId);
+                if (!hidden) return value;
+                hidden.value = value;
+                const strip = document.getElementById(cfg.stripId || `${hiddenId}Strip`);
+                const toggle = document.getElementById(cfg.toggleId || `${hiddenId}Toggle`);
+                this._syncFormGradePicker(strip, value, toggle, cfg);
+                if (opts.scroll !== false) {
+                    strip?.querySelector('.grade-chip.active')?.scrollIntoView({ block: 'nearest' });
+                }
+                hidden.dispatchEvent(new Event('change', { bubbles: true }));
+                return value;
+            }
+
+            initFormGradePickers() {
+                this._initFormGradePicker({
+                    hiddenId: 'quickRouteGrade',
+                    stripId: 'quickRouteGradeStrip',
+                    toggleId: 'quickRouteGradeToggle',
+                    options: ROUTE_GRADE_OPTIONS,
+                    normalize: normalizeRouteGrade,
+                    defaultValue: '6a'
+                });
+                this._initFormGradePicker({
+                    hiddenId: 'quickBoulderGrade',
+                    stripId: 'quickBoulderGradeStrip',
+                    toggleId: 'quickBoulderGradeToggle',
+                    options: BOULDER_GRADE_OPTIONS,
+                    normalize: normalizeBoulderGrade,
+                    defaultValue: '7A'
+                });
             }
 
             _buildVisualGradeFilter(selectId, stripId, toggleId, panelId, onSelect) {
@@ -8939,7 +9055,7 @@
                 if (draft.kind === 'route') {
                     void this.quickAddRouteInSector(sector.id).then(() => {
                         document.getElementById('quickRouteName').value = draft.name || '';
-                        document.getElementById('quickRouteGrade').value = draft.grade || '6a';
+                        this.setFormGradeValue('quickRouteGrade', draft.grade || '6a');
                         document.getElementById('quickRouteDescription').value = draft.description || '';
                         document.getElementById('quickRouteCoordinates').value = loc;
                         if (photo?.data) {
@@ -8958,7 +9074,7 @@
 
                 void this.quickAddBoulderInSector(sector.id).then(() => {
                     document.getElementById('quickBoulderName').value = draft.name || '';
-                    document.getElementById('quickBoulderGrade').value = draft.grade || '7A';
+                    this.setFormGradeValue('quickBoulderGrade', draft.grade || '7A');
                     document.getElementById('quickBoulderDescription').value = draft.description || '';
                     document.getElementById('quickBoulderCoordinates').value = loc;
                     if (photo?.data) {
@@ -9144,7 +9260,7 @@
                 document.getElementById('quickRouteId').value = '';
                 document.getElementById('quickRouteSectorId').value = String(sid || '');
                 document.getElementById('quickRouteForm')?.reset();
-                document.getElementById('quickRouteGrade').value = '6a';
+                this.setFormGradeValue('quickRouteGrade', '6a');
                 document.getElementById('quickRouteDialogTitle').textContent = 'Добавить трассу';
                 document.getElementById('quickRouteDialogSubtitle').textContent = 'Новая трасса в выбранном секторе';
                 document.getElementById('saveQuickRouteBtn').innerHTML = '<i class="fas fa-save"></i> Добавить трассу';
@@ -9158,7 +9274,7 @@
                 document.getElementById('quickBoulderId').value = '';
                 document.getElementById('quickBoulderSectorId').value = String(sid || '');
                 document.getElementById('quickBoulderForm')?.reset();
-                document.getElementById('quickBoulderGrade').value = '7A';
+                this.setFormGradeValue('quickBoulderGrade', '7A');
                 document.getElementById('quickBoulderDialogTitle').textContent = 'Добавить боулдеринг';
                 document.getElementById('quickBoulderDialogSubtitle').textContent = 'Новый боулдеринг в выбранном секторе';
                 document.getElementById('saveQuickBoulderBtn').innerHTML = '<i class="fas fa-save"></i> Добавить боулдеринг';
@@ -9177,7 +9293,7 @@
                 document.getElementById('quickRouteId').value = String(route.id);
                 document.getElementById('quickRouteSectorId').value = String(route.sectorId || '');
                 document.getElementById('quickRouteName').value = route.name || '';
-                document.getElementById('quickRouteGrade').value = route.grade || '6a';
+                this.setFormGradeValue('quickRouteGrade', route.grade || '6a');
                 document.getElementById('quickRouteDescription').value = route.description || '';
                 document.getElementById('quickRouteLength').value = route.length ?? '';
                 document.getElementById('quickRouteBolts').value = route.bolts ?? '';
@@ -9204,7 +9320,7 @@
                 document.getElementById('quickBoulderId').value = String(boulder.id);
                 document.getElementById('quickBoulderSectorId').value = String(boulder.sectorId || '');
                 document.getElementById('quickBoulderName').value = boulder.name || '';
-                document.getElementById('quickBoulderGrade').value = boulder.grade || '7A';
+                this.setFormGradeValue('quickBoulderGrade', boulder.grade || '7A');
                 document.getElementById('quickBoulderDescription').value = boulder.description || '';
                 document.getElementById('quickBoulderHeight').value = boulder.height ?? '';
                 document.getElementById('quickBoulderCoordinates').value =
@@ -10266,6 +10382,7 @@
                     );
                 });
                 this.initVisualGradeFilters();
+                this.initFormGradePickers();
 
                 document.addEventListener('click', (e) => {
                     if (e.target && e.target.closest && e.target.closest('.grade-picker')) return;
@@ -13108,7 +13225,13 @@
                         </div>
                         <div class="climb-log-field">
                             <span class="form-label">Ваша категория</span>
-                            <input type="text" class="form-input" id="climbLogFeltGrade" placeholder="Например, 7a" value="${this.escapeHtml(stats.my_felt_grade || '')}" maxlength="32">
+                            <input type="hidden" id="climbLogFeltGrade" value="${this.escapeHtml(stats.my_felt_grade || '')}">
+                            <div class="grade-picker grade-picker--form" id="climbLogFeltGradePicker">
+                                <button type="button" class="grade-picker-toggle grade-picker-toggle--all" id="climbLogFeltGradeToggle" aria-expanded="false" aria-controls="climbLogFeltGradeDropdown">—</button>
+                                <div class="grade-picker-dropdown" id="climbLogFeltGradeDropdown">
+                                    <div class="grade-visual-strip" id="climbLogFeltGradeStrip" role="listbox" aria-label="Ваша категория"></div>
+                                </div>
+                            </div>
                         </div>
                         <div class="climb-log-field">
                             <span class="form-label">Оценка качества</span>
@@ -13117,6 +13240,19 @@
                     `;
 
                     this.bindAscentStylePicker('redpoint');
+
+                    const feltNormalize = climbType === 'route' ? normalizeRouteGrade : normalizeBoulderGrade;
+                    const feltOptions = climbType === 'route' ? ROUTE_GRADE_OPTIONS : BOULDER_GRADE_OPTIONS;
+                    this._initFormGradePicker({
+                        hiddenId: 'climbLogFeltGrade',
+                        stripId: 'climbLogFeltGradeStrip',
+                        toggleId: 'climbLogFeltGradeToggle',
+                        options: ['', ...feltOptions],
+                        normalize: feltNormalize,
+                        defaultValue: feltNormalize(stats.my_felt_grade || ''),
+                        emptyLabel: '—',
+                        placeholder: 'Выберите категорию'
+                    });
 
                     let pickedStars = Math.min(3, stats.my_stars || 0);
                     const starsWrap = document.getElementById('climbLogUserStarsPicker');

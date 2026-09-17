@@ -4150,6 +4150,84 @@
             display: block;
         }
 
+        .grade-picker--form {
+            width: 100%;
+            margin-top: 6px;
+        }
+
+        .grade-picker--form .grade-picker-toggle {
+            min-height: 44px;
+            padding: 10px 34px 10px 14px;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .grade-picker--form .grade-picker-dropdown {
+            width: 100%;
+            z-index: 24;
+        }
+
+        .grade-picker--form .grade-visual-strip {
+            max-height: min(220px, 42vh);
+            scroll-snap-type: y mandatory;
+        }
+
+        .grade-picker-toggle--yellow {
+            border-color: color-mix(in srgb, var(--map-grade-yellow) 60%, var(--tg-btn-border));
+            background: color-mix(in srgb, var(--map-grade-yellow) 20%, var(--tg-btn-bg));
+            color: var(--map-grade-yellow);
+        }
+
+        .grade-picker-toggle--green {
+            border-color: color-mix(in srgb, var(--map-grade-green) 55%, var(--tg-btn-border));
+            background: color-mix(in srgb, var(--map-grade-green) 18%, var(--tg-btn-bg));
+            color: var(--map-grade-green);
+        }
+
+        .grade-picker-toggle--orange {
+            border-color: color-mix(in srgb, var(--map-grade-orange) 55%, var(--tg-btn-border));
+            background: color-mix(in srgb, var(--map-grade-orange) 18%, var(--tg-btn-bg));
+            color: var(--map-grade-orange);
+        }
+
+        .grade-picker-toggle--red {
+            border-color: color-mix(in srgb, var(--map-grade-red) 55%, var(--tg-btn-border));
+            background: color-mix(in srgb, var(--map-grade-red) 16%, var(--tg-btn-bg));
+            color: var(--map-grade-red);
+        }
+
+        .grade-picker-toggle--black {
+            border-color: color-mix(in srgb, #ffffff 28%, var(--tg-btn-border));
+            background: color-mix(in srgb, var(--map-grade-black) 45%, var(--tg-btn-bg));
+            color: #d8d8de;
+        }
+
+        .grade-picker-toggle--all {
+            color: var(--light-text);
+            font-weight: 600;
+        }
+
+        .grade-visual-strip .grade-chip--yellow:not(.active) {
+            background: color-mix(in srgb, var(--map-grade-yellow) 24%, var(--card-bg));
+        }
+
+        .grade-visual-strip .grade-chip--green:not(.active) {
+            background: color-mix(in srgb, var(--map-grade-green) 22%, var(--card-bg));
+        }
+
+        .grade-visual-strip .grade-chip--orange:not(.active) {
+            background: color-mix(in srgb, var(--map-grade-orange) 22%, var(--card-bg));
+        }
+
+        .grade-visual-strip .grade-chip--red:not(.active) {
+            background: color-mix(in srgb, var(--map-grade-red) 20%, var(--card-bg));
+        }
+
+        .grade-visual-strip .grade-chip--black:not(.active) {
+            background: color-mix(in srgb, var(--map-grade-black) 55%, var(--card-bg));
+        }
+
         .grade-visual-strip {
             display: flex;
             flex-direction: column;
