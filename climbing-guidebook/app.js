@@ -2806,7 +2806,7 @@
             orange: '#f0851a',
             red: '#e53935',
             black: '#2a2a2e',
-            all: '#3db8a8'
+            all: '#e8472a'
         };
 
         function gradeBandFromValue(v) {
@@ -4632,6 +4632,8 @@
                 this.quickBoulderPhotoData = null;
                 this._assistantPhotoPayload = null;
                 this._assistantDraft = null;
+                this._assistantRecognition = null;
+                this._assistantVoiceListening = false;
 
                 this.routeMarkupMode = 'line';
                 this.boulderMarkupMode = 'start';
@@ -8466,45 +8468,166 @@
                 const subtitle = document.getElementById('assistantSubtitle');
                 const promptEl = document.getElementById('assistantPrompt');
                 const btn = document.getElementById('assistantParseBtn');
+                const photoLabel = document.getElementById('assistantPhotoLabel');
                 if (subtitle) {
                     subtitle.textContent = isAdmin
-                        ? 'Можно искать трассы и прокладывать маршрут. Админу также доступно добавление района, сектора или трассы по тексту и фото — черновик откроется в обычной форме.'
-                        : 'Найдите трассу, район или сектор и проложите маршрут в навигаторе.';
+                        ? 'Можно искать голосом или по фото, прокладывать маршрут. Админу также доступно добавление района, сектора или трассы — черновик откроется в обычной форме.'
+                        : 'Найдите трассу голосом, текстом или по фото и проложите маршрут в навигаторе.';
                 }
                 if (promptEl) {
                     promptEl.placeholder = isAdmin
                         ? 'Например: найди болдер Рыжий · как доехать до Мохбурга · добавь болдер «Рыжий» 6B в секторе Красный угол'
                         : 'Например: найди болдер Рыжий · как доехать до Мохбурга';
                 }
+                if (photoLabel) {
+                    photoLabel.textContent = isAdmin
+                        ? 'Фото для поиска или добавления района, сектора или трассы'
+                        : 'Фото трассы, сектора или района (поиск по снимку)';
+                }
                 if (btn) {
                     btn.innerHTML = isAdmin
                         ? '<i class="fas fa-wand-magic-sparkles"></i> Выполнить'
                         : '<i class="fas fa-wand-magic-sparkles"></i> Найти';
                 }
+                this.syncAssistantVoiceUi();
+            }
+
+            isAssistantVoiceSupported() {
+                return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+            }
+
+            syncAssistantVoiceUi() {
+                const btn = document.getElementById('assistantVoiceBtn');
+                const status = document.getElementById('assistantVoiceStatus');
+                const supported = this.isAssistantVoiceSupported();
+                if (btn) {
+                    btn.disabled = !supported;
+                    btn.classList.toggle('is-listening', !!this._assistantVoiceListening);
+                    btn.innerHTML = this._assistantVoiceListening
+                        ? '<i class="fas fa-stop" aria-hidden="true"></i><span class="assistant-tool-label">Стоп</span>'
+                        : '<i class="fas fa-microphone" aria-hidden="true"></i><span class="assistant-tool-label">Голос</span>';
+                    btn.title = supported
+                        ? (this._assistantVoiceListening ? 'Остановить запись' : 'Надиктовать запрос')
+                        : 'Голосовой ввод недоступен в этом браузере';
+                }
+                if (!status) return;
+                if (!supported) {
+                    status.textContent = 'Голосовой ввод не поддерживается в этом браузере.';
+                    status.classList.remove('hidden');
+                    return;
+                }
+                if (this._assistantVoiceListening) {
+                    status.textContent = 'Слушаю… говорите запрос.';
+                    status.classList.remove('hidden');
+                    return;
+                }
+                status.textContent = '';
+                status.classList.add('hidden');
+            }
+
+            stopAssistantVoice() {
+                if (this._assistantRecognition) {
+                    try {
+                        this._assistantRecognition.stop();
+                    } catch (_) {
+                        /* ignore */
+                    }
+                    this._assistantRecognition = null;
+                }
+                this._assistantVoiceListening = false;
+                this.syncAssistantVoiceUi();
+            }
+
+            toggleAssistantVoice() {
+                if (!this.isAssistantVoiceSupported()) {
+                    this.showToast('Голосовой ввод недоступен в этом браузере', true);
+                    return;
+                }
+                if (this._assistantVoiceListening) {
+                    this.stopAssistantVoice();
+                    return;
+                }
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                const recognition = new SpeechRecognition();
+                recognition.lang = 'ru-RU';
+                recognition.interimResults = true;
+                recognition.continuous = false;
+                recognition.maxAlternatives = 1;
+                this._assistantRecognition = recognition;
+                this._assistantVoiceListening = true;
+                this.syncAssistantVoiceUi();
+
+                const promptEl = document.getElementById('assistantPrompt');
+                const prefix = String(promptEl?.value || '').trim();
+                const prefixWithSpace = prefix ? `${prefix} ` : '';
+
+                recognition.onresult = (event) => {
+                    let interim = '';
+                    let finalText = '';
+                    for (let i = event.resultIndex; i < event.results.length; i += 1) {
+                        const part = event.results[i][0]?.transcript || '';
+                        if (event.results[i].isFinal) finalText += part;
+                        else interim += part;
+                    }
+                    if (promptEl) {
+                        promptEl.value = (prefixWithSpace + finalText + interim).trim();
+                    }
+                };
+                recognition.onerror = (event) => {
+                    const code = event?.error || 'unknown';
+                    if (code !== 'aborted') {
+                        const msg = code === 'not-allowed'
+                            ? 'Нет доступа к микрофону'
+                            : code === 'no-speech'
+                                ? 'Не удалось распознать речь'
+                                : 'Голосовой ввод недоступен';
+                        this.showToast(msg, true);
+                    }
+                    this.stopAssistantVoice();
+                };
+                recognition.onend = () => {
+                    this.stopAssistantVoice();
+                };
+                try {
+                    recognition.start();
+                } catch (_) {
+                    this.stopAssistantVoice();
+                    this.showToast('Не удалось запустить голосовой ввод', true);
+                }
             }
 
             openAssistantDialog() {
+                this.stopAssistantVoice();
                 this._assistantDraft = null;
                 this.syncAssistantDialogForRole();
                 const promptEl = document.getElementById('assistantPrompt');
                 const box = document.getElementById('assistantDraftBox');
-                const preview = document.getElementById('assistantPhotoPreview');
-                const input = document.getElementById('assistantPhoto');
                 if (promptEl && !promptEl.value) promptEl.value = '';
                 if (box) {
                     box.classList.add('hidden');
                     box.innerHTML = '';
                 }
-                if (!this.isAdmin()) {
-                    this._assistantPhotoPayload = null;
-                    if (input) input.value = '';
-                    if (preview) {
-                        preview.classList.add('hidden');
-                        preview.innerHTML = '';
-                    }
-                }
+                this.clearAssistantPhoto({ silent: true });
                 this.showDialog('assistantDialog');
                 promptEl?.focus();
+            }
+
+            clearAssistantPhoto({ silent = false } = {}) {
+                this._assistantPhotoPayload = null;
+                const input = document.getElementById('assistantPhoto');
+                const preview = document.getElementById('assistantPhotoPreview');
+                const clearBtn = document.getElementById('assistantPhotoClearBtn');
+                if (input) input.value = '';
+                if (preview) {
+                    preview.classList.add('hidden');
+                    preview.innerHTML = '';
+                }
+                clearBtn?.classList.add('hidden');
+                if (!silent) this.showToast('Фото убрано', false);
+            }
+
+            syncAssistantPhotoUi(hasPhoto = false) {
+                document.getElementById('assistantPhotoClearBtn')?.classList.toggle('hidden', !hasPhoto);
             }
 
             classifyAssistantIntent(text) {
@@ -8550,8 +8673,8 @@
                 return w.length >= 3 && t.length >= 3 && w.includes(t);
             }
 
-            searchCatalogForAssistant(text) {
-                const kindHint = this.assistantKindHint(text);
+            searchCatalogForAssistant(text, { kindHint: kindHintOverride = null } = {}) {
+                const kindHint = kindHintOverride || this.assistantKindHint(text);
                 const query = this.normalizeAssistantQuery(text).toLowerCase();
                 const words = query.split(/\s+/).filter((w) => w.length >= 2);
                 const index = this.buildGlobalSearchIndex();
@@ -8583,13 +8706,9 @@
             }
 
             async onAssistantPhotoSelected(event) {
-                if (!this.isAdmin()) {
-                    this._assistantPhotoPayload = null;
-                    return;
-                }
                 const file = event?.target?.files?.[0];
                 if (!file) {
-                    this._assistantPhotoPayload = null;
+                    this.clearAssistantPhoto({ silent: true });
                     return;
                 }
                 try {
@@ -8607,33 +8726,33 @@
                         preview.classList.remove('hidden');
                         preview.innerHTML = `<img src="${this.escapeHtml(uploaded.data)}" alt="Фото для помощника">`;
                     }
+                    this.syncAssistantPhotoUi(true);
                     this.notifyImageCompressionResult(uploaded.originalSize, uploaded.compressedSize, uploaded.wasLargeInput);
                 } catch (err) {
-                    this._assistantPhotoPayload = null;
+                    this.clearAssistantPhoto({ silent: true });
                     this.showToast(err.message || 'Не удалось прочитать фото', true);
                 }
             }
 
             async parseAssistantDraft() {
+                this.stopAssistantVoice();
                 const prompt = String(document.getElementById('assistantPrompt')?.value || '').trim();
                 const isAdmin = this.isAdmin();
-                const file = isAdmin
-                    ? (this._assistantPhotoPayload?.file || document.getElementById('assistantPhoto')?.files?.[0] || null)
-                    : null;
+                const file = this._assistantPhotoPayload?.file || document.getElementById('assistantPhoto')?.files?.[0] || null;
                 if (!prompt && !file) {
-                    this.showToast(isAdmin ? 'Напишите запрос или прикрепите фото' : 'Напишите, что найти или куда проложить маршрут', true);
+                    this.showToast('Напишите запрос, надиктуйте голосом или прикрепите фото', true);
                     return;
                 }
                 const intent = this.classifyAssistantIntent(prompt);
-                if (!isAdmin && file) {
-                    this.showToast('Добавление по фото доступно только администратору', true);
-                }
                 if (intent === 'create' && !isAdmin) {
                     this.showToast('Добавление трасс и районов доступно только администратору', true);
-                    this.renderAssistantLookup(prompt, { preferNavigate: false });
+                    await this.runAssistantLookup(prompt, { preferNavigate: false });
                     return;
                 }
-                const wantsCreate = isAdmin && (intent === 'create' || (!!file && intent !== 'search' && intent !== 'navigate'));
+                const wantsCreate = isAdmin && (
+                    intent === 'create'
+                    || (!!file && (!prompt || (intent !== 'search' && intent !== 'navigate')))
+                );
                 if (wantsCreate) {
                     const btn = document.getElementById('assistantParseBtn');
                     if (btn) btn.disabled = true;
@@ -8651,13 +8770,49 @@
                     }
                     return;
                 }
-                this.renderAssistantLookup(prompt, { preferNavigate: intent === 'navigate' });
+                await this.runAssistantLookup(prompt, {
+                    preferNavigate: intent === 'navigate',
+                    file
+                });
             }
 
-            renderAssistantLookup(prompt, { preferNavigate = false } = {}) {
+            async runAssistantLookup(prompt, { preferNavigate = false, file = null, kindHint = null } = {}) {
+                const btn = document.getElementById('assistantParseBtn');
+                if (btn) btn.disabled = true;
+                try {
+                    let lookupPrompt = prompt;
+                    let lookupKindHint = kindHint;
+                    if (file) {
+                        const body = new FormData();
+                        body.append('prompt', prompt);
+                        body.append('photo', file, file.name || 'photo.jpg');
+                        const extracted = await apiFetch('/api/assistant/search-query', { method: 'POST', body });
+                        if (extracted.note) this.showToast(extracted.note, false);
+                        lookupPrompt = [prompt, extracted.query].filter(Boolean).join(' ').trim()
+                            || extracted.query
+                            || prompt;
+                        lookupKindHint = extracted.kind_hint || lookupKindHint;
+                        if (!lookupPrompt) {
+                            this.showToast('Не удалось понять фото. Добавьте текстовый запрос.', true);
+                            return;
+                        }
+                    }
+                    const intent = this.classifyAssistantIntent(lookupPrompt);
+                    this.renderAssistantLookup(lookupPrompt, {
+                        preferNavigate: preferNavigate || intent === 'navigate',
+                        kindHint: lookupKindHint
+                    });
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось выполнить поиск', true);
+                } finally {
+                    if (btn) btn.disabled = false;
+                }
+            }
+
+            renderAssistantLookup(prompt, { preferNavigate = false, kindHint = null } = {}) {
                 const box = document.getElementById('assistantDraftBox');
                 if (!box) return;
-                const results = this.searchCatalogForAssistant(prompt);
+                const results = this.searchCatalogForAssistant(prompt, { kindHint });
                 const kindLabels = { area: 'Район', sector: 'Сектор', route: 'Трасса', boulder: 'Боулдер' };
                 box.classList.remove('hidden');
                 if (!results.length) {
@@ -9902,12 +10057,14 @@
                     if (!this.requireAdmin('Сохранение района')) return;
                     this.saveArea();
                 });
-                ['areaPhoto', 'quickRoutePhoto', 'quickBoulderPhoto'].forEach((id) => {
+                ['areaPhoto', 'quickRoutePhoto', 'quickBoulderPhoto', 'assistantPhoto'].forEach((id) => {
                     const input = document.getElementById(id);
                     if (input) input.setAttribute('accept', PHOTO_INPUT_ACCEPT);
                 });
                 document.getElementById('areaPhoto')?.addEventListener('change', (e) => this.onAreaPhotoSelected(e));
                 document.getElementById('openAssistantBtn')?.addEventListener('click', () => this.openAssistantDialog());
+                document.getElementById('assistantVoiceBtn')?.addEventListener('click', () => this.toggleAssistantVoice());
+                document.getElementById('assistantPhotoClearBtn')?.addEventListener('click', () => this.clearAssistantPhoto());
                 document.getElementById('assistantPhoto')?.addEventListener('change', (e) => this.onAssistantPhotoSelected(e));
                 document.getElementById('assistantParseBtn')?.addEventListener('click', () => {
                     void this.parseAssistantDraft();
@@ -10519,6 +10676,9 @@
                 if (dialogId === 'climbLogDialog') {
                     const formEl = document.getElementById('climbLogForm');
                     if (formEl) formEl.innerHTML = '';
+                }
+                if (dialogId === 'assistantDialog') {
+                    this.stopAssistantVoice();
                 }
                 if (dialogId === 'climbDetailDialog') {
                     this.closeClimbPhotoViewer();

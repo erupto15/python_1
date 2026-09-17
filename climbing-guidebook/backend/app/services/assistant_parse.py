@@ -7,7 +7,7 @@ from typing import Any, Optional
 import httpx
 
 from app.config import settings
-from app.schemas import AssistantDraft, AssistantKind
+from app.schemas import AssistantDraft, AssistantKind, AssistantSearchQuery
 
 _GRADE_RE = re.compile(
     r"\b(?:[4-9][abcABC](?:\+)?(?:/[abcABC]\+?)?|V(?:1[0-7]|[0-9])|[5-9][abcABC]?[+-]?)\b"
@@ -32,6 +32,107 @@ _SYSTEM = (
     "kind — что нужно СОЗДАТЬ. Если на фото стена/зацепы и не сказано иное — boulder. "
     "grade только для route/boulder. description — текст для карточки, не инструкция."
 )
+
+
+_SEARCH_SYSTEM = (
+    "Ты помощник скального гайдбука. По тексту и/или фото определи, что ищет пользователь, "
+    "и верни ТОЛЬКО JSON без markdown:\n"
+    '{"query":"","kind_hint":null}\n'
+    "query — короткая строка для поиска: название трассы/болдера/сектора/района или место для маршрута. "
+    "kind_hint — route|boulder|sector|area или null. Не предлагай создавать новые объекты."
+)
+
+
+def extract_assistant_search_query(
+    prompt: str,
+    image_bytes: bytes | None = None,
+    mime_type: str = "image/jpeg",
+) -> AssistantSearchQuery:
+    text = (prompt or "").strip()
+    if settings.assistant_api_key.strip() and image_bytes:
+        try:
+            result = _search_query_with_llm(text, image_bytes, mime_type)
+            if result.query or result.kind_hint:
+                return result
+        except Exception:
+            pass
+    if text:
+        kind = _kind_from_text(text)
+        return AssistantSearchQuery(
+            query=text,
+            kind_hint=kind,
+            source="text",
+            note=None if settings.assistant_api_key.strip() else "Поиск по фото на сервере без ASSISTANT_API_KEY недоступен — используйте текст.",
+        )
+    return AssistantSearchQuery(
+        query="",
+        source="heuristic",
+        note="Добавьте текстовый запрос или настройте ASSISTANT_API_KEY для поиска по фото.",
+    )
+
+
+def _kind_from_text(text: str) -> Optional[AssistantKind]:
+    lower = text.lower()
+    if re.search(r"\b(?:боулдер|болдер)", lower):
+        return "boulder"
+    if re.search(r"\bтрасс", lower):
+        return "route"
+    if re.search(r"\bсектор", lower):
+        return "sector"
+    if re.search(r"\bрайон", lower):
+        return "area"
+    return None
+
+
+def _search_query_with_llm(text: str, image_bytes: bytes | None, mime_type: str) -> AssistantSearchQuery:
+    import base64
+
+    user_content: list[dict[str, Any]] = []
+    if text:
+        user_content.append({"type": "text", "text": text})
+    if image_bytes:
+        b64 = base64.b64encode(image_bytes[: 4 * 1024 * 1024]).decode("ascii")
+        safe_mime = mime_type if mime_type.startswith("image/") else "image/jpeg"
+        user_content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{safe_mime};base64,{b64}"},
+            }
+        )
+    if not user_content:
+        user_content.append({"type": "text", "text": "Что искать на фото?"})
+
+    payload = {
+        "model": settings.assistant_model or "gpt-4o-mini",
+        "temperature": 0.1,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {"role": "system", "content": _SEARCH_SYSTEM},
+            {"role": "user", "content": user_content},
+        ],
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.assistant_api_key.strip()}",
+        "Content-Type": "application/json",
+    }
+    base = settings.assistant_api_base.rstrip("/")
+    with httpx.Client(timeout=45.0) as client:
+        resp = client.post(f"{base}/chat/completions", headers=headers, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+    content = (
+        ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "{}"
+    )
+    parsed = json.loads(content)
+    query = str(parsed.get("query") or text or "").strip()
+    kind_raw = str(parsed.get("kind_hint") or "").strip().lower()
+    kind = kind_raw if kind_raw in {"area", "sector", "route", "boulder"} else _kind_from_text(query)
+    return AssistantSearchQuery(
+        query=query,
+        kind_hint=kind,
+        source="llm",
+        note="Запрос разобран по фото. Проверьте результаты.",
+    )
 
 
 def parse_assistant_request(prompt: str, image_bytes: bytes | None = None, mime_type: str = "image/jpeg") -> AssistantDraft:

@@ -586,3 +586,10 @@ class AssistantDraft(BaseModel):
     longitude: Optional[float] = None
     source: str = "heuristic"
     note: Optional[str] = None
+
+
+class AssistantSearchQuery(BaseModel):
+    query: str = ""
+    kind_hint: Optional[AssistantKind] = None
+    source: str = "heuristic"
+    note: Optional[str] = None
