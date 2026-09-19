@@ -5464,6 +5464,13 @@
             display: none !important;
         }
 
+        .markup-actions--inline {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
         html.tg-mini-app.tg-webapp-buttons .dialog-content {
             max-height: none;
             height: 100%;
