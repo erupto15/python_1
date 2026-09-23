@@ -5183,7 +5183,6 @@
                     else el.classList.add('hidden-by-role');
                 });
                 this.syncMapEditUi();
-                this.syncAssistantDialogForRole();
                 const showSentFilter = loggedIn && this.isTelegramUser();
                 document.getElementById('hideSentRoutesWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
                 document.getElementById('hideSentBouldersWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
@@ -8056,53 +8055,107 @@
                 return items;
             }
 
-            renderGlobalSearchResults() {
+            clearGlobalSearchDropdown({ clearInput = false } = {}) {
                 const input = document.getElementById('globalSearch');
                 const box = document.getElementById('globalSearchResults');
-                if (!input || !box) return;
-                const query = String(input.value || '').trim().toLowerCase();
-                if (query.length < 2) {
-                    box.classList.add('hidden');
-                    box.innerHTML = '';
-                    return;
-                }
-                const words = query.split(/\s+/).filter(Boolean);
-                const results = this.buildGlobalSearchIndex()
-                    .map((item) => {
-                        const hay = String(item.search || '').toLowerCase();
-                        const all = words.every((w) => hay.includes(w));
-                        if (!all) return null;
-                        const title = String(item.title || '').toLowerCase();
-                        const score = title === query ? 3 : title.includes(query) ? 2 : 1;
-                        return { ...item, score };
-                    })
-                    .filter(Boolean)
-                    .sort((a, b) => b.score - a.score || String(a.title).localeCompare(String(b.title), 'ru'))
-                    .slice(0, 12);
-                if (!results.length) {
-                    box.classList.remove('hidden');
-                    box.innerHTML = '<div class="global-search-empty">Ничего не найдено</div>';
-                    return;
-                }
-                const kindLabels = { area: 'Район', sector: 'Сектор', route: 'Трасса', boulder: 'Боулдер' };
-                box.classList.remove('hidden');
-                box.innerHTML = results.map((item) => `
-                    <button type="button" class="global-search-item" data-global-kind="${item.kind}" data-id="${item.id}">
-                        <span class="global-search-kind">${kindLabels[item.kind] || 'Объект'}</span>
-                        <strong>${this.escapeHtml(item.title)}</strong>
-                        <span>${this.escapeHtml(item.subtitle || '')}</span>
-                    </button>
-                `).join('');
-            }
-
-            openGlobalSearchResult(kind, id) {
-                const input = document.getElementById('globalSearch');
-                const box = document.getElementById('globalSearchResults');
-                if (input) input.value = '';
+                if (clearInput && input) input.value = '';
                 if (box) {
                     box.classList.add('hidden');
                     box.innerHTML = '';
                 }
+            }
+
+            focusGlobalSearch(message = '') {
+                const input = document.getElementById('globalSearch');
+                if (message) this.showToast(message, true);
+                input?.focus();
+            }
+
+            renderGlobalSearchResults() {
+                const input = document.getElementById('globalSearch');
+                const box = document.getElementById('globalSearchResults');
+                if (!input || !box) return;
+                const query = String(input.value || '').trim();
+                if (query.length < 2) {
+                    this.clearGlobalSearchDropdown();
+                    return;
+                }
+                const intent = this.classifyAssistantIntent(query);
+                const results = this.searchCatalogForAssistant(query).slice(0, 12);
+                if (!results.length) {
+                    box.classList.remove('hidden');
+                    const hint = intent === 'navigate'
+                        ? 'Ничего не найдено. Укажите район или сектор для маршрута.'
+                        : 'Ничего не найдено. Попробуйте название трассы, сектора или района.';
+                    box.innerHTML = `<div class="global-search-empty">${hint}</div>`;
+                    return;
+                }
+                const kindLabels = { area: 'Район', sector: 'Сектор', route: 'Трасса', boulder: 'Боулдер' };
+                const intentHint = intent === 'navigate'
+                    ? '<p class="global-search-hint">Enter — маршрут до лучшего совпадения</p>'
+                    : (intent === 'create' && this.isAdmin())
+                        ? '<p class="global-search-hint">Enter — создать черновик по запросу (админ)</p>'
+                        : '';
+                box.classList.remove('hidden');
+                box.innerHTML = intentHint + results.map((item) => {
+                    const target = this.navTargetFromKindId(item.kind, item.id);
+                    const canNav = !!(target && Number.isFinite(Number(target.lat)) && Number.isFinite(Number(target.lng)));
+                    return `
+                        <div class="global-search-item" data-global-kind="${item.kind}" data-id="${item.id}">
+                            <span class="global-search-kind">${kindLabels[item.kind] || 'Объект'}</span>
+                            <strong>${this.escapeHtml(item.title)}</strong>
+                            <span>${this.escapeHtml(item.subtitle || '')}</span>
+                            <div class="global-search-item-actions">
+                                <button type="button" class="btn btn-primary btn-small" data-global-open="${item.kind}" data-id="${item.id}">
+                                    <i class="fas fa-eye"></i> Открыть
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-small" data-global-nav="${item.kind}" data-id="${item.id}" ${canNav ? '' : 'disabled'}>
+                                    <i class="fas fa-route"></i> Маршрут
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            async submitGlobalSearch() {
+                const input = document.getElementById('globalSearch');
+                const prompt = String(input?.value || '').trim();
+                if (prompt.length < 2) return;
+                const intent = this.classifyAssistantIntent(prompt);
+                if (intent === 'create' && !this.isAdmin()) {
+                    this.showToast('Добавление трасс и районов доступно только администратору', true);
+                    this.renderGlobalSearchResults();
+                    return;
+                }
+                if (intent === 'create' && this.isAdmin()) {
+                    try {
+                        const body = new FormData();
+                        body.append('prompt', prompt);
+                        const draft = await apiFetch('/api/assistant/parse', { method: 'POST', body });
+                        this.clearGlobalSearchDropdown({ clearInput: true });
+                        this.applyAssistantDraftToForm(draft);
+                    } catch (err) {
+                        this.showToast(err.message || 'Не удалось разобрать запрос', true);
+                    }
+                    return;
+                }
+                if (intent === 'navigate') {
+                    const results = this.searchCatalogForAssistant(prompt);
+                    const topHits = results.filter((item) => item.score >= 3);
+                    const best = topHits[0] || results[0];
+                    const target = best ? this.navTargetFromKindId(best.kind, best.id) : null;
+                    if (best && target) {
+                        this.clearGlobalSearchDropdown({ clearInput: true });
+                        this.openMapsChooser(target, 'dir');
+                        return;
+                    }
+                }
+                this.renderGlobalSearchResults();
+            }
+
+            openGlobalSearchResult(kind, id) {
+                this.clearGlobalSearchDropdown({ clearInput: true });
                 if (kind === 'route' || kind === 'boulder') {
                     void this.showClimbDetailDialog(kind, id);
                     return;
@@ -8313,9 +8366,6 @@
                     tb.innerHTML = this.isAdmin() ? `
                         <button type="button" class="btn btn-primary" data-catalog-act="add-area">
                             <i class="fas fa-plus"></i> Добавить район
-                        </button>
-                        <button type="button" class="btn btn-secondary" data-catalog-act="ai-assistant">
-                            <i class="fas fa-wand-magic-sparkles"></i> ИИ-помощник
                         </button>` : '';
                     list.innerHTML = areas.length ? areas.map(a => {
                         const sc = sectors.filter(s => Number(s.areaId) === Number(a.id)).length;
@@ -8360,9 +8410,6 @@
                         <button type="button" class="btn btn-ghost" data-catalog-act="nav-areas"><i class="fas fa-arrow-left"></i> Назад</button>
                         <button type="button" class="btn btn-primary" data-catalog-act="add-sector" data-id="${this.catalog.areaId}">
                             <i class="fas fa-plus"></i> Добавить сектор
-                        </button>
-                        <button type="button" class="btn btn-secondary" data-catalog-act="ai-assistant">
-                            <i class="fas fa-wand-magic-sparkles"></i> ИИ-помощник
                         </button>` : `
                         <button type="button" class="btn btn-ghost" data-catalog-act="nav-areas"><i class="fas fa-arrow-left"></i> Назад</button>`;
                     const listSectors = sectors.filter(s => Number(s.areaId) === Number(this.catalog.areaId));
@@ -8414,8 +8461,7 @@
                     ` : '';
                     tb.innerHTML = `
                         <button type="button" class="btn btn-ghost" data-catalog-act="nav-area" data-id="${this.catalog.areaId}"><i class="fas fa-arrow-left"></i> К секторам</button>
-                        ${addButtons}
-                        ${this.isAdmin() ? `<button type="button" class="btn btn-secondary" data-catalog-act="ai-assistant"><i class="fas fa-wand-magic-sparkles"></i> ИИ-помощник</button>` : ''}`;
+                        ${addButtons}`;
 
                     const rs = getRoutes().filter(r => Number(r.sectorId) === Number(this.catalog.sectorId));
                     const bs = getBoulders().filter(b => Number(b.sectorId) === Number(this.catalog.sectorId));
@@ -8501,7 +8547,6 @@
                     e.preventDefault();
                     const id = act.dataset.id ? Number(act.dataset.id) : null;
                     const action = act.dataset.catalogAct;
-                    if (action === 'ai-assistant') { this.openAssistantDialog(); return; }
                     if (action === 'add-area') { if (!this.requireAdmin('Добавление района')) return; this.showAddAreaDialog(); }
                     if (action === 'edit-area') { if (!this.requireAdmin('Редактирование района')) return; this.showEditAreaDialog(id); }
                     if (action === 'edit-area-desc') { if (!this.requireAdmin('Редактирование описания района')) return; this.showEditAreaDialog(id, { focusDescription: true }); }
@@ -8565,173 +8610,6 @@
                         this.showClimbDetailDialog(oc, oid);
                     }
                 }
-            }
-
-            syncAssistantDialogForRole() {
-                const isAdmin = this.isAdmin();
-                const subtitle = document.getElementById('assistantSubtitle');
-                const promptEl = document.getElementById('assistantPrompt');
-                const btn = document.getElementById('assistantParseBtn');
-                const photoLabel = document.getElementById('assistantPhotoLabel');
-                if (subtitle) {
-                    subtitle.textContent = isAdmin
-                        ? 'Можно искать голосом или по фото, прокладывать маршрут. Админу также доступно добавление района, сектора или трассы — черновик откроется в обычной форме.'
-                        : 'Найдите трассу голосом, текстом или по фото и проложите маршрут в навигаторе.';
-                }
-                if (promptEl) {
-                    promptEl.placeholder = isAdmin
-                        ? 'Например: найди болдер Рыжий · как доехать до Мохбурга · добавь болдер «Рыжий» 6B в секторе Красный угол'
-                        : 'Например: найди болдер Рыжий · как доехать до Мохбурга';
-                }
-                if (photoLabel) {
-                    photoLabel.textContent = isAdmin
-                        ? 'Фото для поиска или добавления района, сектора или трассы'
-                        : 'Фото трассы, сектора или района (поиск по снимку)';
-                }
-                if (btn) {
-                    btn.innerHTML = isAdmin
-                        ? '<i class="fas fa-wand-magic-sparkles"></i> Выполнить'
-                        : '<i class="fas fa-wand-magic-sparkles"></i> Найти';
-                }
-                this.syncAssistantVoiceUi();
-            }
-
-            isAssistantVoiceSupported() {
-                return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-            }
-
-            syncAssistantVoiceUi() {
-                const btn = document.getElementById('assistantVoiceBtn');
-                const status = document.getElementById('assistantVoiceStatus');
-                const supported = this.isAssistantVoiceSupported();
-                if (btn) {
-                    btn.disabled = !supported;
-                    btn.classList.toggle('is-listening', !!this._assistantVoiceListening);
-                    btn.innerHTML = this._assistantVoiceListening
-                        ? '<i class="fas fa-stop" aria-hidden="true"></i><span class="assistant-tool-label">Стоп</span>'
-                        : '<i class="fas fa-microphone" aria-hidden="true"></i><span class="assistant-tool-label">Голос</span>';
-                    btn.title = supported
-                        ? (this._assistantVoiceListening ? 'Остановить запись' : 'Надиктовать запрос')
-                        : 'Голосовой ввод недоступен в этом браузере';
-                }
-                if (!status) return;
-                if (!supported) {
-                    status.textContent = 'Голосовой ввод не поддерживается в этом браузере.';
-                    status.classList.remove('hidden');
-                    return;
-                }
-                if (this._assistantVoiceListening) {
-                    status.textContent = 'Слушаю… говорите запрос.';
-                    status.classList.remove('hidden');
-                    return;
-                }
-                status.textContent = '';
-                status.classList.add('hidden');
-            }
-
-            stopAssistantVoice() {
-                if (this._assistantRecognition) {
-                    try {
-                        this._assistantRecognition.stop();
-                    } catch (_) {
-                        /* ignore */
-                    }
-                    this._assistantRecognition = null;
-                }
-                this._assistantVoiceListening = false;
-                this.syncAssistantVoiceUi();
-            }
-
-            toggleAssistantVoice() {
-                if (!this.isAssistantVoiceSupported()) {
-                    this.showToast('Голосовой ввод недоступен в этом браузере', true);
-                    return;
-                }
-                if (this._assistantVoiceListening) {
-                    this.stopAssistantVoice();
-                    return;
-                }
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                const recognition = new SpeechRecognition();
-                recognition.lang = 'ru-RU';
-                recognition.interimResults = true;
-                recognition.continuous = false;
-                recognition.maxAlternatives = 1;
-                this._assistantRecognition = recognition;
-                this._assistantVoiceListening = true;
-                this.syncAssistantVoiceUi();
-
-                const promptEl = document.getElementById('assistantPrompt');
-                const prefix = String(promptEl?.value || '').trim();
-                const prefixWithSpace = prefix ? `${prefix} ` : '';
-
-                recognition.onresult = (event) => {
-                    let interim = '';
-                    let finalText = '';
-                    for (let i = event.resultIndex; i < event.results.length; i += 1) {
-                        const part = event.results[i][0]?.transcript || '';
-                        if (event.results[i].isFinal) finalText += part;
-                        else interim += part;
-                    }
-                    if (promptEl) {
-                        promptEl.value = (prefixWithSpace + finalText + interim).trim();
-                    }
-                };
-                recognition.onerror = (event) => {
-                    const code = event?.error || 'unknown';
-                    if (code !== 'aborted') {
-                        const msg = code === 'not-allowed'
-                            ? 'Нет доступа к микрофону'
-                            : code === 'no-speech'
-                                ? 'Не удалось распознать речь'
-                                : 'Голосовой ввод недоступен';
-                        this.showToast(msg, true);
-                    }
-                    this.stopAssistantVoice();
-                };
-                recognition.onend = () => {
-                    this.stopAssistantVoice();
-                };
-                try {
-                    recognition.start();
-                } catch (_) {
-                    this.stopAssistantVoice();
-                    this.showToast('Не удалось запустить голосовой ввод', true);
-                }
-            }
-
-            openAssistantDialog() {
-                this.stopAssistantVoice();
-                this._assistantDraft = null;
-                this.syncAssistantDialogForRole();
-                const promptEl = document.getElementById('assistantPrompt');
-                const box = document.getElementById('assistantDraftBox');
-                if (promptEl && !promptEl.value) promptEl.value = '';
-                if (box) {
-                    box.classList.add('hidden');
-                    box.innerHTML = '';
-                }
-                this.clearAssistantPhoto({ silent: true });
-                this.showDialog('assistantDialog');
-                promptEl?.focus();
-            }
-
-            clearAssistantPhoto({ silent = false } = {}) {
-                this._assistantPhotoPayload = null;
-                const input = document.getElementById('assistantPhoto');
-                const preview = document.getElementById('assistantPhotoPreview');
-                const clearBtn = document.getElementById('assistantPhotoClearBtn');
-                if (input) input.value = '';
-                if (preview) {
-                    preview.classList.add('hidden');
-                    preview.innerHTML = '';
-                }
-                clearBtn?.classList.add('hidden');
-                if (!silent) this.showToast('Фото убрано', false);
-            }
-
-            syncAssistantPhotoUi(hasPhoto = false) {
-                document.getElementById('assistantPhotoClearBtn')?.classList.toggle('hidden', !hasPhoto);
             }
 
             classifyAssistantIntent(text) {
@@ -8809,209 +8687,19 @@
                     || null;
             }
 
-            async onAssistantPhotoSelected(event) {
-                const file = event?.target?.files?.[0];
-                if (!file) {
-                    this.clearAssistantPhoto({ silent: true });
-                    return;
-                }
-                try {
-                    this.showToast('Сжимаем фото…', false);
-                    const uploaded = await processImageUploadFile(file, 'climb');
-                    this._assistantPhotoPayload = {
-                        data: uploaded.data,
-                        fileName: uploaded.fileName,
-                        type: uploaded.type,
-                        markup: null,
-                        file
-                    };
-                    const preview = document.getElementById('assistantPhotoPreview');
-                    if (preview) {
-                        preview.classList.remove('hidden');
-                        preview.innerHTML = `<img src="${this.escapeHtml(uploaded.data)}" alt="Фото для помощника">`;
-                    }
-                    this.syncAssistantPhotoUi(true);
-                    this.notifyImageCompressionResult(uploaded.originalSize, uploaded.compressedSize, uploaded.wasLargeInput);
-                } catch (err) {
-                    this.clearAssistantPhoto({ silent: true });
-                    this.showToast(err.message || 'Не удалось прочитать фото', true);
-                }
-            }
-
-            async parseAssistantDraft() {
-                this.stopAssistantVoice();
-                const prompt = String(document.getElementById('assistantPrompt')?.value || '').trim();
-                const isAdmin = this.isAdmin();
-                const file = this._assistantPhotoPayload?.file || document.getElementById('assistantPhoto')?.files?.[0] || null;
-                if (!prompt && !file) {
-                    this.showToast('Напишите запрос, надиктуйте голосом или прикрепите фото', true);
-                    return;
-                }
-                const intent = this.classifyAssistantIntent(prompt);
-                if (intent === 'create' && !isAdmin) {
-                    this.showToast('Добавление трасс и районов доступно только администратору', true);
-                    await this.runAssistantLookup(prompt, { preferNavigate: false });
-                    return;
-                }
-                const wantsCreate = isAdmin && (
-                    intent === 'create'
-                    || (!!file && (!prompt || (intent !== 'search' && intent !== 'navigate')))
-                );
-                if (wantsCreate) {
-                    const btn = document.getElementById('assistantParseBtn');
-                    if (btn) btn.disabled = true;
-                    try {
-                        const body = new FormData();
-                        body.append('prompt', prompt);
-                        if (file) body.append('photo', file, file.name || 'photo.jpg');
-                        const draft = await apiFetch('/api/assistant/parse', { method: 'POST', body });
-                        this._assistantDraft = draft;
-                        this.renderAssistantDraft(draft);
-                    } catch (err) {
-                        this.showToast(err.message || 'Не удалось разобрать черновик', true);
-                    } finally {
-                        if (btn) btn.disabled = false;
-                    }
-                    return;
-                }
-                await this.runAssistantLookup(prompt, {
-                    preferNavigate: intent === 'navigate',
-                    file
-                });
-            }
-
-            async runAssistantLookup(prompt, { preferNavigate = false, file = null, kindHint = null } = {}) {
-                const btn = document.getElementById('assistantParseBtn');
-                if (btn) btn.disabled = true;
-                try {
-                    let lookupPrompt = prompt;
-                    let lookupKindHint = kindHint;
-                    if (file) {
-                        const body = new FormData();
-                        body.append('prompt', prompt);
-                        body.append('photo', file, file.name || 'photo.jpg');
-                        const extracted = await apiFetch('/api/assistant/search-query', { method: 'POST', body });
-                        if (extracted.note) this.showToast(extracted.note, false);
-                        lookupPrompt = [prompt, extracted.query].filter(Boolean).join(' ').trim()
-                            || extracted.query
-                            || prompt;
-                        lookupKindHint = extracted.kind_hint || lookupKindHint;
-                        if (!lookupPrompt) {
-                            this.showToast('Не удалось понять фото. Добавьте текстовый запрос.', true);
-                            return;
-                        }
-                    }
-                    const intent = this.classifyAssistantIntent(lookupPrompt);
-                    this.renderAssistantLookup(lookupPrompt, {
-                        preferNavigate: preferNavigate || intent === 'navigate',
-                        kindHint: lookupKindHint
-                    });
-                } catch (err) {
-                    this.showToast(err.message || 'Не удалось выполнить поиск', true);
-                } finally {
-                    if (btn) btn.disabled = false;
-                }
-            }
-
-            renderAssistantLookup(prompt, { preferNavigate = false, kindHint = null } = {}) {
-                const box = document.getElementById('assistantDraftBox');
-                if (!box) return;
-                const results = this.searchCatalogForAssistant(prompt, { kindHint });
-                const kindLabels = { area: 'Район', sector: 'Сектор', route: 'Трасса', boulder: 'Боулдер' };
-                box.classList.remove('hidden');
-                if (!results.length) {
-                    box.innerHTML = '<p>Ничего не нашлось. Попробуйте название трассы, сектора или района.</p>';
-                    return;
-                }
-                box.innerHTML = results.map((item) => {
-                    const target = this.navTargetFromKindId(item.kind, item.id);
-                    const canNav = !!(target && Number.isFinite(Number(target.lat)) && Number.isFinite(Number(target.lng)));
-                    return `
-                        <div class="assistant-result">
-                            <div>
-                                <strong>${this.escapeHtml(kindLabels[item.kind] || item.kind)}: ${this.escapeHtml(item.title || '')}</strong>
-                                <div class="assistant-result-meta">${this.escapeHtml(item.subtitle || '')}</div>
-                            </div>
-                            <div class="assistant-draft-actions">
-                                <button type="button" class="btn btn-primary btn-small" data-assistant-open="${item.kind}" data-id="${item.id}">
-                                    <i class="fas fa-eye"></i> Открыть
-                                </button>
-                                <button type="button" class="btn btn-secondary btn-small" data-assistant-nav="${item.kind}" data-id="${item.id}" ${canNav ? '' : 'disabled'}>
-                                    <i class="fas fa-route"></i> Маршрут
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-                box.querySelectorAll('[data-assistant-open]').forEach((btn) => {
-                    btn.addEventListener('click', () => {
-                        this.hideDialog('assistantDialog');
-                        this.openGlobalSearchResult(btn.dataset.assistantOpen, Number(btn.dataset.id));
-                    });
-                });
-                box.querySelectorAll('[data-assistant-nav]').forEach((btn) => {
-                    btn.addEventListener('click', () => {
-                        const target = this.navTargetFromKindId(btn.dataset.assistantNav, Number(btn.dataset.id));
-                        if (!target) {
-                            this.showToast('У объекта нет координат для карт', true);
-                            return;
-                        }
-                        this.hideDialog('assistantDialog');
-                        this.openMapsChooser(target, 'dir');
-                    });
-                });
-                const topHits = results.filter((item) => item.score >= 3);
-                const best = topHits[0];
-                const bestTarget = best ? this.navTargetFromKindId(best.kind, best.id) : null;
-                if (preferNavigate && topHits.length === 1 && bestTarget) {
-                    this.hideDialog('assistantDialog');
-                    this.openMapsChooser(bestTarget, 'dir');
-                }
-            }
-
-            renderAssistantDraft(draft) {
-                const box = document.getElementById('assistantDraftBox');
-                if (!box || !draft) return;
-                const kindLabels = { area: 'Район', sector: 'Сектор', route: 'Трасса', boulder: 'Боулдер' };
-                const loc = (draft.latitude != null && draft.longitude != null)
-                    ? `${draft.latitude}, ${draft.longitude}`
-                    : '—';
-                box.classList.remove('hidden');
-                box.innerHTML = `
-                    <p><strong>${kindLabels[draft.kind] || draft.kind}:</strong> ${this.escapeHtml(draft.name || 'без названия')}</p>
-                    <p>Категория: ${this.escapeHtml(draft.grade || '—')} · Координаты: ${this.escapeHtml(loc)}</p>
-                    <p>Район: ${this.escapeHtml(draft.area_name || '—')} · Сектор: ${this.escapeHtml(draft.sector_name || '—')}</p>
-                    <p>${this.escapeHtml(draft.description || '')}</p>
-                    ${draft.note ? `<p class="form-hint">${this.escapeHtml(draft.note)}</p>` : ''}
-                    <div class="assistant-draft-actions">
-                        <button type="button" class="btn btn-primary" id="assistantOpenFormBtn">
-                            <i class="fas fa-pen"></i> Открыть форму и править
-                        </button>
-                    </div>
-                `;
-                document.getElementById('assistantOpenFormBtn')?.addEventListener('click', () => {
-                    this.applyAssistantDraftToForm(draft);
-                });
-            }
-
             applyAssistantDraftToForm(draft) {
                 if (!this.requireAdmin('Добавление через ИИ')) return;
                 if (!draft) return;
-                const photo = this._assistantPhotoPayload;
                 const loc = (draft.latitude != null && draft.longitude != null)
                     ? this.formatLocationInput(draft.latitude, draft.longitude)
                     : '';
-                this.hideDialog('assistantDialog');
+                this.clearGlobalSearchDropdown({ clearInput: true });
 
                 if (draft.kind === 'area') {
                     this.showAddAreaDialog();
                     document.getElementById('areaName').value = draft.name || '';
                     document.getElementById('areaDescription').value = draft.description || '';
                     document.getElementById('areaLocation').value = loc;
-                    if (photo?.data) {
-                        this.areaPhotoData = { data: photo.data, fileName: photo.fileName, type: photo.type };
-                        this.renderAreaDialogPhotoPreview(photo.data);
-                    }
                     this.showToast('Проверьте район и сохраните', false);
                     return;
                 }
@@ -9021,7 +8709,7 @@
                         || getAreas().find((a) => Number(a.id) === Number(this.catalog.areaId));
                     if (!area) {
                         this.showToast('Сначала укажите существующий район в описании или откройте его в каталоге', true);
-                        this.showDialog('assistantDialog');
+                        this.focusGlobalSearch();
                         return;
                     }
                     this.showAddSectorDialog(area.id);
@@ -9036,7 +8724,7 @@
                     || getSectors().find((s) => Number(s.id) === Number(this.catalog.sectorId));
                 if (!sector) {
                     this.showToast('Сначала укажите существующий сектор в описании или откройте его в каталоге', true);
-                    this.showDialog('assistantDialog');
+                    this.focusGlobalSearch();
                     return;
                 }
 
@@ -9046,15 +8734,6 @@
                         this.setFormGradeValue('quickRouteGrade', draft.grade || '6a');
                         document.getElementById('quickRouteDescription').value = draft.description || '';
                         document.getElementById('quickRouteCoordinates').value = loc;
-                        if (photo?.data) {
-                            this.quickRoutePhotoData = {
-                                data: photo.data,
-                                fileName: photo.fileName,
-                                type: photo.type,
-                                markup: null
-                            };
-                            this.renderQuickDialogPhotoPreview('route');
-                        }
                     });
                     this.showToast(`Трасса в секторе «${sector.name}». Поправьте и сохраните`, false);
                     return;
@@ -9065,15 +8744,6 @@
                     this.setFormGradeValue('quickBoulderGrade', draft.grade || '7A');
                     document.getElementById('quickBoulderDescription').value = draft.description || '';
                     document.getElementById('quickBoulderCoordinates').value = loc;
-                    if (photo?.data) {
-                        this.quickBoulderPhotoData = {
-                            data: photo.data,
-                            fileName: photo.fileName,
-                            type: photo.type,
-                            markup: null
-                        };
-                        this.renderQuickDialogPhotoPreview('boulder');
-                    }
                 });
                 this.showToast(`Боулдер в секторе «${sector.name}». Поправьте и сохраните`, false);
             }
@@ -10161,24 +9831,11 @@
                     if (!this.requireAdmin('Сохранение района')) return;
                     this.saveArea();
                 });
-                ['areaPhoto', 'quickRoutePhoto', 'quickBoulderPhoto', 'assistantPhoto'].forEach((id) => {
+                ['areaPhoto', 'quickRoutePhoto', 'quickBoulderPhoto'].forEach((id) => {
                     const input = document.getElementById(id);
                     if (input) input.setAttribute('accept', PHOTO_INPUT_ACCEPT);
                 });
                 document.getElementById('areaPhoto')?.addEventListener('change', (e) => this.onAreaPhotoSelected(e));
-                document.getElementById('openAssistantBtn')?.addEventListener('click', () => this.openAssistantDialog());
-                document.getElementById('assistantVoiceBtn')?.addEventListener('click', () => this.toggleAssistantVoice());
-                document.getElementById('assistantPhotoClearBtn')?.addEventListener('click', () => this.clearAssistantPhoto());
-                document.getElementById('assistantPhoto')?.addEventListener('change', (e) => this.onAssistantPhotoSelected(e));
-                document.getElementById('assistantParseBtn')?.addEventListener('click', () => {
-                    void this.parseAssistantDraft();
-                });
-                document.getElementById('assistantPrompt')?.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                        e.preventDefault();
-                        void this.parseAssistantDraft();
-                    }
-                });
                 document.getElementById('areaPhotoClearBtn')?.addEventListener('click', () => this.clearAreaDialogPhoto());
                 document.getElementById('areaPhotoRotateLeftBtn')?.addEventListener('click', () => {
                     void this.rotateAreaDialogPhoto(3);
@@ -10332,9 +9989,32 @@
                     clearTimeout(this._globalSearchDebounceTimer);
                     this._globalSearchDebounceTimer = setTimeout(() => this.renderGlobalSearchResults(), searchDebounceMs);
                 });
+                document.getElementById('globalSearch')?.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Enter') return;
+                    e.preventDefault();
+                    void this.submitGlobalSearch();
+                });
                 document.getElementById('globalSearchResults')?.addEventListener('click', (e) => {
+                    const openBtn = e.target.closest('[data-global-open]');
+                    if (openBtn) {
+                        e.preventDefault();
+                        this.openGlobalSearchResult(openBtn.dataset.globalOpen, Number(openBtn.dataset.id));
+                        return;
+                    }
+                    const navBtn = e.target.closest('[data-global-nav]');
+                    if (navBtn) {
+                        e.preventDefault();
+                        const target = this.navTargetFromKindId(navBtn.dataset.globalNav, Number(navBtn.dataset.id));
+                        if (!target) {
+                            this.showToast('У объекта нет координат для карт', true);
+                            return;
+                        }
+                        this.clearGlobalSearchDropdown({ clearInput: true });
+                        this.openMapsChooser(target, 'dir');
+                        return;
+                    }
                     const item = e.target.closest('[data-global-kind]');
-                    if (!item) return;
+                    if (!item || e.target.closest('button')) return;
                     e.preventDefault();
                     this.openGlobalSearchResult(item.dataset.globalKind, Number(item.dataset.id));
                 });
@@ -10781,9 +10461,6 @@
                 if (dialogId === 'climbLogDialog') {
                     const formEl = document.getElementById('climbLogForm');
                     if (formEl) formEl.innerHTML = '';
-                }
-                if (dialogId === 'assistantDialog') {
-                    this.stopAssistantVoice();
                 }
                 if (dialogId === 'climbDetailDialog') {
                     this.closeClimbPhotoViewer();

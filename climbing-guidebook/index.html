@@ -123,13 +123,7 @@
                     <p class="site-tagline">Скалолазные районы и маршруты</p>
                 </div>
                 <div class="global-search-wrap">
-                    <div class="global-search-row">
-                        <input type="search" class="search-input" id="globalSearch" placeholder="Поиск по гайду…" autocomplete="off" enterkeyhint="search" aria-label="Глобальный поиск по гайду">
-                        <button type="button" class="btn btn-secondary assistant-open-btn" id="openAssistantBtn" title="ИИ-помощник" aria-label="Открыть ИИ-помощник">
-                            <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>
-                            <span>ИИ</span>
-                        </button>
-                    </div>
+                    <input type="search" class="search-input" id="globalSearch" placeholder="Найди трассу, район или «как доехать до…»" autocomplete="off" enterkeyhint="search" aria-label="Умный поиск по гайду">
                     <div class="global-search-results hidden" id="globalSearchResults" role="listbox" aria-label="Результаты поиска"></div>
                 </div>
                 <div class="auth-panel" id="authPanel">
@@ -1039,48 +1033,6 @@
             <div class="dialog-footer dialog-footer--tg-native">
                 <button type="button" class="climb-tg-log-proxy" id="climbTgLogConfirmBtn" tabindex="-1" aria-hidden="true">Записать пролаз</button>
                 <button type="button" class="btn btn-primary" id="climbLogConfirmBtn"><i class="fas fa-check"></i> Записать пролаз</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="dialog-overlay hidden" id="assistantDialog" style="z-index: 1090;">
-        <div class="dialog-content">
-            <div class="dialog-header">
-                <div class="dialog-header-text">
-                    <div class="dialog-title">ИИ-помощник</div>
-                    <div class="dialog-subtitle" id="assistantSubtitle">Найдите трассу, район или сектор и проложите маршрут в навигаторе.</div>
-                </div>
-                <button type="button" class="dialog-close-btn" data-close-dialog="assistantDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
-            </div>
-            <div class="dialog-body">
-                <div class="form-group">
-                    <label class="form-label" for="assistantPrompt">Запрос</label>
-                    <textarea class="form-textarea" id="assistantPrompt" rows="4" placeholder="Например: найди болдер Рыжий · как доехать до Мохбурга"></textarea>
-                    <div class="assistant-input-tools">
-                        <button type="button" class="btn btn-ghost assistant-tool-btn" id="assistantVoiceBtn" title="Надиктовать запрос" aria-label="Надиктовать запрос">
-                            <i class="fas fa-microphone" aria-hidden="true"></i>
-                            <span class="assistant-tool-label">Голос</span>
-                        </button>
-                        <label class="btn btn-ghost assistant-tool-btn assistant-photo-btn" for="assistantPhoto" title="Прикрепить фото" aria-label="Прикрепить фото">
-                            <i class="fas fa-camera" aria-hidden="true"></i>
-                            <span class="assistant-tool-label">Фото</span>
-                        </label>
-                        <button type="button" class="btn btn-ghost assistant-tool-btn hidden" id="assistantPhotoClearBtn" title="Убрать фото" aria-label="Убрать фото">
-                            <i class="fas fa-times" aria-hidden="true"></i>
-                            <span class="assistant-tool-label">Убрать</span>
-                        </button>
-                    </div>
-                    <p class="form-hint assistant-voice-status hidden" id="assistantVoiceStatus" aria-live="polite"></p>
-                </div>
-                <div class="form-group" id="assistantPhotoGroup">
-                    <label class="form-label" for="assistantPhoto" id="assistantPhotoLabel">Фото трассы, сектора или района</label>
-                    <input type="file" class="form-input assistant-photo-input" id="assistantPhoto" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp">
-                    <div class="area-photo-preview hidden" id="assistantPhotoPreview"></div>
-                </div>
-                <button type="button" class="btn btn-primary" id="assistantParseBtn">
-                    <i class="fas fa-wand-magic-sparkles"></i> Найти
-                </button>
-                <div id="assistantDraftBox" class="assistant-draft hidden"></div>
             </div>
         </div>
     </div>
