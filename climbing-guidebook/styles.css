@@ -159,7 +159,18 @@
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
-            gap: 20px;
+            gap: 12px;
+        }
+
+        .header-search-auth {
+            display: flex;
+            flex: 1 1 320px;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            row-gap: 6px;
+            min-width: 0;
+            max-width: 640px;
         }
 
         .header-brand {
@@ -177,10 +188,11 @@
 
         .auth-panel {
             display: none;
-            align-items: flex-end;
-            gap: 8px;
+            align-items: center;
+            gap: 6px;
             flex-wrap: wrap;
             justify-content: flex-end;
+            flex-shrink: 0;
         }
 
         .auth-panel.auth-panel--visible {
@@ -189,9 +201,9 @@
 
         .global-search-wrap {
             position: relative;
-            flex: 1 1 280px;
-            max-width: 480px;
-            align-self: flex-start;
+            flex: 1 1 0;
+            min-width: 0;
+            max-width: none;
         }
 
         .global-search-wrap .search-input {
@@ -296,6 +308,13 @@
 
         .admin-password-login-block.is-visible {
             display: flex;
+        }
+
+        .header-search-auth .admin-password-login-block.is-visible {
+            flex: 1 1 100%;
+            width: 100%;
+            flex-wrap: wrap;
+            justify-content: flex-end;
         }
 
         .auth-panel .form-input {
@@ -3925,20 +3944,24 @@
 
             .header-top {
                 flex-direction: column;
-                align-items: center;
+                align-items: stretch;
+                gap: 10px;
             }
 
             .header-brand {
                 width: 100%;
             }
 
-            .global-search-wrap {
+            .header-search-auth {
                 width: 100%;
                 max-width: none;
+                flex: none;
             }
 
             .auth-panel {
-                justify-content: center;
+                justify-content: flex-end;
+                flex-wrap: wrap;
+                row-gap: 4px;
             }
 
             .form-row {
