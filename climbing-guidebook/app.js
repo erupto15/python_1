@@ -3676,6 +3676,63 @@
                 const rect = wrap.getBoundingClientRect();
                 photoStageZoomBy(wrap, 2.5, e.clientX - rect.left, e.clientY - rect.top);
             });
+
+            let pinching = false;
+            let pinchStartDist = 0;
+            let pinchStartScale = 1;
+            let pinchStartTx = 0;
+            let pinchStartTy = 0;
+            let pinchCx = 0;
+            let pinchCy = 0;
+
+            const touchSpan = (t0, t1) => Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+            const touchCenterLocal = (t0, t1, rect) => ({
+                x: (t0.clientX + t1.clientX) / 2 - rect.left,
+                y: (t0.clientY + t1.clientY) / 2 - rect.top
+            });
+
+            wrap.addEventListener('touchstart', (e) => {
+                if (e.touches.length !== 2) return;
+                pinching = true;
+                dragging = false;
+                const rect = wrap.getBoundingClientRect();
+                pinchStartDist = Math.max(1, touchSpan(e.touches[0], e.touches[1]));
+                const z = getPhotoZoomState(wrap);
+                pinchStartScale = z.scale;
+                pinchStartTx = z.tx;
+                pinchStartTy = z.ty;
+                const c = touchCenterLocal(e.touches[0], e.touches[1], rect);
+                pinchCx = c.x;
+                pinchCy = c.y;
+                e.preventDefault();
+            }, { passive: false });
+
+            wrap.addEventListener('touchmove', (e) => {
+                if (!pinching || e.touches.length < 2) return;
+                e.preventDefault();
+                const rect = wrap.getBoundingClientRect();
+                const dist = touchSpan(e.touches[0], e.touches[1]);
+                const newScale = Math.max(1, Math.min(8, pinchStartScale * (dist / pinchStartDist)));
+                const ratio = newScale / pinchStartScale;
+                const z = getPhotoZoomState(wrap);
+                z.scale = newScale;
+                z.tx = pinchCx - (pinchCx - pinchStartTx) * ratio;
+                z.ty = pinchCy - (pinchCy - pinchStartTy) * ratio;
+                clampPhotoStagePan(wrap);
+                applyPhotoStageTransform(wrap);
+            }, { passive: false });
+
+            const endPinch = (e) => {
+                if (!pinching) return;
+                if (e.touches && e.touches.length >= 2) return;
+                pinching = false;
+                const z = getPhotoZoomState(wrap);
+                if (z.scale <= 1.02) {
+                    resetPhotoStageZoom(wrap);
+                }
+            };
+            wrap.addEventListener('touchend', endPinch, { passive: true });
+            wrap.addEventListener('touchcancel', endPinch, { passive: true });
         }
 
         function inferPhotoControlMode(container) {
@@ -3916,26 +3973,12 @@
             };
         }
 
-        /** Геометрия реально видимой области фото с учетом CSS object-fit (letterboxing contain). */
-        function getMarkupStageGeometry(container) {
-            const wrap = findPhotoStageWrap(container);
-            const geomRoot = wrap || container;
-            const img = geomRoot?.querySelector('img') || container?.querySelector('img');
-            const geomRootRect = geomRoot?.getBoundingClientRect?.();
-            const containerRect = container?.getBoundingClientRect?.();
-            const cw = Math.max(1, containerRect?.width || geomRootRect?.width || geomRoot?.clientWidth || 1);
-            const ch = Math.max(1, containerRect?.height || geomRootRect?.height || geomRoot?.clientHeight || 1);
-            const base = { cw, ch, left: 0, top: 0, iw: cw, ih: ch, ready: false };
-            if (!img || !img.naturalWidth || !img.naturalHeight || !containerRect) {
+        /** Видимый кадр img внутри boxW×boxH с учётом object-fit / object-position. */
+        function getMarkupImageFitBox(img, boxW, boxH) {
+            const base = { iw: boxW, ih: boxH, offsetX: 0, offsetY: 0, ready: false };
+            if (!img?.naturalWidth || !img?.naturalHeight || boxW < 8 || boxH < 8) {
                 return base;
             }
-            const imageRect = img.getBoundingClientRect();
-            const boxW = Math.max(1, imageRect.width || img.clientWidth || img.offsetWidth || cw);
-            const boxH = Math.max(1, imageRect.height || img.clientHeight || img.offsetHeight || ch);
-            if (boxW < 8 || boxH < 8) {
-                return base;
-            }
-
             const nw = img.naturalWidth;
             const nh = img.naturalHeight;
             const imgStyle = window.getComputedStyle(img);
@@ -3957,7 +4000,6 @@
                 iw = nw * scale;
                 ih = nh * scale;
             } else {
-                // contain — не брать raw imageRect: при width/height 100% box ≠ видимый кадр
                 const scale = Math.min(boxW / nw, boxH / nh);
                 iw = nw * scale;
                 ih = nh * scale;
@@ -3966,13 +4008,63 @@
             const offsetX = (boxW - iw) * pos.x;
             const offsetY = (boxH - ih) * pos.y;
             return {
-                cw: Math.max(1, containerRect.width),
-                ch: Math.max(1, containerRect.height),
-                left: (imageRect.left - containerRect.left) + offsetX,
-                top: (imageRect.top - containerRect.top) + offsetY,
                 iw,
                 ih,
+                offsetX,
+                offsetY,
                 ready: iw >= 8 && ih >= 8
+            };
+        }
+
+        /** Геометрия реально видимой области фото с учетом CSS object-fit (letterboxing contain). */
+        function getMarkupStageGeometry(container) {
+            const wrap = findPhotoStageWrap(container);
+            const stage = wrap?.querySelector('.stage');
+            const geomRoot = wrap || container;
+            const img = geomRoot?.querySelector('img') || container?.querySelector('img');
+            const cw = Math.max(1, container?.clientWidth || container?.offsetWidth || 1);
+            const ch = Math.max(1, container?.clientHeight || container?.offsetHeight || 1);
+            const base = { cw, ch, left: 0, top: 0, iw: cw, ih: ch, ready: false };
+            if (!img || !img.naturalWidth || !img.naturalHeight) {
+                return base;
+            }
+
+            // Zoom/pan: transform на .stage — getBoundingClientRect даёт «экранные» размеры и ломает overlay.
+            if (stage) {
+                const boxW = Math.max(1, stage.clientWidth || cw);
+                const boxH = Math.max(1, stage.clientHeight || ch);
+                const fit = getMarkupImageFitBox(img, boxW, boxH);
+                if (!fit.ready) return base;
+                const wrapLeft = wrap?.offsetLeft || 0;
+                const wrapTop = wrap?.offsetTop || 0;
+                return {
+                    cw,
+                    ch,
+                    left: wrapLeft + fit.offsetX,
+                    top: wrapTop + fit.offsetY,
+                    iw: fit.iw,
+                    ih: fit.ih,
+                    ready: true,
+                    stageOffsetX: fit.offsetX,
+                    stageOffsetY: fit.offsetY
+                };
+            }
+
+            const containerRect = container?.getBoundingClientRect?.();
+            if (!containerRect) return base;
+            const imageRect = img.getBoundingClientRect();
+            const boxW = Math.max(1, imageRect.width || img.clientWidth || img.offsetWidth || cw);
+            const boxH = Math.max(1, imageRect.height || img.clientHeight || img.offsetHeight || ch);
+            const fit = getMarkupImageFitBox(img, boxW, boxH);
+            if (!fit.ready) return base;
+            return {
+                cw: Math.max(1, containerRect.width),
+                ch: Math.max(1, containerRect.height),
+                left: (imageRect.left - containerRect.left) + fit.offsetX,
+                top: (imageRect.top - containerRect.top) + fit.offsetY,
+                iw: fit.iw,
+                ih: fit.ih,
+                ready: true
             };
         }
 
@@ -3987,25 +4079,12 @@
             svg.style.pointerEvents = 'none';
             const stage = previewItem.querySelector('.photo-wrap .stage');
             if (stage) {
-                const stageRect = stage.getBoundingClientRect();
-                const mountRect = previewItem.getBoundingClientRect();
-                const offsetLeft = stageRect.left - mountRect.left;
-                const offsetTop = stageRect.top - mountRect.top;
-                const useStageFill = Math.abs(geom.iw - stageRect.width) < 2
-                    && Math.abs(geom.ih - stageRect.height) < 2
-                    && Math.abs(geom.left - offsetLeft) < 2
-                    && Math.abs(geom.top - offsetTop) < 2;
-                if (useStageFill) {
-                    svg.style.left = '0';
-                    svg.style.top = '0';
-                    svg.style.width = '100%';
-                    svg.style.height = '100%';
-                } else {
-                    svg.style.left = `${geom.left - offsetLeft}px`;
-                    svg.style.top = `${geom.top - offsetTop}px`;
-                    svg.style.width = `${geom.iw}px`;
-                    svg.style.height = `${geom.ih}px`;
-                }
+                const ox = Number.isFinite(geom.stageOffsetX) ? geom.stageOffsetX : geom.left;
+                const oy = Number.isFinite(geom.stageOffsetY) ? geom.stageOffsetY : geom.top;
+                svg.style.left = `${ox}px`;
+                svg.style.top = `${oy}px`;
+                svg.style.width = `${geom.iw}px`;
+                svg.style.height = `${geom.ih}px`;
                 return;
             }
             svg.style.left = `${geom.left}px`;
