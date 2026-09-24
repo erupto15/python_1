@@ -3771,21 +3771,25 @@
                 btn.type = 'button';
                 btn.title = title;
                 btn.setAttribute('aria-label', title);
-                btn.textContent = label;
+                const glyph = document.createElement('span');
+                glyph.className = 'btn-glyph';
+                glyph.setAttribute('aria-hidden', 'true');
+                glyph.textContent = label;
+                btn.appendChild(glyph);
                 bindPhotoControlButton(btn, fn);
                 return btn;
             };
             if (mode === 'detail-expand') {
-                zc.appendChild(mkBtn('На весь экран', '⤢', () => {
+                zc.appendChild(mkBtn('На весь экран', '⛶', () => {
                     void window.app?.openClimbPhotoViewer?.();
                 }));
             } else {
                 zc.appendChild(mkBtn('Увеличить', '+', () => photoStageZoomBy(wrap, 1.4)));
                 zc.appendChild(mkBtn('Уменьшить', '−', () => photoStageZoomBy(wrap, 1 / 1.4)));
                 if (mode === 'viewer') {
-                    zc.appendChild(mkBtn('Сброс zoom', '⤢', () => resetPhotoStageZoom(wrap)));
+                    zc.appendChild(mkBtn('Сброс zoom', '↺', () => resetPhotoStageZoom(wrap)));
                 } else {
-                    zc.appendChild(mkBtn('На весь экран', '⤢', () => {
+                    zc.appendChild(mkBtn('На весь экран', '⛶', () => {
                         void window.app?.openClimbPhotoViewer?.();
                     }));
                 }
