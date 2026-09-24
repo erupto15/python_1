@@ -157,28 +157,27 @@
 
         .header-top {
             display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 12px;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
         }
 
         .header-search-auth {
             display: flex;
-            flex: 1 1 320px;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 8px;
-            row-gap: 6px;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 6px;
+            width: 100%;
             min-width: 0;
-            max-width: 640px;
         }
 
         .header-brand {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 14px;
-            flex: 1;
+            gap: 10px;
+            flex: none;
+            width: 100%;
             min-width: 0;
         }
 
@@ -189,10 +188,10 @@
         .auth-panel {
             display: none;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
             flex-wrap: wrap;
-            justify-content: flex-end;
-            flex-shrink: 0;
+            justify-content: center;
+            width: 100%;
         }
 
         .auth-panel.auth-panel--visible {
@@ -201,9 +200,8 @@
 
         .global-search-wrap {
             position: relative;
-            flex: 1 1 0;
+            width: 100%;
             min-width: 0;
-            max-width: none;
         }
 
         .global-search-wrap .search-input {
@@ -311,10 +309,9 @@
         }
 
         .header-search-auth .admin-password-login-block.is-visible {
-            flex: 1 1 100%;
             width: 100%;
             flex-wrap: wrap;
-            justify-content: flex-end;
+            justify-content: center;
         }
 
         .auth-panel .form-input {
@@ -3942,25 +3939,7 @@
                 margin-top: -0.54rem;
             }
 
-            .header-top {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 10px;
-            }
-
-            .header-brand {
-                width: 100%;
-            }
-
-            .header-search-auth {
-                width: 100%;
-                max-width: none;
-                flex: none;
-            }
-
             .auth-panel {
-                justify-content: flex-end;
-                flex-wrap: wrap;
                 row-gap: 4px;
             }
 
