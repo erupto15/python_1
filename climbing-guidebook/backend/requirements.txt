@@ -10,6 +10,8 @@ bcrypt>=4.2.0
 email-validator>=2.2.0
 httpx>=0.28.0
 python-jose[cryptography]>=3.3.0
+fpdf2>=2.8.0
+Pillow>=10.0.0
 
 # PostgreSQL for production.
 psycopg2-binary>=2.9.9

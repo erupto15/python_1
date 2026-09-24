@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app import schemas
 from app.db import get_db
 from app.deps import assert_admin, get_current_user
 from app.models import Area, User
+from app.services.area_guide_pdf import area_pdf_filename, build_area_guide_pdf
 from app.services.catalog_delete import soft_delete_area_with_contents
 
 router = APIRouter(prefix="/areas", tags=["areas"])
@@ -44,6 +46,28 @@ def get_area(area_id: int, db: Session = Depends(get_db)) -> Area:
     if not area or area.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Area not found")
     return area
+
+
+@router.get("/{area_id}/guide.pdf")
+def download_area_guide_pdf(area_id: int, db: Session = Depends(get_db)) -> Response:
+    area = db.get(Area, area_id)
+    if not area or area.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Area not found")
+    try:
+        pdf_bytes = build_area_guide_pdf(db, area_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Area not found") from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    filename = area_pdf_filename(area)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.patch("/{area_id}", response_model=schemas.AreaRead)

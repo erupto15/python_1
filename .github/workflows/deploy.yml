@@ -142,11 +142,15 @@ jobs:
 
           bash "$APP_DIR/scripts/install-local-postgres.sh"
 
+          if command -v apt-get >/dev/null 2>&1; then
+            apt-get install -y -qq fonts-dejavu-core >/dev/null 2>&1 || true
+          fi
+
           cd climbing-guidebook/backend
           python3 -m venv .venv
           . .venv/bin/activate
           pip install -r requirements.txt
-          python -m py_compile app/config.py app/db.py app/main.py app/routers/*.py
+          python -m py_compile app/config.py app/db.py app/main.py app/routers/*.py app/services/area_guide_pdf.py
 
           cat >/etc/caddy/Caddyfile <<CADDY
           ${CADDY_HOST} {

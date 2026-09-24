@@ -8071,6 +8071,9 @@
                             <button type="button" class="btn btn-ghost btn-small" data-catalog-act="save-offline-pack" data-pack-scope="${scope}" data-id="${entity.id}">
                                 <i class="fas fa-download"></i> ${this.escapeHtml(this.offlinePackLabel(pack))}
                             </button>
+                            ${isArea ? `<button type="button" class="btn btn-secondary btn-small" data-catalog-act="download-area-pdf" data-id="${entity.id}">
+                                <span class="btn-glyph-inline" aria-hidden="true">PDF</span> Скачать гайд
+                            </button>` : ''}
                         </div>
                     </div>
                     ${this.renderGuideDescriptionSection(isArea ? 'area' : 'sector', entity.id, desc)}
@@ -8359,6 +8362,83 @@
                     return;
                 }
                 this.openGlobalSearchResult(kind, id);
+            }
+
+            async downloadAreaGuidePdf(areaId) {
+                const id = Number(areaId);
+                if (!Number.isFinite(id)) return;
+                const area = getAreas().find((a) => Number(a.id) === id);
+                const areaName = area?.name || `area-${id}`;
+                this.showToast('Готовлю PDF по району…');
+                try {
+                    const url = `${API_BASE_URL}/api/areas/${id}/guide.pdf`;
+                    const headers = {};
+                    const auth = getAuthData();
+                    if (auth.accessToken) {
+                        headers.Authorization = `Bearer ${auth.accessToken}`;
+                    }
+                    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                    const timeoutId = controller
+                        ? setTimeout(() => controller.abort(), 180000)
+                        : null;
+                    const res = await fetch(url, {
+                        method: 'GET',
+                        headers,
+                        signal: controller?.signal
+                    });
+                    if (timeoutId) clearTimeout(timeoutId);
+                    if (!res.ok) {
+                        let msg = `HTTP ${res.status}`;
+                        try {
+                            const errBody = await res.json();
+                            const fromDetail = formatApiErrorDetail(errBody?.detail);
+                            msg = (fromDetail && fromDetail.trim()) || errBody?.message || msg;
+                        } catch (_) {
+                            /* ignore */
+                        }
+                        throw new Error(msg);
+                    }
+                    const blob = await res.blob();
+                    const safeName = String(areaName)
+                        .replace(/[^\p{L}\p{N}\s-]+/gu, '')
+                        .trim()
+                        .replace(/\s+/g, '-')
+                        .slice(0, 60) || `area-${id}`;
+                    const fileName = `6a9a-guide-${safeName}.pdf`;
+                    const file = new File([blob], fileName, { type: 'application/pdf' });
+                    const inTg = document.documentElement.classList.contains('tg-mini-app');
+                    if (inTg && navigator.share && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+                        try {
+                            await navigator.share({ files: [file], title: fileName });
+                            this.showToast('PDF готов');
+                            return;
+                        } catch (e) {
+                            if (e && e.name === 'AbortError') return;
+                        }
+                    }
+                    const objUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = objUrl;
+                    a.download = fileName;
+                    a.rel = 'noopener';
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    setTimeout(() => {
+                        try {
+                            URL.revokeObjectURL(objUrl);
+                        } catch (_) {
+                            /* ignore */
+                        }
+                    }, 4000);
+                    this.showToast('PDF сохранён');
+                } catch (err) {
+                    const msg = err?.name === 'AbortError'
+                        ? 'Генерация PDF прервана по таймауту'
+                        : (err?.message || 'Не удалось скачать PDF');
+                    this.showToast(msg, true);
+                }
             }
 
             async downloadOfflinePack(scope, rawId) {
@@ -8675,6 +8755,9 @@
                     if (action === 'save-offline-pack') {
                         const scope = act.dataset.packScope === 'sector' ? 'sector' : 'area';
                         if (id != null) void this.downloadOfflinePack(scope, id);
+                    }
+                    if (action === 'download-area-pdf') {
+                        if (id != null) void this.downloadAreaGuidePdf(id);
                     }
                     if (action === 'nav-areas') {
                         this.catalog = { view: 'areas', areaId: null, sectorId: null };
