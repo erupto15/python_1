@@ -3761,7 +3761,11 @@
             }
             wrap.querySelector('.zoom-controls')?.remove();
             const zc = document.createElement('div');
-            zc.className = mode === 'detail-expand' ? 'zoom-controls zoom-controls--expand-only' : 'zoom-controls';
+            zc.className = mode === 'detail-expand'
+                ? 'zoom-controls zoom-controls--expand-only'
+                : mode === 'viewer'
+                    ? 'zoom-controls zoom-controls--viewer'
+                    : 'zoom-controls';
             const mkBtn = (title, label, fn) => {
                 const btn = document.createElement('button');
                 btn.type = 'button';
