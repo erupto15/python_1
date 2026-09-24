@@ -8142,10 +8142,25 @@
                 const input = document.getElementById('globalSearch');
                 const box = document.getElementById('globalSearchResults');
                 if (clearInput && input) input.value = '';
+                if (clearInput) this.syncGlobalSearchClearButton();
                 if (box) {
                     box.classList.add('hidden');
                     box.innerHTML = '';
                 }
+            }
+
+            syncGlobalSearchClearButton() {
+                const input = document.getElementById('globalSearch');
+                const btn = document.getElementById('globalSearchClearBtn');
+                if (!input || !btn) return;
+                const hasText = String(input.value || '').length > 0;
+                btn.classList.toggle('hidden', !hasText);
+                btn.setAttribute('aria-hidden', hasText ? 'false' : 'true');
+            }
+
+            clearGlobalSearchInput() {
+                this.clearGlobalSearchDropdown({ clearInput: true });
+                document.getElementById('globalSearch')?.focus();
             }
 
             focusGlobalSearch(message = '') {
@@ -10069,9 +10084,16 @@
                     this._boulderSearchDebounceTimer = setTimeout(() => this.renderBoulders(), searchDebounceMs);
                 });
                 document.getElementById('globalSearch')?.addEventListener('input', () => {
+                    this.syncGlobalSearchClearButton();
                     clearTimeout(this._globalSearchDebounceTimer);
                     this._globalSearchDebounceTimer = setTimeout(() => this.renderGlobalSearchResults(), searchDebounceMs);
                 });
+                document.getElementById('globalSearchClearBtn')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.clearGlobalSearchInput();
+                });
+                this.syncGlobalSearchClearButton();
                 document.getElementById('globalSearch')?.addEventListener('keydown', (e) => {
                     if (e.key !== 'Enter') return;
                     e.preventDefault();
