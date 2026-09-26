@@ -516,6 +516,22 @@
         }
 
         window.CLIMBING_API_BASE_URL = '';
+        (function ensureClimbingStandaloneFlag() {
+            if (window.CLIMBING_STANDALONE) return;
+            try {
+                const q = new URLSearchParams(window.location.search || '');
+                if (q.get('app') === 'android' || q.get('standalone') === '1') {
+                    window.CLIMBING_STANDALONE = true;
+                    return;
+                }
+                const ua = navigator.userAgent || '';
+                if (/; wv\)/i.test(ua) && !/Telegram/i.test(ua)) {
+                    window.CLIMBING_STANDALONE = true;
+                }
+            } catch (_) {
+                /* ignore */
+            }
+        })();
         /** Только боулдеринг: скрыты трассы (вкладка, каталог, карта, фильтр в альбоме). Данные трасс в хранилище не трогаем. */
         const APP_BOULDER_ONLY = false;
         /** База API: пустая строка означает same-origin API через reverse proxy. */
@@ -2483,7 +2499,7 @@
 
         function scheduleCatalogRefreshOnAppVisible() {
             if (!_appRemoteDataReady) return;
-            if (typeof navigator.onLine === 'boolean' && !navigator.onLine) return;
+            if (shouldTrustOfflineHint()) return;
             void refreshCatalogFromApi().catch(() => {});
         }
 
@@ -3228,8 +3244,18 @@
             setAppDataStatus('offline', buildOfflineStatusMessage(), { showRetry: true });
         }
 
-        function shouldUseOfflineQueue() {
+        function isStandaloneShell() {
+            return window.CLIMBING_STANDALONE === true;
+        }
+
+        /** WebView (MIUI и др.) часто ошибочно сообщает navigator.onLine === false при рабочей сети. */
+        function shouldTrustOfflineHint() {
+            if (isStandaloneShell()) return false;
             return typeof navigator.onLine === 'boolean' && !navigator.onLine;
+        }
+
+        function shouldUseOfflineQueue() {
+            return shouldTrustOfflineHint();
         }
 
         function isFetchNetworkError(err) {
@@ -10040,7 +10066,7 @@
 
             async loadPhotosFromServerManually() {
                 if (this._photosLoadInProgress) return;
-                if (typeof navigator.onLine === 'boolean' && !navigator.onLine) {
+                if (shouldTrustOfflineHint()) {
                     this.showToast('Нет сети — загрузка фото недоступна', true);
                     return;
                 }
@@ -14036,10 +14062,10 @@
             }, 10000);
 
             try {
-                const online = navigator.onLine !== false;
+                const online = isStandaloneShell() || navigator.onLine !== false;
                 let awake = false;
                 if (online) {
-                    const standalone = window.CLIMBING_STANDALONE === true;
+                    const standalone = isStandaloneShell();
                     awake = await wakeApiServer({
                         attempts: hadLocalCatalog ? (standalone ? 2 : 1) : (standalone ? 6 : 2),
                         timeoutMs: standalone ? 12000 : 3500,
@@ -14144,3 +14170,19 @@
             if (shouldUseOfflineQueue() || offlineOutboxSize() === 0) return;
             void flushOfflineOutbox();
         });
+
+        window.__guidebookCatalogDebug = function __guidebookCatalogDebug() {
+            const data = getClimbingData();
+            return {
+                standalone: isStandaloneShell(),
+                navigatorOnLine: typeof navigator.onLine === 'boolean' ? navigator.onLine : null,
+                remoteReady: _appRemoteDataReady,
+                offlineMode: _offlineMode,
+                areas: (data.areas || []).length,
+                sectors: (data.sectors || []).length,
+                routes: (data.routes || []).length,
+                boulders: (data.boulders || []).length,
+                apiBase: API_BASE_URL,
+                href: typeof location !== 'undefined' ? location.href : ''
+            };
+        };

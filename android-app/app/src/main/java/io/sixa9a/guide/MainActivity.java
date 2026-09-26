@@ -3,6 +3,8 @@ package io.sixa9a.guide;
 import android.annotation.SuppressLint;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
@@ -18,11 +20,14 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "SixA9AGuide";
     private WebView webView;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        WebView.setWebContentsDebuggingEnabled(true);
 
         webView = new WebView(this);
         setContentView(webView);
@@ -47,15 +52,22 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onConsoleMessage(android.webkit.ConsoleMessage consoleMessage) {
-                Log.d(TAG, "JS: " + consoleMessage.message()
+                Log.i(TAG, "JS " + consoleMessage.messageLevel() + ": "
+                        + consoleMessage.message()
                         + " @" + consoleMessage.sourceId() + ":" + consoleMessage.lineNumber());
-                return super.onConsoleMessage(consoleMessage);
+                return true;
             }
         });
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return false;
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                Log.i(TAG, "Page finished: " + url);
+                scheduleCatalogDebugSnapshots(view);
             }
 
             @Override
@@ -70,7 +82,26 @@ public class MainActivity extends AppCompatActivity {
         if (base == null) base = "https://92.246.76.142.sslip.io/";
         if (!base.endsWith("/")) base = base + "/";
         String url = base + "?app=android&_=" + System.currentTimeMillis();
+        Log.i(TAG, "Loading " + url);
         webView.loadUrl(url);
+    }
+
+    private void scheduleCatalogDebugSnapshots(WebView view) {
+        long[] delaysMs = {3000L, 12000L, 30000L};
+        for (long delay : delaysMs) {
+            mainHandler.postDelayed(() -> logCatalogSnapshot(view, delay), delay);
+        }
+    }
+
+    private void logCatalogSnapshot(WebView view, long afterMs) {
+        if (view == null) return;
+        view.evaluateJavascript(
+                "(function(){try{if(typeof window.__guidebookCatalogDebug==='function')"
+                        + "return JSON.stringify(window.__guidebookCatalogDebug());"
+                        + "return JSON.stringify({err:'no debug hook',href:location.href});"
+                        + "}catch(e){return JSON.stringify({err:String(e)});}})();",
+                value -> Log.i(TAG, "Catalog @" + afterMs + "ms: " + value)
+        );
     }
 
     @Override
