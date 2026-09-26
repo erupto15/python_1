@@ -109,6 +109,51 @@
             profileStylesDialog: 'profileStylesDialogCloseBtn'
         };
 
+        function bindPreventHorizontalPageShift() {
+            if (window.__HORIZONTAL_SHIFT_GUARD_BOUND) return;
+            window.__HORIZONTAL_SHIFT_GUARD_BOUND = true;
+
+            const horizontalScrollRoot = (el) => {
+                let node = el;
+                while (node && node !== document.documentElement) {
+                    if (!(node instanceof Element)) break;
+                    if (node.closest('.leaflet-container')) return true;
+                    if (node.closest(
+                        '.tabs, .markup-editor-toolbar, .climb-sends-swipe, .grade-visual-strip, '
+                        + '.catalog-table-wrap, .ranking-table-wrap, .photo-album-grid'
+                    )) {
+                        return true;
+                    }
+                    const style = window.getComputedStyle(node);
+                    const ox = style.overflowX;
+                    if ((ox === 'auto' || ox === 'scroll' || ox === 'overlay')
+                        && node.scrollWidth > node.clientWidth + 4) {
+                        return true;
+                    }
+                    node = node.parentElement;
+                }
+                return false;
+            };
+
+            let startX = 0;
+            let startY = 0;
+            document.addEventListener('touchstart', (e) => {
+                if (e.touches.length !== 1) return;
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+            }, { passive: true, capture: true });
+
+            document.addEventListener('touchmove', (e) => {
+                if (e.touches.length !== 1) return;
+                if (horizontalScrollRoot(e.target)) return;
+                const dx = e.touches[0].clientX - startX;
+                const dy = e.touches[0].clientY - startY;
+                if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+                    e.preventDefault();
+                }
+            }, { passive: false, capture: true });
+        }
+
         window.initTelegramWebApp = function initTelegramWebApp() {
             const tg = window.Telegram && window.Telegram.WebApp;
             if (!tg) return;
@@ -116,6 +161,7 @@
             window.__TG_WEB_APP_INITIALIZED = true;
 
             document.documentElement.classList.add('tg-mini-app');
+            bindPreventHorizontalPageShift();
             window.__TG_INIT_DATA = tg.initData || '';
 
             function hexColor(c) {
@@ -3550,6 +3596,11 @@
             const stage = wrap?.querySelector('.stage');
             if (!stage) return;
             const z = getPhotoZoomState(wrap);
+            if (z.scale <= 1.02) {
+                z.scale = 1;
+                z.tx = 0;
+                z.ty = 0;
+            }
             stage.style.transform = `translate(${z.tx}px, ${z.ty}px) scale(${z.scale})`;
         }
 
@@ -13715,6 +13766,7 @@
             if (hadLocalCatalog) {
                 await hydrateCatalogPhotosFromIndexedDb();
             }
+            bindPreventHorizontalPageShift();
             window.app = new ClimbingApp();
             if (typeof window.initTelegramWebApp === 'function') window.initTelegramWebApp();
             if (typeof window.syncTelegramMiniAppUi === 'function') {
