@@ -23,6 +23,7 @@
             markers: [],
             polyline: [],
             clusterEnabled: true,
+            polylineDashed: true,
             updatedAt: null
         };
     }
@@ -36,6 +37,7 @@
                 markers: Array.isArray(data.markers) ? data.markers : [],
                 polyline: Array.isArray(data.polyline) ? data.polyline : [],
                 clusterEnabled: data.clusterEnabled !== false,
+                polylineDashed: data.polylineDashed !== false,
                 updatedAt: data.updatedAt || null
             };
         } catch (_) {
@@ -144,11 +146,15 @@
         }
         const latlngs = (state.polyline || []).filter((p) => Array.isArray(p) && p.length >= 2);
         if (latlngs.length < 2) return;
-        polylineLayer = L.polyline(latlngs, {
+        const lineOpts = {
             color: '#5d9cff',
             weight: 4,
             opacity: 0.92
-        }).addTo(map);
+        };
+        if (state.polylineDashed) {
+            lineOpts.dashArray = '10 12';
+        }
+        polylineLayer = L.polyline(latlngs, lineOpts).addTo(map);
     }
 
     function renderDraftLine() {
@@ -229,11 +235,28 @@
         state.clusterEnabled = !state.clusterEnabled;
         saveState();
         renderAll();
+        syncClusterBtn();
+    }
+
+    function togglePolylineDash() {
+        state.polylineDashed = !state.polylineDashed;
+        saveState();
+        renderAll();
+        syncLineDashBtn();
+    }
+
+    function syncClusterBtn() {
         const btn = document.getElementById('mapLabClusterBtn');
-        if (btn) {
-            btn.textContent = state.clusterEnabled ? 'Кластер: вкл' : 'Кластер: выкл';
-            btn.classList.toggle('is-active', state.clusterEnabled);
-        }
+        if (!btn) return;
+        btn.textContent = state.clusterEnabled ? 'Кластер: вкл' : 'Кластер: выкл';
+        btn.classList.toggle('is-active', state.clusterEnabled);
+    }
+
+    function syncLineDashBtn() {
+        const btn = document.getElementById('mapLabLineDashBtn');
+        if (!btn) return;
+        btn.textContent = state.polylineDashed ? 'Пунктир: вкл' : 'Пунктир: выкл';
+        btn.classList.toggle('is-active', state.polylineDashed);
     }
 
     function finishLine() {
@@ -291,6 +314,7 @@
         const linePts = state.polyline.length;
         const draft = draftLine.length;
         const cluster = state.clusterEnabled ? 'кластер вкл' : 'кластер выкл';
+        const dash = state.polylineDashed ? 'линия пунктир' : 'линия сплошная';
         let modeLabel = 'только просмотр';
         if (canEdit()) {
             if (mode === 'marker') modeLabel = 'режим: маркеры (тап по карте)';
@@ -300,7 +324,7 @@
         const updated = state.updatedAt
             ? new Date(state.updatedAt).toLocaleString('ru-RU')
             : 'ещё не сохраняли';
-        el.textContent = `${modeLabel} · маркеров: ${markerCount} · линия: ${linePts} точек${draft ? ` (+ черновик ${draft})` : ''} · ${cluster} · обновлено: ${updated}`;
+        el.textContent = `${modeLabel} · маркеров: ${markerCount} · линия: ${linePts} точек${draft ? ` (+ черновик ${draft})` : ''} · ${dash} · ${cluster} · обновлено: ${updated}`;
     }
 
     function bindAdminUi() {
@@ -324,12 +348,9 @@
         });
         document.getElementById('mapLabClearAllBtn')?.addEventListener('click', clearAll);
         document.getElementById('mapLabClusterBtn')?.addEventListener('click', toggleCluster);
-
-        const clusterBtn = document.getElementById('mapLabClusterBtn');
-        if (clusterBtn) {
-            clusterBtn.textContent = state.clusterEnabled ? 'Кластер: вкл' : 'Кластер: выкл';
-            clusterBtn.classList.toggle('is-active', state.clusterEnabled);
-        }
+        document.getElementById('mapLabLineDashBtn')?.addEventListener('click', togglePolylineDash);
+        syncClusterBtn();
+        syncLineDashBtn();
     }
 
     function bindStorageSync() {
