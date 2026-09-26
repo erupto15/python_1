@@ -252,33 +252,8 @@
                 }
             });
 
-            let _telegramBackLockUntil = 0;
-
             const handleTelegramBack = () => {
-                const now = Date.now();
-                if (now < _telegramBackLockUntil) return;
-                _telegramBackLockUntil = now + 280;
-
-                if (typeof window.closeTopTelegramOverlay === 'function' && window.closeTopTelegramOverlay()) {
-                    return;
-                }
-                const app = window.app;
-                if (!app || !app.catalog) return;
-                if (app.catalog.view === 'problems') {
-                    app.catalog = { view: 'sectors', areaId: app.catalog.areaId, sectorId: null };
-                    app.renderCatalog();
-                    if (typeof window.syncTelegramMiniAppUi === 'function') {
-                        window.syncTelegramMiniAppUi();
-                    }
-                    return;
-                }
-                if (app.catalog.view === 'sectors') {
-                    app.catalog = { view: 'areas', areaId: null, sectorId: null };
-                    app.renderCatalog();
-                    if (typeof window.syncTelegramMiniAppUi === 'function') {
-                        window.syncTelegramMiniAppUi();
-                    }
-                }
+                window.handleGuidebookSystemBack();
             };
 
             if (tg.BackButton && !tg.__backBound) {
@@ -370,6 +345,51 @@
                 }
                 return true;
             }
+            return false;
+        };
+
+        let _guidebookSystemBackLockUntil = 0;
+
+        /**
+         * Системная «Назад» (Android) и Telegram BackButton: диалог → каталог → вкладка «Районы».
+         * @returns {boolean} true — событие обработано; false — можно свернуть приложение.
+         */
+        window.handleGuidebookSystemBack = function handleGuidebookSystemBack() {
+            const now = Date.now();
+            if (now < _guidebookSystemBackLockUntil) return true;
+            _guidebookSystemBackLockUntil = now + 280;
+
+            if (typeof window.closeTopTelegramOverlay === 'function' && window.closeTopTelegramOverlay()) {
+                return true;
+            }
+
+            const app = window.app;
+            if (app && app.catalog) {
+                if (app.catalog.view === 'problems') {
+                    app.catalog = { view: 'sectors', areaId: app.catalog.areaId, sectorId: null };
+                    app.renderCatalog();
+                    if (typeof window.syncTelegramMiniAppUi === 'function') {
+                        window.syncTelegramMiniAppUi();
+                    }
+                    return true;
+                }
+                if (app.catalog.view === 'sectors') {
+                    app.catalog = { view: 'areas', areaId: null, sectorId: null };
+                    app.renderCatalog();
+                    if (typeof window.syncTelegramMiniAppUi === 'function') {
+                        window.syncTelegramMiniAppUi();
+                    }
+                    return true;
+                }
+            }
+
+            const catalogPanel = document.getElementById('catalog');
+            const onCatalogTab = catalogPanel && catalogPanel.classList.contains('active');
+            if (!onCatalogTab) {
+                document.querySelector('.tab-btn[data-tab="catalog"]')?.click();
+                return true;
+            }
+
             return false;
         };
 

@@ -18,6 +18,7 @@ import android.webkit.WebViewClient;
 import android.webkit.SslErrorHandler;
 import android.net.http.SslError;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.InputStream;
@@ -111,6 +112,30 @@ public class MainActivity extends AppCompatActivity {
         String url = base + "?app=android&_=" + System.currentTimeMillis();
         Log.i(TAG, "Loading " + url + " (proxy host=" + guideHost + ")");
         webView.loadUrl(url);
+
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                dispatchGuidebookBack();
+            }
+        });
+    }
+
+    private void dispatchGuidebookBack() {
+        if (webView == null) {
+            moveTaskToBack(true);
+            return;
+        }
+        webView.evaluateJavascript(
+                "(function(){try{if(typeof window.handleGuidebookSystemBack==='function')"
+                        + "return window.handleGuidebookSystemBack()?'true':'false';"
+                        + "return 'false';}catch(e){return 'false';}})();",
+                value -> {
+                    if (!"true".equals(value)) {
+                        moveTaskToBack(true);
+                    }
+                }
+        );
     }
 
     private WebResourceResponse proxyGuideRequest(WebResourceRequest request) {
@@ -228,12 +253,4 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
-    @Override
-    public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-            return;
-        }
-        super.onBackPressed();
-    }
 }
