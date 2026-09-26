@@ -363,6 +363,13 @@
                 return true;
             }
 
+            const searchResults = document.getElementById('globalSearchResults');
+            if (searchResults && !searchResults.classList.contains('hidden')) {
+                searchResults.classList.add('hidden');
+                document.getElementById('globalSearch')?.blur();
+                return true;
+            }
+
             const app = window.app;
             if (app && app.catalog) {
                 if (app.catalog.view === 'problems') {

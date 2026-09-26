@@ -27,6 +27,8 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -126,16 +128,43 @@ public class MainActivity extends AppCompatActivity {
             moveTaskToBack(true);
             return;
         }
-        webView.evaluateJavascript(
-                "(function(){try{if(typeof window.handleGuidebookSystemBack==='function')"
-                        + "return window.handleGuidebookSystemBack()?'true':'false';"
-                        + "return 'false';}catch(e){return 'false';}})();",
-                value -> {
-                    if (!"true".equals(value)) {
-                        moveTaskToBack(true);
+        webView.post(() -> {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final boolean[] handled = { false };
+            webView.evaluateJavascript(
+                    "(function(){try{if(typeof window.handleGuidebookSystemBack==='function')"
+                            + "return window.handleGuidebookSystemBack();"
+                            + "return false;}catch(e){return false;}})();",
+                    value -> {
+                        handled[0] = isJsTruthy(value);
+                        latch.countDown();
                     }
+            );
+            try {
+                boolean completed = latch.await(500, TimeUnit.MILLISECONDS);
+                if (completed && !handled[0]) {
+                    moveTaskToBack(true);
+                } else if (!completed) {
+                    Log.w(TAG, "Back: JS did not respond in time, keeping app open");
                 }
-        );
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+    }
+
+    /** WebView evaluateJavascript returns JSON-encoded booleans (and sometimes quoted strings). */
+    private static boolean isJsTruthy(String value) {
+        if (value == null || value.isEmpty() || "null".equalsIgnoreCase(value)) {
+            return false;
+        }
+        String v = value.trim();
+        if ("true".equalsIgnoreCase(v)) return true;
+        if ("false".equalsIgnoreCase(v)) return false;
+        if (v.length() >= 2 && v.startsWith("\"") && v.endsWith("\"")) {
+            return isJsTruthy(v.substring(1, v.length() - 1));
+        }
+        return false;
     }
 
     private WebResourceResponse proxyGuideRequest(WebResourceRequest request) {
