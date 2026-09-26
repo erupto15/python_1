@@ -604,6 +604,7 @@
         }
         const CLIMBING_DATA_STORAGE_KEY = 'climbingApp_catalog_v2';
         const CLIMBING_OFFLINE_META_KEY = 'climbingApp_offline_meta_v1';
+        const CATALOG_VERSION_STORAGE_KEY = 'climbingApp_catalog_version_v1';
         const OFFLINE_OUTBOX_KEY = 'climbingApp_sync_outbox_v1';
         const OFFLINE_OUTBOX_LIMIT = 50;
         const ADMIN_EMAIL_HINT = window.CLIMBING_ADMIN_EMAIL || 'admin@climbing-guidebook.local';
@@ -2497,7 +2498,10 @@
                     if (options.refreshPhotos) {
                         _photosLoadedFromApi = false;
                     }
-                    await loadClimbingDataFromApi({ includePhotos: options.includePhotos === true });
+                    await syncCatalogFromApiIfNeeded({
+                        includePhotos: options.includePhotos === true,
+                        force: options.force
+                    });
                     _appRemoteDataReady = true;
                     _lastCatalogReloadFinishedAt = Date.now();
                     leaveOfflineMode();
@@ -4043,13 +4047,99 @@
             return flat.flat().map(mapApiPhotoToUi);
         }
 
-        async function loadClimbingDataFromApi(options = {}) {
-            const includePhotos = options.includePhotos !== false;
+        async function fetchCatalogManifest() {
+            return apiFetch('/api/catalog/manifest');
+        }
+
+        async function loadClimbingDataFromApiBundle(options = {}) {
+            const includePhotos = options.includePhotos === true;
             const existingPhotos =
                 Array.isArray(climbingDataCache?.photos) ? climbingDataCache.photos.slice() : [];
 
+            const bundle = await apiFetch('/api/catalog/bundle');
+            const areas = (bundle.areas || []).map(mapApiAreaToUi);
+            const sectors = (bundle.sectors || []).map(mapApiSectorToUi);
+            const routes = (bundle.routes || []).map(mapApiRouteToUi);
+            const boulders = (bundle.boulders || []).map(mapApiBoulderToUi);
+            const mapFeatures = (bundle.map_features || []).map(mapApiMapFeatureToUi);
+
+            let photos = existingPhotos;
+            if (includePhotos) {
+                photos = await fetchPhotosBatched(routes, boulders);
+                _photosLoadedFromApi = true;
+                void cachePhotosToIndexedDb(photos);
+            }
+
+            saveClimbingData(ensureCatalogArrays({
+                areas,
+                sectors,
+                routes,
+                boulders,
+                photos,
+                mapFeatures
+            }));
+            const version = bundle.manifest?.version;
+            if (version) {
+                try {
+                    localStorage.setItem(CATALOG_VERSION_STORAGE_KEY, version);
+                } catch (_) {
+                    /* ignore */
+                }
+            }
+            return getClimbingData();
+        }
+
+        /**
+         * Сначала лёгкий manifest (/api/catalog/manifest); полный bundle — только при смене version.
+         */
+        async function syncCatalogFromApiIfNeeded(options = {}) {
+            const force = options.force === true;
+            const includePhotos = options.includePhotos === true;
+            let manifest = null;
+            try {
+                manifest = await fetchCatalogManifest();
+            } catch (err) {
+                if (catalogHasContent(getClimbingData())) {
+                    console.warn('catalog manifest skipped (offline/cache)', err);
+                    return getClimbingData();
+                }
+                throw err;
+            }
+            const prevVersion = localStorage.getItem(CATALOG_VERSION_STORAGE_KEY);
+            if (
+                !force
+                && manifest?.version
+                && prevVersion === manifest.version
+                && catalogHasContent(getClimbingData())
+            ) {
+                console.info('catalog up to date', manifest.version);
+                return getClimbingData();
+            }
+            try {
+                await loadClimbingDataFromApiBundle({ includePhotos });
+            } catch (err) {
+                console.warn('catalog bundle failed, using split API', err);
+                await loadClimbingDataFromApi({ includePhotos, summaries: true });
+                if (manifest?.version) {
+                    try {
+                        localStorage.setItem(CATALOG_VERSION_STORAGE_KEY, manifest.version);
+                    } catch (_) {
+                        /* ignore */
+                    }
+                }
+            }
+            return getClimbingData();
+        }
+
+        async function loadClimbingDataFromApi(options = {}) {
+            const includePhotos = options.includePhotos !== false;
+            const useSummaries = options.summaries !== false;
+            const existingPhotos =
+                Array.isArray(climbingDataCache?.photos) ? climbingDataCache.photos.slice() : [];
+
+            const areasPath = useSummaries ? '/api/areas?summaries=true' : '/api/areas';
             const [areasRaw, routesRaw, bouldersRaw, mapFeaturesRaw] = await Promise.all([
-                apiFetch('/api/areas'),
+                apiFetch(areasPath),
                 apiFetch('/api/routes'),
                 apiFetch('/api/boulders'),
                 apiFetch('/api/map-features').catch(() => [])
@@ -14091,6 +14181,11 @@
             try {
                 const online = isStandaloneShell() || navigator.onLine !== false;
                 let awake = false;
+                if (!online && hadLocalCatalog) {
+                    enterOfflineMode('Офлайн — показаны сохранённые данные.');
+                    void runTelegramAuthBootstrap();
+                    return;
+                }
                 if (online) {
                     const standalone = isStandaloneShell();
                     awake = await wakeApiServer({

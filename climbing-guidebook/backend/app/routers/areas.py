@@ -23,12 +23,24 @@ router = APIRouter(prefix="/areas", tags=["areas"])
 @router.get("", response_model=list[schemas.AreaRead])
 def list_areas(
     include_deleted: bool = Query(False),
+    summaries: bool = Query(False, description="Без тяжёлых data: URL в image_url — для синка списка"),
     db: Session = Depends(get_db),
 ) -> list[Area]:
     q = db.query(Area)
     if not include_deleted:
         q = q.filter(Area.deleted_at.is_(None))
-    return q.order_by(Area.id).all()
+    rows = q.order_by(Area.id).all()
+    if not summaries:
+        return rows
+    out: list[schemas.AreaRead] = []
+    for area in rows:
+        item = schemas.AreaRead.model_validate(area)
+        data = item.model_dump()
+        url = data.get("image_url")
+        if isinstance(url, str) and url.startswith("data:"):
+            data["image_url"] = ""
+        out.append(schemas.AreaRead.model_validate(data))
+    return out
 
 
 @router.post("", response_model=schemas.AreaRead, status_code=201)

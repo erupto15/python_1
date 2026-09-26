@@ -21,6 +21,7 @@ import android.net.http.SslError;
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -35,7 +36,9 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "SixA9AGuide";
     private WebView webView;
     private String guideHost = "92.246.76.142.sslip.io";
+    private String guideBaseUrl;
     private String userAgent;
+    private GuideHttpCache httpCache;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -63,11 +66,11 @@ public class MainActivity extends AppCompatActivity {
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         userAgent = settings.getUserAgentString();
 
-        guideHost = hostFromGuideUrl(baseUrlForProbe());
+        guideBaseUrl = baseUrlForProbe();
+        guideHost = hostFromGuideUrl(guideBaseUrl);
+        httpCache = new GuideHttpCache(this);
 
-        webView.clearCache(true);
-
-        probeHttpFromJava(baseUrlForProbe());
+        probeHttpFromJava(guideBaseUrl);
 
         webView.setBackgroundColor(Color.parseColor("#0f1419"));
         webView.setWebChromeClient(new WebChromeClient() {
@@ -101,6 +104,9 @@ public class MainActivity extends AppCompatActivity {
                 Log.e(TAG, "WebView error: " + error.getDescription()
                         + " mainFrame=" + (request != null && request.isForMainFrame())
                         + " url=" + (request != null ? request.getUrl() : "null"));
+                if (request != null && request.isForMainFrame()) {
+                    view.post(() -> view.loadUrl("file:///android_asset/guidebook/offline_fallback.html"));
+                }
             }
 
             @Override
@@ -110,8 +116,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        String base = baseUrlForProbe();
-        String url = base + "?app=android&_=" + System.currentTimeMillis();
+        String url = guideBaseUrl + "?app=android&_=" + System.currentTimeMillis();
         Log.i(TAG, "Loading " + url + " (proxy host=" + guideHost + ")");
         webView.loadUrl(url);
 
@@ -174,9 +179,10 @@ public class MainActivity extends AppCompatActivity {
         if (!"https".equalsIgnoreCase(uri.getScheme())) return null;
         if (!guideHost.equalsIgnoreCase(uri.getHost())) return null;
 
+        String urlKey = uri.toString();
         HttpURLConnection conn = null;
         try {
-            conn = (HttpURLConnection) new URL(uri.toString()).openConnection();
+            conn = (HttpURLConnection) new URL(urlKey).openConnection();
             conn.setInstanceFollowRedirects(true);
             conn.setConnectTimeout(25000);
             conn.setReadTimeout(120000);
@@ -187,9 +193,10 @@ public class MainActivity extends AppCompatActivity {
             conn.setRequestProperty("Accept-Encoding", "identity");
 
             int code = conn.getResponseCode();
-            InputStream body = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
-            if (body == null) return null;
+            InputStream raw = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
+            if (raw == null) return responseFromCache(urlKey, uri);
 
+            byte[] bytes = GuideHttpCache.readAll(raw);
             String mime = conn.getContentType();
             if (mime != null && mime.contains(";")) {
                 mime = mime.substring(0, mime.indexOf(';')).trim();
@@ -198,20 +205,40 @@ public class MainActivity extends AppCompatActivity {
                 mime = guessMime(uri.getPath());
             }
 
+            String reason = conn.getResponseMessage();
+            if (reason == null) reason = "OK";
+
+            if (code == 200) {
+                httpCache.save(urlKey, bytes, mime, code, reason);
+            }
+
             Map<String, String> headers = new HashMap<>();
             String ct = conn.getHeaderField("Content-Type");
             if (ct != null) headers.put("Content-Type", ct);
 
-            String reason = conn.getResponseMessage();
-            if (reason == null) reason = "OK";
-
             Log.d(TAG, "Proxy " + code + " " + uri);
-            return new WebResourceResponse(mime, "utf-8", code, reason, headers, body);
+            return new WebResourceResponse(mime, "utf-8", code, reason, headers, new ByteArrayInputStream(bytes));
         } catch (Exception e) {
-            Log.e(TAG, "Proxy failed " + uri + ": " + e.getMessage());
+            Log.w(TAG, "Proxy network fail " + uri + ": " + e.getMessage());
             if (conn != null) conn.disconnect();
-            return null;
+            return responseFromCache(urlKey, uri);
         }
+    }
+
+    private WebResourceResponse responseFromCache(String urlKey, Uri uri) {
+        GuideHttpCache.Entry hit = httpCache.load(urlKey);
+        if (hit == null) return null;
+        Log.i(TAG, "Proxy cache (offline) " + uri);
+        Map<String, String> headers = new HashMap<>();
+        if (hit.mime != null) headers.put("Content-Type", hit.mime);
+        return new WebResourceResponse(
+                hit.mime,
+                "utf-8",
+                hit.statusCode,
+                hit.reason != null ? hit.reason : "OK",
+                headers,
+                new ByteArrayInputStream(hit.body)
+        );
     }
 
     private static String guessMime(String path) {
