@@ -8520,11 +8520,13 @@
                         const desc = String(a.description || '').trim();
                         return `
                             <div class="catalog-row catalog-area-card">
-                                ${thumb}
-                                <button type="button" class="catalog-row-open" data-catalog-go="area" data-id="${a.id}" aria-label="Открыть район: ${this.escapeHtml(a.name)}">
-                                    <div class="catalog-row-title">${this.escapeHtml(a.name)}</div>
-                                    <div class="catalog-row-meta">${meta}</div>
-                                    ${desc ? `<div class="catalog-area-card-desc">${this.escapeHtml(desc)}</div>` : ''}
+                                <button type="button" class="catalog-row-open catalog-area-card-open" data-catalog-go="area" data-id="${a.id}" aria-label="Открыть район: ${this.escapeHtml(a.name)}">
+                                    ${thumb}
+                                    <div class="catalog-area-card-text">
+                                        <div class="catalog-row-title">${this.escapeHtml(a.name)}</div>
+                                        <div class="catalog-row-meta">${meta}</div>
+                                        ${desc ? `<div class="catalog-area-card-desc">${this.escapeHtml(desc)}</div>` : ''}
+                                    </div>
                                 </button>
                                 <button type="button" class="catalog-map-btn btn btn-ghost btn-small" data-catalog-act="show-map" data-map-kind="area" data-id="${a.id}">
                                     <i class="fas fa-map-location-dot"></i> На карте
@@ -8681,7 +8683,13 @@
 
             handleCatalogClick(e) {
                 const act = e.target.closest('[data-catalog-act]');
-                const go = e.target.closest('[data-catalog-go]');
+                let go = e.target.closest('[data-catalog-go]');
+                if (!go && !act) {
+                    const row = e.target.closest('.catalog-row');
+                    if (row && !e.target.closest('.catalog-map-btn, .catalog-row-actions, .route-drag-handle, [data-action]')) {
+                        go = row.querySelector('[data-catalog-go]');
+                    }
+                }
                 if (act) {
                     e.preventDefault();
                     const id = act.dataset.id ? Number(act.dataset.id) : null;
@@ -8738,6 +8746,7 @@
                 if (
                     climbOpen
                     && !e.target.closest('[data-action]')
+                    && !e.target.closest('.catalog-map-btn')
                     && !e.target.closest('.route-drag-handle')
                     && climbOpen.closest('.routes-reorder-list')?.dataset.suppressClimbOpen !== '1'
                 ) {
@@ -10275,6 +10284,7 @@
                     if (
                         row
                         && !e.target.closest('[data-action]')
+                        && !e.target.closest('.catalog-map-btn')
                         && !e.target.closest('.route-drag-handle')
                         && document.getElementById('routesList')?.dataset.suppressClimbOpen !== '1'
                     ) {
@@ -10299,7 +10309,7 @@
                         return;
                     }
                     const row = e.target.closest('[data-open-climb="boulder"]');
-                    if (row && !e.target.closest('[data-action]')) {
+                    if (row && !e.target.closest('[data-action]') && !e.target.closest('.catalog-map-btn')) {
                         const oid = Number(row.dataset.openClimbId);
                         if (Number.isFinite(oid)) this.showClimbDetailDialog('boulder', oid);
                     }
@@ -10519,8 +10529,10 @@
                         this.editPhotoMarkup(markupBtn.dataset.photoId);
                         return;
                     }
-                    const tile = e.target.closest('[data-open-photo-id]');
-                    if (tile && !e.target.closest('[data-action]')) {
+                    const tileWrap = e.target.closest('.photo-album-tile-wrap');
+                    const tile = e.target.closest('[data-open-photo-id]')
+                        || tileWrap?.querySelector('[data-open-photo-id]');
+                    if (tile && !e.target.closest('[data-action]') && !e.target.closest('.photo-preview-actions')) {
                         e.preventDefault();
                         const ph = getPhotos().find((p) => String(p.id) === String(tile.dataset.openPhotoId));
                         if (ph && ph.climbId != null && ph.climbId !== '') {
@@ -10917,11 +10929,14 @@
 
                 const normalized = normalizePhotoMarkup(markup, climbType);
                 applyTopoPhotoFraming(previewItem, normalized, climbType);
+                const isAlbumTile = previewItem.classList.contains('photo-album-tile-wrap');
+
                 if (!normalized) {
                     previewItem.querySelectorAll('.photo-markup-overlay').forEach(el => el.remove());
                     this.updatePreviewMarkupBadge(previewItem, false);
-                    if (previewItem.classList.contains('climb-detail-photo-mount')
-                        || previewItem.classList.contains('climb-photo-viewer-mount')) {
+                    if (!isAlbumTile
+                        && (previewItem.classList.contains('climb-detail-photo-mount')
+                        || previewItem.classList.contains('climb-photo-viewer-mount'))) {
                         const enableZoom = previewItem.classList.contains('climb-photo-viewer-mount')
                             || previewItem.classList.contains('topo-framed');
                         ensurePhotoStageWrap(previewItem, { enableZoom });
@@ -10931,7 +10946,9 @@
 
                 const enableZoom = previewItem.classList.contains('climb-photo-viewer-mount')
                     || previewItem.classList.contains('topo-framed');
-                ensurePhotoStageWrap(previewItem, { enableZoom });
+                if (!isAlbumTile) {
+                    ensurePhotoStageWrap(previewItem, { enableZoom });
+                }
 
                 const drawOverlay = () => {
                     const geom = getMarkupStageGeometry(previewItem);

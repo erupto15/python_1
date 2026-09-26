@@ -1093,6 +1093,7 @@
         /* Тач / Telegram WebView: клик по div часто не срабатывает — основная зона строки = button */
         .catalog-climb-row {
             touch-action: manipulation;
+            cursor: pointer;
         }
 
         .climb-row-open {
@@ -1974,11 +1975,27 @@
             font-size: 38px;
         }
 
-        .catalog-area-card .catalog-row-open {
+        .catalog-area-card .catalog-row-open.catalog-area-card-open {
+            display: flex;
+            flex-direction: row;
+            align-items: stretch;
+            flex: 1 1 auto;
+            min-width: 0;
+            padding: 0;
+        }
+
+        .catalog-area-card .catalog-area-card-text {
+            flex: 1 1 auto;
+            min-width: 0;
             display: flex;
             flex-direction: column;
             justify-content: center;
             padding: 18px 20px;
+        }
+
+        .catalog-area-card-open .catalog-area-card-image,
+        .catalog-area-card-open img.catalog-area-card-image {
+            pointer-events: none;
         }
 
         .catalog-area-card .catalog-row-title {
@@ -2093,6 +2110,10 @@
             }
 
             .catalog-area-card {
+                flex-direction: column;
+            }
+
+            .catalog-area-card .catalog-row-open.catalog-area-card-open {
                 flex-direction: column;
             }
 
@@ -3014,6 +3035,17 @@
             height: auto;
             min-height: 0;
             aspect-ratio: 4 / 3;
+            cursor: pointer;
+        }
+
+        #photoAlbum > .photo-album-tile-wrap .photo-wrap,
+        #photoAlbum > .photo-album-tile-wrap .photo-markup-overlay,
+        #photoAlbum > .photo-album-tile-wrap .boulder-markup-line-svg {
+            pointer-events: none;
+        }
+
+        #photoAlbum > .photo-album-tile-wrap .photo-album-open-btn {
+            z-index: 2;
         }
 
         #photoAlbum > .photo-album-tile-wrap .photo-album-open-btn img {
