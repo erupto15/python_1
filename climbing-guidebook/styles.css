@@ -1532,6 +1532,90 @@
             cursor: crosshair;
         }
 
+        .markup-dialog-stage.markup-editor-move {
+            cursor: grab;
+        }
+
+        .markup-editor-toolbar {
+            display: flex;
+            gap: 5px;
+            min-height: 58px;
+            overflow-x: auto;
+            overscroll-behavior-x: contain;
+            padding: 6px;
+            margin-top: 10px;
+            border-radius: 14px;
+            background: #24272b;
+            scrollbar-width: thin;
+        }
+
+        .markup-editor-tool {
+            flex: 0 0 46px;
+            width: 46px;
+            height: 46px;
+            border: 0;
+            border-radius: 10px;
+            background: transparent;
+            color: #e4e7eb;
+            font-size: 29px;
+            line-height: 1;
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .markup-editor-tool:hover,
+        .markup-editor-tool:focus-visible {
+            background: #3b4047;
+            outline: none;
+        }
+
+        .markup-editor-tool.active {
+            background: #85898e;
+            color: #101214;
+        }
+
+        .markup-editor-tool.action:disabled {
+            opacity: 0.34;
+            cursor: default;
+        }
+
+        .markup-editor-tool.line-tool { color: #ff514b; font-weight: 900; }
+        .markup-editor-tool.hold-tool,
+        .markup-editor-tool[data-markup-tool="hold"] { color: #ff514b; }
+        .markup-editor-tool[data-markup-tool="startFinish"],
+        .markup-editor-tool.feet-tool { color: #ffd43b; }
+        .markup-editor-tool.mask-tool { color: #62656a; }
+
+        .markup-editor-toast {
+            position: fixed;
+            z-index: 1003;
+            left: 50%;
+            bottom: calc(83px + env(safe-area-inset-bottom));
+            transform: translate(-50%, 16px);
+            max-width: min(92vw, 420px);
+            padding: 10px 14px;
+            border: 1px solid #4b525d;
+            border-radius: 12px;
+            background: #181b20f2;
+            color: #fff;
+            font-size: 13px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s, transform 0.18s;
+        }
+
+        .markup-editor-toast.show {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+
+        .markup-dialog--view-only .markup-editor-toolbar,
+        .markup-dialog--view-only .markup-instructions {
+            display: none !important;
+        }
+
         .markup-toolbar {
             display: flex;
             gap: 10px;

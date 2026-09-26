@@ -581,31 +581,22 @@
             <div class="dialog-body">
                 <div class="markup-instructions">
                     <i class="fas fa-info-circle"></i>
-                    <strong>Инструкция:</strong> Кликами по порядку задайте линию хода. На обоих концах линии автоматически появляются красные точки.
-                    Удаление точки: Ctrl / ⌘ + клик рядом с ней.
-                    <span class="markup-touch-note">На телефоне без клавиатуры точку проще сбросить кнопкой «Очистить все» или отменить и начать заново.</span>
+                    <strong>Инструкция:</strong> «Линия» — проведите отрезок по фото; концы цепляются к соседним линиям (snap). «Перемещение» — pinch и колёсико для zoom.
+                    <span class="markup-touch-note">Отмена последней фигуры — ↶ на панели инструментов.</span>
                 </div>
 
-                <div class="markup-mode-toolbar hidden" aria-hidden="true">
-                    <span class="markup-mode-label">Режим</span>
-                    <button type="button" class="btn btn-small route-markup-mode-btn active" id="routeMarkupModeLine" data-mode="line">Линия хода</button>
-                </div>
-
-                <div id="routeLineMarkupContainer" class="markup-dialog-stage">
+                <div id="routeLineMarkupContainer" class="markup-dialog-stage markup-editor-move">
                     <img id="routeLineMarkupImage" src="" alt="Markup">
-                    <svg id="routeLineMarkupSvg" class="boulder-markup-line-svg" aria-hidden="true"></svg>
+                    <svg id="routeLineMarkupSvg" class="boulder-markup-line-svg" aria-hidden="true" hidden></svg>
                 </div>
 
-                <div class="markup-toolbar">
-                    <div class="markup-tool">
-                        <i class="fas fa-route" style="color: #e53935;"></i>
-                        <span>Линия хода: клики по порядку, точки на обоих концах</span>
-                    </div>
-                    <div class="markup-tool">
-                        <i class="fas fa-trash" style="color: var(--danger-color);"></i>
-                        <span>Удалить: Ctrl / ⌘ + клик рядом с маркером</span>
-                    </div>
-                </div>
+                <div id="routeMarkupToast" class="markup-editor-toast" role="status" aria-live="polite"></div>
+
+                <nav id="routeMarkupEditorToolbar" class="markup-editor-toolbar markup-editor-toolbar--route" aria-label="Инструменты разметки">
+                    <button type="button" data-markup-action="undo" class="markup-editor-tool action" title="Отменить" aria-label="Отменить">↶</button>
+                    <button type="button" data-markup-tool="line" class="markup-editor-tool line-tool" title="Линия хода" aria-label="Линия">╱</button>
+                    <button type="button" data-markup-tool="move" class="markup-editor-tool active" title="Масштаб и перемещение" aria-label="Перемещение">✥</button>
+                </nav>
                 <div class="markup-actions markup-actions--inline">
                     <button type="button" class="btn btn-danger btn-small" id="clearRouteLineMarkupBtn">
                         <i class="fas fa-trash"></i> Очистить все
@@ -633,29 +624,26 @@
             <div class="dialog-body">
                 <div class="markup-instructions">
                     <i class="fas fa-info-circle"></i>
-                    <strong>Инструкция:</strong> «Старт» / «Финиш» — клик по фото (подписи внутри кружков, можно перетащить). «Линия» — кликами по порядку; конец линии отмечается стрелкой.
-                    Удаление: Ctrl / ⌘ + клик рядом с маркером или точкой линии.
-                    <span class="markup-touch-note">На телефоне без клавиатуры точку проще сбросить кнопкой «Очистить все» или отменить и начать заново.</span>
+                    <strong>Инструкция:</strong> жёлтый круг — старт/финиш, красный — зацеп, «Линия» — проведите сегмент (snap к концам). «Перемещение» — zoom двумя пальцами.
+                    <span class="markup-touch-note">↶ отменяет последнюю фигуру; «Очистить все» — сброс.</span>
                 </div>
 
-                <div class="markup-mode-toolbar">
-                    <span class="markup-mode-label">Режим</span>
-                    <button type="button" class="btn btn-small boulder-markup-mode-btn active" id="boulderMarkupModeStart" data-mode="start">Старт</button>
-                    <button type="button" class="btn btn-small boulder-markup-mode-btn" id="boulderMarkupModeFinish" data-mode="finish">Финиш</button>
-                    <button type="button" class="btn btn-small boulder-markup-mode-btn" id="boulderMarkupModeLine" data-mode="line">Линия</button>
-                </div>
-
-                <div id="boulderHoldsMarkupContainer" class="markup-dialog-stage">
+                <div id="boulderHoldsMarkupContainer" class="markup-dialog-stage markup-editor-move">
                     <img id="boulderHoldsMarkupImage" src="" alt="Markup">
-                    <svg id="boulderHoldsMarkupSvg" class="boulder-markup-line-svg" aria-hidden="true"></svg>
+                    <svg id="boulderHoldsMarkupSvg" class="boulder-markup-line-svg" aria-hidden="true" hidden></svg>
                 </div>
 
-                <div class="markup-toolbar">
-                    <div class="markup-tool">
-                        <i class="fas fa-circle-notch" style="color: #d32f2f;"></i>
-                        <span>Старт / финиш и линия задаются отдельно — переключайте режим кнопками выше</span>
-                    </div>
-                </div>
+                <div id="boulderMarkupToast" class="markup-editor-toast" role="status" aria-live="polite"></div>
+
+                <nav id="boulderMarkupEditorToolbar" class="markup-editor-toolbar" aria-label="Инструменты разметки">
+                    <button type="button" data-markup-action="undo" class="markup-editor-tool action" title="Отменить" aria-label="Отменить">↶</button>
+                    <button type="button" data-markup-tool="startFinish" class="markup-editor-tool" title="Старт / финиш" aria-label="Жёлтая окружность">◯</button>
+                    <button type="button" data-markup-tool="hold" class="markup-editor-tool hold-tool" title="Зацеп" aria-label="Красная окружность">◯</button>
+                    <button type="button" data-markup-tool="line" class="markup-editor-tool line-tool" title="Линия хода" aria-label="Линия">╱</button>
+                    <button type="button" data-markup-tool="mask" class="markup-editor-tool mask-tool" title="Скрыть участок" aria-label="Скрыть">●</button>
+                    <button type="button" data-markup-tool="feetOnly" class="markup-editor-tool feet-tool" title="Только ноги" aria-label="Пунктир">◌</button>
+                    <button type="button" data-markup-tool="move" class="markup-editor-tool active" title="Масштаб" aria-label="Перемещение">✥</button>
+                </nav>
                 <div class="markup-actions markup-actions--inline">
                     <button type="button" class="btn btn-danger btn-small" id="clearBoulderHoldsMarkupBtn">
                         <i class="fas fa-trash"></i> Очистить все
@@ -1072,6 +1060,7 @@
         </div>
     </div>
 
+    <script defer src="/markup-editor.js"></script>
     <script defer src="/boot.js"></script>
 </body>
 </html>

@@ -4748,6 +4748,8 @@
 
                 this._routeLineMarkupAbort = null;
                 this._boulderHoldsMarkupAbort = null;
+                this._routeMarkupEditor = null;
+                this._boulderMarkupEditor = null;
                 this._routeSearchDebounceTimer = null;
                 this._boulderSearchDebounceTimer = null;
                 this._globalSearchDebounceTimer = null;
@@ -10640,12 +10642,14 @@
                 this.currentPhotoPreview = null;
                 if (dialogId === 'routeLineMarkupDialog') {
                     this._routeLineMarkupAbort?.abort();
+                    this._destroyRouteMarkupEditor();
                     this._markupDialogViewOnly = false;
                     this.resetRouteMarkupDialogChrome();
                     this.refreshClimbDetailMarkupOverlayIfOpen();
                 }
                 if (dialogId === 'boulderHoldsMarkupDialog') {
                     this._boulderHoldsMarkupAbort?.abort();
+                    this._destroyBoulderMarkupEditor();
                     this._markupDialogViewOnly = false;
                     this.resetBoulderMarkupDialogChrome();
                     this.refreshClimbDetailMarkupOverlayIfOpen();
@@ -11848,6 +11852,97 @@
                 });
             }
 
+            _destroyRouteMarkupEditor() {
+                this._routeMarkupEditor?.destroy();
+                this._routeMarkupEditor = null;
+            }
+
+            _destroyBoulderMarkupEditor() {
+                this._boulderMarkupEditor?.destroy();
+                this._boulderMarkupEditor = null;
+            }
+
+            _syncRouteMarkupFromEditor(container) {
+                if (!this._routeMarkupEditor || !this.currentRouteLineMarkup) return;
+                this.currentRouteLineMarkup.points = this._routeMarkupEditor.exportRoutePoints().map((p, i) => ({
+                    id: Date.now() + i,
+                    x: p.x,
+                    y: p.y
+                }));
+                applyTopoPhotoFraming(container, {
+                    type: 'route-line',
+                    coordSpace: 'image',
+                    points: this.currentRouteLineMarkup.points
+                }, 'route');
+            }
+
+            _syncBoulderMarkupFromEditor(container) {
+                if (!this._boulderMarkupEditor || !this.currentBoulderHoldsMarkup) return;
+                const m = this._boulderMarkupEditor.exportBoulderMarkup();
+                this.currentBoulderHoldsMarkup.startHold = m.startHold
+                    ? { id: Date.now(), x: m.startHold.x, y: m.startHold.y }
+                    : null;
+                this.currentBoulderHoldsMarkup.finishHold = m.finishHold
+                    ? { id: Date.now() + 1, x: m.finishHold.x, y: m.finishHold.y }
+                    : null;
+                this.currentBoulderHoldsMarkup.linePoints = (m.linePoints || []).map((p, i) => ({
+                    id: Date.now() + 100 + i,
+                    x: p.x,
+                    y: p.y
+                }));
+                applyTopoPhotoFraming(container, {
+                    type: 'boulder-holds',
+                    coordSpace: 'image',
+                    startHold: this.currentBoulderHoldsMarkup.startHold,
+                    finishHold: this.currentBoulderHoldsMarkup.finishHold,
+                    linePoints: this.currentBoulderHoldsMarkup.linePoints
+                }, 'boulder');
+            }
+
+            _ensureRouteMarkupEditor(container, viewOnly) {
+                if (!container || typeof MarkupEditor === 'undefined') return null;
+                const readOnly = !!viewOnly;
+                if (this._routeMarkupEditor && this._routeMarkupEditor.viewOnly !== readOnly) {
+                    this._destroyRouteMarkupEditor();
+                }
+                if (this._routeMarkupEditor) return this._routeMarkupEditor;
+
+                ensurePhotoStageWrap(container, { enableZoom: !readOnly });
+                this._routeMarkupEditor = new MarkupEditor({
+                    container,
+                    mode: 'route',
+                    viewOnly: readOnly,
+                    toolbarEl: document.getElementById('routeMarkupEditorToolbar'),
+                    toastEl: document.getElementById('routeMarkupToast'),
+                    clientToNorm: (cx, cy) => markupNormFromClient(container, cx, cy),
+                    getGeometry: () => getMarkupStageGeometry(container),
+                    onChange: () => this._syncRouteMarkupFromEditor(container)
+                });
+                return this._routeMarkupEditor;
+            }
+
+            _ensureBoulderMarkupEditor(container, viewOnly) {
+                if (!container || typeof MarkupEditor === 'undefined') return null;
+                const readOnly = !!viewOnly;
+                if (this._boulderMarkupEditor && this._boulderMarkupEditor.viewOnly !== readOnly) {
+                    this._destroyBoulderMarkupEditor();
+                }
+                if (this._boulderMarkupEditor) return this._boulderMarkupEditor;
+
+                ensurePhotoStageWrap(container, { enableZoom: !readOnly });
+                this._boulderMarkupEditor = new MarkupEditor({
+                    container,
+                    mode: 'boulder',
+                    viewOnly: readOnly,
+                    toolbarEl: document.getElementById('boulderMarkupEditorToolbar'),
+                    toastEl: document.getElementById('boulderMarkupToast'),
+                    clientToNorm: (cx, cy) => markupNormFromClient(container, cx, cy),
+                    getGeometry: () => getMarkupStageGeometry(container),
+                    onChange: () => this._syncBoulderMarkupFromEditor(container)
+                });
+                return this._boulderMarkupEditor;
+            }
+
             // Методы для разметки трасс (линии + стартовые кружки), координаты 0–1 по видимой области фото
             showRouteLineMarkupDialog(photoData) {
                 this._markupDialogViewOnly = false;
@@ -11904,6 +11999,8 @@
                     };
                     if (!this._markupDialogViewOnly) {
                         this.setupRouteLineMarkupEvents();
+                    } else {
+                        this._ensureRouteMarkupEditor(container, true);
                     }
                     this.syncRouteMarkupModeUI();
                     this.renderRouteLineMarkup();
@@ -11970,23 +12067,11 @@
 
                 const onStageResize = () => {
                     if (document.getElementById('routeLineMarkupDialog')?.classList.contains('hidden')) return;
-                    this.renderRouteLineMarkup();
+                    this._routeMarkupEditor?.refreshLayout();
                 };
                 window.addEventListener('resize', onStageResize, { signal });
 
-                container.addEventListener('click', (e) => {
-                    if (this._markupDialogViewOnly) return;
-                    if (e.target.closest('.hold-marker') || e.target.closest('.line-marker')) return;
-
-                    const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
-
-                    if (e.ctrlKey || e.metaKey) {
-                        this.deleteNearestRouteMarkupAt(x, y, geom);
-                        return;
-                    }
-
-                    this.addRouteLinePoint(x, y);
-                }, { signal });
+                this._ensureRouteMarkupEditor(container, false);
             }
 
             addRouteLinePoint(x, y) {
@@ -12011,20 +12096,11 @@
                     points: this.currentRouteLineMarkup.points || []
                 }, 'route');
                 const paint = () => {
-                    const geom = getMarkupStageGeometry(container);
-                    container.querySelectorAll('.hold-marker, .line-marker').forEach((marker) => marker.remove());
-
-                    const pts = this.currentRouteLineMarkup.points || [];
-                    pts.forEach((point, index) => {
-                        const pos = markupPxFromNorm(point.x, point.y, geom);
-                        const marker = document.createElement('div');
-                        marker.className = 'line-marker';
-                        marker.style.left = `${pos.x}px`;
-                        marker.style.top = `${pos.y}px`;
-                        marker.dataset.index = String(index);
-                        container.appendChild(marker);
-                    });
-
+                    const editor = this._ensureRouteMarkupEditor(container, this._markupDialogViewOnly);
+                    if (editor) {
+                        editor.loadRoutePoints(this.currentRouteLineMarkup.points || []);
+                        return;
+                    }
                     this.updateRouteLinePolyline();
                 };
 
@@ -12036,14 +12112,18 @@
             }
 
             clearRouteLineMarkup() {
-                if (confirm('Очистить всю разметку?')) {
-                    this.currentRouteLineMarkup.points = [];
+                if (!confirm('Очистить всю разметку?')) return;
+                this.currentRouteLineMarkup.points = [];
+                if (this._routeMarkupEditor) {
+                    this._routeMarkupEditor.clearAll();
+                } else {
                     this.renderRouteLineMarkup();
                 }
             }
 
             async saveRouteLineMarkup() {
                 if (!this.requireAdmin('Сохранение разметки')) return;
+                this._syncRouteMarkupFromEditor(document.getElementById('routeLineMarkupContainer'));
                 if ((this.currentRouteLineMarkup.points || []).length < 2) {
                     this.showToast('Добавьте хотя бы две точки линии хода.', true);
                     return;
@@ -12176,6 +12256,8 @@
                     };
                     if (!this._markupDialogViewOnly) {
                         this.setupBoulderHoldsMarkupEvents();
+                    } else {
+                        this._ensureBoulderMarkupEditor(container, true);
                     }
                     this.syncBoulderMarkupModeUI();
                     this.renderBoulderHoldsMarkup();
@@ -12229,29 +12311,11 @@
 
                 const onStageResize = () => {
                     if (document.getElementById('boulderHoldsMarkupDialog')?.classList.contains('hidden')) return;
-                    this.renderBoulderHoldsMarkup();
+                    this._boulderMarkupEditor?.refreshLayout();
                 };
                 window.addEventListener('resize', onStageResize, { signal });
 
-                container.addEventListener('click', (e) => {
-                    if (this._markupDialogViewOnly) return;
-                    if (e.target.closest('.hold-marker')) return;
-
-                    const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
-
-                    if (e.ctrlKey || e.metaKey) {
-                        this.deleteNearestBoulderMarkupAt(x, y, geom);
-                        return;
-                    }
-
-                    if (this.boulderMarkupMode === 'line') {
-                        this.addBoulderLinePoint(x, y);
-                    } else if (this.boulderMarkupMode === 'start') {
-                        this.setBoulderRoleHold('startHold', x, y);
-                    } else if (this.boulderMarkupMode === 'finish') {
-                        this.setBoulderRoleHold('finishHold', x, y);
-                    }
-                }, { signal });
+                this._ensureBoulderMarkupEditor(container, false);
             }
 
             setBoulderRoleHold(roleKey, x, y) {
@@ -12308,35 +12372,15 @@
                     linePoints: this.currentBoulderHoldsMarkup.linePoints || []
                 }, 'boulder');
                 const paint = () => {
-                    const geom = getMarkupStageGeometry(container);
-
-                    const oldMarkers = container.querySelectorAll('.hold-marker');
-                    oldMarkers.forEach(marker => marker.remove());
-
-                    [
-                        { hold: this.currentBoulderHoldsMarkup.startHold, label: 'Старт', roleKey: 'startHold' },
-                        { hold: this.currentBoulderHoldsMarkup.finishHold, label: 'Финиш', roleKey: 'finishHold' }
-                    ].forEach(({ hold, label, roleKey }) => {
-                        if (!hold) return;
-                        const pos = markupPxFromNorm(hold.x, hold.y, geom);
-                        const marker = document.createElement('div');
-                        marker.className = 'hold-marker hold-marker--labeled';
-                        marker.style.left = `${pos.x}px`;
-                        marker.style.top = `${pos.y}px`;
-                        marker.dataset.role = roleKey;
-
-                        const labelEl = document.createElement('div');
-                        labelEl.className = 'hold-label';
-                        labelEl.textContent = label;
-                        marker.appendChild(labelEl);
-
-                        if (!this._markupDialogViewOnly) {
-                            this.makeHoldDraggable(marker, roleKey);
-                        }
-
-                        container.appendChild(marker);
-                    });
-
+                    const editor = this._ensureBoulderMarkupEditor(container, this._markupDialogViewOnly);
+                    if (editor) {
+                        editor.loadBoulderMarkup({
+                            startHold: this.currentBoulderHoldsMarkup.startHold,
+                            finishHold: this.currentBoulderHoldsMarkup.finishHold,
+                            linePoints: this.currentBoulderHoldsMarkup.linePoints || []
+                        });
+                        return;
+                    }
                     this.updateBoulderHoldsPolyline();
                 };
 
@@ -12363,19 +12407,20 @@
             }
 
             clearBoulderHoldsMarkup() {
-                if (confirm('Очистить всю разметку (кружки и линию)?')) {
-                    this.currentBoulderHoldsMarkup.startHold = null;
-                    this.currentBoulderHoldsMarkup.finishHold = null;
-                    this.currentBoulderHoldsMarkup.linePoints = [];
-                    const container = document.getElementById('boulderHoldsMarkupContainer');
-                    const oldMarkers = container.querySelectorAll('.hold-marker');
-                    oldMarkers.forEach(marker => marker.remove());
-                    this.updateBoulderHoldsPolyline();
+                if (!confirm('Очистить всю разметку (кружки и линию)?')) return;
+                this.currentBoulderHoldsMarkup.startHold = null;
+                this.currentBoulderHoldsMarkup.finishHold = null;
+                this.currentBoulderHoldsMarkup.linePoints = [];
+                if (this._boulderMarkupEditor) {
+                    this._boulderMarkupEditor.clearAll();
+                } else {
+                    this.renderBoulderHoldsMarkup();
                 }
             }
 
             async saveBoulderHoldsMarkup() {
                 if (!this.requireAdmin('Сохранение разметки')) return;
+                this._syncBoulderMarkupFromEditor(document.getElementById('boulderHoldsMarkupContainer'));
                 const linePts = this.currentBoulderHoldsMarkup.linePoints || [];
                 const hasStart = !!this.currentBoulderHoldsMarkup.startHold;
                 const hasFinish = !!this.currentBoulderHoldsMarkup.finishHold;
