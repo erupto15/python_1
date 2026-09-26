@@ -8067,7 +8067,10 @@
             }
 
             syncCatalogSectorFocusUi() {
-                const focus = this.catalog?.view === 'problems';
+                const catalogDrill = this.catalog?.view === 'sectors' || this.catalog?.view === 'problems';
+                const climbDlg = document.getElementById('climbDetailDialog');
+                const climbDetailOpen = !!(climbDlg && !climbDlg.classList.contains('hidden'));
+                const focus = catalogDrill || climbDetailOpen;
                 const hadFocus = document.documentElement.classList.contains('catalog-sector-focus');
                 document.documentElement.classList.toggle('catalog-sector-focus', !!focus);
                 if (focus) {
@@ -8088,7 +8091,9 @@
                     return;
                 }
                 const isArea = kind === 'area';
+                const areaFocus = isArea && this.catalog?.view === 'sectors';
                 const sectorFocus = !isArea && this.catalog?.view === 'problems';
+                const compactHero = areaFocus || sectorFocus;
                 const area = isArea
                     ? entity
                     : getAreas().find((a) => Number(a.id) === Number(entity.areaId));
@@ -8113,23 +8118,25 @@
                 const scope = isArea ? 'area' : 'sector';
                 const heroImageUrl = isArea
                     ? resolvePhotoDisplayUrl(entity.imageData)
-                    : (sectorFocus ? pickSectorCoverUrl(entity.id) : '');
+                    : (compactHero ? pickSectorCoverUrl(entity.id) : '');
                 const heroImage = heroImageUrl
                     ? `<img class="catalog-guide-cover" src="${this.escapeHtml(heroImageUrl)}" alt="${this.escapeHtml(entity.name || 'Район')}" loading="lazy">`
                     : '';
-                if (sectorFocus) {
-                    const climbMeta = APP_BOULDER_ONLY
-                        ? `${boulders.length} боулдеров`
-                        : `${routes.length} трасс · ${boulders.length} боулдеров`;
+                if (compactHero) {
+                    const kicker = areaFocus
+                        ? `Район · ${meta}`
+                        : (APP_BOULDER_ONLY
+                            ? `${boulders.length} боулдеров`
+                            : `${routes.length} трасс · ${boulders.length} боулдеров`);
                     hero.classList.remove('hidden');
                     hero.classList.add('catalog-guide-hero--sector-focus');
                     hero.innerHTML = `
                     ${heroImage}
                     <div class="catalog-guide-head catalog-guide-head--compact">
                         <div>
-                            <div class="catalog-guide-kicker">${this.escapeHtml(climbMeta)}</div>
+                            <div class="catalog-guide-kicker">${this.escapeHtml(kicker)}</div>
                             <h2>${this.escapeHtml(entity.name || '—')}</h2>
-                            ${area ? `<p class="catalog-guide-parent">${this.escapeHtml(area.name)}</p>` : ''}
+                            ${!isArea && area ? `<p class="catalog-guide-parent">${this.escapeHtml(area.name)}</p>` : ''}
                         </div>
                     </div>`;
                     return;
@@ -8609,16 +8616,8 @@
                 if (this.catalog.view === 'sectors') {
                     const area = areas.find(a => Number(a.id) === Number(this.catalog.areaId));
                     this.renderCatalogGuideHero('area', area);
-                    const areaName = area ? this.escapeHtml(area.name) : '?';
-                    bc.innerHTML = `
-                        <button type="button" class="linkish" data-catalog-act="nav-areas">Районы</button>
-                        <span>/</span><span><strong>${areaName}</strong></span>`;
-                    tb.innerHTML = this.isAdmin() ? `
-                        <button type="button" class="btn btn-ghost" data-catalog-act="nav-areas"><i class="fas fa-arrow-left"></i> Назад</button>
-                        <button type="button" class="btn btn-primary" data-catalog-act="add-sector" data-id="${this.catalog.areaId}">
-                            <i class="fas fa-plus"></i> Добавить сектор
-                        </button>` : `
-                        <button type="button" class="btn btn-ghost" data-catalog-act="nav-areas"><i class="fas fa-arrow-left"></i> Назад</button>`;
+                    bc.innerHTML = '';
+                    tb.innerHTML = '';
                     const listSectors = sectors.filter(s => Number(s.areaId) === Number(this.catalog.areaId));
                     list.innerHTML = listSectors.length ? listSectors.map(s => {
                         const rc = getRoutes().filter(r => Number(r.sectorId) === Number(s.id)).length;
@@ -10634,6 +10633,7 @@
                 if (!el) return;
                 el.classList.remove('hidden');
                 this.syncBodyDialogScreenLock();
+                this.syncCatalogSectorFocusUi();
                 if (typeof window.applyTelegramMainButtonForDialog === 'function') {
                     window.applyTelegramMainButtonForDialog(dialogId);
                 }
@@ -10647,6 +10647,7 @@
                 if (!el || el.classList.contains('hidden')) return;
                 el.classList.add('hidden');
                 this.syncBodyDialogScreenLock();
+                this.syncCatalogSectorFocusUi();
                 this.currentPhotoPreview = null;
                 if (dialogId === 'routeLineMarkupDialog') {
                     this._routeLineMarkupAbort?.abort();
