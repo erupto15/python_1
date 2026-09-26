@@ -41,3 +41,9 @@ backups/
 **/data/backups/
 **/data/local_db/
 **/config/settings.yaml
+
+# Android shell (сборка и локальный SDK)
+android-app/.gradle/
+android-app/**/build/
+android-app/local.properties
+android-app/.idea/

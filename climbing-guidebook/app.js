@@ -155,6 +155,7 @@
         }
 
         window.initTelegramWebApp = function initTelegramWebApp() {
+            if (window.CLIMBING_STANDALONE) return;
             const tg = window.Telegram && window.Telegram.WebApp;
             if (!tg) return;
             if (window.__TG_WEB_APP_INITIALIZED) return;
@@ -2598,7 +2599,16 @@
                 delete headers['content-type'];
             }
             const method = String(options.method || 'GET').toUpperCase();
-            const timeoutMs = options.timeoutMs ?? (method === 'GET' ? 20000 : 60000);
+            const pathOnly = String(path || '').split('?')[0];
+            const heavyCatalogGet = method === 'GET' && (
+                pathOnly === '/api/areas'
+                || pathOnly.startsWith('/api/areas/')
+                || pathOnly === '/api/routes'
+                || pathOnly === '/api/boulders'
+            );
+            const timeoutMs = options.timeoutMs ?? (
+                method === 'GET' ? (heavyCatalogGet ? 90000 : 20000) : 60000
+            );
             const controller = !options.signal && typeof AbortController !== 'undefined'
                 ? new AbortController()
                 : null;
@@ -14029,10 +14039,11 @@
                 const online = navigator.onLine !== false;
                 let awake = false;
                 if (online) {
+                    const standalone = window.CLIMBING_STANDALONE === true;
                     awake = await wakeApiServer({
-                        attempts: hadLocalCatalog ? 1 : 2,
-                        timeoutMs: 3500,
-                        pauseMs: 400
+                        attempts: hadLocalCatalog ? (standalone ? 2 : 1) : (standalone ? 6 : 2),
+                        timeoutMs: standalone ? 12000 : 3500,
+                        pauseMs: standalone ? 800 : 400
                     });
                 }
                 if (!awake && catalogHasContent(getClimbingData())) {
@@ -14076,15 +14087,17 @@
             if (window.GuidebookMapTiles?.ensureConfig) {
                 await window.GuidebookMapTiles.ensureConfig();
             }
-            void clearServiceWorkers();
+            await clearServiceWorkers();
             const hadLocalCatalog = bootstrapCatalogFromStorage();
             if (hadLocalCatalog) {
                 await hydrateCatalogPhotosFromIndexedDb();
             }
             bindPreventHorizontalPageShift();
             window.app = new ClimbingApp();
-            if (typeof window.initTelegramWebApp === 'function') window.initTelegramWebApp();
-            if (typeof window.syncTelegramMiniAppUi === 'function') {
+            if (!window.CLIMBING_STANDALONE && typeof window.initTelegramWebApp === 'function') {
+                window.initTelegramWebApp();
+            }
+            if (!window.CLIMBING_STANDALONE && typeof window.syncTelegramMiniAppUi === 'function') {
                 window.syncTelegramMiniAppUi();
             }
             if (hadLocalCatalog && shouldUseOfflineQueue()) {

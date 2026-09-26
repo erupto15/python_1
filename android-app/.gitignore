@@ -1,0 +1,19 @@
+# Android / Gradle
+*.iml
+.gradle/
+**/build/
+local.properties
+.cxx/
+.externalNativeBuild/
+
+# IDE
+.idea/
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+
+# Keystores (release signing)
+*.jks
+*.keystore
