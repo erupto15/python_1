@@ -1,0 +1,217 @@
+:root {
+    --map-lab-bg: #0f1419;
+    --map-lab-surface: #151b24;
+    --map-lab-text: #f0f4fa;
+    --map-lab-muted: #9aa8bc;
+    --map-lab-border: rgba(255, 255, 255, 0.1);
+    --map-lab-primary: #5d9cff;
+    --map-lab-accent: #e8472a;
+}
+
+.hidden {
+    display: none !important;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body.map-lab-page {
+    margin: 0;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--map-lab-bg);
+    color: var(--map-lab-text);
+    font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+.map-lab-top {
+    flex: 0 0 auto;
+    padding: 12px 16px calc(8px + env(safe-area-inset-top, 0px));
+    border-bottom: 1px solid var(--map-lab-border);
+    background: var(--map-lab-surface);
+}
+
+.map-lab-top-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.map-lab-back {
+    font-size: 14px;
+    color: var(--map-lab-primary);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.map-lab-back--end {
+    margin-left: auto;
+}
+
+.map-lab-back:hover {
+    text-decoration: underline;
+}
+
+.map-lab-title {
+    flex: 1;
+    min-width: 120px;
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.map-lab-badge {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--map-lab-border);
+}
+
+.map-lab-badge--admin {
+    color: #ffb347;
+    border-color: rgba(255, 179, 71, 0.45);
+    background: rgba(255, 179, 71, 0.12);
+}
+
+.map-lab-badge--user {
+    color: var(--map-lab-muted);
+}
+
+.map-lab-hint {
+    margin: 8px 0 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--map-lab-muted);
+}
+
+.map-lab-toolbar {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--map-lab-border);
+    background: var(--map-lab-surface);
+}
+
+.map-lab-btn {
+    appearance: none;
+    border: 1px solid var(--map-lab-border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    background: #1c2433;
+    color: var(--map-lab-text);
+}
+
+.map-lab-btn--primary {
+    background: var(--map-lab-accent);
+    border-color: transparent;
+    color: #fff;
+}
+
+.map-lab-btn--secondary {
+    background: #243044;
+}
+
+.map-lab-btn--ghost {
+    background: transparent;
+    color: var(--map-lab-muted);
+}
+
+.map-lab-btn.is-active {
+    box-shadow: 0 0 0 2px var(--map-lab-primary);
+}
+
+.map-lab-map-wrap {
+    flex: 1;
+    min-height: 280px;
+    position: relative;
+}
+
+.map-lab-map-wrap--tall {
+    min-height: 360px;
+}
+
+#mapLabMap {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+}
+
+#mapLabMap.map-lab-cursor-crosshair,
+#mapLabMap.map-lab-cursor-crosshair .leaflet-container {
+    cursor: crosshair;
+}
+
+.map-lab-empty {
+    position: absolute;
+    z-index: 2;
+    left: 16px;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    margin: 0;
+    padding: 14px 16px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--map-lab-muted);
+    background: rgba(15, 20, 25, 0.88);
+    border: 1px dashed var(--map-lab-border);
+    border-radius: 10px;
+    pointer-events: none;
+}
+
+.map-lab-status {
+    flex: 0 0 auto;
+    padding: 8px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    font-size: 12px;
+    color: var(--map-lab-muted);
+    border-top: 1px solid var(--map-lab-border);
+    background: var(--map-lab-surface);
+}
+
+.map-lab-marker-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    background: linear-gradient(145deg, #e8472a, #c73520);
+    border: 2px solid #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.map-lab-marker-icon span {
+    transform: rotate(45deg);
+    line-height: 1;
+}
+
+.map-lab-page .marker-cluster-small,
+.map-lab-page .marker-cluster-medium,
+.map-lab-page .marker-cluster-large {
+    background-color: rgba(93, 156, 255, 0.35);
+}
+
+.map-lab-page .marker-cluster-small div,
+.map-lab-page .marker-cluster-medium div,
+.map-lab-page .marker-cluster-large div {
+    background-color: rgba(93, 156, 255, 0.92);
+    color: #0f1419;
+    font-weight: 700;
+}

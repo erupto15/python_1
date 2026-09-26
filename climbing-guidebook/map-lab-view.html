@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Карта — просмотр</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="">
+    <link rel="stylesheet" href="/map-lab.css">
+</head>
+<body class="map-lab-page" data-map-lab-role="view">
+    <div class="map-lab-top">
+        <div class="map-lab-top-row">
+            <h1 class="map-lab-title">Карта</h1>
+            <span class="map-lab-badge map-lab-badge--user">Просмотр</span>
+        </div>
+        <p class="map-lab-hint">
+            Маркеры, кластеры и маршрутная линия, подготовленные в редакторе. Только просмотр, без изменений.
+        </p>
+    </div>
+
+    <div class="map-lab-map-wrap map-lab-map-wrap--tall">
+        <div id="mapLabMap" aria-label="Карта для просмотра"></div>
+        <p class="map-lab-empty hidden" id="mapLabEmpty">Администратор ещё не добавил маркеры и линии.</p>
+    </div>
+    <div class="map-lab-status" id="mapLabStatus" role="status" aria-live="polite">Загрузка…</div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+    <script defer src="/map-lab.js"></script>
+    <script defer src="/map-lab-boot.js"></script>
+</body>
+</html>

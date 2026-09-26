@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Карта — редактор (админ)</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="">
+    <link rel="stylesheet" href="/map-lab.css">
+</head>
+<body class="map-lab-page" data-map-lab-role="admin">
+    <div class="map-lab-top">
+        <div class="map-lab-top-row">
+            <h1 class="map-lab-title">Редактор карты</h1>
+            <span class="map-lab-badge map-lab-badge--admin">Админ</span>
+            <a class="map-lab-back map-lab-back--end" href="/map-lab-view.html">Экран пользователя →</a>
+        </div>
+        <p class="map-lab-hint">
+            Leaflet + OSM (Carto): маркеры, кластер, полилиния. Сохранение в localStorage — пользовательский экран читает те же данные.
+            ПКМ на маркере — удалить точку.
+        </p>
+    </div>
+
+    <div class="map-lab-toolbar" id="mapLabAdminBar">
+        <button type="button" class="map-lab-btn map-lab-btn--secondary" data-map-lab-mode="marker" id="mapLabMarkerBtn">Маркер</button>
+        <button type="button" class="map-lab-btn map-lab-btn--secondary is-active" id="mapLabClusterBtn">Кластер: вкл</button>
+        <button type="button" class="map-lab-btn map-lab-btn--secondary" data-map-lab-mode="line" id="mapLabLineBtn">Линия</button>
+        <button type="button" class="map-lab-btn map-lab-btn--primary" id="mapLabFinishLineBtn">Завершить линию</button>
+        <button type="button" class="map-lab-btn map-lab-btn--ghost" id="mapLabUndoLineBtn">Отменить точку</button>
+        <button type="button" class="map-lab-btn map-lab-btn--ghost" id="mapLabClearLineBtn">Очистить линию</button>
+        <button type="button" class="map-lab-btn map-lab-btn--ghost" id="mapLabClearMarkersBtn">Очистить маркеры</button>
+        <button type="button" class="map-lab-btn map-lab-btn--ghost" id="mapLabClearAllBtn">Очистить всё</button>
+    </div>
+
+    <div class="map-lab-map-wrap">
+        <div id="mapLabMap" aria-label="Карта редактора"></div>
+        <p class="map-lab-empty hidden" id="mapLabEmpty">Пока пусто — включите «Маркер» или «Линия» и тапайте по карте.</p>
+    </div>
+    <div class="map-lab-status" id="mapLabStatus" role="status" aria-live="polite">Загрузка…</div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+    <script defer src="/map-lab.js"></script>
+    <script defer src="/map-lab-boot.js"></script>
+</body>
+</html>
