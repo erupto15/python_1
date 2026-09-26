@@ -3461,6 +3461,38 @@
             return photoMayHaveImage(photo);
         }
 
+        /** Обложка сектора: первое фото трассы/боулдера, иначе обложка района. */
+        function pickSectorCoverUrl(sectorId) {
+            const sid = Number(sectorId);
+            if (!Number.isFinite(sid)) return '';
+            const photos = getPhotos();
+            const tryClimbs = (climbType, climbs) => {
+                for (const climb of climbs) {
+                    const p = photos.find(
+                        (ph) => ph.type === climbType && String(ph.climbId) === String(climb.id)
+                    );
+                    const url = resolvePhotoDisplayUrl(p?.imageData);
+                    if (url) return url;
+                }
+                return '';
+            };
+            const fromRoutes = tryClimbs(
+                'route',
+                getRoutes().filter((r) => Number(r.sectorId) === sid)
+            );
+            if (fromRoutes) return fromRoutes;
+            const fromBoulders = tryClimbs(
+                'boulder',
+                getBoulders().filter((b) => Number(b.sectorId) === sid)
+            );
+            if (fromBoulders) return fromBoulders;
+            const sector = getSectors().find((s) => Number(s.id) === sid);
+            const area = sector
+                ? getAreas().find((a) => Number(a.id) === Number(sector.areaId))
+                : null;
+            return area ? resolvePhotoDisplayUrl(area.imageData) : '';
+        }
+
         function loadImageIntoElement(img, photo, onReady) {
             if (!img) {
                 if (onReady) onReady();
@@ -8034,15 +8066,29 @@
                 if (deleteEntityBtn) deleteEntityBtn.setAttribute('aria-label', `Удалить ${entityLabel}`);
             }
 
+            syncCatalogSectorFocusUi() {
+                const focus = this.catalog?.view === 'problems';
+                const hadFocus = document.documentElement.classList.contains('catalog-sector-focus');
+                document.documentElement.classList.toggle('catalog-sector-focus', !!focus);
+                if (focus) {
+                    document.getElementById('globalSearchResults')?.classList.add('hidden');
+                    if (!hadFocus) {
+                        window.scrollTo(0, 0);
+                    }
+                }
+            }
+
             renderCatalogGuideHero(kind, entity) {
                 const hero = document.getElementById('catalogGuideHero');
                 if (!hero) return;
                 if (!entity) {
                     hero.classList.add('hidden');
+                    hero.classList.remove('catalog-guide-hero--sector-focus');
                     hero.innerHTML = '';
                     return;
                 }
                 const isArea = kind === 'area';
+                const sectorFocus = !isArea && this.catalog?.view === 'problems';
                 const area = isArea
                     ? entity
                     : getAreas().find((a) => Number(a.id) === Number(entity.areaId));
@@ -8065,10 +8111,30 @@
                     warnings: entity.warnings || area.warnings
                 }) : '';
                 const scope = isArea ? 'area' : 'sector';
-                const heroImageUrl = isArea ? resolvePhotoDisplayUrl(entity.imageData) : '';
+                const heroImageUrl = isArea
+                    ? resolvePhotoDisplayUrl(entity.imageData)
+                    : (sectorFocus ? pickSectorCoverUrl(entity.id) : '');
                 const heroImage = heroImageUrl
                     ? `<img class="catalog-guide-cover" src="${this.escapeHtml(heroImageUrl)}" alt="${this.escapeHtml(entity.name || 'Район')}" loading="lazy">`
                     : '';
+                if (sectorFocus) {
+                    const climbMeta = APP_BOULDER_ONLY
+                        ? `${boulders.length} боулдеров`
+                        : `${routes.length} трасс · ${boulders.length} боулдеров`;
+                    hero.classList.remove('hidden');
+                    hero.classList.add('catalog-guide-hero--sector-focus');
+                    hero.innerHTML = `
+                    ${heroImage}
+                    <div class="catalog-guide-head catalog-guide-head--compact">
+                        <div>
+                            <div class="catalog-guide-kicker">${this.escapeHtml(climbMeta)}</div>
+                            <h2>${this.escapeHtml(entity.name || '—')}</h2>
+                            ${area ? `<p class="catalog-guide-parent">${this.escapeHtml(area.name)}</p>` : ''}
+                        </div>
+                    </div>`;
+                    return;
+                }
+                hero.classList.remove('catalog-guide-hero--sector-focus');
                 hero.classList.remove('hidden');
                 hero.innerHTML = `
                     ${heroImage}
@@ -8496,6 +8562,7 @@
                 const areas = getAreas();
                 const sectors = getSectors();
 
+                try {
                 if (this.catalog.view === 'areas') {
                     if (hero) {
                         hero.classList.add('hidden');
@@ -8536,7 +8603,6 @@
                                 </div>
                             </div>`;
                     }).join('') : '<div class="empty-state"><p>Нет районов. Создайте первый.</p></div>';
-                    if (typeof window.syncTelegramMiniAppUi === 'function') window.syncTelegramMiniAppUi();
                     return;
                 }
 
@@ -8576,7 +8642,6 @@
                                 </div>
                             </div>`;
                     }).join('') : '<div class="empty-state"><p>В этом районе пока нет секторов.</p></div>';
-                    if (typeof window.syncTelegramMiniAppUi === 'function') window.syncTelegramMiniAppUi();
                     return;
                 }
 
@@ -8584,25 +8649,8 @@
                     const area = areas.find(a => Number(a.id) === Number(this.catalog.areaId));
                     const sector = sectors.find(s => Number(s.id) === Number(this.catalog.sectorId));
                     this.renderCatalogGuideHero('sector', sector);
-                    const areaName = area ? this.escapeHtml(area.name) : '?';
-                    const sectorName = sector ? this.escapeHtml(sector.name) : '?';
-                    bc.innerHTML = `
-                        <button type="button" class="linkish" data-catalog-act="nav-areas">Районы</button>
-                        <span>/</span>
-                        <button type="button" class="linkish" data-catalog-act="nav-area" data-id="${this.catalog.areaId}">${areaName}</button>
-                        <span>/</span><span><strong>${sectorName}</strong></span>`;
-                    const addButtons = this.isAdmin() ? `
-                        ${APP_BOULDER_ONLY ? '' : `
-                        <button type="button" class="btn btn-primary" data-catalog-act="add-route" data-id="${this.catalog.sectorId}">
-                            <i class="fas fa-plus"></i> Добавить трассу
-                        </button>`}
-                        <button type="button" class="btn btn-primary" data-catalog-act="add-boulder" data-id="${this.catalog.sectorId}">
-                            <i class="fas fa-plus"></i> Добавить боулдеринг
-                        </button>
-                    ` : '';
-                    tb.innerHTML = `
-                        <button type="button" class="btn btn-ghost" data-catalog-act="nav-area" data-id="${this.catalog.areaId}"><i class="fas fa-arrow-left"></i> К секторам</button>
-                        ${addButtons}`;
+                    bc.innerHTML = '';
+                    tb.innerHTML = '';
 
                     const rs = getRoutes().filter(r => Number(r.sectorId) === Number(this.catalog.sectorId));
                     const bs = getBoulders().filter(b => Number(b.sectorId) === Number(this.catalog.sectorId));
@@ -8678,7 +8726,10 @@
                     list.innerHTML = blocks.join('');
                     this.bindRouteListDragDrop(document.getElementById('catalogSectorRoutesList'));
                 }
-                if (typeof window.syncTelegramMiniAppUi === 'function') window.syncTelegramMiniAppUi();
+                } finally {
+                    this.syncCatalogSectorFocusUi();
+                    if (typeof window.syncTelegramMiniAppUi === 'function') window.syncTelegramMiniAppUi();
+                }
             }
 
             handleCatalogClick(e) {

@@ -1806,6 +1806,57 @@
             box-shadow: var(--shadow);
         }
 
+        /* Экран сектора: только обложка, название и список трасс/боулдеров */
+        html.catalog-sector-focus header,
+        html.catalog-sector-focus .tabs {
+            display: none !important;
+        }
+
+        html.catalog-sector-focus body,
+        html.catalog-sector-focus.tg-mini-app body {
+            padding-top: calc(8px + env(safe-area-inset-top, 0px));
+        }
+
+        html.catalog-sector-focus #catalog > .card > .card-header,
+        html.catalog-sector-focus #catalog .catalog-breadcrumb,
+        html.catalog-sector-focus #catalog .catalog-toolbar {
+            display: none !important;
+        }
+
+        html.catalog-sector-focus #catalog > .card {
+            border: 0;
+            box-shadow: none;
+            background: transparent;
+        }
+
+        html.catalog-sector-focus #catalog .catalog-guide-hero--sector-focus {
+            margin: 0 -20px 14px;
+            padding: 0 20px;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+
+        html.catalog-sector-focus #catalog .catalog-guide-hero--sector-focus .catalog-guide-cover {
+            width: calc(100% + 40px);
+            max-width: none;
+            margin-left: -20px;
+            margin-right: -20px;
+            margin-bottom: 12px;
+            border-radius: 0;
+            border: 0;
+            height: clamp(200px, 36vh, 340px);
+        }
+
+        html.catalog-sector-focus #catalog .catalog-guide-head--compact {
+            margin-bottom: 4px;
+        }
+
+        html.catalog-sector-focus #catalogList {
+            padding-top: 0;
+        }
+
         .catalog-guide-cover {
             display: block;
             width: 100%;
