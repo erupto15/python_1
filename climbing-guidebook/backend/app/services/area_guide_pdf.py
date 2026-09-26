@@ -10,7 +10,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 import httpx
 from fpdf import FPDF
@@ -246,6 +246,8 @@ def build_area_guide_pdf(db: Session, area_id: int) -> bytes:
             .order_by(Photo.id)
             .all()
         ):
+            if photo.route_id is None:
+                continue
             key = ("route", int(photo.route_id))
             photos_by_climb.setdefault(key, photo)
     if boulder_ids:
@@ -255,6 +257,8 @@ def build_area_guide_pdf(db: Session, area_id: int) -> bytes:
             .order_by(Photo.id)
             .all()
         ):
+            if photo.boulder_id is None:
+                continue
             key = ("boulder", int(photo.boulder_id))
             photos_by_climb.setdefault(key, photo)
 
@@ -346,3 +350,13 @@ def area_pdf_filename(area: Area) -> str:
     slug = re.sub(r"[^\w\s-]+", "", name, flags=re.UNICODE).strip().replace(" ", "-")
     slug = re.sub(r"-+", "-", slug)[:60] or f"area-{area.id}"
     return f"6a9a-guide-{slug}.pdf"
+
+
+def pdf_attachment_content_disposition(filename: str) -> str:
+    """HTTP-заголовок без кириллицы в latin-1 (RFC 5987 для UTF-8 имени файла)."""
+    safe = _safe_pdf_text(filename) or "6a9a-guide.pdf"
+    ascii_name = re.sub(r"[^A-Za-z0-9._-]+", "_", safe).strip("._") or "6a9a-guide.pdf"
+    if len(ascii_name) > 120:
+        ascii_name = ascii_name[:120]
+    encoded = quote(safe)
+    return f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{encoded}'

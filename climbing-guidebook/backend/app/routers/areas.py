@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -6,8 +8,14 @@ from app import schemas
 from app.db import get_db
 from app.deps import assert_admin, get_current_user
 from app.models import Area, User
-from app.services.area_guide_pdf import area_pdf_filename, build_area_guide_pdf
+from app.services.area_guide_pdf import (
+    area_pdf_filename,
+    build_area_guide_pdf,
+    pdf_attachment_content_disposition,
+)
 from app.services.catalog_delete import soft_delete_area_with_contents
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/areas", tags=["areas"])
 
@@ -59,12 +67,15 @@ def download_area_guide_pdf(area_id: int, db: Session = Depends(get_db)) -> Resp
         raise HTTPException(status_code=404, detail="Area not found") from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("area guide PDF failed for area_id=%s", area_id)
+        raise HTTPException(status_code=500, detail="PDF generation failed") from exc
     filename = area_pdf_filename(area)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": pdf_attachment_content_disposition(filename),
             "Cache-Control": "no-store",
         },
     )
