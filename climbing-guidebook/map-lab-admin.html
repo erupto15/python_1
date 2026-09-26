@@ -17,7 +17,7 @@
             <a class="map-lab-back map-lab-back--end" href="/map-lab-view.html">Экран пользователя →</a>
         </div>
         <p class="map-lab-hint">
-            Leaflet + OSM (Carto): маркеры, кластер, полилиния. Сохранение в localStorage — пользовательский экран читает те же данные.
+            Leaflet + OpenStreetMap (или Carto Voyager, если на сервере задан CARTO_BASEMAPS_API_KEY). Данные — в localStorage, экран пользователя читает то же.
             ПКМ на маркере — удалить точку.
         </p>
     </div>
@@ -41,6 +41,7 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+    <script defer src="/map-tiles.js"></script>
     <script defer src="/map-lab.js"></script>
     <script defer src="/map-lab-boot.js"></script>
 </body>

@@ -29,6 +29,7 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+          CARTO_BASEMAPS_API_KEY: ${{ secrets.CARTO_BASEMAPS_API_KEY }}
         run: |
           set -euo pipefail
 
@@ -79,6 +80,7 @@ jobs:
               "PUBLIC_URL": os.environ["PUBLIC_URL"],
               "DISABLE_CATALOG_SEED": os.environ["DISABLE_CATALOG_SEED"],
               "MEDIA_UPLOAD_DIR": "/var/lib/guide-rus/uploads",
+              "CARTO_BASEMAPS_API_KEY": os.environ.get("CARTO_BASEMAPS_API_KEY", ""),
           }
           with open(os.environ["BACKEND_ENV"], "w", encoding="utf-8") as handle:
               for key, value in pairs.items():

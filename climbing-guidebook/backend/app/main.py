@@ -89,6 +89,14 @@ app.mount(
 )
 
 
+@app.get("/api/map-tiles-config")
+def map_tiles_config() -> dict[str, str]:
+    key = (settings.carto_basemaps_api_key or "").strip()
+    if key:
+        return {"provider": "carto", "cartoBasemapsKey": key}
+    return {"provider": "osm"}
+
+
 @app.get("/health")
 def health() -> dict[str, str | bool | int | dict[str, int]]:
     dialect = engine.dialect.name

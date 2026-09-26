@@ -346,11 +346,14 @@
             attributionControl: true
         }).setView(DEFAULT_VIEW, DEFAULT_ZOOM);
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            maxZoom: 20,
-            subdomains: 'abcd',
-            attribution: '&copy; OpenStreetMap, &copy; CARTO'
-        }).addTo(map);
+        if (window.GuidebookMapTiles?.addBasemapLayer) {
+            window.GuidebookMapTiles.addBasemapLayer(map);
+        } else {
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+        }
 
         if (canEdit()) {
             map.on('click', (ev) => {
@@ -370,8 +373,11 @@
         setTimeout(() => map.invalidateSize({ animate: false }), 120);
     }
 
-    function boot(nextRole) {
+    async function boot(nextRole) {
         role = nextRole === 'admin' ? 'admin' : 'view';
+        if (window.GuidebookMapTiles?.ensureConfig) {
+            await window.GuidebookMapTiles.ensureConfig();
+        }
         if (canEdit()) bindAdminUi();
         bindStorageSync();
         initMap();

@@ -6009,10 +6009,14 @@
                     attributionControl: false,
                     tapTolerance: 20
                 }).setView([55.7558, 37.6173], 5);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                    maxZoom: 20,
-                    subdomains: 'abcd'
-                }).addTo(this.map);
+                if (window.GuidebookMapTiles?.addBasemapLayer) {
+                    window.GuidebookMapTiles.addBasemapLayer(this.map);
+                } else {
+                    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19,
+                        attribution: '&copy; OpenStreetMap contributors'
+                    }).addTo(this.map);
+                }
 
                 this.map.on('zoomend', () => {
                     this.syncMapZoomClass();
@@ -13830,6 +13834,9 @@
 
         async function bootClimbingApp() {
             if (typeof window.signalTelegramAppReady === 'function') window.signalTelegramAppReady();
+            if (window.GuidebookMapTiles?.ensureConfig) {
+                await window.GuidebookMapTiles.ensureConfig();
+            }
             void clearServiceWorkers();
             const hadLocalCatalog = bootstrapCatalogFromStorage();
             if (hadLocalCatalog) {

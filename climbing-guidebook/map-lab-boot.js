@@ -1,10 +1,10 @@
 (function () {
     'use strict';
 
-    function start() {
+    async function start() {
         const role = document.body?.dataset?.mapLabRole === 'admin' ? 'admin' : 'view';
         if (window.MapLab && typeof window.MapLab.boot === 'function') {
-            window.MapLab.boot(role);
+            await window.MapLab.boot(role);
         }
     }
 

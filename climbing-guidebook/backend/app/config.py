@@ -158,6 +158,9 @@ class Settings(BaseSettings):
     assistant_api_base: str = "https://api.openai.com/v1"
     assistant_model: str = "gpt-4o-mini"
 
+    # CARTO Voyager raster tiles (optional). Without key the frontend uses tile.openstreetmap.org.
+    carto_basemaps_api_key: str = ""
+
     @property
     def media_upload_path(self) -> Path:
         raw = (self.media_upload_dir or "").strip()
