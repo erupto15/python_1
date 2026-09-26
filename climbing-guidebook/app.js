@@ -6571,8 +6571,12 @@
 
             buildMapParentLabelHtml(title, sub = '', selected = false, kind = '') {
                 const subHtml = sub ? ` <span>${this.escapeHtml(sub)}</span>` : '';
-                const icons = { area: 'fa-mountain', sector: 'fa-layer-group' };
-                const icon = icons[kind] ? `<i class="fas ${icons[kind]} map-kind-icon" aria-hidden="true"></i>` : '';
+                let icon = '';
+                if (kind === 'area') {
+                    icon = '<i class="fas fa-droplet map-kind-icon map-kind-icon--area" aria-hidden="true"></i>';
+                } else if (kind === 'sector') {
+                    icon = '<span class="map-kind-sector-dot" aria-hidden="true"><span></span></span>';
+                }
                 return `<div class="parent-label${selected ? ' selected' : ''}">${icon}${this.escapeHtml(title)}${subHtml}</div>`;
             }
 
@@ -7143,10 +7147,10 @@
 
             buildMapFeaturePointIcon(featureType, label) {
                 const icons = {
-                    parking: '<i class="fas fa-square-parking" aria-hidden="true"></i>',
+                    parking: '<span class="map-feature-parking-letter" aria-hidden="true">P</span>',
                     camping: '<i class="fas fa-campground" aria-hidden="true"></i>',
-                    area_sign: '<i class="fas fa-mountain" aria-hidden="true"></i>',
-                    sector_sign: '<i class="fas fa-thumbtack" aria-hidden="true"></i>'
+                    area_sign: '<i class="fas fa-droplet" aria-hidden="true"></i>',
+                    sector_sign: '<span class="map-feature-sector-dot" aria-hidden="true"><span></span></span>'
                 };
                 const cls = `map-feature-icon map-feature-icon--${featureType}`;
                 const inner = icons[featureType] || '•';

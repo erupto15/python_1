@@ -3728,10 +3728,98 @@
             border: 2px solid rgba(255, 255, 255, 0.92);
         }
 
-        .map-feature-icon--parking { background: #2563eb; }
+        .map-feature-icon--parking { background: #2563eb; font-family: inherit; }
         .map-feature-icon--camping { background: #16a34a; font-size: 13px; }
-        .map-feature-icon--area_sign { background: #7c3aed; }
-        .map-feature-icon--sector_sign { background: #db2777; }
+        .map-feature-icon--area_sign { background: #e8472a; color: #fff; }
+        .map-feature-icon--sector_sign {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            width: auto;
+            height: auto;
+        }
+
+        .map-feature-parking-letter {
+            display: block;
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -0.02em;
+        }
+
+        .map-feature-sector-dot,
+        .map-kind-sector-dot {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            margin-right: 5px;
+            border-radius: 50%;
+            border: 2px solid var(--map-accent, #e8472a);
+            background: var(--card-bg, #151b24);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+            vertical-align: middle;
+            flex-shrink: 0;
+        }
+
+        .map-feature-sector-dot {
+            width: 22px;
+            height: 22px;
+            margin-right: 0;
+        }
+
+        .map-feature-sector-dot > span,
+        .map-kind-sector-dot > span {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--map-accent, #e8472a);
+        }
+
+        .parent-label .map-kind-icon--area {
+            color: #e8472a;
+            opacity: 1;
+            font-size: 12px;
+        }
+
+        .map-tool-glyph--p {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #2563eb;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 800;
+            margin-right: 4px;
+        }
+
+        .map-tool-droplet {
+            color: #e8472a;
+            margin-right: 4px;
+        }
+
+        .map-tool-sector-dot {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            margin-right: 4px;
+            border-radius: 50%;
+            border: 2px solid var(--map-accent, #e8472a);
+            vertical-align: middle;
+        }
+
+        .map-tool-sector-dot > span {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--map-accent, #e8472a);
+        }
 
         .map-feature-point-marker {
             background: transparent;
