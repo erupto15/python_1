@@ -3500,8 +3500,50 @@
         .map-legend-trail {
             width: 22px;
             height: 0;
-            border-top: 3px dashed #92400e;
+            border-top: 3px dashed #22c55e;
             flex-shrink: 0;
+        }
+
+        .map-nearest-chip {
+            margin: 0 0 10px;
+        }
+
+        .map-nearest-chip-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid color-mix(in srgb, #22c55e 45%, var(--tg-btn-border));
+            background: color-mix(in srgb, #22c55e 12%, var(--card-bg));
+            color: var(--text-color);
+            font: inherit;
+            font-size: 13px;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .map-nearest-chip-btn strong {
+            font-weight: 600;
+        }
+
+        .map-nearest-chip-btn i {
+            color: #22c55e;
+        }
+
+        #map .marker-cluster-small,
+        #map .marker-cluster-medium,
+        #map .marker-cluster-large {
+            background-color: rgba(232, 71, 42, 0.28);
+        }
+
+        #map .marker-cluster-small div,
+        #map .marker-cluster-medium div,
+        #map .marker-cluster-large div {
+            background-color: var(--map-accent, #e8472a);
+            color: #fff;
+            font-weight: 700;
         }
 
         .map-legend-poi {
@@ -3701,7 +3743,7 @@
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            background: #92400e;
+            background: #22c55e;
             border: 2px solid #fff;
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
         }

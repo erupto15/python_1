@@ -675,6 +675,42 @@
             return _leafletLoadPromise;
         }
 
+        let _markerClusterLoadPromise = null;
+
+        function ensureMarkerClusterLoaded() {
+            return ensureLeafletLoaded().then(() => {
+                if (typeof L !== 'undefined' && typeof L.markerClusterGroup === 'function') {
+                    return undefined;
+                }
+                if (_markerClusterLoadPromise) return _markerClusterLoadPromise;
+                _markerClusterLoadPromise = new Promise((resolve, reject) => {
+                    if (!document.querySelector('link[data-markercluster-css]')) {
+                        const link = document.createElement('link');
+                        link.rel = 'stylesheet';
+                        link.href = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css';
+                        link.dataset.markerclusterCss = '1';
+                        document.head.appendChild(link);
+                        const link2 = document.createElement('link');
+                        link2.rel = 'stylesheet';
+                        link2.href = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css';
+                        link2.dataset.markerclusterCss = '1';
+                        document.head.appendChild(link2);
+                    }
+                    const script = document.createElement('script');
+                    script.src = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js';
+                    script.async = true;
+                    script.dataset.markerclusterLoader = '1';
+                    script.onload = () => resolve();
+                    script.onerror = () => reject(new Error('MarkerCluster load failed'));
+                    document.head.appendChild(script);
+                });
+                return _markerClusterLoadPromise;
+            });
+        }
+
+        const MAP_GEO_CACHE_KEY = '6a9a_map_last_geo';
+        const MAP_VIEW_STORAGE_KEY = '6a9a_map_view';
+
         async function clearServiceWorkers() {
             if (!('serviceWorker' in navigator)) return;
             try {
@@ -4794,6 +4830,10 @@
                 this.mapDrawTool = 'trail';
                 this.mapDraftTrail = null;
                 this.mapFeatureLayers = [];
+                this.mapClimbCluster = null;
+                this._mapLocateRequested = false;
+                this._mapRestoringView = false;
+                this._mapViewSaveTimer = null;
                 this.mapSelectedFeatureId = null;
                 this.mapFeatureMovePending = false;
                 this.mapEditingTrailFeatureId = null;
@@ -6000,15 +6040,108 @@
                     .replace(/'/g, '&#39;');
             }
 
+            loadCachedUserLocation() {
+                try {
+                    const raw = localStorage.getItem(MAP_GEO_CACHE_KEY);
+                    if (!raw) return null;
+                    const data = JSON.parse(raw);
+                    const lat = Number(data?.lat);
+                    const lng = Number(data?.lng);
+                    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+                    const age = Date.now() - Number(data?.ts || 0);
+                    if (age > 7 * 24 * 60 * 60 * 1000) return null;
+                    return { lat, lng };
+                } catch (_) {
+                    return null;
+                }
+            }
+
+            saveCachedUserLocation(coord) {
+                if (!coord) return;
+                try {
+                    localStorage.setItem(MAP_GEO_CACHE_KEY, JSON.stringify({
+                        lat: coord.lat,
+                        lng: coord.lng,
+                        ts: Date.now()
+                    }));
+                } catch (_) {}
+            }
+
+            applyCachedUserLocation() {
+                const cached = this.loadCachedUserLocation();
+                if (!cached) return false;
+                this.userLocation = cached;
+                this.ensureUserLocationMarker();
+                this.updateMapNavigationLine();
+                this.renderMapNearestChip();
+                if (!this.mapTarget) this.renderMapCoordsBar();
+                return true;
+            }
+
+            loadSavedMapView() {
+                try {
+                    const raw = localStorage.getItem(MAP_VIEW_STORAGE_KEY);
+                    if (!raw) return null;
+                    const data = JSON.parse(raw);
+                    const lat = Number(data?.lat);
+                    const lng = Number(data?.lng);
+                    const zoom = Number(data?.zoom);
+                    if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(zoom)) return null;
+                    const scope = data?.scope && data.scope.areaId != null
+                        ? {
+                            areaId: Number(data.scope.areaId),
+                            sectorId: data.scope.sectorId != null ? Number(data.scope.sectorId) : null
+                        }
+                        : null;
+                    return { lat, lng, zoom, scope };
+                } catch (_) {
+                    return null;
+                }
+            }
+
+            schedulePersistMapView() {
+                if (!this.map || this._mapRestoringView) return;
+                if (this._mapViewSaveTimer) clearTimeout(this._mapViewSaveTimer);
+                this._mapViewSaveTimer = setTimeout(() => {
+                    this._mapViewSaveTimer = null;
+                    this.persistMapView();
+                }, 400);
+            }
+
+            persistMapView() {
+                if (!this.map) return;
+                try {
+                    const c = this.map.getCenter();
+                    localStorage.setItem(MAP_VIEW_STORAGE_KEY, JSON.stringify({
+                        lat: c.lat,
+                        lng: c.lng,
+                        zoom: this.map.getZoom(),
+                        scope: this.mapCatalogScope
+                    }));
+                } catch (_) {}
+            }
+
             initMap() {
                 const mapContainer = document.getElementById('mapContainer');
                 if (!mapContainer || this.map) return;
+
+                const savedView = this.loadSavedMapView();
+                if (savedView?.scope) {
+                    this._mapRestoringView = true;
+                    this.mapCatalogScope = savedView.scope;
+                }
 
                 this.map = L.map('mapContainer', {
                     scrollWheelZoom: true,
                     attributionControl: false,
                     tapTolerance: 20
-                }).setView([55.7558, 37.6173], 5);
+                });
+                if (savedView) {
+                    this.map.setView([savedView.lat, savedView.lng], savedView.zoom);
+                    this._mapFitDone = true;
+                } else {
+                    this.map.setView([55.7558, 37.6173], 5);
+                }
                 if (window.GuidebookMapTiles?.addBasemapLayer) {
                     window.GuidebookMapTiles.addBasemapLayer(this.map);
                 } else {
@@ -6021,8 +6154,13 @@
                 this.map.on('zoomend', () => {
                     this.syncMapZoomClass();
                     this.scheduleMapDeclutter();
+                    this.updateMapMarkers();
+                    this.schedulePersistMapView();
                 });
-                this.map.on('moveend', () => this.scheduleMapDeclutter());
+                this.map.on('moveend', () => {
+                    this.scheduleMapDeclutter();
+                    this.schedulePersistMapView();
+                });
                 this.attachMapFullscreenControl();
                 this.attachMapEditInteraction();
                 this.attachMapPointerTracking();
@@ -6033,8 +6171,15 @@
                 this.updateMapNavigationLine();
                 this.renderMapCoordsBar();
                 this.syncMapZoomClass();
+                this.applyCachedUserLocation();
+                this._mapRestoringView = false;
                 requestAnimationFrame(() => this.map.invalidateSize({ animate: false }));
                 setTimeout(() => this.map.invalidateSize({ animate: false }), 120);
+            }
+
+            shouldClusterClimbMarkers() {
+                if (!this.map || typeof L.markerClusterGroup !== 'function') return false;
+                return this.map.getZoom() < 16;
             }
 
             attachMapFullscreenControl() {
@@ -6406,7 +6551,7 @@
                 });
             }
 
-            createMapDotMarker(entry, coord) {
+            createMapDotMarker(entry, coord, { addToMap = true } = {}) {
                 const icon = L.divIcon({
                     className: 'map-climb-dot-marker',
                     html: this.buildMapDotHtml(entry),
@@ -6417,7 +6562,8 @@
                     icon,
                     interactive: true,
                     zIndexOffset: 500
-                }).addTo(this.map);
+                });
+                if (addToMap) marker.addTo(this.map);
                 marker.bindPopup(this.buildMapPopupHtml(entry));
                 this.bindMapClimbDotMarkerClick(marker, entry);
                 return marker;
@@ -6691,17 +6837,31 @@
                     stored.marker = this.createMapParentLabelMarker(stored, coord, labelHtml);
                     stored.labelEl = stored.marker.getElement()?.querySelector('.parent-label') || null;
                 } else {
+                    const useCluster = this.mapClimbCluster && this.shouldClusterClimbMarkers();
                     stored.grade = entry.grade || '';
-                    stored.marker = this.createMapDotMarker(stored, coord);
+                    stored.marker = this.createMapDotMarker(stored, coord, { addToMap: !useCluster });
                     stored.labelEl = stored.marker.getElement()?.querySelector('.map-climb-dot-hit') || null;
+                    if (useCluster) {
+                        this.mapClimbCluster.addLayer(stored.marker);
+                    } else {
+                        this.mapLayers.push(stored.marker);
+                    }
                 }
 
-                this.mapLayers.push(stored.marker);
+                if (entry.kind === 'area' || entry.kind === 'sector') {
+                    this.mapLayers.push(stored.marker);
+                }
                 this.mapMarkerIndex.set(this.mapKey(entry.kind, entry.id), stored);
             }
 
             clearMapMarkerLayers() {
                 if (!this.map) return;
+                if (this.mapClimbCluster) {
+                    try {
+                        this.map.removeLayer(this.mapClimbCluster);
+                    } catch (_) {}
+                    this.mapClimbCluster = null;
+                }
                 (this.mapLayers || []).forEach((layer) => {
                     try {
                         this.map.removeLayer(layer);
@@ -6717,6 +6877,16 @@
                 if (!this.map) return;
                 this.data = getClimbingData();
                 this.clearMapMarkerLayers();
+
+                if (this.shouldClusterClimbMarkers()) {
+                    this.mapClimbCluster = L.markerClusterGroup({
+                        showCoverageOnHover: false,
+                        maxClusterRadius: 52,
+                        spiderfyOnMaxZoom: true,
+                        disableClusteringAtZoom: 16
+                    });
+                    this.map.addLayer(this.mapClimbCluster);
+                }
 
                 const entries = this.buildMapEntries();
                 entries.forEach((entry) => this.addMapEntry(entry));
@@ -6737,6 +6907,7 @@
                 this.syncMapZoomClass();
                 this.scheduleMapDeclutter();
                 this.renderMapFeatureLayers();
+                this.renderMapNearestChip();
             }
 
             clearMapFeatureLayers() {
@@ -6989,17 +7160,17 @@
 
             buildMapTrailLayer(latlngs, selected = false) {
                 const halo = L.polyline(latlngs, {
-                    color: '#fff',
-                    weight: selected ? 9 : 7,
-                    opacity: 0.75,
+                    color: '#14532d',
+                    weight: selected ? 11 : 9,
+                    opacity: 0.55,
                     lineJoin: 'round',
                     lineCap: 'round'
                 });
                 const line = L.polyline(latlngs, {
-                    color: selected ? '#2563eb' : '#92400e',
-                    weight: selected ? 5 : 4,
-                    opacity: 0.95,
-                    dashArray: selected ? null : '8 10',
+                    color: selected ? '#38bdf8' : '#22c55e',
+                    weight: selected ? 6 : 5,
+                    opacity: 0.98,
+                    dashArray: '12 10',
                     lineJoin: 'round',
                     lineCap: 'round'
                 });
@@ -7049,9 +7220,9 @@
                     draftGroup.eachLayer?.((layer) => {
                         if (layer.setStyle) {
                             layer.setStyle({
-                                color: '#2563eb',
-                                dashArray: '6 8',
-                                opacity: 0.9
+                                color: '#38bdf8',
+                                dashArray: '10 8',
+                                opacity: 0.92
                             });
                         }
                     });
@@ -7316,12 +7487,13 @@
                 document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
                 document.querySelector('.tab-btn[data-tab="map"]')?.classList.add('active');
                 document.getElementById('map')?.classList.add('active');
-                await ensureLeafletLoaded();
+                await ensureMarkerClusterLoaded();
                 void this.loadAscentSummary?.();
                 if (!this.map) {
                     this.initMap();
                 } else {
                     this.syncMapAfterTabShow();
+                    this.applyCachedUserLocation();
                 }
                 if (typeof window.syncTelegramMiniAppUi === 'function') window.syncTelegramMiniAppUi();
             }
@@ -7458,6 +7630,48 @@
                     .filter(Boolean)
                     .slice(0, 2)
                     .join('');
+            }
+
+            findNearestClimbOnMap() {
+                if (!this.userLocation) return null;
+                let best = null;
+                this.mapMarkerIndex.forEach((entry) => {
+                    if (!entry.climbType || entry.lat == null || entry.lng == null) return;
+                    if (!this.mapLayerVisible(entry.kind)) return;
+                    const d = this.distanceMeters(this.userLocation, entry);
+                    if (!best || d < best.dist) best = { entry, dist: d };
+                });
+                return best;
+            }
+
+            renderMapNearestChip() {
+                const el = document.getElementById('mapNearestChip');
+                if (!el) return;
+                const nearest = this.findNearestClimbOnMap();
+                if (!nearest) {
+                    el.classList.add('hidden');
+                    el.innerHTML = '';
+                    return;
+                }
+                const label = nearest.entry.title || 'Объект';
+                const dist = this.formatDistanceMeters(nearest.dist);
+                const kind = nearest.entry.climbType === 'boulder' ? 'боулдер' : 'трасса';
+                el.classList.remove('hidden');
+                el.innerHTML = `
+                    <button type="button" class="map-nearest-chip-btn" id="mapNearestChipBtn">
+                        <i class="fas fa-location-crosshairs" aria-hidden="true"></i>
+                        <span>Ближайший ${kind}: <strong>${this.escapeHtml(label)}</strong> · ${this.escapeHtml(dist)}</span>
+                    </button>`;
+                document.getElementById('mapNearestChipBtn')?.addEventListener('click', () => {
+                    this.handleMapMarkerSelection(nearest.entry, { openNavigation: false, openPopup: true });
+                    this.setMapTarget({
+                        kind: nearest.entry.kind,
+                        id: nearest.entry.id,
+                        title: nearest.entry.title,
+                        lat: nearest.entry.lat,
+                        lng: nearest.entry.lng
+                    });
+                }, { once: true });
             }
 
             renderMapContextBar() {
@@ -7904,9 +8118,10 @@
                 if (path.length < 2) return;
                 if (nav.viaTrail) {
                     this.mapNavigationTrailLine = L.polyline(path, {
-                        color: '#15803d',
-                        weight: 5,
-                        opacity: 0.92,
+                        color: '#22c55e',
+                        weight: 6,
+                        opacity: 0.95,
+                        dashArray: '12 10',
                         lineJoin: 'round',
                         lineCap: 'round'
                     }).addTo(this.map);
@@ -7930,13 +8145,30 @@
                     this.updateMapStatus('Геолокация недоступна на этом устройстве.');
                     return;
                 }
+                this._mapLocateRequested = true;
+                const hadCache = this.applyCachedUserLocation();
+                if (hadCache && this.map) {
+                    const c = this.userLocation;
+                    this.map.setView([c.lat, c.lng], Math.max(this.map.getZoom(), 15), { animate: true });
+                    this.updateMapStatus('Показана последняя известная позиция, уточняю GPS…');
+                }
                 if (this._geoWatchId != null) {
-                    this.updateMapStatus('Геолокация уже включена.');
+                    if (!hadCache) this.updateMapStatus('Геолокация уже включена.');
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => this.updateUserLocation(pos, { fromUserAction: true }),
+                        () => {},
+                        { enableHighAccuracy: true, maximumAge: 600000, timeout: 12000 }
+                    );
                     return;
                 }
-                this.updateMapStatus('Запрашиваю геолокацию…');
+                this.updateMapStatus(hadCache ? 'Уточняю GPS…' : 'Запрашиваю геолокацию…');
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => this.updateUserLocation(pos, { fromUserAction: true }),
+                    () => {},
+                    { enableHighAccuracy: true, maximumAge: 600000, timeout: 12000 }
+                );
                 this._geoWatchId = navigator.geolocation.watchPosition(
-                    (pos) => this.updateUserLocation(pos),
+                    (pos) => this.updateUserLocation(pos, { fromUserAction: this._mapLocateRequested }),
                     (err) => {
                         this.showToast(err?.message || 'Не удалось получить геолокацию', true);
                         this.updateMapStatus('Не удалось получить геолокацию.');
@@ -7949,20 +8181,23 @@
                 );
             }
 
-            updateUserLocation(pos) {
+            updateUserLocation(pos, { fromUserAction = false } = {}) {
                 if (!this.map || !pos?.coords) return;
                 const coord = this.validMapCoord(pos.coords.latitude, pos.coords.longitude);
                 if (!coord) return;
                 this.userLocation = coord;
+                this.saveCachedUserLocation(coord);
                 if (Number.isFinite(Number(pos.coords.heading)) && Number(pos.coords.heading) >= 0) {
                     this.userLocationHeading = Number(pos.coords.heading);
                 }
                 this.ensureUserLocationMarker();
                 this.updateMapNavigationLine();
                 this.renderMapCoordsBar();
-                if (!this.mapTarget) {
+                this.renderMapNearestChip();
+                if ((fromUserAction || this._mapLocateRequested) && !this.mapTarget) {
                     this.map.setView([coord.lat, coord.lng], Math.max(this.map.getZoom(), 15), { animate: true });
                 }
+                if (fromUserAction) this._mapLocateRequested = false;
                 this.updateMapStatus();
             }
 
