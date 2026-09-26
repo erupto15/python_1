@@ -514,7 +514,6 @@
         }
         const CLIMBING_DATA_STORAGE_KEY = 'climbingApp_catalog_v2';
         const CLIMBING_OFFLINE_META_KEY = 'climbingApp_offline_meta_v1';
-        const CLIMBING_OFFLINE_PACKS_KEY = 'climbingApp_offline_packs_v1';
         const OFFLINE_OUTBOX_KEY = 'climbingApp_sync_outbox_v1';
         const OFFLINE_OUTBOX_LIMIT = 50;
         const ADMIN_EMAIL_HINT = window.CLIMBING_ADMIN_EMAIL || 'admin@climbing-guidebook.local';
@@ -7417,20 +7416,14 @@
                     return;
                 }
                 const guide = this.guideSnippetForMapEntry({ guideSource: source });
-                const scope = source.areaId != null ? 'sector' : 'area';
-                const pack = this.findOfflinePack(scope, source.id);
                 el.classList.remove('hidden');
                 el.innerHTML = `
                     <div class="map-guide-strip-title">
                         <strong>${this.escapeHtml(this.mapTarget.title)}</strong>
-                        <span>${pack ? this.escapeHtml(this.offlinePackLabel(pack)) : 'Офлайн-пакет не сохранён'}</span>
                     </div>
                     ${guide ? `<div class="map-guide-strip-body">${guide}</div>` : '<div class="map-guide-strip-body">Guide-поля для этой точки пока не заполнены.</div>'}
                     <div class="map-guide-strip-actions">
                         <button type="button" class="btn btn-ghost btn-small" id="mapGuideOpenBtn">Подробнее в каталоге</button>
-                        <button type="button" class="btn btn-secondary btn-small" id="mapOfflinePackBtn" data-pack-scope="${scope}" data-id="${source.id}">
-                            <i class="fas fa-download"></i> ${pack ? 'Обновить офлайн' : 'Сохранить офлайн'}
-                        </button>
                     </div>
                 `;
             }
@@ -7990,31 +7983,6 @@
                 if (deleteEntityBtn) deleteEntityBtn.setAttribute('aria-label', `Удалить ${entityLabel}`);
             }
 
-            getOfflinePacks() {
-                try {
-                    const raw = JSON.parse(localStorage.getItem(CLIMBING_OFFLINE_PACKS_KEY) || '[]');
-                    return Array.isArray(raw) ? raw : [];
-                } catch (_) {
-                    return [];
-                }
-            }
-
-            saveOfflinePacks(packs) {
-                localStorage.setItem(CLIMBING_OFFLINE_PACKS_KEY, JSON.stringify(Array.isArray(packs) ? packs : []));
-            }
-
-            findOfflinePack(scope, id) {
-                const key = scope === 'sector' ? 'sectorId' : 'areaId';
-                return this.getOfflinePacks().find((p) => p.scope === scope && Number(p[key]) === Number(id));
-            }
-
-            offlinePackLabel(pack) {
-                if (!pack) return 'Сохранить для офлайна';
-                const date = this.formatFeedDate(pack.downloadedAt);
-                const suffix = date ? ` · ${date}` : '';
-                return `Офлайн сохранён${suffix}`;
-            }
-
             renderCatalogGuideHero(kind, entity) {
                 const hero = document.getElementById('catalogGuideHero');
                 if (!hero) return;
@@ -8046,7 +8014,6 @@
                     warnings: entity.warnings || area.warnings
                 }) : '';
                 const scope = isArea ? 'area' : 'sector';
-                const pack = this.findOfflinePack(scope, entity.id);
                 const heroImageUrl = isArea ? resolvePhotoDisplayUrl(entity.imageData) : '';
                 const heroImage = heroImageUrl
                     ? `<img class="catalog-guide-cover" src="${this.escapeHtml(heroImageUrl)}" alt="${this.escapeHtml(entity.name || 'Район')}" loading="lazy">`
@@ -8069,9 +8036,6 @@
                             </button>
                             <button type="button" class="btn btn-ghost btn-small" data-catalog-act="open-maps" data-map-kind="${scope}" data-id="${entity.id}">
                                 <i class="fas fa-map"></i> Открыть карты
-                            </button>
-                            <button type="button" class="btn btn-ghost btn-small" data-catalog-act="save-offline-pack" data-pack-scope="${scope}" data-id="${entity.id}">
-                                <i class="fas fa-download"></i> ${this.escapeHtml(this.offlinePackLabel(pack))}
                             </button>
                             ${isArea ? `<button type="button" class="btn btn-secondary btn-small" data-catalog-act="download-area-pdf" data-id="${entity.id}">
                                 <span class="btn-glyph-inline" aria-hidden="true">PDF</span> Скачать гайд
@@ -8443,66 +8407,6 @@
                 }
             }
 
-            async downloadOfflinePack(scope, rawId) {
-                const id = Number(rawId);
-                if (!Number.isFinite(id)) return;
-                const label = scope === 'sector' ? 'сектор' : 'район';
-                this.showToast(`Сохраняю ${label} для офлайна…`);
-                try {
-                    const bundle = await apiFetch('/api/catalog/bundle');
-                    (bundle.areas || []).forEach(mergeAreaFromApiResponse);
-                    (bundle.sectors || []).forEach(mergeSectorFromApiResponse);
-                    (bundle.routes || []).forEach(mergeRouteFromApiResponse);
-                    (bundle.boulders || []).forEach(mergeBoulderFromApiResponse);
-                    (bundle.map_features || []).forEach(mergeMapFeatureFromApiResponse);
-
-                    const sectors = scope === 'sector'
-                        ? getSectors().filter((s) => Number(s.id) === id)
-                        : getSectors().filter((s) => Number(s.areaId) === id);
-                    const sectorIds = new Set(sectors.map((s) => Number(s.id)));
-                    const routes = getRoutes().filter((r) => sectorIds.has(Number(r.sectorId)));
-                    const boulders = getBoulders().filter((b) => sectorIds.has(Number(b.sectorId)));
-                    const photos = await fetchPhotosBatched(routes, boulders);
-                    const data = getClimbingData();
-                    const targetKeys = new Set([
-                        ...routes.map((r) => `route:${String(r.id)}`),
-                        ...boulders.map((b) => `boulder:${String(b.id)}`)
-                    ]);
-                    const photoKey = (p) => `${p.type}:${String(p.climbId)}`;
-                    data.photos = [
-                        ...(data.photos || []).filter((p) => !targetKeys.has(photoKey(p))),
-                        ...photos
-                    ];
-                    data.nextPhotoId = Math.max(1, ...(data.photos || []).map((p) => Number(p.id) || 0)) + 1;
-                    saveClimbingData(data);
-                    await cachePhotosToIndexedDb(photos);
-                    await refreshPhotoCacheStats();
-                    const packs = this.getOfflinePacks().filter((p) => {
-                        if (scope === 'sector') return !(p.scope === scope && Number(p.sectorId) === id);
-                        return !(p.scope === scope && Number(p.areaId) === id);
-                    });
-                    packs.push({
-                        scope,
-                        areaId: scope === 'area' ? id : Number(sectors[0]?.areaId || 0),
-                        sectorId: scope === 'sector' ? id : null,
-                        downloadedAt: new Date().toISOString(),
-                        sectors: sectors.length,
-                        climbs: routes.length + boulders.length,
-                        photosCached: photos.length
-                    });
-                    this.saveOfflinePacks(packs);
-                    this.data = getClimbingData();
-                    this.renderCatalog();
-                    this.renderGlobalSearchResults();
-                    if (document.getElementById('updates')?.classList.contains('active')) {
-                        this.renderUpdatesTab();
-                    }
-                    this.showToast(`Офлайн-пакет сохранён: ${routes.length + boulders.length} объектов, ${photos.length} фото`);
-                } catch (err) {
-                    this.showToast(`Не удалось сохранить офлайн-пакет: ${err.message}`, true);
-                }
-            }
-
             fillSectorSelects(preferredSectorId = null) {
                 const routeSel = document.getElementById('routeCatalogSectorId');
                 const boulderSel = document.getElementById('boulderCatalogSectorId');
@@ -8753,10 +8657,6 @@
                             const target = this.navTargetFromKindId(kind, id);
                             this.openMapsChooser(target, action === 'open-maps' ? 'view' : 'dir');
                         }
-                    }
-                    if (action === 'save-offline-pack') {
-                        const scope = act.dataset.packScope === 'sector' ? 'sector' : 'area';
-                        if (id != null) void this.downloadOfflinePack(scope, id);
                     }
                     if (action === 'download-area-pdf') {
                         if (id != null) void this.downloadAreaGuidePdf(id);
@@ -10128,12 +10028,6 @@
                         e.preventDefault();
                         this.openCatalogFromMap(this.mapTarget.kind, this.mapTarget.id);
                         return;
-                    }
-                    const packBtn = e.target.closest('#mapOfflinePackBtn');
-                    if (packBtn) {
-                        e.preventDefault();
-                        const scope = packBtn.dataset.packScope === 'sector' ? 'sector' : 'area';
-                        void this.downloadOfflinePack(scope, Number(packBtn.dataset.id));
                     }
                 });
                 document.querySelectorAll('.star-rating').forEach((wrap) => {
