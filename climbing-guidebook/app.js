@@ -9369,9 +9369,6 @@
                                             ${routeDesc ? `<div class="catalog-climb-desc">${this.escapeHtml(routeDesc)}</div>` : ''}
                                         </div>
                                     </button>
-                                    <button type="button" class="catalog-map-btn catalog-map-climb-btn btn btn-ghost btn-small" data-catalog-act="show-map" data-map-kind="route" data-id="${r.id}">
-                                        <i class="fas fa-map-location-dot"></i> На карте
-                                    </button>
                                     <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                                         ${this.renderRowActions(`data-action="edit-route" data-route-id="${r.id}"`, `data-action="delete-route" data-route-id="${r.id}"`)}
                                     </div>
@@ -9396,9 +9393,6 @@
                                             </div>
                                             ${boulderDesc ? `<div class="catalog-climb-desc">${this.escapeHtml(boulderDesc)}</div>` : ''}
                                         </div>
-                                    </button>
-                                    <button type="button" class="catalog-map-btn catalog-map-climb-btn btn btn-ghost btn-small" data-catalog-act="show-map" data-map-kind="boulder" data-id="${b.id}">
-                                        <i class="fas fa-map-location-dot"></i> На карте
                                     </button>
                                     <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                                         ${this.renderRowActions(`data-action="edit-boulder" data-boulder-id="${b.id}"`, `data-action="delete-boulder" data-boulder-id="${b.id}"`)}
@@ -11114,20 +11108,10 @@
                     e.stopPropagation();
                     void this.saveClimbDetailPhotoFromUserGesture();
                 });
-                document.getElementById('climbDetailMapBtn')?.addEventListener('click', () => {
-                    const ctx = this._climbDetailContext;
-                    if (!ctx) return;
-                    void this.focusMapTarget(ctx.climbType, ctx.climbId);
-                });
                 document.getElementById('climbDetailRouteBtn')?.addEventListener('click', () => {
                     const ctx = this._climbDetailContext;
                     if (!ctx) return;
                     this.openMapsChooser(this.navTargetFromKindId(ctx.climbType, ctx.climbId), 'dir');
-                });
-                document.getElementById('climbDetailOpenMapsBtn')?.addEventListener('click', () => {
-                    const ctx = this._climbDetailContext;
-                    if (!ctx) return;
-                    this.openMapsChooser(this.navTargetFromKindId(ctx.climbType, ctx.climbId), 'view');
                 });
                 document.getElementById('mapsChooserDialog')?.addEventListener('click', (e) => {
                     const btn = e.target.closest('[data-maps-provider]');
