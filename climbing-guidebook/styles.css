@@ -1454,8 +1454,22 @@
             height: 22px;
         }
 
-        .hold-marker--route-start {
-            background-color: rgba(255, 255, 255, 0.88);
+        .markup-hold-hit {
+            position: absolute;
+            width: 28px;
+            height: 28px;
+            transform: translate(-50%, -50%);
+            background: transparent;
+            border: none;
+            padding: 0;
+            cursor: move;
+            z-index: 11;
+            touch-action: none;
+        }
+
+        .markup-hold-hit.active {
+            outline: 2px dashed rgba(211, 47, 47, 0.45);
+            outline-offset: 2px;
         }
 
         .hold-label {

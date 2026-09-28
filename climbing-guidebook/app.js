@@ -2205,15 +2205,8 @@
                             const pts = Array.isArray(routeMarkup.points) ? routeMarkup.points : [];
                             drawLine(pts);
                             drawLineEnd(pts, 'arrow');
-                            (routeMarkup.startHolds || []).forEach((p, index) => {
-                                const rHold = Math.max(10, Math.round(Math.min(w, h) * 0.026));
-                                drawCircle(p, rHold, TOPO_MARKUP.holdFillRouteStart, TOPO_MARKUP.holdStroke, TOPO_MARKUP.holdStrokePx);
-                                const q = toPx(p);
-                                ctx.fillStyle = TOPO_MARKUP.holdNumberColor;
-                                ctx.font = `700 ${Math.max(10, Math.round(rHold * 0.75))}px system-ui, sans-serif`;
-                                ctx.textAlign = 'center';
-                                ctx.textBaseline = 'middle';
-                                ctx.fillText(String(index + 1), q.x, q.y);
+                            (routeMarkup.startHolds || []).forEach((p) => {
+                                drawLabeledHold(p, 'Старт');
                             });
                             if (routeMarkup.finishHold) drawLabeledHold(routeMarkup.finishHold, 'Топ');
                             if (gradeForLine) {
@@ -4642,9 +4635,7 @@
             labeledHoldRadiusPx: 11,
             holdStrokePx: 2.5,
             holdFill: 'none',
-            holdFillRouteStart: 'rgba(255, 255, 255, 0.88)',
             holdStroke: '#d32f2f',
-            holdNumberColor: '#c62828',
             holdLabelColor: '#b71c1c',
             lineStrokePx: 2,
             lineColor: '#d32f2f',
@@ -4851,7 +4842,6 @@
             if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
             const labelText = options.label || null;
             const labeled = !!labelText;
-            const numberedStart = !labeled && options.index != null;
             const r = topoHoldRadiusNorm(geom, labeled);
             const sw = topoStrokeNorm(geom, TOPO_MARKUP.holdStrokePx);
             const c = document.createElementNS(NS, 'circle');
@@ -4859,30 +4849,28 @@
             c.setAttribute('cx', String(nx));
             c.setAttribute('cy', String(ny));
             c.setAttribute('r', String(r));
-            const fill = labeled
-                ? 'none'
-                : (numberedStart ? TOPO_MARKUP.holdFillRouteStart : TOPO_MARKUP.holdFill);
-            c.setAttribute('fill', fill);
+            c.setAttribute('fill', TOPO_MARKUP.holdFill);
             c.setAttribute('stroke', TOPO_MARKUP.holdStroke);
             c.setAttribute('stroke-width', String(sw));
             svg.appendChild(c);
 
+            if (!labelText) return;
+
             const label = document.createElementNS(NS, 'text');
-            label.setAttribute('class', labeled ? 'topo-hold-label' : 'topo-hold-num');
+            label.setAttribute('class', 'topo-hold-label');
             label.setAttribute('x', String(nx));
-            label.setAttribute('y', labeled ? String(ny + r + topoStrokeNorm(geom, 3)) : String(ny));
+            label.setAttribute('y', String(ny + r + topoStrokeNorm(geom, 3)));
             label.setAttribute('text-anchor', 'middle');
-            label.setAttribute('dominant-baseline', labeled ? 'hanging' : 'central');
-            label.setAttribute('fill', labeled ? TOPO_MARKUP.holdLabelColor : TOPO_MARKUP.holdNumberColor);
-            const fontPx = labeled ? 8 : TOPO_MARKUP.holdRadiusPx * 0.88;
-            label.setAttribute('font-size', String(topoStrokeNorm(geom, fontPx)));
+            label.setAttribute('dominant-baseline', 'hanging');
+            label.setAttribute('fill', TOPO_MARKUP.holdLabelColor);
+            label.setAttribute('font-size', String(topoStrokeNorm(geom, 8)));
             label.setAttribute('font-weight', '700');
             label.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, sans-serif');
             label.setAttribute('paint-order', 'stroke');
             label.setAttribute('stroke', 'rgba(0,0,0,0.55)');
             label.setAttribute('stroke-width', String(topoStrokeNorm(geom, 2)));
             label.setAttribute('pointer-events', 'none');
-            label.textContent = labeled ? labelText : String((options.index ?? 0) + 1);
+            label.textContent = labelText;
             svg.appendChild(label);
         }
 
@@ -11607,8 +11595,8 @@
                 if (climbType === 'route' && markup.type === 'route-line') {
                     const pts = markup.points || [];
                     appendTopoLineSvg(svg, NS, pts, geom, 'arrow', lineColor);
-                    (markup.startHolds || []).forEach((p, index) => {
-                        appendTopoHoldSvg(svg, NS, p, geom, { index });
+                    (markup.startHolds || []).forEach((p) => {
+                        appendTopoHoldSvg(svg, NS, p, geom, { label: 'Старт' });
                     });
                     if (markup.finishHold) {
                         appendTopoHoldSvg(svg, NS, markup.finishHold, geom, { label: 'Топ' });
@@ -12736,8 +12724,8 @@
                         : ''
                 });
                 appendTopoLineSvg(svg, 'http://www.w3.org/2000/svg', pts, geom, 'arrow', lineColor);
-                (this.currentRouteLineMarkup.startHolds || []).forEach((p, index) => {
-                    appendTopoHoldSvg(svg, 'http://www.w3.org/2000/svg', p, geom, { index });
+                (this.currentRouteLineMarkup.startHolds || []).forEach((p) => {
+                    appendTopoHoldSvg(svg, 'http://www.w3.org/2000/svg', p, geom, { label: 'Старт' });
                 });
                 if (this.currentRouteLineMarkup.finishHold) {
                     appendTopoHoldSvg(
@@ -12808,7 +12796,7 @@
 
                 container.addEventListener('click', (e) => {
                     if (this._markupDialogViewOnly) return;
-                    if (e.target.closest('.hold-marker') || e.target.closest('.line-marker')) return;
+                    if (e.target.closest('.markup-hold-hit') || e.target.closest('.line-marker')) return;
 
                     const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
 
@@ -12879,36 +12867,7 @@
                 }, 'route');
                 const paint = () => {
                     const geom = getMarkupStageGeometry(container);
-                    container.querySelectorAll('.hold-marker, .line-marker').forEach((marker) => marker.remove());
-
-                    if (!this._markupDialogViewOnly) {
-                        (this.currentRouteLineMarkup.startHolds || []).forEach((hold, index) => {
-                            const pos = markupPxFromNorm(hold.x, hold.y, geom);
-                            const marker = document.createElement('div');
-                            marker.className = 'hold-marker hold-marker--route-start';
-                            marker.style.left = `${pos.x}px`;
-                            marker.style.top = `${pos.y}px`;
-                            marker.dataset.index = String(index);
-                            const number = document.createElement('div');
-                            number.className = 'hold-number';
-                            number.textContent = String(index + 1);
-                            marker.appendChild(number);
-                            container.appendChild(marker);
-                        });
-                        if (this.currentRouteLineMarkup.finishHold) {
-                            const hold = this.currentRouteLineMarkup.finishHold;
-                            const pos = markupPxFromNorm(hold.x, hold.y, geom);
-                            const marker = document.createElement('div');
-                            marker.className = 'hold-marker hold-marker--labeled';
-                            marker.style.left = `${pos.x}px`;
-                            marker.style.top = `${pos.y}px`;
-                            const label = document.createElement('div');
-                            label.className = 'hold-label';
-                            label.textContent = 'Топ';
-                            marker.appendChild(label);
-                            container.appendChild(marker);
-                        }
-                    }
+                    container.querySelectorAll('.markup-hold-hit, .line-marker').forEach((marker) => marker.remove());
 
                     const pts = this.currentRouteLineMarkup.points || [];
                     if (!this._markupDialogViewOnly) {
@@ -13145,7 +13104,7 @@
 
                 container.addEventListener('click', (e) => {
                     if (this._markupDialogViewOnly) return;
-                    if (e.target.closest('.hold-marker')) return;
+                    if (e.target.closest('.markup-hold-hit')) return;
 
                     const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
 
@@ -13218,6 +13177,12 @@
 
                 const pts = this.currentBoulderHoldsMarkup?.linePoints || [];
                 appendBoulderLineSvg(svg, 'http://www.w3.org/2000/svg', pts, geom, 'arrow');
+                if (this.currentBoulderHoldsMarkup.startHold) {
+                    appendBoulderHoldSvg(svg, 'http://www.w3.org/2000/svg', this.currentBoulderHoldsMarkup.startHold, geom, { label: 'Старт' });
+                }
+                if (this.currentBoulderHoldsMarkup.finishHold) {
+                    appendBoulderHoldSvg(svg, 'http://www.w3.org/2000/svg', this.currentBoulderHoldsMarkup.finishHold, geom, { label: 'Финиш' });
+                }
             }
 
             renderBoulderHoldsMarkup() {
@@ -13236,31 +13201,25 @@
                 const paint = () => {
                     const geom = getMarkupStageGeometry(container);
 
-                    container.querySelectorAll('.hold-marker').forEach((marker) => marker.remove());
+                    container.querySelectorAll('.markup-hold-hit').forEach((marker) => marker.remove());
 
-                    [
-                        { hold: this.currentBoulderHoldsMarkup.startHold, label: 'Старт', roleKey: 'startHold' },
-                        { hold: this.currentBoulderHoldsMarkup.finishHold, label: 'Финиш', roleKey: 'finishHold' }
-                    ].forEach(({ hold, label, roleKey }) => {
-                        if (!hold) return;
-                        const pos = markupPxFromNorm(hold.x, hold.y, geom);
-                        const marker = document.createElement('div');
-                        marker.className = 'hold-marker hold-marker--labeled';
-                        marker.style.left = `${pos.x}px`;
-                        marker.style.top = `${pos.y}px`;
-                        marker.dataset.role = roleKey;
-
-                        const labelEl = document.createElement('div');
-                        labelEl.className = 'hold-label';
-                        labelEl.textContent = label;
-                        marker.appendChild(labelEl);
-
-                        if (!this._markupDialogViewOnly) {
-                            this.makeHoldDraggable(marker, roleKey);
-                        }
-
-                        container.appendChild(marker);
-                    });
+                    if (!this._markupDialogViewOnly) {
+                        [
+                            { hold: this.currentBoulderHoldsMarkup.startHold, roleKey: 'startHold' },
+                            { hold: this.currentBoulderHoldsMarkup.finishHold, roleKey: 'finishHold' }
+                        ].forEach(({ hold, roleKey }) => {
+                            if (!hold) return;
+                            const pos = markupPxFromNorm(hold.x, hold.y, geom);
+                            const hit = document.createElement('div');
+                            hit.className = 'markup-hold-hit';
+                            hit.style.left = `${pos.x}px`;
+                            hit.style.top = `${pos.y}px`;
+                            hit.dataset.role = roleKey;
+                            hit.setAttribute('aria-hidden', 'true');
+                            this.makeHoldDraggable(hit, roleKey);
+                            container.appendChild(hit);
+                        });
+                    }
 
                     if (!this._markupDialogViewOnly) {
                         (this.currentBoulderHoldsMarkup.linePoints || []).forEach((point, index) => {
