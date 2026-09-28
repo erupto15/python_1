@@ -1885,7 +1885,16 @@
         }
 
         html.catalog-sector-focus #catalog .catalog-guide-head--compact {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
             margin-bottom: 4px;
+        }
+
+        .catalog-guide-actions--compact {
+            flex-shrink: 0;
+            margin-top: 2px;
         }
 
         html.catalog-sector-focus #catalogList {

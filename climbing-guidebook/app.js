@@ -8805,6 +8805,13 @@
                         : (APP_BOULDER_ONLY
                             ? `${boulders.length} боулдеров`
                             : `${routes.length} трасс · ${boulders.length} боулдеров`);
+                    const areaRouteBtn = areaFocus && entity?.id != null
+                        ? `<div class="catalog-guide-actions catalog-guide-actions--compact">
+                            <button type="button" class="btn btn-primary btn-small" data-catalog-act="nav-route" data-map-kind="area" data-id="${entity.id}">
+                                <i class="fas fa-diamond-turn-right"></i> Маршрут
+                            </button>
+                           </div>`
+                        : '';
                     hero.classList.remove('hidden');
                     hero.classList.add('catalog-guide-hero--sector-focus');
                     hero.innerHTML = `
@@ -8815,6 +8822,7 @@
                             <h2>${this.escapeHtml(entity.name || '—')}</h2>
                             ${!isArea && area ? `<p class="catalog-guide-parent">${this.escapeHtml(area.name)}</p>` : ''}
                         </div>
+                        ${areaRouteBtn}
                     </div>`;
                     return;
                 }
@@ -8832,13 +8840,13 @@
                             <button type="button" class="btn btn-secondary btn-small" data-catalog-act="show-map" data-map-kind="${scope}" data-id="${entity.id}">
                                 <i class="fas fa-map-location-dot"></i> На карте
                             </button>
-                            <button type="button" class="btn btn-primary btn-small" data-catalog-act="nav-route" data-map-kind="${scope}" data-id="${entity.id}">
+                            ${isArea ? `<button type="button" class="btn btn-primary btn-small" data-catalog-act="nav-route" data-map-kind="area" data-id="${entity.id}">
                                 <i class="fas fa-diamond-turn-right"></i> Маршрут
                             </button>
-                            <button type="button" class="btn btn-ghost btn-small" data-catalog-act="open-maps" data-map-kind="${scope}" data-id="${entity.id}">
+                            <button type="button" class="btn btn-ghost btn-small" data-catalog-act="open-maps" data-map-kind="area" data-id="${entity.id}">
                                 <i class="fas fa-map"></i> Открыть карты
                             </button>
-                            ${isArea ? `<button type="button" class="btn btn-secondary btn-small" data-catalog-act="download-area-pdf" data-id="${entity.id}">
+                            <button type="button" class="btn btn-secondary btn-small" data-catalog-act="download-area-pdf" data-id="${entity.id}">
                                 <span class="btn-glyph-inline" aria-hidden="true">PDF</span> Скачать гайд
                             </button>` : ''}
                         </div>
@@ -9281,6 +9289,9 @@
                                 </button>
                                 <button type="button" class="catalog-map-btn btn btn-ghost btn-small" data-catalog-act="show-map" data-map-kind="area" data-id="${a.id}">
                                     <i class="fas fa-map-location-dot"></i> На карте
+                                </button>
+                                <button type="button" class="catalog-map-btn btn btn-primary btn-small" data-catalog-act="nav-route" data-map-kind="area" data-id="${a.id}">
+                                    <i class="fas fa-diamond-turn-right"></i> Маршрут
                                 </button>
                                 <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" style="align-self:center">
                                     ${this.renderRowActions(`data-catalog-act="edit-area" data-id="${a.id}"`, `data-catalog-act="delete-area" data-id="${a.id}"`)}
@@ -11095,11 +11106,6 @@
                     e.preventDefault();
                     e.stopPropagation();
                     void this.saveClimbDetailPhotoFromUserGesture();
-                });
-                document.getElementById('climbDetailRouteBtn')?.addEventListener('click', () => {
-                    const ctx = this._climbDetailContext;
-                    if (!ctx) return;
-                    this.openMapsChooser(this.navTargetFromKindId(ctx.climbType, ctx.climbId), 'dir');
                 });
                 document.getElementById('mapsChooserDialog')?.addEventListener('click', (e) => {
                     const btn = e.target.closest('[data-maps-provider]');
