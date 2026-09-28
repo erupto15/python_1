@@ -4,14 +4,21 @@ Telegram Mini App со справочником скалолазных райо�
 
 ## Что внутри
 
-- `climbing-guidebook/index.html` — статический frontend.
-- `climbing-guidebook/backend/` — единое FastAPI-приложение: API, bootstrap БД и отдача frontend.
-- `DEPLOYMENT.md` — полный workflow разработки и деплоя на Timeweb.
-- `.env.example` — единый локальный шаблон без секретов.
+| Путь | Назначение |
+|------|------------|
+| `climbing-guidebook/index.html`, `app.js` | Статический frontend Mini App |
+| `climbing-guidebook/backend/` | Единое FastAPI-приложение: REST API, bootstrap БД, отдача frontend и `/uploads` |
+| `climbing-guidebook/database/` | SQL-схемы SQLite и PostgreSQL |
+| `android-app/` | Оболочка WebView для установки guide на Android |
+| `scripts/` | Postgres на VPS, cutover, бэкапы, teardown managed-ресурсов Timeweb |
+| `.env.example` | Шаблон локального `.env` без секретов |
+| `DEPLOYMENT.md` | Окружения, env, Git, systemd, Caddy, GitHub Actions, Postgres cutover, rollback |
+| `climbing-guidebook/backend/README.md` | Конфигурация, bootstrap, список API |
+| `climbing-guidebook/SECURITY.md` | Секреты, что не коммитить, локальный vs production |
 
 ## Локальный запуск
 
-Нужен Python 3.10+. На macOS проверьте `python3 --version`; если это системный 3.9, используйте Homebrew Python (`/opt/homebrew/bin/python3`) или другой Python 3.10+.
+Нужен Python 3.10+. На macOS проверьте `python3 --version`; системный 3.9 не подходит — используйте Homebrew Python (`/opt/homebrew/bin/python3`) или другой Python 3.10+.
 
 1. Создайте корневой `.env`:
 
@@ -19,13 +26,13 @@ Telegram Mini App со справочником скалолазных райо�
 cp .env.example .env
 ```
 
-Для локального Telegram Mini App используйте отдельного тестового бота:
+Минимум для локального Telegram Mini App — отдельный **тестовый** бот (production-токен локально не используйте):
 
 ```dotenv
 TELEGRAM_BOT_TOKEN=<token-of-test-bot>
 ```
 
-Production-токен локально не используется.
+Полный набор переменных и опциональные ключи (CARTO basemap, assistant API) — в `.env.example`. Приоритет настроек: переменные окружения → корневой `.env` → `climbing-guidebook/backend/config/settings.yaml`.
 
 2. Запустите приложение:
 
@@ -37,8 +44,24 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Откройте `http://127.0.0.1:8000`. Локально backend использует SQLite-файл `climbing-guidebook/backend/climbing.db`, не production PostgreSQL.
+3. Проверка:
 
-## Деплой
+```bash
+curl http://127.0.0.1:8000/health
+open http://127.0.0.1:8000
+open http://127.0.0.1:8000/docs
+```
 
-Новая целевая инфраструктура: Timeweb VPS + Timeweb Managed PostgreSQL + Caddy + systemd. Подробный порядок первичной настройки, `.env`, Git deploy key, выката и rollback описан в `DEPLOYMENT.md`.
+Локально backend использует SQLite (`climbing-guidebook/backend/climbing.db` из `DATABASE_URL` в `.env`), не production PostgreSQL. Frontend отдаёт тот же процесс FastAPI — отдельный dev-сервер для статики не нужен.
+
+## Production (кратко)
+
+Один Timeweb VPS: **PostgreSQL на `127.0.0.1`**, медиа на диске (`/var/lib/guide-rus/uploads`), HTTPS и reverse proxy через **Caddy** → FastAPI на `127.0.0.1:8000`. Timeweb Managed PostgreSQL и S3 приложением не используются (после cutover managed-БД можно снять скриптом из `scripts/`).
+
+Вход в Mini App: пользователь пишет боту `/start`, backend по webhook отвечает inline-кнопкой Web App на `PUBLIC_URL`. Production-секреты живут в **GitHub Variables/Secrets** и при deploy попадают в `/etc/guide-rus/backend.env`.
+
+Деплой **вручную**: merge в `main`, затем GitHub Actions → **Deploy to Timeweb** (push сам production не выкатывает). Первичная настройка VPS, deploy key, systemd, cutover с managed Postgres, бэкапы, rollback и emergency `deploy-timeweb.sh` — в [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
+## API
+
+Публичные чтения и admin-мутации перечислены в [`climbing-guidebook/backend/README.md`](climbing-guidebook/backend/README.md). Интерактивная схема: `/docs` на запущенном backend.

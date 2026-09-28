@@ -1,6 +1,10 @@
 (function () {
     'use strict';
 
+    if (window.CLIMBING_TG_DUPLICATE_INSTANCE) {
+        return;
+    }
+
     function signalReady() {
         if (typeof window.signalTelegramAppReady === 'function') {
             window.signalTelegramAppReady();

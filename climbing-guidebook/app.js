@@ -561,6 +561,8 @@
         })();
         /** Только боулдеринг: скрыты трассы (вкладка, каталог, карта, фильтр в альбоме). Данные трасс в хранилище не трогаем. */
         const APP_BOULDER_ONLY = false;
+        /** Силуэт скалолаза (стиль AllClimb) — дублирует icons/map-boulder-sector-climber.svg */
+        const MAP_BOULDER_SECTOR_CLIMBER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26.27 41" aria-hidden="true"><path fill="currentColor" d="M12.41,9.72A3.86,3.86,0,1,0,8.55,5.85,3.87,3.87,0,0,0,12.41,9.72Z"/><path fill="currentColor" d="M23.19,0a1.52,1.52,0,0,0-1.52,1.52,9.38,9.38,0,0,1-9,9.36c0,1-.08,2-.13,3A12.42,12.42,0,0,0,24.71,1.52,1.52,1.52,0,0,0,23.19,0Z"/><rect fill="currentColor" x="8.77" y="12" width="7.29" height="6.23"/><path fill="currentColor" d="M3.11,40.08A1.82,1.82,0,0,1,1.5,37.41l7.26-13.9A1.82,1.82,0,0,1,12,25.2L4.72,39.1A1.82,1.82,0,0,1,3.11,40.08Z"/><path fill="currentColor" d="M19,30.5a1.82,1.82,0,0,1-1.77-2.27l1.27-4.94L14.9,24.77a1.82,1.82,0,0,1-1.38-3.37l7-2.86a1.82,1.82,0,0,1,2.46,2.14l-2.17,8.45A1.82,1.82,0,0,1,19,30.5Z"/><path fill="currentColor" d="M15.44,18.25a.61.61,0,0,1,0-1.22,9.89,9.89,0,0,0,8.25-4.51c1.34-2.15,2.37-5.86-.33-11.36A.61.61,0,0,1,24.45.63c2.94,6,1.77,10.13.27,12.54A11.13,11.13,0,0,1,15.44,18.25Z"/><path fill="currentColor" d="M8.76,20.37v3a2,2,0,0,0,2,2H13c1.13,0,3-1.08,3-2.16V20.37Z"/><rect fill="currentColor" x="12.54" y="26.75" width="1.22" height="14.26"/><path fill="currentColor" d="M12.7,10.88l-.29,0A12.43,12.43,0,0,0,0,23.27a1.52,1.52,0,1,0,3,0,9.39,9.39,0,0,1,9.38-9.37h.29Z"/></svg>';
         /** База API: пустая строка означает same-origin API через reverse proxy. */
         const API_BASE_URL = (() => {
             const c = typeof window.CLIMBING_API_BASE_URL === 'string' ? window.CLIMBING_API_BASE_URL.trim() : '';
@@ -6725,6 +6727,28 @@
                     && String(this.mapTarget.id) === String(entry.id);
             }
 
+            isBoulderSector(sectorId) {
+                const sid = Number(sectorId);
+                if (!Number.isFinite(sid) || sid <= 0) return !!APP_BOULDER_ONLY;
+                if (APP_BOULDER_ONLY) return true;
+                const routes = getRoutes().filter((r) => Number(r.sectorId) === sid).length;
+                const boulders = getBoulders().filter((b) => Number(b.sectorId) === sid).length;
+                return boulders > 0 && routes === 0;
+            }
+
+            buildMapBoulderSectorIconHtml(extraClass = '') {
+                const cls = ['map-boulder-sector-icon', extraClass].filter(Boolean).join(' ');
+                return `<span class="${cls}">${MAP_BOULDER_SECTOR_CLIMBER_SVG}</span>`;
+            }
+
+            buildMapSectorKindIconHtml(sectorId, extraClass = '') {
+                if (this.isBoulderSector(sectorId)) {
+                    return this.buildMapBoulderSectorIconHtml(extraClass);
+                }
+                const extra = extraClass ? ` ${extraClass}` : '';
+                return `<span class="map-kind-sector-dot${extra}" aria-hidden="true"><span></span></span>`;
+            }
+
             buildMapDotHtml(entry) {
                 const selected = this.mapEntrySelected(entry);
                 const done = entry.climbType && this.hasUserSent(entry.climbType, entry.id);
@@ -6775,13 +6799,13 @@
                 return marker;
             }
 
-            buildMapParentLabelHtml(title, sub = '', selected = false, kind = '') {
+            buildMapParentLabelHtml(title, sub = '', selected = false, kind = '', entry = null) {
                 const subHtml = sub ? ` <span>${this.escapeHtml(sub)}</span>` : '';
                 let icon = '';
                 if (kind === 'area') {
                     icon = '<i class="fas fa-droplet map-kind-icon map-kind-icon--area" aria-hidden="true"></i>';
                 } else if (kind === 'sector') {
-                    icon = '<span class="map-kind-sector-dot" aria-hidden="true"><span></span></span>';
+                    icon = this.buildMapSectorKindIconHtml(entry?.id);
                 }
                 return `<div class="parent-label${selected ? ' selected' : ''}">${icon}${this.escapeHtml(title)}${subHtml}</div>`;
             }
@@ -6896,7 +6920,7 @@
                     if (stored.kind === 'area' || stored.kind === 'sector') {
                         stored.marker?.setIcon(L.divIcon({
                             className: 'parent-label-icon',
-                            html: this.buildMapParentLabelHtml(stored.title, stored.labelSub || '', selected, stored.kind),
+                            html: this.buildMapParentLabelHtml(stored.title, stored.labelSub || '', selected, stored.kind, stored),
                             iconSize: [0, 0],
                             iconAnchor: [0, 0]
                         }));
@@ -7043,7 +7067,7 @@
                 };
 
                 if (entry.kind === 'area' || entry.kind === 'sector') {
-                    const labelHtml = this.buildMapParentLabelHtml(entry.title, stored.labelSub, selected, entry.kind);
+                    const labelHtml = this.buildMapParentLabelHtml(entry.title, stored.labelSub, selected, entry.kind, entry);
                     stored.marker = this.createMapParentLabelMarker(stored, coord, labelHtml);
                     stored.labelEl = stored.marker.getElement()?.querySelector('.parent-label') || null;
                 } else {
@@ -7351,12 +7375,15 @@
                 this.showToast(removed ? `Удалено объектов: ${removed}` : 'Не удалось очистить карту', !removed);
             }
 
-            buildMapFeaturePointIcon(featureType, label) {
+            buildMapFeaturePointIcon(featureType, label, meta = {}) {
+                const sectorSignIcon = meta.boulderSector
+                    ? this.buildMapBoulderSectorIconHtml('map-feature-boulder-sector-icon')
+                    : '<span class="map-feature-sector-dot" aria-hidden="true"><span></span></span>';
                 const icons = {
                     parking: '<span class="map-feature-parking-letter" aria-hidden="true">P</span>',
                     camping: '<i class="fas fa-campground" aria-hidden="true"></i>',
                     area_sign: '<i class="fas fa-droplet" aria-hidden="true"></i>',
-                    sector_sign: '<span class="map-feature-sector-dot" aria-hidden="true"><span></span></span>'
+                    sector_sign: sectorSignIcon
                 };
                 const cls = `map-feature-icon map-feature-icon--${featureType}`;
                 const inner = icons[featureType] || '•';
@@ -7403,8 +7430,10 @@
                     const lat = Number(geom.coordinates[1]);
                     const lng = Number(geom.coordinates[0]);
                     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+                    const boulderSector = feature.featureType === 'sector_sign'
+                        && this.isBoulderSector(feature.sector_id ?? feature.sectorId);
                     const marker = L.marker([lat, lng], {
-                        icon: this.buildMapFeaturePointIcon(feature.featureType, feature.label),
+                        icon: this.buildMapFeaturePointIcon(feature.featureType, feature.label, { boulderSector }),
                         zIndexOffset: selected ? 1000 : 0
                     });
                     marker.bindPopup(this.buildMapFeaturePopupHtml(feature));
@@ -9077,10 +9106,11 @@
                             ? `${bcnt} боулдеров`
                             : `${rc} трасс · ${bcnt} боулдеров`;
                         const desc = String(s.description || '').trim();
+                        const sectorIcon = this.buildMapSectorKindIconHtml(s.id, 'catalog-sector-kind-icon');
                         return `
                             <div class="catalog-row">
                                 <button type="button" class="catalog-row-open" data-catalog-go="sector" data-id="${s.id}" aria-label="Открыть сектор: ${this.escapeHtml(s.name)}">
-                                    <div class="catalog-row-title">${this.escapeHtml(s.name)}</div>
+                                    <div class="catalog-row-title catalog-row-title--with-kind-icon">${sectorIcon}<span>${this.escapeHtml(s.name)}</span></div>
                                     <div class="catalog-row-meta">${meta}</div>
                                     ${desc ? `<div class="catalog-area-card-desc">${this.escapeHtml(desc)}</div>` : ''}
                                 </button>

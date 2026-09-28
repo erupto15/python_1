@@ -62,3 +62,14 @@ async def send_message(
     if reply_markup is not None:
         payload["reply_markup"] = reply_markup
     return await call_telegram_api("sendMessage", payload)
+
+
+async def edit_message_reply_markup(
+    chat_id: int,
+    message_id: int,
+    reply_markup: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    payload: dict[str, Any] = {"chat_id": chat_id, "message_id": message_id}
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
+    return await call_telegram_api("editMessageReplyMarkup", payload)

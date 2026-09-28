@@ -2340,27 +2340,34 @@
             position: relative;
         }
 
-        .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed) .photo-wrap {
+        .climb-detail-media-tile--photo .climb-detail-photo-mount.photo-preview-with-markup,
+        .climb-photo-viewer-mount.photo-preview-with-markup {
+            height: 100% !important;
+            min-height: 0;
+        }
+
+        /* Letterbox для mount без swipe (не карточка трассы / не полноэкранный viewer) */
+        .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed):not(.climb-detail-photo-swipe) .photo-wrap {
             position: relative;
             height: auto;
             overflow: visible;
             touch-action: pan-y;
         }
 
-        .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed) .photo-wrap .stage {
+        .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed):not(.climb-detail-photo-swipe) .photo-wrap .stage {
             position: relative;
             inset: auto;
             transform: none !important;
         }
 
-        .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed) .photo-wrap img {
+        .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed):not(.climb-detail-photo-swipe) .photo-wrap img {
             width: auto;
             max-width: 100%;
             height: auto !important;
             max-height: min(82vh, 720px);
         }
 
-        .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed) .photo-wrap {
+        .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed):not(.climb-detail-photo-swipe) .photo-wrap {
             width: 100%;
             height: auto;
         }
@@ -2426,7 +2433,7 @@
 
         .climb-detail-media-tile--photo {
             position: relative;
-            min-height: 220px;
+            min-height: clamp(240px, 48vh, 520px);
             border-radius: 18px;
             overflow: hidden;
             background:
@@ -2465,19 +2472,30 @@
         .climb-detail-media-tile--photo .climb-detail-photo-panel {
             width: 100%;
             height: 100%;
-            min-height: 220px;
+            min-height: inherit;
             margin: 0;
             align-items: stretch;
-            justify-content: center;
+            justify-content: stretch;
+            overflow: hidden;
         }
 
         .climb-detail-media-tile--photo .climb-detail-photo-mount.photo-preview-with-markup {
             max-width: none;
             width: 100%;
-            height: 100%;
-            min-height: 220px;
+            height: 100% !important;
+            min-height: 0;
+            max-height: none;
             border-radius: 0;
             margin: 0;
+            flex: 1 1 auto;
+            align-items: stretch;
+            justify-content: stretch;
+        }
+
+        .climb-detail-media-tile--photo .climb-detail-photo-mount.topo-framed.climb-detail-photo-swipe {
+            height: 100% !important;
+            min-height: 0;
+            max-height: none;
         }
 
         .climb-detail-media-tile--photo .photo-wrap,
@@ -2488,22 +2506,53 @@
             border-radius: 0;
         }
 
+        .climb-detail-media-tile--photo .photo-wrap {
+            position: relative;
+            overflow: hidden;
+            touch-action: none;
+            background: #0d0d0d;
+        }
+
+        .climb-detail-media-tile--photo .photo-wrap .stage {
+            position: absolute;
+            inset: 0;
+        }
+
         .climb-detail-media-tile--photo .photo-wrap img,
         .climb-detail-media-tile--photo .climb-detail-photo-mount > img,
         .climb-detail-media-tile--photo .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed) .photo-wrap img {
-            max-width: 100%;
-            max-height: min(48vh, 420px);
-            width: 100%;
-            height: auto !important;
+            max-width: none !important;
+            max-height: none !important;
+            width: 100% !important;
+            height: 100% !important;
             object-fit: cover;
+            object-position: center center;
             border-radius: 0;
         }
 
+        .climb-detail-media-tile--photo .climb-detail-photo-mount.climb-detail-photo-swipe:not(.topo-framed) {
+            touch-action: none;
+            align-items: stretch;
+            justify-content: stretch;
+        }
+
         .climb-detail-media-tile--photo .climb-detail-photo-swipe-hint {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 7;
             max-width: none;
-            color: rgba(255, 255, 255, 0.55);
+            margin: 0;
+            color: rgba(255, 255, 255, 0.72);
             font-size: 12px;
             padding: 8px 12px 12px;
+            background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.55));
+            pointer-events: none;
+        }
+
+        .climb-detail-media-tile--photo .climb-detail-photo-counter {
+            right: 10px;
         }
 
         .climb-detail-media-videos {
@@ -2722,55 +2771,58 @@
         .climb-detail-photo-panel {
             position: relative;
             width: 100%;
+            height: 100%;
+            min-height: inherit;
             background: transparent;
             box-shadow: none;
-            overflow: visible;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
-            align-items: center;
+            align-items: stretch;
         }
 
         .climb-detail-photo-panel .climb-detail-photo-counter {
             top: 8px;
-            right: max(8px, calc(50% - min(47vw, 190px)));
+            right: 10px;
         }
 
         .climb-detail-photo-panel .climb-detail-photo-mount.photo-preview-with-markup {
             width: 100%;
-            max-width: min(100%, 380px);
-            height: auto !important;
+            max-width: none;
+            height: 100% !important;
             min-height: 0;
             border: 0;
-            border-radius: 12px;
-            overflow: visible;
+            border-radius: 0;
+            overflow: hidden;
             display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0 auto;
+            justify-content: stretch;
+            align-items: stretch;
+            margin: 0;
+            flex: 1 1 auto;
         }
 
         .climb-detail-photo-panel .climb-detail-photo-mount.climb-detail-photo-swipe {
             min-height: 0;
-            height: auto !important;
+            height: 100% !important;
         }
 
         .climb-detail-photo-panel .photo-wrap {
             position: relative;
-            width: fit-content;
-            max-width: 100%;
-            height: auto;
+            width: 100%;
+            max-width: none;
+            height: 100%;
             min-height: 0;
-            margin: 0 auto;
-            overflow: visible;
-            background: transparent;
-            border-radius: 12px;
+            margin: 0;
+            overflow: hidden;
+            background: #0d0d0d;
+            border-radius: 0;
         }
 
         .climb-detail-photo-panel .photo-wrap .stage {
-            position: relative;
-            inset: auto;
-            width: fit-content;
-            max-width: 100%;
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            max-width: none;
             transform: none !important;
             line-height: 0;
         }
@@ -2779,33 +2831,41 @@
         .climb-detail-photo-panel .climb-detail-photo-mount > img,
         .climb-detail-photo-panel .climb-detail-photo-mount.photo-preview-with-markup:not(.topo-framed) .photo-wrap img {
             display: block;
-            width: auto;
-            max-width: min(100%, 380px);
-            height: auto !important;
-            max-height: min(52vh, 480px);
-            margin: 0 auto;
-            object-fit: contain;
+            width: 100% !important;
+            max-width: none !important;
+            height: 100% !important;
+            max-height: none !important;
+            margin: 0;
+            object-fit: cover;
             object-position: center center;
             background: transparent;
-            border-radius: 12px;
+            border-radius: 0;
         }
 
         .climb-detail-photo-panel .photo-markup-overlay {
-            border-radius: 12px;
+            border-radius: 0;
         }
 
         .climb-detail-photo-panel .climb-detail-photo-swipe-hint {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 7;
             border: 0;
-            background: transparent;
-            padding: 6px 0 0;
+            margin: 0;
+            padding: 8px 12px 12px;
             width: 100%;
-            max-width: min(100%, 380px);
+            max-width: none;
             text-align: center;
+            pointer-events: none;
+            background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.55));
+            color: rgba(255, 255, 255, 0.72);
         }
 
         .climb-detail-photo-mount.climb-detail-photo-swipe {
             width: 100%;
-            min-height: min(48vh, 380px);
+            min-height: 0;
             display: flex;
             align-items: stretch;
             justify-content: stretch;
@@ -2815,9 +2875,9 @@
         }
 
         .climb-detail-photo-mount.climb-detail-photo-swipe:not(.topo-framed) {
-            touch-action: pan-y;
-            align-items: center;
-            justify-content: center;
+            touch-action: none;
+            align-items: stretch;
+            justify-content: stretch;
         }
 
         .climb-detail-photo-counter {
@@ -2964,6 +3024,8 @@
             height: 100% !important;
             max-width: none !important;
             max-height: none !important;
+            object-fit: cover !important;
+            object-position: center center;
         }
 
         .climb-photo-viewer .zoom-controls--viewer {
@@ -3775,6 +3837,73 @@
             height: 7px;
             border-radius: 50%;
             background: var(--map-accent, #e8472a);
+        }
+
+        .map-boulder-sector-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            margin-right: 5px;
+            border-radius: 50%;
+            border: 2px solid var(--boulder-color, #f04d23);
+            background: var(--card-bg, #151b24);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+            vertical-align: middle;
+            flex-shrink: 0;
+            color: var(--boulder-color, #f04d23);
+        }
+
+        .map-boulder-sector-icon svg {
+            display: block;
+            width: 12px;
+            height: auto;
+        }
+
+        .map-feature-boulder-sector-icon {
+            width: 30px;
+            height: 30px;
+            margin-right: 0;
+            border-width: 2px;
+        }
+
+        .map-feature-boulder-sector-icon svg {
+            width: 15px;
+        }
+
+        .map-feature-icon--sector_sign .map-feature-boulder-sector-icon {
+            border: none;
+            box-shadow: none;
+            background: transparent;
+        }
+
+        .catalog-sector-kind-icon {
+            margin-right: 8px;
+        }
+
+        .catalog-row-title--with-kind-icon {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            min-width: 0;
+        }
+
+        .catalog-row-title--with-kind-icon > span {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .map-boulder-sector-icon--tool {
+            width: 16px;
+            height: 16px;
+            margin-right: 4px;
+            border-width: 1.5px;
+        }
+
+        .map-boulder-sector-icon--tool svg {
+            width: 9px;
         }
 
         .parent-label .map-kind-icon--area {

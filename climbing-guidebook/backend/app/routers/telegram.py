@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, status
 
 from app.config import Settings, settings
-from app.services.telegram_bot import send_message
+from app.services.telegram_bot import edit_message_reply_markup, send_message
 
 router = APIRouter(prefix="/telegram", tags=["telegram"])
+
+# chat_id -> (message_id с кнопкой «Открыть гайд», monotonic ts последней отправки)
+_start_guide_messages: dict[int, tuple[int, float]] = {}
+_START_GUIDE_RESEND_COOLDOWN_SEC = 12.0
 
 
 def _mini_app_url() -> str:
@@ -35,12 +40,36 @@ def _start_reply_markup() -> dict[str, Any]:
     }
 
 
+async def _strip_start_guide_button(chat_id: int, message_id: int) -> None:
+    await edit_message_reply_markup(
+        chat_id,
+        message_id,
+        reply_markup={"inline_keyboard": []},
+    )
+
+
 async def _deliver_start_message(chat_id: int) -> None:
-    await send_message(
+    now = time.monotonic()
+    prev = _start_guide_messages.get(chat_id)
+    if prev and (now - prev[1]) < _START_GUIDE_RESEND_COOLDOWN_SEC:
+        return
+
+    if prev:
+        await _strip_start_guide_button(chat_id, prev[0])
+
+    result = await send_message(
         chat_id=chat_id,
         text="Открывай скалолазный гайд:",
         reply_markup=_start_reply_markup(),
     )
+    if not result or not result.get("ok"):
+        return
+    body = result.get("result")
+    if not isinstance(body, dict):
+        return
+    message_id = body.get("message_id")
+    if isinstance(message_id, int):
+        _start_guide_messages[chat_id] = (message_id, now)
 
 
 @router.post("/webhook")
