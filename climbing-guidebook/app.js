@@ -2485,6 +2485,8 @@
             if (_catalogReloadPromise) return _catalogReloadPromise;
 
             _catalogReloadPromise = (async () => {
+                const busyMsg = isInitial ? 'Загрузка каталога…' : 'Обновление каталога…';
+                setGlobalUiBusy(true, busyMsg);
                 try {
                     if (!isInitial && _appRemoteDataReady) {
                         window.app?.showToast?.('Обновление данных…', false);
@@ -2522,6 +2524,7 @@
                     }
                     throw err;
                 } finally {
+                    setGlobalUiBusy(false);
                     _catalogReloadPromise = null;
                 }
             })();
@@ -2532,6 +2535,48 @@
             if (!_appRemoteDataReady) return;
             if (shouldTrustOfflineHint()) return;
             void refreshCatalogFromApi().catch(() => {});
+        }
+
+        let _globalUiBusyDepth = 0;
+        let _globalUiBusyShowTimer = null;
+        let _globalUiBusyMessage = 'Загрузка…';
+        const GLOBAL_UI_BUSY_DELAY_MS = 320;
+
+        function setGlobalUiBusy(active, message = 'Загрузка…') {
+            const overlay = document.getElementById('appGlobalBusy');
+            if (!overlay) return;
+            const textEl = overlay.querySelector('.app-global-busy-text');
+            if (active) {
+                _globalUiBusyDepth += 1;
+                _globalUiBusyMessage = message || 'Загрузка…';
+                if (textEl) textEl.textContent = _globalUiBusyMessage;
+                clearTimeout(_globalUiBusyShowTimer);
+                _globalUiBusyShowTimer = setTimeout(() => {
+                    if (_globalUiBusyDepth <= 0) return;
+                    if (textEl) textEl.textContent = _globalUiBusyMessage;
+                    overlay.classList.remove('hidden');
+                    overlay.setAttribute('aria-busy', 'true');
+                    document.documentElement.classList.add('app-ui-busy');
+                }, GLOBAL_UI_BUSY_DELAY_MS);
+                return;
+            }
+            _globalUiBusyDepth = Math.max(0, _globalUiBusyDepth - 1);
+            if (_globalUiBusyDepth > 0) return;
+            clearTimeout(_globalUiBusyShowTimer);
+            overlay.classList.add('hidden');
+            overlay.setAttribute('aria-busy', 'false');
+            document.documentElement.classList.remove('app-ui-busy');
+        }
+
+        window.setGlobalUiBusy = setGlobalUiBusy;
+
+        async function withGlobalUiBusy(message, fn) {
+            setGlobalUiBusy(true, message);
+            try {
+                return await fn();
+            } finally {
+                setGlobalUiBusy(false);
+            }
         }
 
         function setAppDataStatus(mode, message, { showRetry } = {}) {
@@ -2549,7 +2594,10 @@
             const retryBtn = showRetry
                 ? '<button type="button" class="btn btn-primary btn-small" id="appDataRetryBtn">Повторить загрузку</button>'
                 : '';
-            el.innerHTML = `${message}${retryBtn}`;
+            const spinner = (mode !== 'error' && mode !== 'offline')
+                ? '<span class="app-data-status-spinner" aria-hidden="true"></span>'
+                : '';
+            el.innerHTML = `${spinner}${message}${retryBtn}`;
             if (showRetry) {
                 document.getElementById('appDataRetryBtn')?.addEventListener('click', () => {
                     void retryAppDataLoad();
@@ -2559,6 +2607,7 @@
 
         async function retryAppDataLoad() {
             setAppDataStatus('loading', 'Загрузка данных с сервера…');
+            setGlobalUiBusy(true, 'Загрузка данных с сервера…');
             try {
                 const awake = await wakeApiServer({ attempts: 8 });
                 if (!awake) throw new Error('Сервер не отвечает');
@@ -2580,6 +2629,8 @@
                     { showRetry: true }
                 );
                 window.app?.showToast?.('Не удалось загрузить данные', true);
+            } finally {
+                setGlobalUiBusy(false);
             }
         }
 
@@ -5037,6 +5088,8 @@
                 document.addEventListener('pointercancel', this._onBoulderHoldPointerUp);
 
                 this.catalog = { view: 'areas', areaId: null, sectorId: null };
+                this._uiActionLockUntil = 0;
+                this._climbDetailOpenFlight = null;
 
                 /** Просмотр разметки без редактирования (гость / пользователь). */
                 this._markupDialogViewOnly = false;
@@ -8012,6 +8065,8 @@
             }
 
             openMapsChooser(entry = null, preferredMode = '') {
+                if (this.isUiActionLocked()) return;
+                this.lockUiActions(480);
                 const target = entry || this.mapTarget;
                 if (!target || !Number.isFinite(Number(target.lat)) || !Number.isFinite(Number(target.lng))) {
                     this.showToast('У объекта нет координат для карт', true);
@@ -9127,7 +9182,20 @@
                 }
             }
 
+            isUiActionLocked() {
+                return Date.now() < (this._uiActionLockUntil || 0);
+            }
+
+            lockUiActions(ms = 420) {
+                this._uiActionLockUntil = Date.now() + ms;
+            }
+
             handleCatalogClick(e) {
+                if (this.isUiActionLocked()) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    return;
+                }
                 const act = e.target.closest('[data-catalog-act]');
                 let go = e.target.closest('[data-catalog-go]');
                 if (!go && !act) {
@@ -9177,6 +9245,8 @@
                     return;
                 }
                 if (go) {
+                    e.preventDefault();
+                    this.lockUiActions(400);
                     const gid = Number(go.dataset.id);
                     if (go.dataset.catalogGo === 'area') {
                         this.catalog = { view: 'sectors', areaId: gid, sectorId: null };
@@ -9200,7 +9270,9 @@
                     const oid = Number(climbOpen.dataset.openClimbId);
                     if ((oc === 'route' || oc === 'boulder') && Number.isFinite(oid)) {
                         e.preventDefault();
-                        this.showClimbDetailDialog(oc, oid);
+                        e.stopPropagation();
+                        this.lockUiActions(650);
+                        void this.showClimbDetailDialog(oc, oid);
                     }
                 }
             }
@@ -10376,6 +10448,11 @@
                 });
                 document.getElementById('catalog')?.addEventListener('click', (e) => this.handleCatalogClick(e));
                 document.getElementById('catalogList')?.addEventListener('click', (e) => {
+                    if (this.isUiActionLocked()) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        return;
+                    }
                     const editRoute = e.target.closest('[data-action="edit-route"]');
                     const editRouteDesc = e.target.closest('[data-action="edit-route-desc"]');
                     const editBoulder = e.target.closest('[data-action="edit-boulder"]');
@@ -10549,6 +10626,11 @@
                 });
 
                 document.getElementById('catalogList')?.addEventListener('click', (e) => {
+                    if (this.isUiActionLocked()) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        return;
+                    }
                     const delRoute = e.target.closest('[data-action="delete-route"]');
                     const delBoulder = e.target.closest('[data-action="delete-boulder"]');
                     if (delRoute) {
@@ -11027,6 +11109,9 @@
             showDialog(dialogId) {
                 const el = document.getElementById(dialogId);
                 if (!el) return;
+                if (!el.classList.contains('hidden') && dialogId !== 'climbDetailDialog') {
+                    return;
+                }
                 el.classList.remove('hidden');
                 this.syncBodyDialogScreenLock();
                 this.syncCatalogSectorFocusUi();
@@ -11965,21 +12050,31 @@
 
             async showClimbDetailDialog(climbType, climbId, opts = {}) {
                 const idStr = String(climbId);
-                const preferPhotoId = opts.preferPhotoId != null ? String(opts.preferPhotoId) : null;
-                let photos = [];
-                try {
-                    photos = await ensureClimbPhotosForDetail(climbType, climbId);
-                } catch (err) {
-                    console.warn('climb detail photos load', err);
-                }
-                const climb = await this.ensureClimbInCatalog(climbType, idStr);
-                if (!climb) {
-                    this.showToast(
-                        climbType === 'route' ? 'Трасса не найдена' : 'Боулдеринг не найден',
-                        true
-                    );
+                const openKey = `${climbType}:${idStr}`;
+                if (this._climbDetailOpenFlight === openKey) {
                     return;
                 }
+                if (this._climbDetailOpenFlight) {
+                    return;
+                }
+                this._climbDetailOpenFlight = openKey;
+                setGlobalUiBusy(true, 'Открываем карточку…');
+                const preferPhotoId = opts.preferPhotoId != null ? String(opts.preferPhotoId) : null;
+                try {
+                    let photos = [];
+                    try {
+                        photos = await ensureClimbPhotosForDetail(climbType, climbId);
+                    } catch (err) {
+                        console.warn('climb detail photos load', err);
+                    }
+                    const climb = await this.ensureClimbInCatalog(climbType, idStr);
+                    if (!climb) {
+                        this.showToast(
+                            climbType === 'route' ? 'Трасса не найдена' : 'Боулдеринг не найден',
+                            true
+                        );
+                        return;
+                    }
                 const photo = pickClimbDetailPhoto(photos, preferPhotoId);
 
                 this._climbDetailContext = {
@@ -12080,6 +12175,10 @@
                 void this.refreshClimbDetailVideos(climbType, idStr);
                 this.clearClimbCommentDraft();
                 void this.refreshClimbDetailComments(climbType, idStr);
+                } finally {
+                    this._climbDetailOpenFlight = null;
+                    setGlobalUiBusy(false);
+                }
             }
 
             syncClimbDetailFooterActions() {
