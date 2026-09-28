@@ -3799,6 +3799,7 @@
             box-shadow: none;
             width: auto;
             height: auto;
+            padding: 0;
         }
 
         .map-feature-parking-letter {
@@ -3878,25 +3879,171 @@
 
         .map-feature-boulder-sector-icon,
         .map-feature-route-sector-icon {
-            width: 30px;
-            height: 30px;
+            width: 34px;
+            height: 34px;
             margin-right: 0;
-            border-width: 2px;
+            border-width: 2.5px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
         }
 
         .map-feature-boulder-sector-icon svg {
-            width: 15px;
+            width: 17px;
         }
 
         .map-feature-route-sector-icon svg {
-            width: 14px;
+            width: 16px;
         }
 
-        .map-feature-icon--sector_sign .map-feature-boulder-sector-icon,
-        .map-feature-icon--sector_sign .map-feature-route-sector-icon {
-            border: none;
-            box-shadow: none;
-            background: transparent;
+        /* AllClimb-style pin: сектор на карте */
+        .map-sector-badge {
+            transform: translate(-50%, -100%);
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: auto;
+            cursor: pointer;
+            max-width: min(168px, 42vw);
+            transition: transform 0.12s ease;
+        }
+
+        .map-sector-badge-glyph {
+            width: 44px;
+            height: 44px;
+            margin-right: 0;
+            margin-bottom: 3px;
+            border-width: 2.5px;
+            flex-shrink: 0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+        }
+
+        .map-sector-badge--route .map-sector-badge-glyph {
+            border-color: var(--route-color, #22b8a8);
+            color: var(--route-color, #22b8a8);
+        }
+
+        .map-sector-badge--boulder .map-sector-badge-glyph {
+            border-color: var(--boulder-color, #f04d23);
+            color: var(--boulder-color, #f04d23);
+        }
+
+        .map-sector-badge-glyph svg {
+            width: 24px;
+        }
+
+        .map-sector-badge--route .map-sector-badge-glyph svg {
+            width: 22px;
+        }
+
+        .map-sector-badge-label {
+            background: var(--map-panel);
+            border: 1.5px solid color-mix(in srgb, var(--route-color, #22b8a8) 55%, var(--map-accent));
+            color: var(--text-color);
+            border-radius: 10px;
+            padding: 4px 9px;
+            font: 600 12px/1.15 sans-serif;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+
+        .map-sector-badge--boulder .map-sector-badge-label {
+            border-color: color-mix(in srgb, var(--boulder-color, #f04d23) 55%, var(--map-accent));
+        }
+
+        .map-sector-badge-label span {
+            opacity: 0.72;
+            font-weight: 600;
+        }
+
+        .map-sector-badge-pointer {
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 6px solid color-mix(in srgb, var(--route-color, #22b8a8) 70%, var(--map-accent));
+            margin-top: -1px;
+            filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+        }
+
+        .map-sector-badge--boulder .map-sector-badge-pointer {
+            border-top-color: color-mix(in srgb, var(--boulder-color, #f04d23) 70%, var(--map-accent));
+        }
+
+        .map-sector-badge-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--route-color, #22b8a8);
+            border: 1.5px solid var(--background-color);
+            margin-top: -2px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+        }
+
+        .map-sector-badge--boulder .map-sector-badge-dot {
+            background: var(--boulder-color, #f04d23);
+        }
+
+        .map-sector-badge:hover .map-sector-badge-label {
+            border-color: #fff;
+        }
+
+        .map-sector-badge.selected {
+            transform: translate(-50%, -100%) scale(1.05);
+        }
+
+        .map-sector-badge.selected .map-sector-badge-label {
+            background: var(--map-accent);
+            border-color: #fff;
+            color: #fff;
+        }
+
+        .map-sector-badge.selected .map-sector-badge-glyph {
+            border-color: #fff;
+            color: #fff;
+            background: var(--map-accent);
+        }
+
+        .map-sector-badge.selected .map-sector-badge-pointer {
+            border-top-color: var(--map-accent);
+        }
+
+        .map-sector-badge.selected .map-sector-badge-dot {
+            background: var(--map-accent);
+        }
+
+        .map-sector-badge.declutter-hidden {
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .map-legend-sector {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--card-bg);
+            border: 2px solid var(--route-color);
+            color: var(--route-color);
+            flex-shrink: 0;
+        }
+
+        .map-legend-sector--boulder {
+            border-color: var(--boulder-color);
+            color: var(--boulder-color);
+        }
+
+        .map-legend-sector svg {
+            display: block;
+            width: 11px;
+            height: auto;
+        }
+
+        .map-legend-sector--boulder svg {
+            width: 10px;
         }
 
         .catalog-sector-kind-icon {
@@ -4308,9 +4455,78 @@
             visibility: hidden;
         }
 
-        /* Zoom-уровни карты (как V8ROCK) */
-        .leaflet-container.z-low .parent-label-icon {
+        /* Zoom-уровни карты (как V8ROCK / AllClimb) */
+        .leaflet-container.z-low .parent-label-icon:not(.map-sector-marker) {
             display: none !important;
+        }
+
+        .leaflet-container.z-low .map-sector-badge-label,
+        .leaflet-container.z-low .map-sector-badge-pointer {
+            display: none;
+        }
+
+        .leaflet-container.z-low .map-sector-badge-glyph {
+            width: 32px;
+            height: 32px;
+        }
+
+        .leaflet-container.z-low .map-sector-badge-glyph svg {
+            width: 17px;
+        }
+
+        .leaflet-container.z-low .map-sector-badge--route .map-sector-badge-glyph svg {
+            width: 16px;
+        }
+
+        .leaflet-container.z-mid .map-sector-badge-glyph {
+            width: 38px;
+            height: 38px;
+        }
+
+        .leaflet-container.z-mid .map-sector-badge-glyph svg {
+            width: 20px;
+        }
+
+        .leaflet-container.z-mid .map-sector-badge--route .map-sector-badge-glyph svg {
+            width: 19px;
+        }
+
+        .leaflet-container.z-mid .map-sector-badge-label {
+            font-size: 11px;
+            padding: 3px 8px;
+        }
+
+        .leaflet-container.z-low .map-feature-boulder-sector-icon,
+        .leaflet-container.z-low .map-feature-route-sector-icon {
+            width: 28px;
+            height: 28px;
+        }
+
+        .leaflet-container.z-low .map-feature-boulder-sector-icon svg {
+            width: 14px;
+        }
+
+        .leaflet-container.z-low .map-feature-route-sector-icon svg {
+            width: 13px;
+        }
+
+        .leaflet-container.z-mid .map-feature-boulder-sector-icon,
+        .leaflet-container.z-mid .map-feature-route-sector-icon {
+            width: 31px;
+            height: 31px;
+        }
+
+        .leaflet-container.z-hi .map-sector-badge-glyph {
+            width: 46px;
+            height: 46px;
+        }
+
+        .leaflet-container.z-hi .map-sector-badge-glyph svg {
+            width: 25px;
+        }
+
+        .leaflet-container.z-hi .map-sector-badge--route .map-sector-badge-glyph svg {
+            width: 23px;
         }
 
         .map-climb-dot-marker {

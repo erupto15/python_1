@@ -560,10 +560,38 @@
         })();
         /** Только боулдеринг: скрыты трассы (вкладка, каталог, карта, фильтр в альбоме). Данные трасс в хранилище не трогаем. */
         const APP_BOULDER_ONLY = false;
-        /** Трассы: скалолаз с верёвкой (AllClimb) — icons/map-route-sector-climber.svg */
-        const MAP_ROUTE_SECTOR_CLIMBER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26.27 41" aria-hidden="true"><path fill="currentColor" d="M12.41,9.72A3.86,3.86,0,1,0,8.55,5.85,3.87,3.87,0,0,0,12.41,9.72Z"/><path fill="currentColor" d="M23.19,0a1.52,1.52,0,0,0-1.52,1.52,9.38,9.38,0,0,1-9,9.36c0,1-.08,2-.13,3A12.42,12.42,0,0,0,24.71,1.52,1.52,1.52,0,0,0,23.19,0Z"/><rect fill="currentColor" x="8.77" y="12" width="7.29" height="6.23"/><path fill="currentColor" d="M3.11,40.08A1.82,1.82,0,0,1,1.5,37.41l7.26-13.9A1.82,1.82,0,0,1,12,25.2L4.72,39.1A1.82,1.82,0,0,1,3.11,40.08Z"/><path fill="currentColor" d="M19,30.5a1.82,1.82,0,0,1-1.77-2.27l1.27-4.94L14.9,24.77a1.82,1.82,0,0,1-1.38-3.37l7-2.86a1.82,1.82,0,0,1,2.46,2.14l-2.17,8.45A1.82,1.82,0,0,1,19,30.5Z"/><path fill="currentColor" d="M15.44,18.25a.61.61,0,0,1,0-1.22,9.89,9.89,0,0,0,8.25-4.51c1.34-2.15,2.37-5.86-.33-11.36A.61.61,0,0,1,24.45.63c2.94,6,1.77,10.13.27,12.54A11.13,11.13,0,0,1,15.44,18.25Z"/><path fill="currentColor" d="M8.76,20.37v3a2,2,0,0,0,2,2H13c1.13,0,3-1.08,3-2.16V20.37Z"/><rect fill="currentColor" x="12.54" y="26.75" width="1.22" height="14.26"/><path fill="currentColor" d="M12.7,10.88l-.29,0A12.43,12.43,0,0,0,0,23.27a1.52,1.52,0,1,0,3,0,9.39,9.39,0,0,1,9.38-9.37h.29Z"/></svg>';
-        /** Боулдер: лезущий человечек без верёвки — icons/map-boulder-sector-climber.svg */
-        const MAP_BOULDER_SECTOR_CLIMBER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" aria-hidden="true"><circle fill="currentColor" cx="11.5" cy="5.2" r="3.35"/><rect fill="currentColor" x="8.6" y="8.8" width="5.8" height="5.6" rx="0.4"/><path fill="currentColor" d="M14.2 9.2 19.2 3.6 20.6 4.9 15.8 10.4z"/><path fill="currentColor" d="M8.4 10.1 3.8 12.4 4.9 14.1 9.2 11.5z"/><path fill="currentColor" d="M9.2 14.6 3.4 29.8 5.6 30.6 10.4 16.2z"/><path fill="currentColor" d="M12.8 14.5 17.6 27.2 19.6 26.2 14.9 15.8z"/><path fill="currentColor" d="M9.8 14.2h3.4v2.4H9.8z"/></svg>';
+        /** Трассы / боулдер: icons/map-*-sector-climber.svg (AllClimb-style) */
+        let MAP_ROUTE_SECTOR_CLIMBER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26.27 41" aria-hidden="true"><path fill="currentColor" d="M12.41,9.72A3.86,3.86,0,1,0,8.55,5.85,3.87,3.87,0,0,0,12.41,9.72Z"/><path fill="currentColor" d="M23.19,0a1.52,1.52,0,0,0-1.52,1.52,9.38,9.38,0,0,1-9,9.36c0,1-.08,2-.13,3A12.42,12.42,0,0,0,24.71,1.52,1.52,1.52,0,0,0,23.19,0Z"/><rect fill="currentColor" x="8.77" y="12" width="7.29" height="6.23"/><path fill="currentColor" d="M3.11,40.08A1.82,1.82,0,0,1,1.5,37.41l7.26-13.9A1.82,1.82,0,0,1,12,25.2L4.72,39.1A1.82,1.82,0,0,1,3.11,40.08Z"/><path fill="currentColor" d="M19,30.5a1.82,1.82,0,0,1-1.77-2.27l1.27-4.94L14.9,24.77a1.82,1.82,0,0,1-1.38-3.37l7-2.86a1.82,1.82,0,0,1,2.46,2.14l-2.17,8.45A1.82,1.82,0,0,1,19,30.5Z"/><path fill="currentColor" d="M15.44,18.25a.61.61,0,0,1,0-1.22,9.89,9.89,0,0,0,8.25-4.51c1.34-2.15,2.37-5.86-.33-11.36A.61.61,0,0,1,24.45.63c2.94,6,1.77,10.13.27,12.54A11.13,11.13,0,0,1,15.44,18.25Z"/><path fill="currentColor" d="M8.76,20.37v3a2,2,0,0,0,2,2H13c1.13,0,3-1.08,3-2.16V20.37Z"/><rect fill="currentColor" x="12.54" y="26.75" width="1.22" height="14.26"/><path fill="currentColor" d="M12.7,10.88l-.29,0A12.43,12.43,0,0,0,0,23.27a1.52,1.52,0,1,0,3,0,9.39,9.39,0,0,1,9.38-9.37h.29Z"/></svg>';
+        let MAP_BOULDER_SECTOR_CLIMBER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" aria-hidden="true"><circle fill="currentColor" cx="11.5" cy="5.2" r="3.35"/><rect fill="currentColor" x="8.6" y="8.8" width="5.8" height="5.6" rx="0.4"/><path fill="currentColor" d="M14.2 9.2 19.2 3.6 20.6 4.9 15.8 10.4z"/><path fill="currentColor" d="M8.4 10.1 3.8 12.4 4.9 14.1 9.2 11.5z"/><path fill="currentColor" d="M9.2 14.6 3.4 29.8 5.6 30.6 10.4 16.2z"/><path fill="currentColor" d="M12.8 14.5 17.6 27.2 19.6 26.2 14.9 15.8z"/><path fill="currentColor" d="M9.8 14.2h3.4v2.4H9.8z"/></svg>';
+
+        function normalizeInlineMapSectorSvg(raw) {
+            if (!raw || typeof raw !== 'string' || !raw.includes('<svg')) return '';
+            return raw.trim().replace(/\s+/g, ' ');
+        }
+
+        void (function preloadMapSectorClimberSvgs() {
+            if (typeof fetch !== 'function') return;
+            Promise.all([
+                fetch('/icons/map-route-sector-climber.svg').then((r) => (r.ok ? r.text() : '')).catch(() => ''),
+                fetch('/icons/map-boulder-sector-climber.svg').then((r) => (r.ok ? r.text() : '')).catch(() => '')
+            ]).then(([routeSvg, boulderSvg]) => {
+                const route = normalizeInlineMapSectorSvg(routeSvg);
+                const boulder = normalizeInlineMapSectorSvg(boulderSvg);
+                if (route) MAP_ROUTE_SECTOR_CLIMBER_SVG = route;
+                if (boulder) MAP_BOULDER_SECTOR_CLIMBER_SVG = boulder;
+                if (window.app) {
+                    if (typeof window.app.fillMapLegendSectorIcons === 'function') {
+                        window.app.fillMapLegendSectorIcons();
+                    }
+                    if (typeof window.app.refreshMapMarkerStyles === 'function') {
+                        window.app.refreshMapMarkerStyles();
+                    }
+                    if (typeof window.app.renderMapFeatureLayers === 'function') {
+                        window.app.renderMapFeatureLayers();
+                    }
+                }
+            });
+        })();
         /** База API: пустая строка означает same-origin API через reverse proxy. */
         const API_BASE_URL = (() => {
             const c = typeof window.CLIMBING_API_BASE_URL === 'string' ? window.CLIMBING_API_BASE_URL.trim() : '';
@@ -6380,6 +6408,7 @@
                 this.updateMapNavigationLine();
                 this.renderMapCoordsBar();
                 this.syncMapZoomClass();
+                this.fillMapLegendSectorIcons();
                 this.applyCachedUserLocation();
                 this._mapRestoringView = false;
                 requestAnimationFrame(() => this.map.invalidateSize({ animate: false }));
@@ -6737,6 +6766,17 @@
                 return boulders > 0 && routes === 0;
             }
 
+            fillMapLegendSectorIcons() {
+                const routeEl = document.getElementById('mapLegendSectorRoute');
+                const boulderEl = document.getElementById('mapLegendSectorBoulder');
+                if (routeEl && !routeEl.querySelector('svg')) {
+                    routeEl.innerHTML = MAP_ROUTE_SECTOR_CLIMBER_SVG;
+                }
+                if (boulderEl && !boulderEl.querySelector('svg')) {
+                    boulderEl.innerHTML = MAP_BOULDER_SECTOR_CLIMBER_SVG;
+                }
+            }
+
             buildMapBoulderSectorIconHtml(extraClass = '') {
                 const cls = ['map-boulder-sector-icon', extraClass].filter(Boolean).join(' ');
                 return `<span class="${cls}">${MAP_BOULDER_SECTOR_CLIMBER_SVG}</span>`;
@@ -6752,6 +6792,16 @@
                     return this.buildMapBoulderSectorIconHtml(extraClass);
                 }
                 return this.buildMapRouteSectorIconHtml(extraClass);
+            }
+
+            buildMapSectorBadgeHtml(entry, title, sub, selected = false) {
+                const boulder = this.isBoulderSector(entry?.id);
+                const kindCls = boulder ? 'map-sector-badge--boulder' : 'map-sector-badge--route';
+                const glyph = boulder
+                    ? this.buildMapBoulderSectorIconHtml('map-sector-badge-glyph')
+                    : this.buildMapRouteSectorIconHtml('map-sector-badge-glyph');
+                const subHtml = sub ? ` <span>${this.escapeHtml(String(sub))}</span>` : '';
+                return `<div class="map-sector-badge ${kindCls}${selected ? ' selected' : ''}">${glyph}<div class="map-sector-badge-label">${this.escapeHtml(title)}${subHtml}</div><div class="map-sector-badge-pointer" aria-hidden="true"></div><div class="map-sector-badge-dot" aria-hidden="true"></div></div>`;
             }
 
             buildMapDotHtml(entry) {
@@ -6805,19 +6855,21 @@
             }
 
             buildMapParentLabelHtml(title, sub = '', selected = false, kind = '', entry = null) {
+                if (kind === 'sector') {
+                    return this.buildMapSectorBadgeHtml(entry, title, sub, selected);
+                }
                 const subHtml = sub ? ` <span>${this.escapeHtml(sub)}</span>` : '';
                 let icon = '';
                 if (kind === 'area') {
                     icon = '<i class="fas fa-droplet map-kind-icon map-kind-icon--area" aria-hidden="true"></i>';
-                } else if (kind === 'sector') {
-                    icon = this.buildMapSectorKindIconHtml(entry?.id);
                 }
                 return `<div class="parent-label${selected ? ' selected' : ''}">${icon}${this.escapeHtml(title)}${subHtml}</div>`;
             }
 
             createMapParentLabelMarker(entry, coord, html) {
+                const isSector = entry?.kind === 'sector';
                 const icon = L.divIcon({
-                    className: 'parent-label-icon',
+                    className: isSector ? 'parent-label-icon map-sector-marker' : 'parent-label-icon',
                     html,
                     iconSize: [0, 0],
                     iconAnchor: [0, 0]
@@ -6923,13 +6975,16 @@
                 this.mapMarkerIndex.forEach((stored) => {
                     const selected = this.mapEntrySelected(stored);
                     if (stored.kind === 'area' || stored.kind === 'sector') {
+                        const isSector = stored.kind === 'sector';
                         stored.marker?.setIcon(L.divIcon({
-                            className: 'parent-label-icon',
+                            className: isSector ? 'parent-label-icon map-sector-marker' : 'parent-label-icon',
                             html: this.buildMapParentLabelHtml(stored.title, stored.labelSub || '', selected, stored.kind, stored),
                             iconSize: [0, 0],
                             iconAnchor: [0, 0]
                         }));
-                        stored.labelEl = stored.marker?.getElement()?.querySelector('.parent-label') || null;
+                        stored.labelEl = stored.marker?.getElement()?.querySelector(
+                            isSector ? '.map-sector-badge' : '.parent-label'
+                        ) || null;
                     } else if (stored.marker) {
                         stored.marker.setIcon(L.divIcon({
                             className: 'map-climb-dot-marker',
@@ -7074,7 +7129,9 @@
                 if (entry.kind === 'area' || entry.kind === 'sector') {
                     const labelHtml = this.buildMapParentLabelHtml(entry.title, stored.labelSub, selected, entry.kind, entry);
                     stored.marker = this.createMapParentLabelMarker(stored, coord, labelHtml);
-                    stored.labelEl = stored.marker.getElement()?.querySelector('.parent-label') || null;
+                    stored.labelEl = stored.marker.getElement()?.querySelector(
+                        entry.kind === 'sector' ? '.map-sector-badge' : '.parent-label'
+                    ) || null;
                 } else {
                     const useCluster = this.mapClimbCluster && this.shouldClusterClimbMarkers();
                     stored.grade = entry.grade || '';
