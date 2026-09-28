@@ -1454,6 +1454,10 @@
             height: 22px;
         }
 
+        .hold-marker--route-start {
+            background-color: rgba(255, 255, 255, 0.88);
+        }
+
         .hold-label {
             position: absolute;
             top: calc(100% + 2px);

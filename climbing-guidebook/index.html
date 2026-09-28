@@ -724,14 +724,16 @@
             <div class="dialog-body">
                 <div class="markup-instructions">
                     <i class="fas fa-info-circle"></i>
-                    <strong>Инструкция:</strong> Кликами по порядку задайте линию хода. На обоих концах линии автоматически появляются красные точки.
-                    Удаление точки: Ctrl / ⌘ + клик рядом с ней.
-                    <span class="markup-touch-note">На телефоне без клавиатуры точку проще сбросить кнопкой «Очистить все» или отменить и начать заново.</span>
+                    <strong>Инструкция:</strong> «Линия хода» — клики по порядку (на конце стрелка). «Стартовые кружки» — до двух номеров. «Топ» — один финишный кружок.
+                    Категория трассы показывается на линии автоматически. Удаление: Ctrl / ⌘ + клик.
+                    <span class="markup-touch-note">На телефоне без клавиатуры — «Очистить все».</span>
                 </div>
 
-                <div class="markup-mode-toolbar hidden" aria-hidden="true">
+                <div class="markup-mode-toolbar">
                     <span class="markup-mode-label">Режим</span>
+                    <button type="button" class="btn btn-small route-markup-mode-btn" id="routeMarkupModeStarts" data-mode="starts">Стартовые кружки</button>
                     <button type="button" class="btn btn-small route-markup-mode-btn active" id="routeMarkupModeLine" data-mode="line">Линия хода</button>
+                    <button type="button" class="btn btn-small route-markup-mode-btn" id="routeMarkupModeTop" data-mode="top">Топ</button>
                 </div>
 
                 <div id="routeLineMarkupContainer" class="markup-dialog-stage">
@@ -742,7 +744,7 @@
                 <div class="markup-toolbar">
                     <div class="markup-tool">
                         <i class="fas fa-route" style="color: #e53935;"></i>
-                        <span>Линия хода: клики по порядку, точки на обоих концах</span>
+                        <span>Линия со стрелкой; старты 1–2; «Топ»; категория на линии</span>
                     </div>
                     <div class="markup-tool">
                         <i class="fas fa-trash" style="color: var(--danger-color);"></i>

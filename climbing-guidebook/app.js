@@ -1468,7 +1468,11 @@
             if (climbType === 'route') {
                 return {
                     ...normalized,
-                    points: (normalized.points || []).map((p) => transformNormPointByQuarterTurns(p, t))
+                    points: (normalized.points || []).map((p) => transformNormPointByQuarterTurns(p, t)),
+                    startHolds: (normalized.startHolds || []).map((p) => transformNormPointByQuarterTurns(p, t)),
+                    finishHold: normalized.finishHold
+                        ? transformNormPointByQuarterTurns(normalized.finishHold, t)
+                        : null
                 };
             }
             return {
@@ -2200,7 +2204,38 @@
                             const routeMarkup = normalizePhotoMarkup(markup, 'route') || markup;
                             const pts = Array.isArray(routeMarkup.points) ? routeMarkup.points : [];
                             drawLine(pts);
-                            drawLineEnd(pts, 'dots-both');
+                            drawLineEnd(pts, 'arrow');
+                            (routeMarkup.startHolds || []).forEach((p, index) => {
+                                const rHold = Math.max(10, Math.round(Math.min(w, h) * 0.026));
+                                drawCircle(p, rHold, TOPO_MARKUP.holdFillRouteStart, TOPO_MARKUP.holdStroke, TOPO_MARKUP.holdStrokePx);
+                                const q = toPx(p);
+                                ctx.fillStyle = TOPO_MARKUP.holdNumberColor;
+                                ctx.font = `700 ${Math.max(10, Math.round(rHold * 0.75))}px system-ui, sans-serif`;
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'middle';
+                                ctx.fillText(String(index + 1), q.x, q.y);
+                            });
+                            if (routeMarkup.finishHold) drawLabeledHold(routeMarkup.finishHold, 'Топ');
+                            if (gradeForLine) {
+                                const mid = topoLineMidpointNorm(pts);
+                                if (mid) {
+                                    const q = toPx(mid);
+                                    ctx.font = `800 ${Math.max(11, Math.round(Math.min(w, h) * 0.018))}px system-ui, sans-serif`;
+                                    const tw = ctx.measureText(gradeForLine).width;
+                                    const pad = 6;
+                                    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+                                    ctx.strokeStyle = lineColor;
+                                    ctx.lineWidth = 2;
+                                    const bx = q.x - tw / 2 - pad;
+                                    const by = q.y - 10;
+                                    ctx.fillRect(bx, by, tw + pad * 2, 20);
+                                    ctx.strokeRect(bx, by, tw + pad * 2, 20);
+                                    ctx.fillStyle = lineColor;
+                                    ctx.textAlign = 'center';
+                                    ctx.textBaseline = 'middle';
+                                    ctx.fillText(gradeForLine, q.x, q.y);
+                                }
+                            }
                         } else {
                             const boulderMarkup = normalizePhotoMarkup(markup, 'boulder') || markup;
                             const linePts = Array.isArray(boulderMarkup.linePoints) ? boulderMarkup.linePoints : [];
@@ -4458,7 +4493,10 @@
             const normalized = normalizePhotoMarkup(markup, climbType);
             if (!normalized) return [];
             if (climbType === 'route') {
-                return [...(normalized.points || [])];
+                const pts = [...(normalized.points || [])];
+                (normalized.startHolds || []).forEach((p) => pts.push(p));
+                if (normalized.finishHold) pts.push(normalized.finishHold);
+                return pts;
             }
             if (climbType === 'boulder') {
                 const pts = [...(normalized.linePoints || [])];
@@ -4506,12 +4544,27 @@
 
             if (climbType === 'route') {
                 const points = Array.isArray(m.points) ? m.points : (Array.isArray(m.linePoints) ? m.linePoints : []);
+                const startHoldsRaw = Array.isArray(m.startHolds)
+                    ? m.startHolds
+                    : (Array.isArray(m.starts) ? m.starts : []);
+                const legacyStart = normPoint(m.startHold);
+                const starts = startHoldsRaw.map(normPoint).filter(Boolean);
+                if (legacyStart) starts.unshift(legacyStart);
+                const uniqueStarts = [];
+                starts.forEach((p) => {
+                    if (uniqueStarts.length >= 2) return;
+                    if (uniqueStarts.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 0.004)) return;
+                    uniqueStarts.push(p);
+                });
+                const finishHold = normPoint(m.finishHold) || normPoint(m.topHold);
                 const pts = points.map(normPoint).filter(Boolean);
-                if (pts.length < 2) return null;
+                if (pts.length < 2 && !uniqueStarts.length && !finishHold) return null;
                 return {
                     type: 'route-line',
                     coordSpace: m.coordSpace === 'image' ? 'image' : (m.coordSpace || 'image'),
                     points: pts,
+                    startHolds: uniqueStarts,
+                    finishHold,
                     savedAt: m.savedAt
                 };
             }
@@ -4574,6 +4627,7 @@
             labeledHoldRadiusPx: 11,
             holdStrokePx: 2.5,
             holdFill: 'none',
+            holdFillRouteStart: 'rgba(255, 255, 255, 0.88)',
             holdStroke: '#d32f2f',
             holdNumberColor: '#c62828',
             holdLabelColor: '#b71c1c',
@@ -4674,6 +4728,80 @@
             return route?.grade ? String(route.grade) : '';
         }
 
+        function topoLineMidpointNorm(linePts) {
+            if (!linePts || linePts.length < 2) return null;
+            let total = 0;
+            const segLens = [];
+            for (let i = 1; i < linePts.length; i += 1) {
+                const ax = Number(linePts[i - 1].x);
+                const ay = Number(linePts[i - 1].y);
+                const bx = Number(linePts[i].x);
+                const by = Number(linePts[i].y);
+                const len = Math.hypot(bx - ax, by - ay);
+                segLens.push(len);
+                total += len;
+            }
+            if (total <= 1e-6) {
+                const p0 = linePts[0];
+                return { x: Number(p0.x), y: Number(p0.y) };
+            }
+            let need = total / 2;
+            for (let i = 0; i < segLens.length; i += 1) {
+                if (need <= segLens[i]) {
+                    const t = need / segLens[i];
+                    const a = linePts[i];
+                    const b = linePts[i + 1];
+                    return {
+                        x: Number(a.x) + t * (Number(b.x) - Number(a.x)),
+                        y: Number(a.y) + t * (Number(b.y) - Number(a.y))
+                    };
+                }
+                need -= segLens[i];
+            }
+            const last = linePts[linePts.length - 1];
+            return { x: Number(last.x), y: Number(last.y) };
+        }
+
+        function appendTopoGradeLabelOnLine(svg, NS, linePts, geom, gradeText, lineColor = TOPO_MARKUP.lineColor) {
+            const grade = String(gradeText || '').trim();
+            if (!grade || !isMarkupStageReady(geom) || !linePts || linePts.length < 2) return;
+            const mid = topoLineMidpointNorm(linePts);
+            if (!mid || !Number.isFinite(mid.x) || !Number.isFinite(mid.y)) return;
+            const fontPx = topoStrokeNorm(geom, 11);
+            const padX = topoStrokeNorm(geom, 5);
+            const padY = topoStrokeNorm(geom, 3);
+            const estW = grade.length * fontPx * 0.62;
+            const boxW = estW + padX * 2;
+            const boxH = fontPx + padY * 2;
+            const x = Math.max(0, Math.min(1, mid.x));
+            const y = Math.max(0, Math.min(1, mid.y));
+            const rect = document.createElementNS(NS, 'rect');
+            rect.setAttribute('class', 'topo-line-grade-bg');
+            rect.setAttribute('x', String(x - boxW / 2));
+            rect.setAttribute('y', String(y - boxH / 2));
+            rect.setAttribute('width', String(boxW));
+            rect.setAttribute('height', String(boxH));
+            rect.setAttribute('rx', String(topoStrokeNorm(geom, 4)));
+            rect.setAttribute('fill', 'rgba(255, 255, 255, 0.92)');
+            rect.setAttribute('stroke', lineColor);
+            rect.setAttribute('stroke-width', String(topoStrokeNorm(geom, 1.5)));
+            svg.appendChild(rect);
+
+            const label = document.createElementNS(NS, 'text');
+            label.setAttribute('class', 'topo-line-grade');
+            label.setAttribute('x', String(x));
+            label.setAttribute('y', String(y));
+            label.setAttribute('text-anchor', 'middle');
+            label.setAttribute('dominant-baseline', 'central');
+            label.setAttribute('fill', lineColor);
+            label.setAttribute('font-size', String(fontPx));
+            label.setAttribute('font-weight', '800');
+            label.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, sans-serif');
+            label.setAttribute('pointer-events', 'none');
+            label.textContent = grade;
+            svg.appendChild(label);
+        }
+
         function appendTopoLineSvg(svg, NS, linePts, geom, endStyle = null, lineColor = TOPO_MARKUP.lineColor) {
             if (!isMarkupStageReady(geom)) return;
             if (!linePts || linePts.length < 2) return;
@@ -4708,6 +4836,7 @@
             if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
             const labelText = options.label || null;
             const labeled = !!labelText;
+            const numberedStart = !labeled && options.index != null;
             const r = topoHoldRadiusNorm(geom, labeled);
             const sw = topoStrokeNorm(geom, TOPO_MARKUP.holdStrokePx);
             const c = document.createElementNS(NS, 'circle');
@@ -4715,7 +4844,10 @@
             c.setAttribute('cx', String(nx));
             c.setAttribute('cy', String(ny));
             c.setAttribute('r', String(r));
-            c.setAttribute('fill', TOPO_MARKUP.holdFill);
+            const fill = labeled
+                ? 'none'
+                : (numberedStart ? TOPO_MARKUP.holdFillRouteStart : TOPO_MARKUP.holdFill);
+            c.setAttribute('fill', fill);
             c.setAttribute('stroke', TOPO_MARKUP.holdStroke);
             c.setAttribute('stroke-width', String(sw));
             svg.appendChild(c);
@@ -5088,6 +5220,8 @@
 
                 this.currentRouteLineMarkup = {
                     points: [],
+                    startHolds: [],
+                    finishHold: null,
                     photoId: null,
                     climbId: null
                 };
@@ -11477,7 +11611,16 @@
 
                 if (climbType === 'route' && markup.type === 'route-line') {
                     const pts = markup.points || [];
-                    appendTopoLineSvg(svg, NS, pts, geom, 'dots-both', lineColor);
+                    appendTopoLineSvg(svg, NS, pts, geom, 'arrow', lineColor);
+                    (markup.startHolds || []).forEach((p, index) => {
+                        appendTopoHoldSvg(svg, NS, p, geom, { index });
+                    });
+                    if (markup.finishHold) {
+                        appendTopoHoldSvg(svg, NS, markup.finishHold, geom, { label: 'Топ' });
+                    }
+                    const gradeLabel = options.gradeLabel
+                        || resolveRouteGradeForMarkup(options.climbId, options.grade || '');
+                    appendTopoGradeLabelOnLine(svg, NS, pts, geom, gradeLabel, lineColor);
                 } else if (climbType === 'boulder' && markup.type === 'boulder-holds') {
                     const linePts = markup.linePoints || [];
                     appendTopoLineSvg(svg, NS, linePts, geom, 'arrow', TOPO_MARKUP.lineColor);
@@ -11593,7 +11736,11 @@
                     if (climbType === 'route' && normalized.coordSpace !== 'image') {
                         markupForSvg = {
                             ...normalized,
-                            points: (normalized.points || []).map((p) => boulderStoredToImageNorm(p, geom, false))
+                            points: (normalized.points || []).map((p) => boulderStoredToImageNorm(p, geom, false)),
+                            startHolds: (normalized.startHolds || []).map((p) => boulderStoredToImageNorm(p, geom, false)),
+                            finishHold: normalized.finishHold
+                                ? boulderStoredToImageNorm(normalized.finishHold, geom, false)
+                                : null
                         };
                     } else if (climbType === 'boulder' && normalized.coordSpace !== 'image') {
                         markupForSvg = {
@@ -11609,7 +11756,11 @@
                     }
 
                     const lineColor = this.resolveTopoLineColor(climbType, previewItem);
-                    const svg = this.buildPhotoMarkupOverlaySvg(markupForSvg, climbType, geom, { lineColor });
+                    const svg = this.buildPhotoMarkupOverlaySvg(markupForSvg, climbType, geom, {
+                        lineColor,
+                        climbId: previewItem._markupClimbId ?? previewItem?.dataset?.climbId,
+                        grade: previewItem._markupClimbGrade
+                    });
                     placeMarkupOverlaySvg(svg, previewItem, geom);
                     const stage = previewItem.querySelector('.photo-wrap .stage');
                     if (stage) {
@@ -12372,6 +12523,7 @@
                 dlg.querySelectorAll('.route-markup-mode-btn').forEach((btn) => {
                     btn.style.display = '';
                 });
+                dlg.querySelector('.markup-mode-toolbar')?.classList.remove('hidden');
                 const instr = dlg.querySelector('.markup-instructions');
                 if (instr) instr.style.display = '';
             }
@@ -12413,6 +12565,11 @@
                 dlg.querySelectorAll('.route-markup-mode-btn').forEach((btn) => {
                     btn.style.display = viewOnly ? 'none' : '';
                 });
+                const modeBar = dlg.querySelector('.markup-mode-toolbar');
+                if (modeBar) {
+                    modeBar.style.display = viewOnly ? 'none' : '';
+                    modeBar.classList.toggle('hidden', !!viewOnly);
+                }
                 const instr = dlg.querySelector('.markup-instructions');
                 if (instr) instr.style.display = viewOnly ? 'none' : '';
                 dlg.classList.toggle('markup-dialog--view-only', !!viewOnly);
@@ -12516,6 +12673,8 @@
                 this.routeMarkupMode = 'line';
                 this.currentRouteLineMarkup = {
                     points: [],
+                    startHolds: [],
+                    finishHold: null,
                     photoId: photoData.climbId,
                     climbId: photoData.climbId
                 };
@@ -12552,6 +12711,8 @@
                     const geom = getMarkupStageGeometry(container);
                     const m = normalizePhotoMarkup(photo.markup, 'route') || {
                         points: [],
+                        startHolds: [],
+                        finishHold: null,
                         coordSpace: 'image'
                     };
                     const imageCoords = m.coordSpace === 'image';
@@ -12560,6 +12721,16 @@
                             const n = boulderStoredToImageNorm(p, geom, imageCoords);
                             return { id: Date.now() + i, x: n.x, y: n.y };
                         }),
+                        startHolds: (m.startHolds || []).map((p, i) => {
+                            const n = boulderStoredToImageNorm(p, geom, imageCoords);
+                            return { id: Date.now() + 10000 + i, x: n.x, y: n.y };
+                        }),
+                        finishHold: m.finishHold
+                            ? (() => {
+                                const n = boulderStoredToImageNorm(m.finishHold, geom, imageCoords);
+                                return { id: Date.now() + 20000, x: n.x, y: n.y };
+                            })()
+                            : null,
                         photoId: photo.id,
                         climbId: climbId
                     };
@@ -12602,7 +12773,26 @@
                         ? this._climbDetailContext.climbGrade
                         : ''
                 });
-                appendTopoLineSvg(svg, 'http://www.w3.org/2000/svg', pts, geom, 'dots-both', lineColor);
+                appendTopoLineSvg(svg, 'http://www.w3.org/2000/svg', pts, geom, 'arrow', lineColor);
+                (this.currentRouteLineMarkup.startHolds || []).forEach((p, index) => {
+                    appendTopoHoldSvg(svg, 'http://www.w3.org/2000/svg', p, geom, { index });
+                });
+                if (this.currentRouteLineMarkup.finishHold) {
+                    appendTopoHoldSvg(
+                        svg,
+                        'http://www.w3.org/2000/svg',
+                        this.currentRouteLineMarkup.finishHold,
+                        geom,
+                        { label: 'Топ' }
+                    );
+                }
+                const gradeLabel = resolveRouteGradeForMarkup(
+                    this.currentRouteLineMarkup?.climbId,
+                    this._climbDetailContext?.climbType === 'route'
+                        ? this._climbDetailContext.climbGrade
+                        : ''
+                );
+                appendTopoGradeLabelOnLine(svg, 'http://www.w3.org/2000/svg', pts, geom, gradeLabel, lineColor);
             }
 
             deleteNearestRouteMarkupAt(x, y, geom) {
@@ -12615,9 +12805,27 @@
                         best = { kind: 'point', index, d };
                     }
                 });
+                (this.currentRouteLineMarkup.startHolds || []).forEach((point, index) => {
+                    const d = Math.hypot(point.x - x, point.y - y);
+                    if (d < best.d) {
+                        best = { kind: 'start', index, d };
+                    }
+                });
+                if (this.currentRouteLineMarkup.finishHold) {
+                    const d = Math.hypot(this.currentRouteLineMarkup.finishHold.x - x, this.currentRouteLineMarkup.finishHold.y - y);
+                    if (d < best.d) {
+                        best = { kind: 'top', index: 0, d };
+                    }
+                }
 
                 if (best.kind === 'point' && best.index !== -1) {
                     this.currentRouteLineMarkup.points.splice(best.index, 1);
+                    this.renderRouteLineMarkup();
+                } else if (best.kind === 'start' && best.index !== -1) {
+                    this.currentRouteLineMarkup.startHolds.splice(best.index, 1);
+                    this.renderRouteLineMarkup();
+                } else if (best.kind === 'top') {
+                    this.currentRouteLineMarkup.finishHold = null;
                     this.renderRouteLineMarkup();
                 }
             }
@@ -12647,7 +12855,13 @@
                         return;
                     }
 
-                    this.addRouteLinePoint(x, y);
+                    if (this.routeMarkupMode === 'starts') {
+                        this.addRouteStartHold(x, y);
+                    } else if (this.routeMarkupMode === 'top') {
+                        this.addRouteFinishHold(x, y);
+                    } else {
+                        this.addRouteLinePoint(x, y);
+                    }
                 }, { signal });
             }
 
@@ -12663,6 +12877,31 @@
                 this.renderRouteLineMarkup();
             }
 
+            addRouteStartHold(x, y) {
+                if (!this.currentRouteLineMarkup.startHolds) {
+                    this.currentRouteLineMarkup.startHolds = [];
+                }
+                if (this.currentRouteLineMarkup.startHolds.length >= 2) {
+                    this.showToast('Можно поставить не больше двух стартовых кружков', true);
+                    return;
+                }
+                this.currentRouteLineMarkup.startHolds.push({
+                    id: Date.now(),
+                    x,
+                    y
+                });
+                this.renderRouteLineMarkup();
+            }
+
+            addRouteFinishHold(x, y) {
+                this.currentRouteLineMarkup.finishHold = {
+                    id: Date.now(),
+                    x,
+                    y
+                };
+                this.renderRouteLineMarkup();
+            }
+
             renderRouteLineMarkup() {
                 const container = document.getElementById('routeLineMarkupContainer');
                 if (!container || !this.currentRouteLineMarkup) return;
@@ -12670,11 +12909,42 @@
                 applyTopoPhotoFraming(container, {
                     type: 'route-line',
                     coordSpace: 'image',
-                    points: this.currentRouteLineMarkup.points || []
+                    points: this.currentRouteLineMarkup.points || [],
+                    startHolds: this.currentRouteLineMarkup.startHolds || [],
+                    finishHold: this.currentRouteLineMarkup.finishHold
                 }, 'route');
                 const paint = () => {
                     const geom = getMarkupStageGeometry(container);
                     container.querySelectorAll('.hold-marker, .line-marker').forEach((marker) => marker.remove());
+
+                    if (!this._markupDialogViewOnly) {
+                        (this.currentRouteLineMarkup.startHolds || []).forEach((hold, index) => {
+                            const pos = markupPxFromNorm(hold.x, hold.y, geom);
+                            const marker = document.createElement('div');
+                            marker.className = 'hold-marker hold-marker--route-start';
+                            marker.style.left = `${pos.x}px`;
+                            marker.style.top = `${pos.y}px`;
+                            marker.dataset.index = String(index);
+                            const number = document.createElement('div');
+                            number.className = 'hold-number';
+                            number.textContent = String(index + 1);
+                            marker.appendChild(number);
+                            container.appendChild(marker);
+                        });
+                        if (this.currentRouteLineMarkup.finishHold) {
+                            const hold = this.currentRouteLineMarkup.finishHold;
+                            const pos = markupPxFromNorm(hold.x, hold.y, geom);
+                            const marker = document.createElement('div');
+                            marker.className = 'hold-marker hold-marker--labeled';
+                            marker.style.left = `${pos.x}px`;
+                            marker.style.top = `${pos.y}px`;
+                            const label = document.createElement('div');
+                            label.className = 'hold-label';
+                            label.textContent = 'Топ';
+                            marker.appendChild(label);
+                            container.appendChild(marker);
+                        }
+                    }
 
                     const pts = this.currentRouteLineMarkup.points || [];
                     if (!this._markupDialogViewOnly) {
@@ -12702,13 +12972,15 @@
             clearRouteLineMarkup() {
                 if (!confirm('Очистить всю разметку?')) return;
                 this.currentRouteLineMarkup.points = [];
+                this.currentRouteLineMarkup.startHolds = [];
+                this.currentRouteLineMarkup.finishHold = null;
                 this.renderRouteLineMarkup();
             }
 
             async saveRouteLineMarkup() {
                 if (!this.requireAdmin('Сохранение разметки')) return;
                 if ((this.currentRouteLineMarkup.points || []).length < 2) {
-                    this.showToast('Добавьте хотя бы две точки линии хода.', true);
+                    this.showToast('Добавьте хотя бы две точки линии (режим «Линия хода»). Старты и «Топ» — по желанию.', true);
                     return;
                 }
 
@@ -12716,11 +12988,22 @@
                     x: point.x,
                     y: point.y
                 }));
+                const normalizedStarts = (this.currentRouteLineMarkup.startHolds || [])
+                    .slice(0, 2)
+                    .map((point) => ({ x: point.x, y: point.y }));
+                const normalizedTop = this.currentRouteLineMarkup.finishHold
+                    ? {
+                        x: this.currentRouteLineMarkup.finishHold.x,
+                        y: this.currentRouteLineMarkup.finishHold.y
+                    }
+                    : null;
 
                 const buildSavedMarkup = () => ({
                     type: 'route-line',
                     coordSpace: 'image',
                     points: normalizedPoints,
+                    startHolds: normalizedStarts,
+                    finishHold: normalizedTop,
                     savedAt: new Date().toISOString()
                 });
 
