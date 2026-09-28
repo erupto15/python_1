@@ -12464,20 +12464,6 @@
                 this._boulderMarkupEditor = null;
             }
 
-            _syncRouteMarkupFromEditor(container) {
-                if (!this._routeMarkupEditor || !this.currentRouteLineMarkup) return;
-                this.currentRouteLineMarkup.points = this._routeMarkupEditor.exportRoutePoints().map((p, i) => ({
-                    id: Date.now() + i,
-                    x: p.x,
-                    y: p.y
-                }));
-                applyTopoPhotoFraming(container, {
-                    type: 'route-line',
-                    coordSpace: 'image',
-                    points: this.currentRouteLineMarkup.points
-                }, 'route');
-            }
-
             _syncBoulderMarkupFromEditor(container) {
                 if (!this._boulderMarkupEditor || !this.currentBoulderHoldsMarkup) return;
                 const m = this._boulderMarkupEditor.exportBoulderMarkup();
@@ -12499,28 +12485,6 @@
                     finishHold: this.currentBoulderHoldsMarkup.finishHold,
                     linePoints: this.currentBoulderHoldsMarkup.linePoints
                 }, 'boulder');
-            }
-
-            _ensureRouteMarkupEditor(container, viewOnly) {
-                if (!container || typeof MarkupEditor === 'undefined') return null;
-                const readOnly = !!viewOnly;
-                if (this._routeMarkupEditor && this._routeMarkupEditor.viewOnly !== readOnly) {
-                    this._destroyRouteMarkupEditor();
-                }
-                if (this._routeMarkupEditor) return this._routeMarkupEditor;
-
-                ensurePhotoStageWrap(container, { enableZoom: !readOnly });
-                this._routeMarkupEditor = new MarkupEditor({
-                    container,
-                    mode: 'route',
-                    viewOnly: readOnly,
-                    toolbarEl: document.getElementById('routeMarkupEditorToolbar'),
-                    toastEl: document.getElementById('routeMarkupToast'),
-                    clientToNorm: (cx, cy) => markupNormFromClient(container, cx, cy),
-                    getGeometry: () => getMarkupStageGeometry(container),
-                    onChange: () => this._syncRouteMarkupFromEditor(container)
-                });
-                return this._routeMarkupEditor;
             }
 
             _ensureBoulderMarkupEditor(container, viewOnly) {
@@ -12601,8 +12565,6 @@
                     };
                     if (!this._markupDialogViewOnly) {
                         this.setupRouteLineMarkupEvents();
-                    } else {
-                        this._ensureRouteMarkupEditor(container, true);
                     }
                     this.syncRouteMarkupModeUI();
                     this.renderRouteLineMarkup();
@@ -12625,6 +12587,7 @@
                 }
 
                 const geom = getMarkupStageGeometry(container);
+                svg.hidden = false;
                 svg.style.left = `${geom.left}px`;
                 svg.style.top = `${geom.top}px`;
                 svg.style.width = `${geom.iw}px`;
@@ -12669,11 +12632,23 @@
 
                 const onStageResize = () => {
                     if (document.getElementById('routeLineMarkupDialog')?.classList.contains('hidden')) return;
-                    this._routeMarkupEditor?.refreshLayout();
+                    this.renderRouteLineMarkup();
                 };
                 window.addEventListener('resize', onStageResize, { signal });
 
-                this._ensureRouteMarkupEditor(container, false);
+                container.addEventListener('click', (e) => {
+                    if (this._markupDialogViewOnly) return;
+                    if (e.target.closest('.hold-marker') || e.target.closest('.line-marker')) return;
+
+                    const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
+
+                    if (e.ctrlKey || e.metaKey) {
+                        this.deleteNearestRouteMarkupAt(x, y, geom);
+                        return;
+                    }
+
+                    this.addRouteLinePoint(x, y);
+                }, { signal });
             }
 
             addRouteLinePoint(x, y) {
@@ -12698,11 +12673,22 @@
                     points: this.currentRouteLineMarkup.points || []
                 }, 'route');
                 const paint = () => {
-                    const editor = this._ensureRouteMarkupEditor(container, this._markupDialogViewOnly);
-                    if (editor) {
-                        editor.loadRoutePoints(this.currentRouteLineMarkup.points || []);
-                        return;
+                    const geom = getMarkupStageGeometry(container);
+                    container.querySelectorAll('.hold-marker, .line-marker').forEach((marker) => marker.remove());
+
+                    const pts = this.currentRouteLineMarkup.points || [];
+                    if (!this._markupDialogViewOnly) {
+                        pts.forEach((point, index) => {
+                            const pos = markupPxFromNorm(point.x, point.y, geom);
+                            const marker = document.createElement('div');
+                            marker.className = 'line-marker';
+                            marker.style.left = `${pos.x}px`;
+                            marker.style.top = `${pos.y}px`;
+                            marker.dataset.index = String(index);
+                            container.appendChild(marker);
+                        });
                     }
+
                     this.updateRouteLinePolyline();
                 };
 
@@ -12716,16 +12702,11 @@
             clearRouteLineMarkup() {
                 if (!confirm('Очистить всю разметку?')) return;
                 this.currentRouteLineMarkup.points = [];
-                if (this._routeMarkupEditor) {
-                    this._routeMarkupEditor.clearAll();
-                } else {
-                    this.renderRouteLineMarkup();
-                }
+                this.renderRouteLineMarkup();
             }
 
             async saveRouteLineMarkup() {
                 if (!this.requireAdmin('Сохранение разметки')) return;
-                this._syncRouteMarkupFromEditor(document.getElementById('routeLineMarkupContainer'));
                 if ((this.currentRouteLineMarkup.points || []).length < 2) {
                     this.showToast('Добавьте хотя бы две точки линии хода.', true);
                     return;
