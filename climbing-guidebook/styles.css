@@ -3839,7 +3839,8 @@
             background: var(--map-accent, #e8472a);
         }
 
-        .map-boulder-sector-icon {
+        .map-boulder-sector-icon,
+        .map-route-sector-icon {
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -3847,12 +3848,20 @@
             height: 22px;
             margin-right: 5px;
             border-radius: 50%;
-            border: 2px solid var(--boulder-color, #f04d23);
             background: var(--card-bg, #151b24);
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
             vertical-align: middle;
             flex-shrink: 0;
+        }
+
+        .map-boulder-sector-icon {
+            border: 2px solid var(--boulder-color, #f04d23);
             color: var(--boulder-color, #f04d23);
+        }
+
+        .map-route-sector-icon {
+            border: 2px solid var(--route-color, #22b8a8);
+            color: var(--route-color, #22b8a8);
         }
 
         .map-boulder-sector-icon svg {
@@ -3861,7 +3870,14 @@
             height: auto;
         }
 
-        .map-feature-boulder-sector-icon {
+        .map-route-sector-icon svg {
+            display: block;
+            width: 11px;
+            height: auto;
+        }
+
+        .map-feature-boulder-sector-icon,
+        .map-feature-route-sector-icon {
             width: 30px;
             height: 30px;
             margin-right: 0;
@@ -3872,7 +3888,12 @@
             width: 15px;
         }
 
-        .map-feature-icon--sector_sign .map-feature-boulder-sector-icon {
+        .map-feature-route-sector-icon svg {
+            width: 14px;
+        }
+
+        .map-feature-icon--sector_sign .map-feature-boulder-sector-icon,
+        .map-feature-icon--sector_sign .map-feature-route-sector-icon {
             border: none;
             box-shadow: none;
             background: transparent;
@@ -3895,7 +3916,8 @@
             text-overflow: ellipsis;
         }
 
-        .map-boulder-sector-icon--tool {
+        .map-boulder-sector-icon--tool,
+        .map-route-sector-icon--tool {
             width: 16px;
             height: 16px;
             margin-right: 4px;
@@ -3904,6 +3926,10 @@
 
         .map-boulder-sector-icon--tool svg {
             width: 9px;
+        }
+
+        .map-route-sector-icon--tool svg {
+            width: 8px;
         }
 
         .parent-label .map-kind-icon--area {

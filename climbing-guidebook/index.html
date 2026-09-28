@@ -24,8 +24,8 @@
         if (window.CLIMBING_STANDALONE) return;
         var LEADER_KEY = '6a9a_tg_miniapp_leader_v1';
         var SESSION_ID_KEY = '6a9a_tg_miniapp_session_v1';
-        var STALE_MS = 3200;
         var HEARTBEAT_MS = 750;
+        var myLeaderId = null;
 
         function sessionId() {
             try {
@@ -72,36 +72,47 @@
             } catch (_) {}
         }
 
+        function shouldYieldToOtherLeader(leader) {
+            return !!(leader && myLeaderId && leader.id !== myLeaderId);
+        }
+
+        function bindLeaderCoordination(id) {
+            if (window._6a9aTgMiniAppLeaderBound) return;
+            window._6a9aTgMiniAppLeaderBound = true;
+            myLeaderId = id;
+
+            window.addEventListener('storage', function (e) {
+                if (window.CLIMBING_TG_DUPLICATE_INSTANCE) return;
+                if (e.key !== LEADER_KEY || !e.newValue) return;
+                try {
+                    var leader = JSON.parse(e.newValue);
+                    if (shouldYieldToOtherLeader(leader)) closeDuplicateInstance();
+                } catch (_) {}
+            });
+
+            window._6a9aTgMiniAppLeaderHeartbeat = setInterval(function () {
+                if (window.CLIMBING_TG_DUPLICATE_INSTANCE) return;
+                var leader = readLeader();
+                if (shouldYieldToOtherLeader(leader)) {
+                    closeDuplicateInstance();
+                    return;
+                }
+                writeLeader(id);
+            }, HEARTBEAT_MS);
+
+            window.addEventListener('pagehide', function () {
+                releaseLeader(id);
+            }, { once: true });
+        }
+
         function enforceSingleMiniAppInstance() {
             if (window.CLIMBING_TG_DUPLICATE_INSTANCE) return true;
             var tg = window.Telegram && window.Telegram.WebApp;
             if (!tg) return false;
 
             var id = sessionId();
-            var now = Date.now();
-            var leader = readLeader();
-            if (leader && leader.id !== id && (now - Number(leader.ts || 0)) < STALE_MS) {
-                closeDuplicateInstance();
-                return true;
-            }
-
             writeLeader(id);
-            setTimeout(function () {
-                if (window.CLIMBING_TG_DUPLICATE_INSTANCE) return;
-                var again = readLeader();
-                if (again && again.id !== id && (Date.now() - Number(again.ts || 0)) < STALE_MS) {
-                    closeDuplicateInstance();
-                }
-            }, 90);
-            if (!window._6a9aTgMiniAppLeaderHeartbeat) {
-                window._6a9aTgMiniAppLeaderHeartbeat = setInterval(function () {
-                    if (window.CLIMBING_TG_DUPLICATE_INSTANCE) return;
-                    writeLeader(id);
-                }, HEARTBEAT_MS);
-                window.addEventListener('pagehide', function () {
-                    releaseLeader(id);
-                }, { once: true });
-            }
+            bindLeaderCoordination(id);
             return false;
         }
 
@@ -517,7 +528,7 @@
                                 <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="parking"><span class="map-tool-glyph map-tool-glyph--p" aria-hidden="true">P</span> Парковка</button>
                                 <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="camping"><i class="fas fa-campground"></i> Кемпинг</button>
                                 <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="area_sign"><i class="fas fa-droplet map-tool-droplet" aria-hidden="true"></i> Район</button>
-                                <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="sector_sign"><span class="map-boulder-sector-icon map-boulder-sector-icon--tool" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26.27 41"><path fill="currentColor" d="M12.41,9.72A3.86,3.86,0,1,0,8.55,5.85,3.87,3.87,0,0,0,12.41,9.72Z"/><path fill="currentColor" d="M23.19,0a1.52,1.52,0,0,0-1.52,1.52,9.38,9.38,0,0,1-9,9.36c0,1-.08,2-.13,3A12.42,12.42,0,0,0,24.71,1.52,1.52,1.52,0,0,0,23.19,0Z"/><rect fill="currentColor" x="8.77" y="12" width="7.29" height="6.23"/><path fill="currentColor" d="M3.11,40.08A1.82,1.82,0,0,1,1.5,37.41l7.26-13.9A1.82,1.82,0,0,1,12,25.2L4.72,39.1A1.82,1.82,0,0,1,3.11,40.08Z"/><path fill="currentColor" d="M19,30.5a1.82,1.82,0,0,1-1.77-2.27l1.27-4.94L14.9,24.77a1.82,1.82,0,0,1-1.38-3.37l7-2.86a1.82,1.82,0,0,1,2.46,2.14l-2.17,8.45A1.82,1.82,0,0,1,19,30.5Z"/><path fill="currentColor" d="M15.44,18.25a.61.61,0,0,1,0-1.22,9.89,9.89,0,0,0,8.25-4.51c1.34-2.15,2.37-5.86-.33-11.36A.61.61,0,0,1,24.45.63c2.94,6,1.77,10.13.27,12.54A11.13,11.13,0,0,1,15.44,18.25Z"/><path fill="currentColor" d="M8.76,20.37v3a2,2,0,0,0,2,2H13c1.13,0,3-1.08,3-2.16V20.37Z"/><rect fill="currentColor" x="12.54" y="26.75" width="1.22" height="14.26"/><path fill="currentColor" d="M12.7,10.88l-.29,0A12.43,12.43,0,0,0,0,23.27a1.52,1.52,0,1,0,3,0,9.39,9.39,0,0,1,9.38-9.37h.29Z"/></svg></span> Сектор</button>
+                                <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="sector_sign"><span class="map-route-sector-icon map-route-sector-icon--tool" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26.27 41"><path fill="currentColor" d="M12.41,9.72A3.86,3.86,0,1,0,8.55,5.85,3.87,3.87,0,0,0,12.41,9.72Z"/><path fill="currentColor" d="M23.19,0a1.52,1.52,0,0,0-1.52,1.52,9.38,9.38,0,0,1-9,9.36c0,1-.08,2-.13,3A12.42,12.42,0,0,0,24.71,1.52,1.52,1.52,0,0,0,23.19,0Z"/><rect fill="currentColor" x="8.77" y="12" width="7.29" height="6.23"/><path fill="currentColor" d="M3.11,40.08A1.82,1.82,0,0,1,1.5,37.41l7.26-13.9A1.82,1.82,0,0,1,12,25.2L4.72,39.1A1.82,1.82,0,0,1,3.11,40.08Z"/><path fill="currentColor" d="M19,30.5a1.82,1.82,0,0,1-1.77-2.27l1.27-4.94L14.9,24.77a1.82,1.82,0,0,1-1.38-3.37l7-2.86a1.82,1.82,0,0,1,2.46,2.14l-2.17,8.45A1.82,1.82,0,0,1,19,30.5Z"/><path fill="currentColor" d="M15.44,18.25a.61.61,0,0,1,0-1.22,9.89,9.89,0,0,0,8.25-4.51c1.34-2.15,2.37-5.86-.33-11.36A.61.61,0,0,1,24.45.63c2.94,6,1.77,10.13.27,12.54A11.13,11.13,0,0,1,15.44,18.25Z"/><path fill="currentColor" d="M8.76,20.37v3a2,2,0,0,0,2,2H13c1.13,0,3-1.08,3-2.16V20.37Z"/><rect fill="currentColor" x="12.54" y="26.75" width="1.22" height="14.26"/><path fill="currentColor" d="M12.7,10.88l-.29,0A12.43,12.43,0,0,0,0,23.27a1.52,1.52,0,1,0,3,0,9.39,9.39,0,0,1,9.38-9.37h.29Z"/></svg></span> Сектор</button>
                             </div>
                             <div class="map-filter-group">
                                 <button type="button" class="btn btn-small btn-secondary" id="mapFinishTrailBtn"><i class="fas fa-check"></i> Завершить тропу</button>
@@ -1042,9 +1053,6 @@
                                 <div id="climbDetailPhotoMount" class="photo-preview-with-markup climb-detail-photo-mount climb-detail-photo-swipe" role="button" tabindex="0" aria-label="Фото: свайп для переключения, нажатие для полного экрана">
                                     <img id="climbDetailImage" src="" alt="">
                                 </div>
-                                <button type="button" class="climb-detail-download-btn hidden" id="climbDetailSavePhotoBtn" title="Скачать фото со схемой" aria-label="Скачать фото со схемой">
-                                    <i class="fas fa-download" aria-hidden="true"></i>
-                                </button>
                                 <p id="climbDetailPhotoSwipeHint" class="climb-detail-photo-swipe-hint hidden">Свайп · полный экран</p>
                             </div>
                         </div>
@@ -1121,6 +1129,7 @@
             </div>
             <div class="dialog-footer dialog-footer--tg-native">
                 <button type="button" class="btn btn-primary" id="climbDetailMarkupBtn"><i class="fas fa-draw-polygon"></i> Схема на фото</button>
+                <button type="button" class="btn btn-secondary hidden" id="climbDetailSavePhotoBtn"><i class="fas fa-download"></i> Скачать фото</button>
                 <button type="button" class="btn btn-primary climb-detail-open-log-btn hidden" id="climbDetailOpenLogBtn"><i class="fas fa-check"></i> Пролаз</button>
             </div>
         </div>
