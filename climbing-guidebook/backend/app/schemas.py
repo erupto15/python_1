@@ -431,6 +431,8 @@ class AscentCreate(BaseModel):
     ascent_style: Optional[AscentStyle] = None
     tries: int = Field(default=1, ge=1, le=999)
     notes: Optional[str] = Field(None, max_length=2000)
+    stars: Optional[int] = Field(None, ge=1, le=3, description="Оценка качества (трассы)")
+    felt_grade: Optional[str] = Field(None, max_length=32, description="Кажущаяся категория")
 
     @field_validator("ascent_style", mode="before")
     @classmethod
@@ -500,6 +502,8 @@ class ClimbCommunityStats(BaseModel):
     attempt_count: int = 0
     ratings_count: int = 0
     avg_stars: Optional[float] = None
+    display_stars: Optional[float] = None
+    admin_stars: Optional[float] = None
     felt_grades: list[str] = Field(default_factory=list)
     recent_sends: list[ClimbSendEntry] = Field(default_factory=list)
     my_status: Optional[str] = None

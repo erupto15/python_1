@@ -73,6 +73,7 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION",
             "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION",
             "ALTER TABLE routes ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0",
+            "ALTER TABLE routes ADD COLUMN IF NOT EXISTS admin_rating DOUBLE PRECISION",
         ]
     else:
         statements = [
@@ -102,6 +103,7 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE sectors ADD COLUMN latitude REAL",
             "ALTER TABLE sectors ADD COLUMN longitude REAL",
             "ALTER TABLE routes ADD COLUMN sort_order INTEGER DEFAULT 0",
+            "ALTER TABLE routes ADD COLUMN admin_rating FLOAT",
         ]
     with engine.begin() as conn:
         for stmt in statements:
@@ -160,5 +162,15 @@ def ensure_optional_columns() -> None:
             count, max_so, min_so = int(stats[0] or 0), int(stats[1] or 0), int(stats[2] or 0)
             if count > 0 and max_so == 0 and min_so == 0:
                 conn.execute(text("UPDATE routes SET sort_order = id"))
+        except Exception:
+            pass
+
+        try:
+            conn.execute(
+                text(
+                    "UPDATE routes SET admin_rating = rating "
+                    "WHERE admin_rating IS NULL AND rating IS NOT NULL"
+                )
+            )
         except Exception:
             pass

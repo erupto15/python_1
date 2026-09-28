@@ -9,8 +9,15 @@ from app.db import get_db
 from app.deps import assert_admin, get_current_user
 from app.models import Area, Photo, Route, Sector, User
 from app.services.climb_community_cleanup import purge_ascents_and_ratings_for_route
+from app.services.climb_rating import sync_climb_star_average
 
 router = APIRouter(prefix="/routes", tags=["routes"])
+
+
+def _apply_route_admin_rating(route: Route, rating: float | None) -> None:
+    route.admin_rating = rating
+    if rating is not None:
+        route.rating = rating
 
 
 def _validate_active_sector_area(db: Session, sector_id: int | None, area_id: int | None) -> Sector:
@@ -59,10 +66,16 @@ def create_route(
             .scalar()
         )
         data["sort_order"] = int(max_so or 0) + 1
+    admin_rating = data.pop("rating", None)
     route = Route(**data)
+    if admin_rating is not None:
+        _apply_route_admin_rating(route, admin_rating)
     db.add(route)
     db.commit()
     db.refresh(route)
+    if admin_rating is not None:
+        sync_climb_star_average(db, "route", route_id=route.id)
+        db.refresh(route)
     return route
 
 
@@ -135,10 +148,16 @@ def update_route(
             data.get("sector_id", route.sector_id),
             data.get("area_id", route.area_id),
         )
+    admin_rating_update = data.pop("rating", None) if "rating" in data else None
     for k, v in data.items():
         setattr(route, k, v)
+    if admin_rating_update is not None:
+        _apply_route_admin_rating(route, admin_rating_update)
     db.commit()
     db.refresh(route)
+    if admin_rating_update is not None:
+        sync_climb_star_average(db, "route", route_id=route.id)
+        db.refresh(route)
     return route
 
 

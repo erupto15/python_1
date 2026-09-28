@@ -12,7 +12,7 @@ from app.db import get_db
 from app.deps import get_current_user, get_current_user_optional
 from app.models import Area, Boulder, ClimbAscent, ClimbUserRating, Route, Sector, User
 from app.services.climb_community_cleanup import purge_community_for_soft_deleted_climbs
-from app.services.climb_rating import star_average, sync_climb_star_average
+from app.services.climb_rating import star_average, sync_climb_star_average, upsert_climb_user_rating
 from app.services.climb_score import build_leaderboard
 
 router = APIRouter(tags=["community"])
@@ -197,6 +197,20 @@ def log_ascent(
     db.add(row)
     db.commit()
     db.refresh(row)
+    if climb_type == "route" and payload.status == "send":
+        stars = payload.stars
+        felt = (payload.felt_grade or "").strip() or None
+        if stars is not None or felt:
+            vote_stars = stars if stars is not None else 2
+            upsert_climb_user_rating(
+                db,
+                user_id=current.id,
+                climb_type=climb_type,
+                route_id=route_id,
+                boulder_id=boulder_id,
+                stars=int(vote_stars),
+                felt_grade=felt,
+            )
     return row
 
 
@@ -227,24 +241,15 @@ def upsert_rating(
         q = q.filter(ClimbUserRating.route_id == route_id)
     else:
         q = q.filter(ClimbUserRating.boulder_id == boulder_id)
-    row = q.first()
-    felt = (payload.felt_grade or "").strip() or None
-    if row:
-        row.stars = payload.stars
-        row.felt_grade = felt
-    else:
-        row = ClimbUserRating(
-            user_id=current.id,
-            climb_type=climb_type,
-            route_id=route_id,
-            boulder_id=boulder_id,
-            stars=payload.stars,
-            felt_grade=felt,
-        )
-        db.add(row)
-    db.commit()
-    db.refresh(row)
-    sync_climb_star_average(db, climb_type, route_id, boulder_id)
+    row = upsert_climb_user_rating(
+        db,
+        user_id=current.id,
+        climb_type=climb_type,
+        route_id=route_id,
+        boulder_id=boulder_id,
+        stars=payload.stars,
+        felt_grade=payload.felt_grade,
+    )
     return row
 
 
@@ -320,12 +325,13 @@ def climb_stats(
     attempt_count = ascent_q.filter(ClimbAscent.status == "attempt").count()
     star_rows = [int(row[0]) for row in rating_q.with_entities(ClimbUserRating.stars).all()]
     ratings_count = len(star_rows)
-    avg = star_average(star_rows)
+    avg, _, display = sync_climb_star_average(db, climb_type, route_id, boulder_id)
     climb = db.get(Route, route_id) if climb_type == "route" else db.get(Boulder, boulder_id)
-    if climb is not None and climb.rating != avg:
-        climb.rating = avg
-        db.add(climb)
-        db.commit()
+    admin_stars = None
+    if climb_type == "route" and climb is not None:
+        admin_stars = getattr(climb, "admin_rating", None)
+        if display is None and climb.rating is not None:
+            display = climb.rating
     if climb_type == "route":
         felt_rows = (
             db.query(ClimbUserRating.felt_grade)
@@ -391,6 +397,8 @@ def climb_stats(
         attempt_count=attempt_count,
         ratings_count=ratings_count,
         avg_stars=avg,
+        display_stars=display,
+        admin_stars=admin_stars,
         felt_grades=felt_grades,
         recent_sends=recent_sends,
         my_status=my_status,

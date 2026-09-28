@@ -102,6 +102,7 @@ class Route(Base):
     sector_label: Mapped[Optional[str]] = mapped_column(String(255))
     category: Mapped[Optional[str]] = mapped_column(String(64))
     rating: Mapped[Optional[float]] = mapped_column(Float)
+    admin_rating: Mapped[Optional[float]] = mapped_column(Float)
     latitude: Mapped[Optional[float]] = mapped_column(Float)
     longitude: Mapped[Optional[float]] = mapped_column(Float)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0", index=True)

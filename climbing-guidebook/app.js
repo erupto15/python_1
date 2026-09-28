@@ -3603,6 +3603,16 @@
             return `${avg} ★`;
         }
 
+        function resolveClimbDisplayRating(stats, climbType) {
+            if (!stats) return null;
+            if (climbType === 'route') {
+                if (stats.display_stars != null && stats.display_stars !== '') {
+                    return stats.display_stars;
+                }
+            }
+            return stats.display_stars ?? stats.avg_stars ?? null;
+        }
+
         function patchClimbRatingInLocalCache(climbType, climbId, rating) {
             const data = getClimbingData();
             if (climbType === 'route') {
@@ -13382,6 +13392,16 @@
                 if (status === 'send' && !body.ascent_style) {
                     throw new Error('Выберите тип пролаза: онсайт, флэш или редпоинт');
                 }
+                if (climbType === 'route' && status === 'send') {
+                    const picked = Number(this._climbLogPickedStars || 0);
+                    if (picked >= 1 && picked <= 3) {
+                        body.stars = picked;
+                    }
+                    const felt = (document.getElementById('climbLogFeltGrade')?.value || '').trim();
+                    if (felt) {
+                        body.felt_grade = felt;
+                    }
+                }
                 if (typeof window.setTelegramMainButtonLoading === 'function') {
                     window.setTelegramMainButtonLoading(true);
                 }
@@ -13532,6 +13552,15 @@
                 if (stats.my_status === 'send') {
                     parts.push('<span class="climb-sent-badge">вы пролазали</span>');
                 }
+                const ctx = this._climbDetailContext;
+                const climbType = ctx?.climbType;
+                const displayRating = resolveClimbDisplayRating(stats, climbType);
+                if (climbType === 'route' && displayRating != null && displayRating !== '') {
+                    parts.push(`${parts.length ? ' · ' : ''}рейтинг: ★ ${this.escapeHtml(formatStarAverage(displayRating))}`);
+                    if (stats.ratings_count > 0 && stats.admin_stars != null) {
+                        parts.push(` <span style="color:var(--light-text);">(база ★ ${this.escapeHtml(formatStarAverage(stats.admin_stars))}, голосов ${stats.ratings_count})</span>`);
+                    }
+                }
                 if (stats.felt_grades?.length) {
                     parts.push(`${parts.length ? ' · ' : ''}мнения: ${stats.felt_grades.map((g) => this.escapeHtml(g)).join(', ')}`);
                 }
@@ -13644,7 +13673,7 @@
                 try {
                     const stats = await this.fetchClimbCommunityStats(climbType, climbId);
                     this._climbCommunityStats = stats;
-                    patchClimbRatingInLocalCache(climbType, climbId, stats.avg_stars);
+                    patchClimbRatingInLocalCache(climbType, climbId, resolveClimbDisplayRating(stats, climbType));
                     statsEl.innerHTML = this.buildClimbCommunityStatsHtml(stats);
                     if (sendsEl) {
                         sendsEl.innerHTML = this.buildClimbCommunitySendsHtml(stats);
@@ -13989,7 +14018,7 @@
                             </div>
                         </div>
                         <div class="climb-log-field">
-                            <span class="form-label">Оценка качества</span>
+                            <span class="form-label">Оценка качества${climbType === 'route' ? ' (влияет на рейтинг трассы)' : ''}</span>
                             <span id="climbLogUserStarsPicker"></span>
                         </div>
                     `;
@@ -14010,16 +14039,18 @@
                     });
 
                     let pickedStars = Math.min(3, stats.my_stars || 0);
+                    this._climbLogPickedStars = pickedStars;
                     const starsWrap = document.getElementById('climbLogUserStarsPicker');
                     const starPickHandler = (n) => {
                         void (async () => {
                             try {
                                 const next = await this.saveCommunityStarRating(climbType, climbId, n, pickedStars);
                                 pickedStars = next;
+                                this._climbLogPickedStars = pickedStars;
                                 this.renderCommunityStarPicker(starsWrap, pickedStars, starPickHandler);
                                 const fresh = await this.fetchClimbCommunityStats(climbType, climbId);
                                 this._climbCommunityStats = fresh;
-                                patchClimbRatingInLocalCache(climbType, climbId, fresh.avg_stars);
+                                patchClimbRatingInLocalCache(climbType, climbId, resolveClimbDisplayRating(fresh, climbType));
                                 await this.refreshClimbDetailViewPanel(climbType, climbId);
                                 this.renderCatalog();
                                 if (!APP_BOULDER_ONLY) this.renderRoutes();
