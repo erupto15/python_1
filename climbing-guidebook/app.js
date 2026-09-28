@@ -2108,8 +2108,8 @@
 
                         const gradeForLine = climbType === 'route'
                             ? (climbGrade || resolveRouteGradeForMarkup(photo?.climbId || photo?.route_id, ''))
-                            : '';
-                        const lineColor = climbType === 'route'
+                            : (climbGrade || resolveBoulderGradeForMarkup(photo?.climbId || photo?.boulder_id, ''));
+                        const lineColor = gradeForLine
                             ? topoLineColorFromGrade(gradeForLine)
                             : TOPO_MARKUP.lineColor;
 
@@ -2236,6 +2236,26 @@
                             drawLineEnd(linePts, 'arrow');
                             if (boulderMarkup.startHold) drawLabeledHold(boulderMarkup.startHold, 'Старт');
                             if (boulderMarkup.finishHold) drawLabeledHold(boulderMarkup.finishHold, 'Финиш');
+                            if (gradeForLine) {
+                                const mid = topoLineMidpointNorm(linePts);
+                                if (mid) {
+                                    const q = toPx(mid);
+                                    ctx.font = `800 ${Math.max(11, Math.round(Math.min(w, h) * 0.018))}px system-ui, sans-serif`;
+                                    const tw = ctx.measureText(gradeForLine).width;
+                                    const pad = 6;
+                                    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+                                    ctx.strokeStyle = lineColor;
+                                    ctx.lineWidth = 2;
+                                    const bx = q.x - tw / 2 - pad;
+                                    const by = q.y - 10;
+                                    ctx.fillRect(bx, by, tw + pad * 2, 20);
+                                    ctx.strokeRect(bx, by, tw + pad * 2, 20);
+                                    ctx.fillStyle = lineColor;
+                                    ctx.textAlign = 'center';
+                                    ctx.textBaseline = 'middle';
+                                    ctx.fillText(gradeForLine, q.x, q.y);
+                                }
+                            }
                         }
 
                         resolve(canvas.toDataURL('image/jpeg', 0.92));
@@ -4738,10 +4758,18 @@
 
         function resolveRouteGradeForMarkup(climbId, explicitGrade = '') {
             const g = String(explicitGrade || '').trim();
-            if (g) return g;
+            if (g) return normalizeRouteGrade(g);
             if (climbId == null || climbId === '') return '';
             const route = getRoutes().find((r) => String(r.id) === String(climbId));
-            return route?.grade ? String(route.grade) : '';
+            return route?.grade ? normalizeRouteGrade(String(route.grade)) : '';
+        }
+
+        function resolveBoulderGradeForMarkup(climbId, explicitGrade = '') {
+            const g = String(explicitGrade || '').trim();
+            if (g) return normalizeBoulderGrade(g);
+            if (climbId == null || climbId === '') return '';
+            const boulder = getBoulders().find((b) => String(b.id) === String(climbId));
+            return boulder?.grade ? normalizeBoulderGrade(String(boulder.grade)) : '';
         }
 
         function topoLineMidpointNorm(linePts) {
@@ -11622,7 +11650,11 @@
                     appendTopoGradeLabelOnLine(svg, NS, pts, geom, gradeLabel, lineColor);
                 } else if (climbType === 'boulder' && markup.type === 'boulder-holds') {
                     const linePts = markup.linePoints || [];
-                    appendTopoLineSvg(svg, NS, linePts, geom, 'arrow', TOPO_MARKUP.lineColor);
+                    const gradeLabel = options.gradeLabel
+                        || resolveBoulderGradeForMarkup(options.climbId, options.grade || '');
+                    const boulderLineColor = lineColor || topoLineColorFromGrade(gradeLabel);
+                    appendTopoLineSvg(svg, NS, linePts, geom, 'arrow', boulderLineColor);
+                    appendTopoGradeLabelOnLine(svg, NS, linePts, geom, gradeLabel, boulderLineColor);
                     if (markup.startHold) appendTopoHoldSvg(svg, NS, markup.startHold, geom, { label: 'Старт' });
                     if (markup.finishHold) appendTopoHoldSvg(svg, NS, markup.finishHold, geom, { label: 'Финиш' });
                 }
@@ -11631,20 +11663,20 @@
             }
 
             resolveTopoLineColor(climbType, previewItem = null, opts = {}) {
-                if (climbType !== 'route') return TOPO_MARKUP.lineColor;
                 const climbId = opts.climbId
                     ?? previewItem?._markupClimbId
                     ?? previewItem?.dataset?.climbId
-                    ?? (this._climbDetailContext?.climbType === 'route' ? this._climbDetailContext.climbId : null)
-                    ?? this.currentRouteLineMarkup?.climbId
+                    ?? (this._climbDetailContext?.climbType === climbType ? this._climbDetailContext.climbId : null)
+                    ?? (climbType === 'route' ? this.currentRouteLineMarkup?.climbId : this.currentBoulderHoldsMarkup?.climbId)
                     ?? null;
-                const grade = resolveRouteGradeForMarkup(
-                    climbId,
-                    opts.grade
-                        || previewItem?._markupClimbGrade
-                        || (this._climbDetailContext?.climbType === 'route' ? this._climbDetailContext.climbGrade : '')
-                        || ''
-                );
+                const explicitGrade = opts.grade
+                    || previewItem?._markupClimbGrade
+                    || (this._climbDetailContext?.climbType === climbType ? this._climbDetailContext.climbGrade : '')
+                    || '';
+                const grade = climbType === 'boulder'
+                    ? resolveBoulderGradeForMarkup(climbId, explicitGrade)
+                    : resolveRouteGradeForMarkup(climbId, explicitGrade);
+                if (!grade) return TOPO_MARKUP.lineColor;
                 return topoLineColorFromGrade(grade);
             }
 
@@ -13192,7 +13224,20 @@
                 svg.setAttribute('preserveAspectRatio', 'none');
 
                 const pts = this.currentBoulderHoldsMarkup?.linePoints || [];
-                appendBoulderLineSvg(svg, 'http://www.w3.org/2000/svg', pts, geom, 'arrow');
+                const lineColor = this.resolveTopoLineColor('boulder', null, {
+                    climbId: this.currentBoulderHoldsMarkup?.climbId,
+                    grade: this._climbDetailContext?.climbType === 'boulder'
+                        ? this._climbDetailContext.climbGrade
+                        : ''
+                });
+                appendBoulderLineSvg(svg, 'http://www.w3.org/2000/svg', pts, geom, 'arrow', lineColor);
+                const gradeLabel = resolveBoulderGradeForMarkup(
+                    this.currentBoulderHoldsMarkup?.climbId,
+                    this._climbDetailContext?.climbType === 'boulder'
+                        ? this._climbDetailContext.climbGrade
+                        : ''
+                );
+                appendTopoGradeLabelOnLine(svg, 'http://www.w3.org/2000/svg', pts, geom, gradeLabel, lineColor);
                 if (this.currentBoulderHoldsMarkup.startHold) {
                     appendBoulderHoldSvg(svg, 'http://www.w3.org/2000/svg', this.currentBoulderHoldsMarkup.startHold, geom, { label: 'Старт' });
                 }
