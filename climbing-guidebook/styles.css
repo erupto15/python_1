@@ -3405,32 +3405,6 @@
             font-size: 22px;
         }
 
-        .dialog-footer--log-submit {
-            justify-content: center;
-            align-items: center;
-            flex-direction: row;
-            width: 100%;
-            padding-top: 8px;
-        }
-
-        .dialog-footer--log-submit .climb-log-add-btn--submit {
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        @media (max-width: 400px) {
-            #climbLogDialog .dialog-footer--log-submit {
-                flex-direction: row;
-                align-items: center;
-                justify-content: center;
-            }
-
-            #climbLogDialog .dialog-footer--log-submit .climb-log-add-btn--submit {
-                width: 44px;
-                flex: 0 0 auto;
-            }
-        }
-
         .climb-detail-log-row {
             display: flex;
             align-items: center;
@@ -3566,6 +3540,29 @@
 
             .dialog-footer .btn {
                 width: 100%;
+                justify-content: center;
+            }
+        }
+
+        #climbLogDialog .dialog-footer.dialog-footer--log-submit {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            padding-top: 10px;
+        }
+
+        #climbLogDialog .dialog-footer.dialog-footer--log-submit .climb-log-add-btn--submit {
+            flex: 0 0 auto;
+            margin: 0;
+        }
+
+        @media (max-width: 400px) {
+            #climbLogDialog .dialog-footer.dialog-footer--log-submit {
+                flex-direction: row;
+                align-items: center;
                 justify-content: center;
             }
         }
