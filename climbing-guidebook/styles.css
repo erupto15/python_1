@@ -3369,9 +3369,9 @@
         }
 
         .climb-log-add-btn::before {
-            content: '+';
-            font-size: 20px;
-            font-weight: 700;
+            content: '✓';
+            font-size: 18px;
+            font-weight: 800;
             line-height: 1;
             color: var(--primary-color);
         }
@@ -3402,7 +3402,7 @@
         }
 
         .climb-log-add-btn--submit::before {
-            font-size: 24px;
+            font-size: 22px;
         }
 
         .dialog-footer--log-submit {
