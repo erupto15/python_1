@@ -14697,23 +14697,15 @@
             renderProfileStatsGrid(profile, ascents = []) {
                 const grid = document.getElementById('profileStatsGrid');
                 if (!grid) return;
-                const stylesCount = profile.styles_count ?? profile.attempts_count ?? 0;
                 grid.className = 'profile-stats-grid';
                 grid.innerHTML = `
                     ${this.buildProfileSendsStatCardHtml(profile.sends_count ?? 0, ascents)}
-                    <button type="button" class="profile-stat-card" data-profile-stat="styles" aria-label="Стили пролаза">
-                        <strong>${stylesCount}</strong>
-                        <span class="profile-stat-card-label">стилей</span>
-                    </button>
                     <div class="profile-stat-card">
                         <strong>${profile.ratings_count ?? 0}</strong>
                         <span class="profile-stat-card-label">рейтинг</span>
                     </div>
                 `;
                 this.bindProfileSendsStatCardClicks(grid.querySelector('[data-profile-stat="sends"]'));
-                grid.querySelector('[data-profile-stat="styles"]')?.addEventListener('click', () => {
-                    void this.openProfileStylesDialog();
-                });
             }
 
             isClimbInCatalog(climbType, climbId) {
