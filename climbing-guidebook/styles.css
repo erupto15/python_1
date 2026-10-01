@@ -3395,6 +3395,41 @@
             display: none;
         }
 
+        .climb-log-sent-mark {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid #2e7d32;
+            background: color-mix(in srgb, #2e7d32 14%, transparent);
+            color: #2e7d32;
+            font-size: 18px;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .climb-log-sent-mark.hidden {
+            display: none;
+        }
+
+        .climb-sent-check {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.15em;
+            height: 1.15em;
+            margin-right: 6px;
+            border-radius: 50%;
+            border: 1px solid #2e7d32;
+            color: #2e7d32;
+            font-size: 0.85em;
+            font-weight: 800;
+            vertical-align: middle;
+        }
+
         .climb-log-add-btn--submit {
             width: 44px;
             height: 44px;

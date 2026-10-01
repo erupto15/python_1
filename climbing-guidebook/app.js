@@ -5464,6 +5464,13 @@
                 }
                 this.applyRoleUI();
                 if (this.isLoggedIn()) {
+                    void this.ensureClimbLogbookReady().then(() => {
+                        if (!APP_BOULDER_ONLY) {
+                            this.renderRoutes();
+                        }
+                        this.renderBoulders();
+                        this.renderCatalog();
+                    });
                     void this.refreshProfileLogbookSection();
                 }
                 if (this.map) {
@@ -5619,7 +5626,25 @@
 
             async tryTelegramLogin() {
                 if (!window.isTelegramMiniApp?.() || !window.__TG_INIT_DATA) return false;
-                if (getAuthData().accessToken) return false;
+                if (getAuthData().accessToken) {
+                    if (!getAuthData().currentUser) {
+                        try {
+                            const me = await apiFetch('/api/auth/me');
+                            saveAuthData({ ...getAuthData(), currentUser: me });
+                            this.auth = getAuthData();
+                            this.renderAuthUI();
+                            this.applyRoleUI();
+                        } catch (err) {
+                            console.warn('telegram session restore', err);
+                            return false;
+                        }
+                    }
+                    if (this.isTelegramUser()) {
+                        await this.loadAscentSummary();
+                        this.refreshListsAfterRoleChange();
+                    }
+                    return true;
+                }
                 try {
                     const tokenData = await apiFetch('/api/auth/telegram', {
                         method: 'POST',
@@ -5662,28 +5687,67 @@
                 }
             }
 
+            canUseClimbLogbook() {
+                return this.isLoggedIn() && this.isTelegramUser();
+            }
+
             hasUserSent(climbType, climbId) {
                 const s = this._ascentSummary;
                 if (!s) return false;
                 const id = Number(climbId);
-                if (climbType === 'route') return (s.sent_route_ids || []).includes(id);
-                return (s.sent_boulder_ids || []).includes(id);
+                if (!Number.isFinite(id)) return false;
+                const list = climbType === 'route'
+                    ? (s.sent_route_ids || [])
+                    : (s.sent_boulder_ids || []);
+                return list.some((x) => Number(x) === id);
+            }
+
+            markAscentSentLocally(climbType, climbId) {
+                const id = Number(climbId);
+                if (!Number.isFinite(id)) return;
+                if (!this._ascentSummary) {
+                    this._ascentSummary = {
+                        sent_route_ids: [],
+                        sent_boulder_ids: [],
+                        attempted_route_ids: [],
+                        attempted_boulder_ids: []
+                    };
+                }
+                const sentKey = climbType === 'route' ? 'sent_route_ids' : 'sent_boulder_ids';
+                const attKey = climbType === 'route' ? 'attempted_route_ids' : 'attempted_boulder_ids';
+                const sent = (this._ascentSummary[sentKey] || []).map(Number).filter(Number.isFinite);
+                if (!sent.includes(id)) {
+                    sent.push(id);
+                    sent.sort((a, b) => a - b);
+                    this._ascentSummary[sentKey] = sent;
+                }
+                this._ascentSummary[attKey] = (this._ascentSummary[attKey] || [])
+                    .map(Number)
+                    .filter((x) => Number.isFinite(x) && x !== id);
+            }
+
+            async ensureClimbLogbookReady() {
+                if (!this.canUseClimbLogbook()) return;
+                if (this._ascentSummary) return;
+                await this.loadAscentSummary();
             }
 
             climbSentRowAttrs(climbType, climbId) {
                 if (!this.hasUserSent(climbType, climbId)) return { className: '', badge: '' };
                 return {
                     className: ' is-sent',
-                    badge: '<span class="climb-sent-check" title="Пролазано"><i class="fas fa-check"></i></span>'
+                    badge: '<span class="climb-sent-check" title="Пролазано" aria-hidden="true">✓</span>'
                 };
             }
 
-            renderClimbLogAddBtn(climbType, climbId) {
-                if (!this.isLoggedIn() || !this.isTelegramUser()) return '';
-                if (this.hasUserSent(climbType, climbId)) return '';
+            renderClimbLogStatusCell(climbType, climbId) {
+                if (!this.canUseClimbLogbook()) return '';
                 const ct = climbType === 'route' ? 'route' : 'boulder';
                 const id = Number(climbId);
                 if (!Number.isFinite(id)) return '';
+                if (this.hasUserSent(climbType, climbId)) {
+                    return '<span class="climb-log-sent-mark" title="Пролазано" aria-label="Пролазано">✓</span>';
+                }
                 return `<button type="button" class="climb-log-add-btn" data-climb-log-add="${ct}" data-climb-id="${id}" aria-label="Добавить в логбук" title="Записать пролаз"><i class="fas fa-plus" aria-hidden="true"></i></button>`;
             }
 
@@ -5949,21 +6013,24 @@
              * иначе десятки base64-картинок в одном синхронном проходе дают длинный фриз.
              */
             refreshListsAfterRoleChange() {
-                this.renderCatalog();
-                if (!APP_BOULDER_ONLY) {
-                    this.renderRoutes();
-                }
-                this.renderBoulders();
-                const activeTab = document.querySelector('.tab-content.active')?.id || '';
-                if (activeTab !== 'photos') {
-                    return;
-                }
-                const run = () => this.renderPhotoAlbum();
-                if (typeof requestAnimationFrame === 'function') {
-                    requestAnimationFrame(() => requestAnimationFrame(run));
-                } else {
-                    setTimeout(run, 0);
-                }
+                const finish = () => {
+                    this.renderCatalog();
+                    if (!APP_BOULDER_ONLY) {
+                        this.renderRoutes();
+                    }
+                    this.renderBoulders();
+                    const activeTab = document.querySelector('.tab-content.active')?.id || '';
+                    if (activeTab !== 'photos') {
+                        return;
+                    }
+                    const run = () => this.renderPhotoAlbum();
+                    if (typeof requestAnimationFrame === 'function') {
+                        requestAnimationFrame(() => requestAnimationFrame(run));
+                    } else {
+                        setTimeout(run, 0);
+                    }
+                };
+                void this.ensureClimbLogbookReady().finally(finish);
             }
 
             setStarRating(targetId, value) {
@@ -9533,7 +9600,7 @@
                                             ${routeDesc ? `<div class="catalog-climb-desc">${this.escapeHtml(routeDesc)}</div>` : ''}
                                         </div>
                                     </button>
-                                    ${this.renderClimbLogAddBtn('route', r.id)}
+                                    ${this.renderClimbLogStatusCell('route', r.id)}
                                     <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                                         ${this.renderRowActions(`data-action="edit-route" data-route-id="${r.id}"`, `data-action="delete-route" data-route-id="${r.id}"`)}
                                     </div>
@@ -9560,7 +9627,7 @@
                                             ${boulderDesc ? `<div class="catalog-climb-desc">${this.escapeHtml(boulderDesc)}</div>` : ''}
                                         </div>
                                     </button>
-                                    ${this.renderClimbLogAddBtn('boulder', b.id)}
+                                    ${this.renderClimbLogStatusCell('boulder', b.id)}
                                     <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                                         ${this.renderRowActions(`data-action="edit-boulder" data-boulder-id="${b.id}"`, `data-action="delete-boulder" data-boulder-id="${b.id}"`)}
                                     </div>
@@ -10446,7 +10513,7 @@
                                 ${route.description ? `<div class="catalog-climb-desc">${this.escapeHtml(route.description)}</div>` : ''}
                             </div>
                         </button>
-                        ${this.renderClimbLogAddBtn('route', route.id)}
+                        ${this.renderClimbLogStatusCell('route', route.id)}
                         <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                             ${this.renderRowActions(`data-action="edit-route" data-route-id="${route.id}"`, `data-action="delete-route" data-route-id="${route.id}"`)}
                         </div>
@@ -10618,7 +10685,7 @@
                                 ${boulder.description ? `<div class="catalog-climb-desc">${this.escapeHtml(boulder.description)}</div>` : ''}
                             </div>
                         </button>
-                        ${this.renderClimbLogAddBtn('boulder', boulder.id)}
+                        ${this.renderClimbLogStatusCell('boulder', boulder.id)}
                         <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                             ${this.renderRowActions(`data-action="edit-boulder" data-boulder-id="${boulder.id}"`, `data-action="delete-boulder" data-boulder-id="${boulder.id}"`)}
                         </div>
@@ -12604,14 +12671,19 @@
             syncClimbDetailFooterActions() {
                 const logBtn = document.getElementById('climbDetailOpenLogBtn');
                 const logRow = document.getElementById('climbDetailLogRow');
+                const sentMark = document.getElementById('climbDetailSentMark');
+                const logLabel = logRow?.querySelector('.climb-detail-log-row-label');
                 const ctx = this._climbDetailContext;
-                const canLog = this.isLoggedIn() && this.isTelegramUser();
+                const canLog = this.canUseClimbLogbook();
                 const alreadySent = ctx
                     && (this.hasUserSent(ctx.climbType, ctx.climbId)
                         || this._climbCommunityStats?.my_status === 'send');
-                const showLog = canLog && !alreadySent;
-                logBtn?.classList.toggle('hidden', !showLog);
-                logRow?.classList.toggle('hidden', !showLog);
+                logRow?.classList.toggle('hidden', !canLog);
+                logBtn?.classList.toggle('hidden', !canLog || alreadySent);
+                sentMark?.classList.toggle('hidden', !canLog || !alreadySent);
+                if (logLabel) {
+                    logLabel.textContent = alreadySent ? 'Пролаз в логбуке' : 'Добавить в логбук';
+                }
                 this.syncClimbDetailMarkupActionUi();
             }
 
@@ -13611,6 +13683,9 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(body)
                     });
+                    if (status === 'send') {
+                        this.markAscentSentLocally(climbType, climbId);
+                    }
                     await this.loadAscentSummary();
                     this.hideDialog('climbLogDialog');
                     await this.refreshClimbDetailViewPanel(climbType, climbId);
@@ -13624,7 +13699,14 @@
                     }
                 } catch (err) {
                     if (err?.queued) {
+                        if (status === 'send') {
+                            this.markAscentSentLocally(climbType, climbId);
+                        }
                         this.hideDialog('climbLogDialog');
+                        if (!APP_BOULDER_ONLY) this.renderRoutes();
+                        this.renderBoulders();
+                        this.renderCatalog();
+                        this.syncClimbDetailFooterActions();
                         this.showToast('Пролаз сохранён локально — отправится при появлении сети', false);
                         return;
                     }
