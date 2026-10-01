@@ -1054,11 +1054,14 @@
                     <div class="dialog-subtitle" id="climbDetailMeta"></div>
                 </div>
                 <div class="dialog-header-actions">
-                    <button type="button" class="climb-log-add-btn hidden" id="climbDetailOpenLogBtn" aria-label="Добавить в логбук" title="Записать пролаз"><i class="fas fa-plus" aria-hidden="true"></i></button>
                     <button type="button" class="dialog-close-btn" id="closeClimbDetailDialogBtn" data-close-dialog="climbDetailDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
                 </div>
             </div>
             <div class="dialog-body">
+                <div class="climb-detail-log-row hidden" id="climbDetailLogRow">
+                    <button type="button" class="climb-log-add-btn" id="climbDetailOpenLogBtn" aria-label="Добавить в логбук" title="Записать пролаз"><i class="fas fa-plus" aria-hidden="true"></i></button>
+                    <span class="climb-detail-log-row-label">Добавить в логбук</span>
+                </div>
                 <div id="climbDetailMediaSection" class="climb-detail-media-section">
                     <div class="climb-detail-media-label">Медиа</div>
                     <div class="climb-detail-media-grid" id="climbDetailMediaGrid">
@@ -1171,9 +1174,8 @@
                 <p style="font-size:14px;color:var(--light-text);margin:0 0 14px;">Запишите пролаз в логбук: тип, попытки и оценку качества.</p>
                 <div id="climbLogForm" class="climb-log-form"></div>
             </div>
-            <div class="dialog-footer dialog-footer--tg-native">
-                <button type="button" class="climb-tg-log-proxy" id="climbTgLogConfirmBtn" tabindex="-1" aria-hidden="true">Записать пролаз</button>
-                <button type="button" class="btn btn-primary" id="climbLogConfirmBtn"><i class="fas fa-check"></i> Записать пролаз</button>
+            <div class="dialog-footer dialog-footer--tg-native dialog-footer--log-submit">
+                <button type="button" class="climb-log-add-btn climb-log-add-btn--submit" id="climbLogConfirmBtn" aria-label="Записать пролаз" title="Записать пролаз"><i class="fas fa-plus" aria-hidden="true"></i></button>
             </div>
         </div>
     </div>

@@ -45,10 +45,7 @@
                     const app = window.app;
                     const canLog = app && app.isLoggedIn && app.isLoggedIn() && app.isTelegramUser && app.isTelegramUser();
                     if (canLog) {
-                        return {
-                            text: 'В логбук',
-                            btnId: 'climbDetailOpenLogBtn'
-                        };
+                        return null;
                     }
                     const mkBtn = document.getElementById('climbDetailMarkupBtn');
                     const hasPhoto = mkBtn && mkBtn.style.display !== 'none';
@@ -90,8 +87,9 @@
                 }
             },
             climbLogDialog: {
-                text: 'Записать пролаз',
-                btnId: 'climbTgLogConfirmBtn'
+                resolve() {
+                    return null;
+                }
             }
         };
 
@@ -12605,14 +12603,15 @@
 
             syncClimbDetailFooterActions() {
                 const logBtn = document.getElementById('climbDetailOpenLogBtn');
-                if (logBtn) {
-                    const ctx = this._climbDetailContext;
-                    const canLog = this.isLoggedIn() && this.isTelegramUser();
-                    const alreadySent = ctx
-                        && (this.hasUserSent(ctx.climbType, ctx.climbId)
-                            || this._climbCommunityStats?.my_status === 'send');
-                    logBtn.classList.toggle('hidden', !canLog || alreadySent);
-                }
+                const logRow = document.getElementById('climbDetailLogRow');
+                const ctx = this._climbDetailContext;
+                const canLog = this.isLoggedIn() && this.isTelegramUser();
+                const alreadySent = ctx
+                    && (this.hasUserSent(ctx.climbType, ctx.climbId)
+                        || this._climbCommunityStats?.my_status === 'send');
+                const showLog = canLog && !alreadySent;
+                logBtn?.classList.toggle('hidden', !showLog);
+                logRow?.classList.toggle('hidden', !showLog);
                 this.syncClimbDetailMarkupActionUi();
             }
 
