@@ -46,7 +46,7 @@
                     const canLog = app && app.isLoggedIn && app.isLoggedIn() && app.isTelegramUser && app.isTelegramUser();
                     if (canLog) {
                         return {
-                            text: 'Пролаз',
+                            text: 'В логбук',
                             btnId: 'climbDetailOpenLogBtn'
                         };
                     }
@@ -2049,6 +2049,85 @@
             }
             await refreshPhotoCacheStats();
             return changed;
+        }
+
+        function areaCoverCacheKey(areaId) {
+            return `area-cover:${areaId}`;
+        }
+
+        function areaHasCoverDisplayUrl(area) {
+            return !!resolvePhotoDisplayUrl(area?.imageData);
+        }
+
+        async function cacheAreaCoversToIndexedDb(areas) {
+            const list = Array.isArray(areas) ? areas : [];
+            if (!list.length || !('indexedDB' in window)) return;
+            const tasks = list
+                .filter((a) => a && a.id && typeof a.imageData === 'string' && a.imageData.startsWith('data:'))
+                .map((a) => putCachedPhoto(areaCoverCacheKey(a.id), a.imageData, 'image/jpeg'));
+            if (!tasks.length) return;
+            for (let i = 0; i < tasks.length; i += PHOTO_CACHE_WRITE_BATCH) {
+                await Promise.all(tasks.slice(i, i + PHOTO_CACHE_WRITE_BATCH));
+            }
+            await prunePhotoCache();
+        }
+
+        async function hydrateAreaCoversFromIndexedDb() {
+            const data = getClimbingData();
+            const areas = data.areas || [];
+            if (!areas.length || !('indexedDB' in window)) return false;
+            let changed = false;
+            for (const area of areas) {
+                if (areaHasCoverDisplayUrl(area)) continue;
+                const cached = await getCachedPhotoDataUrl(areaCoverCacheKey(area.id));
+                if (!cached) continue;
+                area.imageData = cached;
+                changed = true;
+            }
+            if (changed) {
+                saveClimbingData(data);
+            }
+            return changed;
+        }
+
+        async function hydrateAreaCoversFromApiIfNeeded() {
+            if (shouldTrustOfflineHint()) return false;
+            const data = getClimbingData();
+            const areas = data.areas || [];
+            if (!areas.some((a) => !areaHasCoverDisplayUrl(a))) return false;
+            let areasRaw;
+            try {
+                areasRaw = await apiFetch('/api/areas');
+            } catch (err) {
+                console.warn('area cover hydrate', err);
+                return false;
+            }
+            const byId = new Map(
+                (areasRaw || []).map((a) => [Number(a.id), a.image_url || ''])
+            );
+            let changed = false;
+            for (const area of areas) {
+                if (areaHasCoverDisplayUrl(area)) continue;
+                const url = byId.get(Number(area.id));
+                if (!url || !resolvePhotoDisplayUrl(url)) continue;
+                area.imageData = url;
+                changed = true;
+            }
+            if (changed) {
+                saveClimbingData(data);
+                void cacheAreaCoversToIndexedDb(data.areas);
+                window.app?.refreshUiAfterRemoteLoad?.();
+            }
+            return changed;
+        }
+
+        async function hydrateAreaCoverImages() {
+            const fromCache = await hydrateAreaCoversFromIndexedDb();
+            const fromApi = await hydrateAreaCoversFromApiIfNeeded();
+            if (fromCache && !fromApi) {
+                window.app?.refreshUiAfterRemoteLoad?.();
+            }
+            return fromCache || fromApi;
         }
 
         async function resolvePhotoImageSource(photo) {
@@ -4218,6 +4297,7 @@
                 photos,
                 mapFeatures
             }));
+            void cacheAreaCoversToIndexedDb(areas);
             const version = bundle.manifest?.version;
             if (version) {
                 try {
@@ -4253,6 +4333,7 @@
                 && catalogHasContent(getClimbingData())
             ) {
                 console.info('catalog up to date', manifest.version);
+                await hydrateAreaCoverImages();
                 return getClimbingData();
             }
             try {
@@ -4260,6 +4341,7 @@
             } catch (err) {
                 console.warn('catalog bundle failed, using split API', err);
                 await loadClimbingDataFromApi({ includePhotos, summaries: true });
+                await hydrateAreaCoverImages();
                 if (manifest?.version) {
                     try {
                         localStorage.setItem(CATALOG_VERSION_STORAGE_KEY, manifest.version);
@@ -5583,6 +5665,39 @@
                     className: ' is-sent',
                     badge: '<span class="climb-sent-check" title="Пролазано"><i class="fas fa-check"></i></span>'
                 };
+            }
+
+            renderClimbLogAddBtn(climbType, climbId) {
+                if (!this.isLoggedIn() || !this.isTelegramUser()) return '';
+                if (this.hasUserSent(climbType, climbId)) return '';
+                const ct = climbType === 'route' ? 'route' : 'boulder';
+                const id = Number(climbId);
+                if (!Number.isFinite(id)) return '';
+                return `<button type="button" class="climb-log-add-btn" data-climb-log-add="${ct}" data-climb-id="${id}" aria-label="Добавить в логбук" title="Записать пролаз"><i class="fas fa-plus" aria-hidden="true"></i></button>`;
+            }
+
+            async openClimbLogFromList(climbType, climbId) {
+                if (!this.isLoggedIn() || !this.isTelegramUser()) {
+                    this.showToast('Войдите через Telegram Mini App', true);
+                    return;
+                }
+                const idStr = String(climbId);
+                const climb = climbType === 'route'
+                    ? getRoutes().find((r) => String(r.id) === idStr)
+                    : getBoulders().find((b) => String(b.id) === idStr);
+                if (!climb) {
+                    this.showToast(climbType === 'route' ? 'Трасса не найдена' : 'Боулдеринг не найден', true);
+                    return;
+                }
+                this._climbDetailContext = {
+                    climbType,
+                    climbId: idStr,
+                    photoId: null,
+                    shownPhotoId: '',
+                    climbName: climb.name || '',
+                    climbGrade: climb.grade || ''
+                };
+                await this.openClimbLogDialog();
             }
 
             renderAuthUI() {
@@ -9390,12 +9505,13 @@
                         blocks.push(`<div class="routes-reorder-list" id="catalogSectorRoutesList" data-reorder-scope="sector">`);
                         rs.forEach(r => {
                             const routeDesc = String(r.description || '').trim();
+                            const sent = this.climbSentRowAttrs('route', r.id);
                             blocks.push(`
-                                <div class="list-item catalog-climb-row${canReorderRoutes ? ' is-route-draggable' : ''}" style="margin-bottom:8px" data-id="${r.id}" data-open-climb="route" data-open-climb-id="${r.id}">
+                                <div class="list-item catalog-climb-row${sent.className}${canReorderRoutes ? ' is-route-draggable' : ''}" style="margin-bottom:8px" data-id="${r.id}" data-open-climb="route" data-open-climb-id="${r.id}">
                                     ${canReorderRoutes ? '<button type="button" class="route-drag-handle" title="Перетащить" aria-label="Перетащить трассу"><i class="fas fa-grip-vertical" aria-hidden="true"></i></button>' : ''}
                                     <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(r.name)}">
                                         <div class="item-info">
-                                            <h3 style="font-size:16px">${this.escapeHtml(r.name)}</h3>
+                                            <h3 style="font-size:16px">${sent.badge}${this.escapeHtml(r.name)}</h3>
                                             <div class="item-meta">
                                                 <span>Категория: <span class="${gradeBadgeClassName(r.grade)}">${this.escapeHtml(r.grade)}</span></span>
                                                 ${r.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(r.category)}</span>` : ''}
@@ -9406,6 +9522,7 @@
                                             ${routeDesc ? `<div class="catalog-climb-desc">${this.escapeHtml(routeDesc)}</div>` : ''}
                                         </div>
                                     </button>
+                                    ${this.renderClimbLogAddBtn('route', r.id)}
                                     <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                                         ${this.renderRowActions(`data-action="edit-route" data-route-id="${r.id}"`, `data-action="delete-route" data-route-id="${r.id}"`)}
                                     </div>
@@ -9417,11 +9534,12 @@
                         blocks.push('<h4 style="margin:16px 0 8px;color:var(--light-text)">Боулдеринг</h4>');
                         bs.forEach(b => {
                             const boulderDesc = String(b.description || '').trim();
+                            const sent = this.climbSentRowAttrs('boulder', b.id);
                             blocks.push(`
-                                <div class="list-item catalog-climb-row" style="margin-bottom:8px" data-open-climb="boulder" data-open-climb-id="${b.id}">
+                                <div class="list-item catalog-climb-row${sent.className}" style="margin-bottom:8px" data-open-climb="boulder" data-open-climb-id="${b.id}">
                                     <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(b.name)}">
                                         <div class="item-info">
-                                            <h3 style="font-size:16px">${this.escapeHtml(b.name)}</h3>
+                                            <h3 style="font-size:16px">${sent.badge}${this.escapeHtml(b.name)}</h3>
                                             <div class="item-meta">
                                                 <span>Категория: <span class="${gradeBadgeClassName(b.grade)}">${this.escapeHtml(b.grade)}</span></span>
                                                 ${b.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(b.category)}</span>` : ''}
@@ -9431,6 +9549,7 @@
                                             ${boulderDesc ? `<div class="catalog-climb-desc">${this.escapeHtml(boulderDesc)}</div>` : ''}
                                         </div>
                                     </button>
+                                    ${this.renderClimbLogAddBtn('boulder', b.id)}
                                     <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                                         ${this.renderRowActions(`data-action="edit-boulder" data-boulder-id="${b.id}"`, `data-action="delete-boulder" data-boulder-id="${b.id}"`)}
                                     </div>
@@ -9533,6 +9652,7 @@
                     climbOpen
                     && !e.target.closest('[data-action]')
                     && !e.target.closest('.catalog-map-btn')
+                    && !e.target.closest('.climb-log-add-btn')
                     && !e.target.closest('.route-drag-handle')
                     && climbOpen.closest('.routes-reorder-list')?.dataset.suppressClimbOpen !== '1'
                 ) {
@@ -10315,6 +10435,7 @@
                                 ${route.description ? `<div class="catalog-climb-desc">${this.escapeHtml(route.description)}</div>` : ''}
                             </div>
                         </button>
+                        ${this.renderClimbLogAddBtn('route', route.id)}
                         <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                             ${this.renderRowActions(`data-action="edit-route" data-route-id="${route.id}"`, `data-action="delete-route" data-route-id="${route.id}"`)}
                         </div>
@@ -10486,6 +10607,7 @@
                                 ${boulder.description ? `<div class="catalog-climb-desc">${this.escapeHtml(boulder.description)}</div>` : ''}
                             </div>
                         </button>
+                        ${this.renderClimbLogAddBtn('boulder', boulder.id)}
                         <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                             ${this.renderRowActions(`data-action="edit-boulder" data-boulder-id="${boulder.id}"`, `data-action="delete-boulder" data-boulder-id="${boulder.id}"`)}
                         </div>
@@ -11083,6 +11205,7 @@
                         row
                         && !e.target.closest('[data-action]')
                         && !e.target.closest('.catalog-map-btn')
+                        && !e.target.closest('.climb-log-add-btn')
                         && !e.target.closest('.route-drag-handle')
                         && document.getElementById('routesList')?.dataset.suppressClimbOpen !== '1'
                     ) {
@@ -11107,7 +11230,12 @@
                         return;
                     }
                     const row = e.target.closest('[data-open-climb="boulder"]');
-                    if (row && !e.target.closest('[data-action]') && !e.target.closest('.catalog-map-btn')) {
+                    if (
+                        row
+                        && !e.target.closest('[data-action]')
+                        && !e.target.closest('.catalog-map-btn')
+                        && !e.target.closest('.climb-log-add-btn')
+                    ) {
                         const oid = Number(row.dataset.openClimbId);
                         if (Number.isFinite(oid)) this.showClimbDetailDialog('boulder', oid);
                     }
@@ -11289,6 +11417,17 @@
 
                 document.getElementById('climbDetailOpenLogBtn')?.addEventListener('click', () => {
                     void this.openClimbLogDialog();
+                });
+                document.addEventListener('click', (e) => {
+                    const logBtn = e.target.closest('[data-climb-log-add]');
+                    if (!logBtn) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const climbType = logBtn.getAttribute('data-climb-log-add');
+                    const climbId = Number(logBtn.getAttribute('data-climb-id'));
+                    if ((climbType !== 'route' && climbType !== 'boulder') || !Number.isFinite(climbId)) return;
+                    this.lockUiActions(400);
+                    void this.openClimbLogFromList(climbType, climbId);
                 });
                 document.getElementById('climbTgLogConfirmBtn')?.addEventListener('click', () => {
                     void this.logClimbAscentFromDetail('send').catch((err) => this.showToast(err.message, true));
@@ -12454,8 +12593,12 @@
             syncClimbDetailFooterActions() {
                 const logBtn = document.getElementById('climbDetailOpenLogBtn');
                 if (logBtn) {
+                    const ctx = this._climbDetailContext;
                     const canLog = this.isLoggedIn() && this.isTelegramUser();
-                    logBtn.classList.toggle('hidden', !canLog);
+                    const alreadySent = ctx
+                        && (this.hasUserSent(ctx.climbType, ctx.climbId)
+                            || this._climbCommunityStats?.my_status === 'send');
+                    logBtn.classList.toggle('hidden', !canLog || alreadySent);
                 }
                 this.syncClimbDetailMarkupActionUi();
             }
@@ -14758,6 +14901,7 @@
             const hadLocalCatalog = bootstrapCatalogFromStorage();
             if (hadLocalCatalog) {
                 await hydrateCatalogPhotosFromIndexedDb();
+                await hydrateAreaCoverImages();
             }
             bindPreventHorizontalPageShift();
             window.app = new ClimbingApp();

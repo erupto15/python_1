@@ -1053,7 +1053,10 @@
                     <div class="dialog-title" id="climbDetailTitle">—</div>
                     <div class="dialog-subtitle" id="climbDetailMeta"></div>
                 </div>
-                <button type="button" class="dialog-close-btn" id="closeClimbDetailDialogBtn" data-close-dialog="climbDetailDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
+                <div class="dialog-header-actions">
+                    <button type="button" class="climb-log-add-btn hidden" id="climbDetailOpenLogBtn" aria-label="Добавить в логбук" title="Записать пролаз"><i class="fas fa-plus" aria-hidden="true"></i></button>
+                    <button type="button" class="dialog-close-btn" id="closeClimbDetailDialogBtn" data-close-dialog="climbDetailDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
+                </div>
             </div>
             <div class="dialog-body">
                 <div id="climbDetailMediaSection" class="climb-detail-media-section">
@@ -1135,7 +1138,6 @@
             <div class="dialog-footer dialog-footer--tg-native">
                 <button type="button" class="btn btn-primary" id="climbDetailMarkupBtn"><i class="fas fa-draw-polygon"></i> Схема на фото</button>
                 <button type="button" class="btn btn-secondary hidden" id="climbDetailSavePhotoBtn"><i class="fas fa-download"></i> Скачать фото</button>
-                <button type="button" class="btn btn-primary climb-detail-open-log-btn hidden" id="climbDetailOpenLogBtn"><i class="fas fa-check"></i> Пролаз</button>
             </div>
         </div>
     </div>
