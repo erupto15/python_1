@@ -2059,6 +2059,10 @@
             return !!resolvePhotoDisplayUrl(area?.imageData);
         }
 
+        function areasMissingCoverImages(areas) {
+            return (areas || []).some((a) => !areaHasCoverDisplayUrl(a));
+        }
+
         async function cacheAreaCoversToIndexedDb(areas) {
             const list = Array.isArray(areas) ? areas : [];
             if (!list.length || !('indexedDB' in window)) return;
@@ -4334,6 +4338,15 @@
             ) {
                 console.info('catalog up to date', manifest.version);
                 await hydrateAreaCoverImages();
+                if (areasMissingCoverImages(getClimbingData().areas) && !shouldTrustOfflineHint()) {
+                    console.info('area covers missing after hydrate, reloading catalog bundle');
+                    try {
+                        await loadClimbingDataFromApiBundle({ includePhotos: false });
+                    } catch (err) {
+                        console.warn('area cover bundle reload', err);
+                        await hydrateAreaCoverImages();
+                    }
+                }
                 return getClimbingData();
             }
             try {
@@ -14845,6 +14858,9 @@
                 let awake = false;
                 if (!online && hadLocalCatalog) {
                     enterOfflineMode('Офлайн — показаны сохранённые данные.');
+                    void hydrateAreaCoverImages().then((ok) => {
+                        if (ok) window.app?.refreshUiAfterRemoteLoad?.();
+                    });
                     void runTelegramAuthBootstrap();
                     return;
                 }
@@ -14858,6 +14874,9 @@
                 }
                 if (!awake && catalogHasContent(getClimbingData())) {
                     enterOfflineMode('Офлайн — показаны сохранённые данные. Подключите сеть для обновления.');
+                    void hydrateAreaCoverImages().then((ok) => {
+                        if (ok) window.app?.refreshUiAfterRemoteLoad?.();
+                    });
                     void runTelegramAuthBootstrap();
                     return;
                 }
