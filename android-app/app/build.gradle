@@ -10,14 +10,16 @@ android {
         applicationId 'io.sixa9a.guide'
         minSdk 24
         targetSdk 34
-        versionCode 6
-        versionName '1.0.5'
+        versionCode 8
+        versionName '1.0.7'
         buildConfigField 'String', 'GUIDE_URL', '"https://92.246.76.142.sslip.io/"'
     }
 
     buildTypes {
         release {
             minifyEnabled false
+            // Sideload / Telegram: подпись debug-ключом (unsigned release Android не ставит).
+            signingConfig signingConfigs.debug
         }
     }
 

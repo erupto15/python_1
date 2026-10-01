@@ -9,7 +9,7 @@ Telegram Mini App со справочником скалолазных райо�
 | `climbing-guidebook/index.html`, `app.js` | Статический frontend Mini App |
 | `climbing-guidebook/backend/` | Единое FastAPI-приложение: REST API, bootstrap БД, отдача frontend и `/uploads` |
 | `climbing-guidebook/database/` | SQL-схемы SQLite и PostgreSQL |
-| `android-app/` | Оболочка WebView для установки guide на Android |
+| `android-app/` | WebView APK; сборка `./scripts/build-android-apk.sh`, офлайн — [`android-app/README.md`](android-app/README.md) |
 | `scripts/` | Postgres на VPS, cutover, бэкапы, teardown managed-ресурсов Timeweb |
 | `.env.example` | Шаблон локального `.env` без секретов |
 | `DEPLOYMENT.md` | Окружения, env, Git, systemd, Caddy, GitHub Actions, Postgres cutover, rollback |

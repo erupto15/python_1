@@ -97,6 +97,7 @@ public class MainActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 Log.i(TAG, "Page finished: " + url);
                 scheduleCatalogDebugSnapshots(view);
+                prefetchOfflineResources();
             }
 
             @Override
@@ -210,6 +211,10 @@ public class MainActivity extends AppCompatActivity {
 
             if (code == 200) {
                 httpCache.save(urlKey, bytes, mime, code, reason);
+            } else {
+                WebResourceResponse asset = GuideAssetLoader.open(this, uri);
+                if (asset != null) return asset;
+                return responseFromCache(urlKey, uri);
             }
 
             Map<String, String> headers = new HashMap<>();
@@ -221,6 +226,8 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.w(TAG, "Proxy network fail " + uri + ": " + e.getMessage());
             if (conn != null) conn.disconnect();
+            WebResourceResponse asset = GuideAssetLoader.open(this, uri);
+            if (asset != null) return asset;
             return responseFromCache(urlKey, uri);
         }
     }
@@ -289,6 +296,59 @@ public class MainActivity extends AppCompatActivity {
                 Log.e(TAG, "Java HTTP GET " + healthUrl + " failed: " + e.getMessage(), e);
             }
         }).start();
+    }
+
+    /** Прогрев HTTP-кэша: оболочка + catalog API для офлайн (как после первого онлайн-сеанса). */
+    private void prefetchOfflineResources() {
+        new Thread(() -> {
+            String base = guideBaseUrl.endsWith("/") ? guideBaseUrl.substring(0, guideBaseUrl.length() - 1) : guideBaseUrl;
+            String[] paths = {
+                    "/",
+                    "/index.html",
+                    "/boot.js",
+                    "/app.js",
+                    "/styles.css",
+                    "/map-tiles.js",
+                    "/icons/map-route-sector-climber.svg",
+                    "/icons/map-boulder-sector-climber.svg",
+                    "/api/catalog/manifest",
+                    "/api/catalog/bundle"
+            };
+            for (String path : paths) {
+                warmCacheGet(base + path);
+            }
+        }).start();
+    }
+
+    private void warmCacheGet(String urlKey) {
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(urlKey).openConnection();
+            conn.setInstanceFollowRedirects(true);
+            conn.setConnectTimeout(20000);
+            conn.setReadTimeout(120000);
+            conn.setRequestMethod("GET");
+            if (userAgent != null) {
+                conn.setRequestProperty("User-Agent", userAgent);
+            }
+            conn.setRequestProperty("Accept-Encoding", "identity");
+            int code = conn.getResponseCode();
+            InputStream raw = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
+            if (raw == null) return;
+            byte[] bytes = GuideHttpCache.readAll(raw);
+            String mime = conn.getContentType();
+            if (mime != null && mime.contains(";")) {
+                mime = mime.substring(0, mime.indexOf(';')).trim();
+            }
+            if (code == 200) {
+                httpCache.save(urlKey, bytes, mime, code, "OK");
+                Log.i(TAG, "Warm cache OK " + urlKey + " (" + bytes.length + " bytes)");
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "Warm cache skip " + urlKey + ": " + e.getMessage());
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
     }
 
     private void scheduleCatalogDebugSnapshots(WebView view) {
