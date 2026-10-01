@@ -5317,6 +5317,8 @@
                 this.mapShowTrails = true;
                 this.mapShowPoi = true;
                 this.mapCatalogScope = null;
+                this._catalogMapFitKey = null;
+                this._mapDomInCatalog = false;
                 this.mapTarget = null;
                 this.userLocation = null;
                 this.userLocationHeading = null;
@@ -8149,11 +8151,77 @@
                 this.updateMapMarkers();
             }
 
+            _reparentMapDom(toCatalog) {
+                const toolbar = document.getElementById('mapToolbar');
+                const container = document.getElementById('mapContainer');
+                if (!toolbar || !container) return;
+                const mapCard = document.querySelector('#map .card');
+                const tbMount = document.getElementById('catalogMapToolbarMount');
+                const ctMount = document.getElementById('catalogMapContainerMount');
+                if (toCatalog && tbMount && ctMount) {
+                    if (toolbar.parentElement !== tbMount) tbMount.appendChild(toolbar);
+                    if (container.parentElement !== ctMount) ctMount.appendChild(container);
+                } else if (mapCard) {
+                    const header = mapCard.querySelector('.card-header');
+                    if (toolbar.parentElement !== mapCard) {
+                        if (header?.nextSibling) mapCard.insertBefore(toolbar, header.nextSibling);
+                        else mapCard.insertBefore(toolbar, container.parentElement === mapCard ? container : null);
+                    }
+                    if (container.parentElement !== mapCard) mapCard.appendChild(container);
+                }
+                this._mapDomInCatalog = !!(toCatalog && tbMount && ctMount);
+                if (this.map) this.syncMapAfterTabShow();
+            }
+
+            async syncCatalogEmbeddedMap() {
+                const block = document.getElementById('catalogMapBlock');
+                const titleEl = document.getElementById('catalogMapTitle');
+                const show = this.catalog?.view === 'sectors' || this.catalog?.view === 'problems';
+                if (!show) {
+                    block?.classList.add('hidden');
+                    if (this._mapDomInCatalog) this._reparentMapDom(false);
+                    this._catalogMapFitKey = null;
+                    return;
+                }
+                block?.classList.remove('hidden');
+                const areaId = Number(this.catalog.areaId);
+                const sectorId = this.catalog.view === 'problems' ? Number(this.catalog.sectorId) : null;
+                this.mapCatalogScope = { areaId, sectorId: Number.isFinite(sectorId) ? sectorId : null };
+                if (titleEl) {
+                    const areas = getAreas();
+                    const sectors = getSectors();
+                    if (this.catalog.view === 'sectors') {
+                        const area = areas.find((a) => Number(a.id) === areaId);
+                        titleEl.textContent = area?.name ? `Карта: ${area.name}` : 'Карта района';
+                    } else {
+                        const sector = sectors.find((s) => Number(s.id) === Number(this.catalog.sectorId));
+                        titleEl.textContent = sector?.name ? `Карта: ${sector.name}` : 'Карта сектора';
+                    }
+                }
+                this._reparentMapDom(true);
+                await ensureMarkerClusterLoaded();
+                void this.loadAscentSummary?.();
+                if (!this.map) {
+                    this.initMap();
+                } else {
+                    this.syncMapAfterTabShow();
+                    this.applyCachedUserLocation();
+                }
+                this.updateMapMarkers();
+                const fitKey = `${this.catalog.view}:${this.catalog.areaId}:${this.catalog.sectorId ?? ''}`;
+                const maxZoom = this.catalog.view === 'sectors' ? 13 : 16;
+                if (fitKey !== this._catalogMapFitKey) {
+                    this._catalogMapFitKey = fitKey;
+                    this.fitMapToVisibleMarkers(maxZoom);
+                }
+            }
+
             async showMapTab() {
                 document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
                 document.querySelector('.tab-btn[data-tab="map"]')?.classList.add('active');
                 document.getElementById('map')?.classList.add('active');
+                this._reparentMapDom(false);
                 await ensureMarkerClusterLoaded();
                 void this.loadAscentSummary?.();
                 if (!this.map) {
@@ -8170,8 +8238,62 @@
                 if (!this.mapLayerVisible(normalizedKind)) {
                     this.setMapFilter('all');
                 }
+                const numId = Number(id);
+                let catalogChanged = false;
+                if (normalizedKind === 'area') {
+                    const next = { view: 'sectors', areaId: numId, sectorId: null };
+                    if (this.catalog.view !== 'sectors' || Number(this.catalog.areaId) !== numId || this.catalog.sectorId != null) {
+                        this.catalog = next;
+                        catalogChanged = true;
+                    }
+                } else if (normalizedKind === 'sector') {
+                    const sector = getSectors().find((s) => Number(s.id) === numId);
+                    if (!sector) {
+                        this.showToast('Сектор не найден', true);
+                        return null;
+                    }
+                    const onAreaMap = this.catalog.view === 'sectors' && Number(this.catalog.areaId) === Number(sector.areaId);
+                    if (!onAreaMap) {
+                        const next = { view: 'problems', areaId: Number(sector.areaId), sectorId: numId };
+                        if (this.catalog.view !== 'problems'
+                            || Number(this.catalog.areaId) !== next.areaId
+                            || Number(this.catalog.sectorId) !== numId) {
+                            this.catalog = next;
+                            catalogChanged = true;
+                        }
+                    }
+                } else {
+                    const climb = normalizedKind === 'route'
+                        ? getRoutes().find((r) => Number(r.id) === numId)
+                        : getBoulders().find((b) => Number(b.id) === numId);
+                    if (!climb) {
+                        this.showToast('Объект не найден', true);
+                        return null;
+                    }
+                    const next = {
+                        view: 'problems',
+                        areaId: Number(climb.areaId),
+                        sectorId: Number(climb.sectorId)
+                    };
+                    if (this.catalog.view !== 'problems'
+                        || Number(this.catalog.areaId) !== next.areaId
+                        || Number(this.catalog.sectorId) !== next.sectorId) {
+                        this.catalog = next;
+                        catalogChanged = true;
+                    }
+                }
+                this.switchToTab('catalog');
+                await ensureMarkerClusterLoaded();
+                void this.loadAscentSummary?.();
+                if (catalogChanged) {
+                    this.renderCatalog();
+                } else {
+                    await this.syncCatalogEmbeddedMap();
+                }
                 this.setMapScopeForEntry(normalizedKind, id);
-                await this.showMapTab();
+                if (!this.map) {
+                    this.initMap();
+                }
                 this.updateMapMarkers();
                 const entry = this.mapMarkerIndex.get(this.mapKey(normalizedKind, id));
                 if (!entry) {
@@ -8181,13 +8303,16 @@
                 }
                 if (normalizedKind === 'area' || normalizedKind === 'sector') {
                     this.fitMapToVisibleMarkers(normalizedKind === 'area' ? 13 : 16);
-                } else {
+                } else if (this.map) {
                     this.map.setView([entry.lat, entry.lng], Math.max(this.map.getZoom(), 17), { animate: true });
                 }
                 if (openPopup && entry.marker?.getPopup?.()) {
                     entry.marker.openPopup();
                 }
                 if (setTarget) this.setMapTarget(entry);
+                setTimeout(() => {
+                    document.getElementById('catalogMapBlock')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, catalogChanged ? 160 : 80);
                 return entry;
             }
 
@@ -9645,6 +9770,7 @@
                 }
                 } finally {
                     this.syncCatalogSectorFocusUi();
+                    void this.syncCatalogEmbeddedMap();
                     if (typeof window.syncTelegramMiniAppUi === 'function') window.syncTelegramMiniAppUi();
                 }
             }

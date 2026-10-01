@@ -309,7 +309,7 @@
             <button class="tab-btn admin-only" data-tab="boulders">
                 <i class="fas fa-mountain"></i> Боулдеринг
             </button>
-            <button class="tab-btn" data-tab="map">
+            <button class="tab-btn hidden" data-tab="map">
                 <i class="fas fa-map-marked-alt"></i> Карта
             </button>
             <button class="tab-btn" data-tab="photos">
@@ -338,6 +338,13 @@
                 <div class="catalog-breadcrumb" id="catalogBreadcrumb"></div>
                 <div class="catalog-toolbar" id="catalogToolbar"></div>
                 <div class="catalog-guide-hero hidden" id="catalogGuideHero"></div>
+                <div class="catalog-map-block hidden" id="catalogMapBlock">
+                    <div class="catalog-map-block-head">
+                        <h3 class="catalog-map-block-title" id="catalogMapTitle">Карта</h3>
+                    </div>
+                    <div id="catalogMapToolbarMount"></div>
+                    <div id="catalogMapContainerMount"></div>
+                </div>
                 <div id="catalogList"></div>
             </div>
         </div>

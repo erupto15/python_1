@@ -1912,6 +1912,56 @@
             padding-top: 0;
         }
 
+        .catalog-map-block {
+            margin: 12px 0 16px;
+        }
+
+        .catalog-map-block-head {
+            margin-bottom: 8px;
+        }
+
+        .catalog-map-block-title {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .catalog-map-block #catalogMapContainerMount #mapContainer {
+            height: min(42vh, calc(100vh - 220px));
+            height: min(42dvh, calc(100dvh - 220px));
+            min-height: 240px;
+            margin-top: 8px;
+        }
+
+        .catalog-map-block #mapToolbar {
+            margin-top: 0;
+            padding: 8px 10px;
+            gap: 6px;
+        }
+
+        .catalog-map-block .map-filter-row {
+            gap: 6px;
+        }
+
+        .catalog-map-block .map-nav-row,
+        .catalog-map-block .map-filter-group {
+            gap: 6px;
+        }
+
+        .catalog-map-block .map-legend {
+            gap: 6px 10px;
+        }
+
+        .catalog-map-block .map-coords-bar {
+            padding: 4px 0;
+        }
+
+        .catalog-map-block .map-status {
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
         html.catalog-sector-focus #climbDetailDialog .dialog-header {
             display: none !important;
         }
