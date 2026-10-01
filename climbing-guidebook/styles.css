@@ -3354,6 +3354,7 @@
             border-radius: 50%;
             background: transparent;
             color: var(--primary-color);
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
             font-size: 15px;
             font-weight: 700;
             line-height: 1;
@@ -3361,6 +3362,18 @@
             touch-action: manipulation;
             box-shadow: none;
             transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+        }
+
+        .climb-log-add-btn .fas {
+            display: none !important;
+        }
+
+        .climb-log-add-btn::before {
+            content: '+';
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--primary-color);
         }
 
         .climb-log-add-btn:hover {
@@ -3386,6 +3399,10 @@
             width: 44px;
             height: 44px;
             font-size: 17px;
+        }
+
+        .climb-log-add-btn--submit::before {
+            font-size: 24px;
         }
 
         .dialog-footer--log-submit {
