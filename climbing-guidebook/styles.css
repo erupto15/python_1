@@ -4184,6 +4184,44 @@
             color: var(--boulder-color, #f04d23);
         }
 
+        .map-sector-badge--area .map-sector-badge-glyph.map-area-badge-glyph {
+            border-color: #22c55e;
+            color: #22c55e;
+            background: var(--card-bg, #151b24);
+        }
+
+        .map-sector-badge--area .map-area-badge-glyph .map-area-droplet {
+            width: 17px;
+            height: 21px;
+            filter: none;
+        }
+
+        .map-sector-badge--area .map-sector-badge-label {
+            border-color: color-mix(in srgb, #22c55e 55%, var(--map-accent));
+        }
+
+        .map-sector-badge--area .map-sector-badge-pointer {
+            border-top-color: color-mix(in srgb, #22c55e 70%, var(--map-accent));
+        }
+
+        .map-sector-badge--area .map-sector-badge-dot {
+            background: #22c55e;
+        }
+
+        .map-sector-badge--area.selected .map-sector-badge-glyph {
+            border-color: #fff;
+            color: #fff;
+            background: var(--map-accent);
+        }
+
+        .map-sector-badge--area.selected .map-sector-badge-pointer {
+            border-top-color: var(--map-accent);
+        }
+
+        .map-sector-badge--area.selected .map-sector-badge-dot {
+            background: var(--map-accent);
+        }
+
         .map-sector-badge-glyph svg {
             width: 24px;
         }
@@ -4764,10 +4802,6 @@
         }
 
         /* Zoom-уровни карты (как V8ROCK / AllClimb) */
-        .leaflet-container.z-low .parent-label-icon:not(.map-sector-marker) {
-            display: none !important;
-        }
-
         .leaflet-container.z-low .map-sector-badge-label,
         .leaflet-container.z-low .map-sector-badge-pointer {
             display: none;

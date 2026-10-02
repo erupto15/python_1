@@ -7190,6 +7190,20 @@
                 return `<div class="map-sector-badge ${kindCls}${selected ? ' selected' : ''}">${glyph}<div class="map-sector-badge-label">${this.escapeHtml(title)}${subHtml}</div><div class="map-sector-badge-pointer" aria-hidden="true"></div><div class="map-sector-badge-dot" aria-hidden="true"></div></div>`;
             }
 
+            buildMapAreaBadgeHtml(title, sub, selected = false) {
+                const subHtml = sub ? ` <span>${this.escapeHtml(String(sub))}</span>` : '';
+                const glyph = this.buildMapAreaDropletHtml('map-sector-badge-glyph map-area-badge-glyph');
+                return `<div class="map-sector-badge map-sector-badge--area${selected ? ' selected' : ''}">${glyph}<div class="map-sector-badge-label">${this.escapeHtml(title)}${subHtml}</div><div class="map-sector-badge-pointer" aria-hidden="true"></div><div class="map-sector-badge-dot" aria-hidden="true"></div></div>`;
+            }
+
+            isMapPinLabelKind(kind) {
+                return kind === 'area' || kind === 'sector';
+            }
+
+            mapPinLabelSelector() {
+                return '.map-sector-badge';
+            }
+
             buildMapDotHtml(entry) {
                 const selected = this.mapEntrySelected(entry);
                 const done = entry.climbType && this.hasUserSent(entry.climbType, entry.id);
@@ -7244,18 +7258,17 @@
                 if (kind === 'sector') {
                     return this.buildMapSectorBadgeHtml(entry, title, sub, selected);
                 }
-                const subHtml = sub ? ` <span>${this.escapeHtml(sub)}</span>` : '';
-                let icon = '';
                 if (kind === 'area') {
-                    icon = this.buildMapAreaDropletHtml('map-kind-icon map-kind-icon--area');
+                    return this.buildMapAreaBadgeHtml(title, sub, selected);
                 }
-                return `<div class="parent-label${selected ? ' selected' : ''}">${icon}${this.escapeHtml(title)}${subHtml}</div>`;
+                const subHtml = sub ? ` <span>${this.escapeHtml(sub)}</span>` : '';
+                return `<div class="parent-label${selected ? ' selected' : ''}">${this.escapeHtml(title)}${subHtml}</div>`;
             }
 
             createMapParentLabelMarker(entry, coord, html) {
-                const isSector = entry?.kind === 'sector';
+                const isPin = this.isMapPinLabelKind(entry?.kind);
                 const icon = L.divIcon({
-                    className: isSector ? 'parent-label-icon map-sector-marker' : 'parent-label-icon',
+                    className: isPin ? 'parent-label-icon map-sector-marker' : 'parent-label-icon',
                     html,
                     iconSize: [0, 0],
                     iconAnchor: [0, 0]
@@ -7272,13 +7285,15 @@
 
             mapDeclutterPriority(entry) {
                 if (this.mapEntrySelected(entry)) return 1_000_000;
-                if (entry.kind === 'area') {
-                    return 1000 + Number(getSectors().filter((s) => Number(s.areaId) === Number(entry.id)).length || 0);
-                }
-                if (entry.kind === 'sector') {
-                    const routes = APP_BOULDER_ONLY ? 0 : getRoutes().filter((r) => Number(r.sectorId) === Number(entry.id)).length;
-                    const boulders = getBoulders().filter((b) => Number(b.sectorId) === Number(entry.id)).length;
-                    return 500 + routes + boulders;
+                if (entry.kind === 'area' || entry.kind === 'sector') {
+                    let weight = 0;
+                    if (entry.kind === 'area') {
+                        weight = getSectors().filter((s) => Number(s.areaId) === Number(entry.id)).length;
+                    } else {
+                        const routes = APP_BOULDER_ONLY ? 0 : getRoutes().filter((r) => Number(r.sectorId) === Number(entry.id)).length;
+                        weight = routes + getBoulders().filter((b) => Number(b.sectorId) === Number(entry.id)).length;
+                    }
+                    return 900 + weight;
                 }
                 return 100;
             }
@@ -7313,6 +7328,11 @@
                     if (!el) return;
                     el.classList.remove('declutter-hidden');
                     if (this.mapEntrySelected(entry)) return;
+                    if (this.catalogEmbeddedMapActive() && this.isMapPinLabelKind(entry.kind)) {
+                        const rect = el.getBoundingClientRect();
+                        if (rect.width && rect.height) kept.push(rect);
+                        return;
+                    }
                     const rect = el.getBoundingClientRect();
                     if (!rect.width || !rect.height) return;
                     const overlaps = kept.some((k) => !(
@@ -7361,15 +7381,15 @@
                 this.mapMarkerIndex.forEach((stored) => {
                     const selected = this.mapEntrySelected(stored);
                     if (stored.kind === 'area' || stored.kind === 'sector') {
-                        const isSector = stored.kind === 'sector';
+                        const isPin = this.isMapPinLabelKind(stored.kind);
                         stored.marker?.setIcon(L.divIcon({
-                            className: isSector ? 'parent-label-icon map-sector-marker' : 'parent-label-icon',
+                            className: isPin ? 'parent-label-icon map-sector-marker' : 'parent-label-icon',
                             html: this.buildMapParentLabelHtml(stored.title, stored.labelSub || '', selected, stored.kind, stored),
                             iconSize: [0, 0],
                             iconAnchor: [0, 0]
                         }));
                         stored.labelEl = stored.marker?.getElement()?.querySelector(
-                            isSector ? '.map-sector-badge' : '.parent-label'
+                            isPin ? this.mapPinLabelSelector() : '.parent-label'
                         ) || null;
                     } else if (stored.marker) {
                         stored.marker.setIcon(L.divIcon({
@@ -7506,7 +7526,8 @@
                 const { areaId, sectorId } = this.mapCatalogScope;
                 if (sectorId != null) {
                     return Number(entry.sectorId) === Number(sectorId)
-                        || (entry.kind === 'sector' && Number(entry.id) === Number(sectorId));
+                        || (entry.kind === 'sector' && Number(entry.id) === Number(sectorId))
+                        || (entry.kind === 'area' && Number(entry.id) === Number(areaId));
                 }
                 if (areaId != null) {
                     return Number(entry.areaId) === Number(areaId)
@@ -7615,7 +7636,7 @@
                     const labelHtml = this.buildMapParentLabelHtml(entry.title, stored.labelSub, selected, entry.kind, entry);
                     stored.marker = this.createMapParentLabelMarker(stored, coord, labelHtml);
                     stored.labelEl = stored.marker.getElement()?.querySelector(
-                        entry.kind === 'sector' ? '.map-sector-badge' : '.parent-label'
+                        this.isMapPinLabelKind(entry.kind) ? this.mapPinLabelSelector() : '.parent-label'
                     ) || null;
                 } else {
                     const useCluster = this.mapClimbCluster && this.shouldClusterClimbMarkers();
