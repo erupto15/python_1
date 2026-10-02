@@ -1906,6 +1906,10 @@
         .catalog-guide-actions--compact {
             flex-shrink: 0;
             margin-top: 2px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
         }
 
         html.catalog-sector-focus #catalogList {

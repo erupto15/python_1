@@ -9373,13 +9373,26 @@
                         : (APP_BOULDER_ONLY
                             ? `${boulders.length} боулдеров`
                             : `${routes.length} трасс · ${boulders.length} боулдеров`);
-                    const areaRouteBtn = areaFocus && entity?.id != null
-                        ? `<div class="catalog-guide-actions catalog-guide-actions--compact">
-                            <button type="button" class="btn btn-primary btn-small" data-catalog-act="nav-route" data-map-kind="area" data-id="${entity.id}">
+                    let compactActions = '';
+                    if (areaFocus && entity?.id != null) {
+                        compactActions = `<div class="catalog-guide-actions catalog-guide-actions--compact">
+                            ${this.isAdmin() ? `<button type="button" class="btn btn-primary btn-small" data-catalog-act="add-sector" data-id="${entity.id}">
+                                <i class="fas fa-plus"></i> Добавить сектор
+                            </button>` : ''}
+                            <button type="button" class="btn btn-secondary btn-small" data-catalog-act="nav-route" data-map-kind="area" data-id="${entity.id}">
                                 <i class="fas fa-diamond-turn-right"></i> Маршрут
                             </button>
-                           </div>`
-                        : '';
+                           </div>`;
+                    } else if (sectorFocus && entity?.id != null && this.isAdmin()) {
+                        compactActions = `<div class="catalog-guide-actions catalog-guide-actions--compact">
+                            ${APP_BOULDER_ONLY ? '' : `<button type="button" class="btn btn-primary btn-small" data-catalog-act="add-route" data-id="${entity.id}">
+                                <i class="fas fa-plus"></i> Добавить трассу
+                            </button>`}
+                            <button type="button" class="btn btn-primary btn-small" data-catalog-act="add-boulder" data-id="${entity.id}">
+                                <i class="fas fa-plus"></i> Добавить боулдеринг
+                            </button>
+                           </div>`;
+                    }
                     hero.classList.remove('hidden');
                     hero.classList.add('catalog-guide-hero--sector-focus');
                     hero.innerHTML = `
@@ -9390,7 +9403,7 @@
                             <h2>${this.escapeHtml(entity.name || '—')}</h2>
                             ${!isArea && area ? `<p class="catalog-guide-parent">${this.escapeHtml(area.name)}</p>` : ''}
                         </div>
-                        ${areaRouteBtn}
+                        ${compactActions}
                     </div>`;
                     return;
                 }
@@ -9873,7 +9886,10 @@
                     const area = areas.find(a => Number(a.id) === Number(this.catalog.areaId));
                     this.renderCatalogGuideHero('area', area);
                     bc.innerHTML = '';
-                    tb.innerHTML = '';
+                    tb.innerHTML = this.isAdmin() ? `
+                        <button type="button" class="btn btn-primary" data-catalog-act="add-sector" data-id="${this.catalog.areaId}">
+                            <i class="fas fa-plus"></i> Добавить сектор
+                        </button>` : '';
                     const listSectors = sectors.filter(s => Number(s.areaId) === Number(this.catalog.areaId));
                     list.innerHTML = listSectors.length ? listSectors.map(s => {
                         const rc = getRoutes().filter(r => Number(r.sectorId) === Number(s.id)).length;
@@ -9906,7 +9922,13 @@
                     const sector = sectors.find(s => Number(s.id) === Number(this.catalog.sectorId));
                     this.renderCatalogGuideHero('sector', sector);
                     bc.innerHTML = '';
-                    tb.innerHTML = '';
+                    tb.innerHTML = this.isAdmin() ? `
+                        ${APP_BOULDER_ONLY ? '' : `<button type="button" class="btn btn-primary" data-catalog-act="add-route" data-id="${this.catalog.sectorId}">
+                            <i class="fas fa-plus"></i> Добавить трассу
+                        </button>`}
+                        <button type="button" class="btn btn-primary" data-catalog-act="add-boulder" data-id="${this.catalog.sectorId}">
+                            <i class="fas fa-plus"></i> Добавить боулдеринг
+                        </button>` : '';
 
                     const rs = getRoutes().filter(r => Number(r.sectorId) === Number(this.catalog.sectorId));
                     const bs = getBoulders().filter(b => Number(b.sectorId) === Number(this.catalog.sectorId));
