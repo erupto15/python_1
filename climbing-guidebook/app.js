@@ -7181,9 +7181,16 @@
                 }
             }
 
-            buildMapAreaDropletHtml(extraClass = '') {
+            buildMapAreaDropletCatalogSvg() {
+                const d = 'M14 34s12-13.5 12-21a12 12 0 1 0-24 0c0 7.5 12 21 12 21z';
+                const clipId = `areaDropClip${(this._areaDropClipSeq = (this._areaDropClipSeq || 0) + 1)}`;
+                return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 36" aria-hidden="true"><defs><clipPath id="${clipId}"><path d="${d}"/></clipPath></defs><path class="map-area-droplet-shell" fill="#fff" d="${d}"/><g clip-path="url(#${clipId})"><path class="map-area-droplet-inner" fill="none" stroke="#e8472a" stroke-width="2.8" stroke-linejoin="round" d="${d}"/></g></svg>`;
+            }
+
+            buildMapAreaDropletHtml(extraClass = '', { catalogWhite = false } = {}) {
                 const cls = ['map-area-droplet', extraClass].filter(Boolean).join(' ');
-                return `<span class="${cls}">${MAP_AREA_DROPLET_SVG}</span>`;
+                const svg = catalogWhite ? this.buildMapAreaDropletCatalogSvg() : MAP_AREA_DROPLET_SVG;
+                return `<span class="${cls}">${svg}</span>`;
             }
 
             buildMapBoulderSectorIconHtml(extraClass = '') {
@@ -7218,7 +7225,7 @@
                 const subHtml = sub ? ` <span>${this.escapeHtml(String(sub))}</span>` : '';
                 const sel = selected ? ' selected' : '';
                 if (this.catalogEmbeddedMapActive()) {
-                    const droplet = this.buildMapAreaDropletHtml('map-area-droplet-pin');
+                    const droplet = this.buildMapAreaDropletHtml('map-area-droplet-pin', { catalogWhite: true });
                     return `<div class="map-sector-badge map-sector-badge--area map-area-badge--catalog${sel}">${droplet}<div class="map-sector-badge-label map-pin-label--plain">${this.escapeHtml(title)}${subHtml}</div></div>`;
                 }
                 const glyph = this.buildMapAreaDropletHtml('map-sector-badge-glyph map-area-badge-glyph');

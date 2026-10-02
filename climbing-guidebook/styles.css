@@ -2025,14 +2025,18 @@
             height: 100%;
         }
 
-        .catalog-map-block .map-area-badge--catalog .map-area-droplet-pin svg path {
+        .catalog-map-block .map-area-droplet-shell {
             fill: #fff;
-            stroke: rgba(0, 0, 0, 0.28);
         }
 
-        .catalog-map-block .map-area-badge--catalog.selected .map-area-droplet-pin svg path {
-            fill: #fff;
-            stroke: rgba(255, 255, 255, 0.45);
+        .catalog-map-block .map-area-droplet-inner {
+            stroke: var(--map-accent, #e8472a);
+            stroke-width: 2.8px;
+        }
+
+        .catalog-map-block .map-area-badge--catalog.selected .map-area-droplet-inner {
+            stroke: #ff5c45;
+            stroke-width: 3px;
         }
 
         .catalog-map-block .map-sector-badge.selected {
