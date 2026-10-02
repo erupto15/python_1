@@ -6718,7 +6718,7 @@
             }
 
             persistMapView() {
-                if (!this.map) return;
+                if (!this.map || this.catalogEmbeddedMapActive()) return;
                 try {
                     const c = this.map.getCenter();
                     localStorage.setItem(MAP_VIEW_STORAGE_KEY, JSON.stringify({
@@ -6734,7 +6734,8 @@
                 const mapContainer = document.getElementById('mapContainer');
                 if (!mapContainer || this.map) return;
 
-                const savedView = this.loadSavedMapView();
+                const catalogMapNow = this.catalog?.view === 'sectors' || this.catalog?.view === 'problems';
+                const savedView = catalogMapNow ? null : this.loadSavedMapView();
                 if (savedView?.scope) {
                     this._mapRestoringView = true;
                     this.mapCatalogScope = savedView.scope;
@@ -7394,11 +7395,110 @@
                 return bounds.isValid() ? bounds : null;
             }
 
+            _pushMapCoordPoint(points, lat, lng) {
+                const c = this.validMapCoord(lat, lng);
+                if (c) points.push(c);
+            }
+
+            /** Все координаты текущего района/сектора (секторы, трассы, POI, тропы) — для авто-fit. */
+            collectPointsForCatalogScope() {
+                const scope = this.mapCatalogScope;
+                if (!scope?.areaId) return [];
+                const points = [];
+                const areaId = Number(scope.areaId);
+                const sectorId = scope.sectorId != null ? Number(scope.sectorId) : null;
+
+                const pushSectorClimbs = (sid) => {
+                    if (!APP_BOULDER_ONLY) {
+                        getRoutes().forEach((r) => {
+                            if (Number(r.sectorId) !== Number(sid)) return;
+                            this._pushMapCoordPoint(points, r.latitude, r.longitude);
+                        });
+                    }
+                    getBoulders().forEach((b) => {
+                        if (Number(b.sectorId) !== Number(sid)) return;
+                        this._pushMapCoordPoint(points, b.latitude, b.longitude);
+                    });
+                };
+
+                if (sectorId != null) {
+                    const sector = getSectors().find((s) => Number(s.id) === sectorId);
+                    if (sector) {
+                        this._pushMapCoordPoint(points, sector.latitude, sector.longitude);
+                        const centroid = this.sectorMapCoordinate(sectorId);
+                        if (centroid) points.push(centroid);
+                        pushSectorClimbs(sectorId);
+                    }
+                } else {
+                    const area = getAreas().find((a) => Number(a.id) === areaId);
+                    if (area) {
+                        this._pushMapCoordPoint(points, area.latitude, area.longitude);
+                        const areaCentroid = this.areaMapCoordinate(areaId);
+                        if (areaCentroid) points.push(areaCentroid);
+                    }
+                    getSectors()
+                        .filter((s) => Number(s.areaId) === areaId)
+                        .forEach((sector) => {
+                            this._pushMapCoordPoint(points, sector.latitude, sector.longitude);
+                            const c = this.sectorMapCoordinate(sector.id);
+                            if (c) points.push(c);
+                            pushSectorClimbs(sector.id);
+                        });
+                }
+
+                getMapFeatures().forEach((feature) => {
+                    if (!this.mapFeatureVisible(feature)) return;
+                    const geom = feature.geometry;
+                    if (!geom) return;
+                    if (geom.type === 'Point' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
+                        this._pushMapCoordPoint(points, geom.coordinates[1], geom.coordinates[0]);
+                    } else if (geom.type === 'LineString' && Array.isArray(geom.coordinates)) {
+                        geom.coordinates.forEach((c) => {
+                            if (Array.isArray(c) && c.length >= 2) {
+                                this._pushMapCoordPoint(points, c[1], c[0]);
+                            }
+                        });
+                    }
+                });
+
+                return points;
+            }
+
+            fitMapToCatalogScope(maxZoom = 15) {
+                if (!this.map) return;
+                const points = this.collectPointsForCatalogScope();
+                if (points.length === 1) {
+                    this._mapRestoringView = true;
+                    this.map.setView([points[0].lat, points[0].lng], Math.min(maxZoom, 14), { animate: true });
+                    requestAnimationFrame(() => {
+                        this._mapRestoringView = false;
+                    });
+                    return;
+                }
+                if (points.length > 1) {
+                    const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng]));
+                    if (bounds.isValid()) {
+                        this._mapRestoringView = true;
+                        this.map.fitBounds(bounds.pad(0.18), { maxZoom, animate: true });
+                        requestAnimationFrame(() => {
+                            this._mapRestoringView = false;
+                        });
+                        return;
+                    }
+                }
+                this.fitMapToVisibleMarkers(maxZoom);
+            }
+
             fitMapToVisibleMarkers(maxZoom = 15) {
                 if (!this.map || !this.mapMarkerIndex.size) return;
                 const bounds = this.mapVisibleBounds();
                 if (!bounds) return;
                 this.map.fitBounds(bounds.pad(0.22), { maxZoom, animate: true });
+            }
+
+            catalogEmbeddedMapActive() {
+                return this._mapDomInCatalog
+                    && (this.catalog?.view === 'sectors' || this.catalog?.view === 'problems');
             }
 
             mapEntryInScope(entry) {
@@ -7578,7 +7678,7 @@
                 this.renderMapCoordsBar();
                 this.updateMapStatus();
 
-                if (!this._mapFitDone && this.mapMarkerIndex.size) {
+                if (!this.catalogEmbeddedMapActive() && !this._mapFitDone && this.mapMarkerIndex.size) {
                     const bounds = this.mapVisibleBounds();
                     if (bounds) {
                         this.map.fitBounds(bounds.pad(0.2), { maxZoom: 14, animate: false });
@@ -7589,6 +7689,25 @@
                 this.scheduleMapDeclutter();
                 this.renderMapFeatureLayers();
                 this.renderMapNearestChip();
+                if (this.catalogEmbeddedMapActive() && this.mapCatalogScope?.areaId) {
+                    this.scheduleCatalogMapAutoFit();
+                }
+            }
+
+            scheduleCatalogMapAutoFit() {
+                if (!this.map) return;
+                if (this._catalogMapFitRaf != null) cancelAnimationFrame(this._catalogMapFitRaf);
+                this._catalogMapFitRaf = requestAnimationFrame(() => {
+                    this._catalogMapFitRaf = null;
+                    if (!this.catalogEmbeddedMapActive() || !this.mapCatalogScope?.areaId) return;
+                    const maxZoom = this.catalog.view === 'sectors' ? 13 : 16;
+                    const scopeKey = `${this.catalog.view}:${this.catalog.areaId}:${this.catalog.sectorId ?? ''}`;
+                    const markerCount = this.mapMarkerIndex.size;
+                    const fitKey = `${scopeKey}:${markerCount}`;
+                    if (fitKey === this._catalogMapFitKey) return;
+                    this._catalogMapFitKey = fitKey;
+                    this.fitMapToCatalogScope(maxZoom);
+                });
             }
 
             clearMapFeatureLayers() {
@@ -8232,12 +8351,17 @@
                     this.applyCachedUserLocation();
                 }
                 this.updateMapMarkers();
-                const fitKey = `${this.catalog.view}:${this.catalog.areaId}:${this.catalog.sectorId ?? ''}`;
-                const maxZoom = this.catalog.view === 'sectors' ? 13 : 16;
-                if (fitKey !== this._catalogMapFitKey) {
-                    this._catalogMapFitKey = fitKey;
-                    this.fitMapToVisibleMarkers(maxZoom);
+                const scopeKey = `${this.catalog.view}:${this.catalog.areaId}:${this.catalog.sectorId ?? ''}`;
+                if (!String(this._catalogMapFitKey || '').startsWith(`${scopeKey}:`)) {
+                    this._catalogMapFitKey = null;
                 }
+                this.scheduleCatalogMapAutoFit();
+                setTimeout(() => {
+                    if (this.catalogEmbeddedMapActive()) {
+                        this._catalogMapFitKey = null;
+                        this.scheduleCatalogMapAutoFit();
+                    }
+                }, 180);
             }
 
             async showMapTab() {
@@ -8326,7 +8450,8 @@
                     return null;
                 }
                 if (normalizedKind === 'area' || normalizedKind === 'sector') {
-                    this.fitMapToVisibleMarkers(normalizedKind === 'area' ? 13 : 16);
+                    this._catalogMapFitKey = null;
+                    this.fitMapToCatalogScope(normalizedKind === 'area' ? 13 : 16);
                 } else if (this.map) {
                     this.map.setView([entry.lat, entry.lng], Math.max(this.map.getZoom(), 17), { animate: true });
                 }
