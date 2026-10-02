@@ -4051,7 +4051,6 @@
 
         .map-feature-icon--parking { background: #2563eb; font-family: inherit; }
         .map-feature-icon--camping { background: #16a34a; font-size: 13px; }
-        .map-feature-icon--area_sign { background: #e8472a; color: #fff; }
         .map-feature-icon--sector_sign {
             background: transparent;
             border: none;
@@ -4338,10 +4337,65 @@
             width: 8px;
         }
 
+        .map-area-droplet {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #22c55e;
+            vertical-align: middle;
+            flex-shrink: 0;
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+        }
+
+        .map-area-droplet svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
         .parent-label .map-kind-icon--area {
-            color: #e8472a;
+            width: 15px;
+            height: 19px;
+            margin-right: 5px;
             opacity: 1;
-            font-size: 12px;
+        }
+
+        .map-feature-area-droplet {
+            width: 28px;
+            height: 36px;
+        }
+
+        .map-legend-area-droplet {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 18px;
+            color: #22c55e;
+            flex-shrink: 0;
+        }
+
+        .map-legend-area-droplet svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .map-tool-area-droplet {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 20px;
+            margin-right: 4px;
+            color: #22c55e;
+            vertical-align: middle;
+        }
+
+        .map-tool-area-droplet svg {
+            display: block;
+            width: 100%;
+            height: 100%;
         }
 
         .map-tool-glyph--p {
@@ -4355,11 +4409,6 @@
             color: #fff;
             font-size: 11px;
             font-weight: 800;
-            margin-right: 4px;
-        }
-
-        .map-tool-droplet {
-            color: #e8472a;
             margin-right: 4px;
         }
 

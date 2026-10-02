@@ -561,6 +561,8 @@
         /** Трассы / боулдер: icons/map-*-sector-climber.svg (AllClimb-style) */
         let MAP_ROUTE_SECTOR_CLIMBER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26.27 41" aria-hidden="true"><path fill="currentColor" d="M12.41,9.72A3.86,3.86,0,1,0,8.55,5.85,3.87,3.87,0,0,0,12.41,9.72Z"/><path fill="currentColor" d="M23.19,0a1.52,1.52,0,0,0-1.52,1.52,9.38,9.38,0,0,1-9,9.36c0,1-.08,2-.13,3A12.42,12.42,0,0,0,24.71,1.52,1.52,1.52,0,0,0,23.19,0Z"/><rect fill="currentColor" x="8.77" y="12" width="7.29" height="6.23"/><path fill="currentColor" d="M3.11,40.08A1.82,1.82,0,0,1,1.5,37.41l7.26-13.9A1.82,1.82,0,0,1,12,25.2L4.72,39.1A1.82,1.82,0,0,1,3.11,40.08Z"/><path fill="currentColor" d="M19,30.5a1.82,1.82,0,0,1-1.77-2.27l1.27-4.94L14.9,24.77a1.82,1.82,0,0,1-1.38-3.37l7-2.86a1.82,1.82,0,0,1,2.46,2.14l-2.17,8.45A1.82,1.82,0,0,1,19,30.5Z"/><path fill="currentColor" d="M15.44,18.25a.61.61,0,0,1,0-1.22,9.89,9.89,0,0,0,8.25-4.51c1.34-2.15,2.37-5.86-.33-11.36A.61.61,0,0,1,24.45.63c2.94,6,1.77,10.13.27,12.54A11.13,11.13,0,0,1,15.44,18.25Z"/><path fill="currentColor" d="M8.76,20.37v3a2,2,0,0,0,2,2H13c1.13,0,3-1.08,3-2.16V20.37Z"/><rect fill="currentColor" x="12.54" y="26.75" width="1.22" height="14.26"/><path fill="currentColor" d="M12.7,10.88l-.29,0A12.43,12.43,0,0,0,0,23.27a1.52,1.52,0,1,0,3,0,9.39,9.39,0,0,1,9.38-9.37h.29Z"/></svg>';
         let MAP_BOULDER_SECTOR_CLIMBER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" aria-hidden="true"><circle fill="currentColor" cx="11.5" cy="5.2" r="3.35"/><rect fill="currentColor" x="8.6" y="8.8" width="5.8" height="5.6" rx="0.4"/><path fill="currentColor" d="M14.2 9.2 19.2 3.6 20.6 4.9 15.8 10.4z"/><path fill="currentColor" d="M8.4 10.1 3.8 12.4 4.9 14.1 9.2 11.5z"/><path fill="currentColor" d="M9.2 14.6 3.4 29.8 5.6 30.6 10.4 16.2z"/><path fill="currentColor" d="M12.8 14.5 17.6 27.2 19.6 26.2 14.9 15.8z"/><path fill="currentColor" d="M9.8 14.2h3.4v2.4H9.8z"/></svg>';
+        /** Район: зелёная «капля» (перевёрнута — остриём вниз, как нативная метка на карте). */
+        const MAP_AREA_DROPLET_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 36" aria-hidden="true"><path fill="currentColor" stroke="#fff" stroke-width="2" stroke-linejoin="round" d="M14 34s12-13.5 12-21a12 12 0 1 0-24 0c0 7.5 12 21 12 21z"/></svg>';
 
         function normalizeInlineMapSectorSvg(raw) {
             if (!raw || typeof raw !== 'string' || !raw.includes('<svg')) return '';
@@ -3117,6 +3119,8 @@
             const s = String(g).trim();
             const m45 = s.match(/^(4|5)(\+)?$/);
             if (m45) return m45[1] + (m45[2] || '');
+            const m5 = s.match(/^5([abc])(\+)?$/i);
+            if (m5) return '5' + m5[1].toLowerCase() + (m5[2] || '');
             const m = s.match(/^([6-9])([A-Za-z])(\+)?$/);
             if (m) return m[1] + m[2].toLowerCase() + (m[3] || '');
             return s;
@@ -3164,7 +3168,7 @@
         }
 
         const ROUTE_GRADE_OPTIONS = [
-            '4', '4+', '5', '5+',
+            '4', '4+', '5', '5a', '5b', '5c',
             '6a', '6a+', '6b', '6b+', '6c', '6c+',
             '7a', '7a+', '7b', '7b+', '7c', '7c+',
             '8a', '8a+', '8b', '8b+', '8c', '8c+',
@@ -7137,12 +7141,25 @@
             fillMapLegendSectorIcons() {
                 const routeEl = document.getElementById('mapLegendSectorRoute');
                 const boulderEl = document.getElementById('mapLegendSectorBoulder');
+                const areaEl = document.getElementById('mapLegendAreaDroplet');
                 if (routeEl && !routeEl.querySelector('svg')) {
                     routeEl.innerHTML = MAP_ROUTE_SECTOR_CLIMBER_SVG;
                 }
                 if (boulderEl && !boulderEl.querySelector('svg')) {
                     boulderEl.innerHTML = MAP_BOULDER_SECTOR_CLIMBER_SVG;
                 }
+                if (areaEl && !areaEl.querySelector('svg')) {
+                    areaEl.innerHTML = MAP_AREA_DROPLET_SVG;
+                }
+                const toolEl = document.getElementById('mapToolAreaDroplet');
+                if (toolEl && !toolEl.querySelector('svg')) {
+                    toolEl.innerHTML = MAP_AREA_DROPLET_SVG;
+                }
+            }
+
+            buildMapAreaDropletHtml(extraClass = '') {
+                const cls = ['map-area-droplet', extraClass].filter(Boolean).join(' ');
+                return `<span class="${cls}">${MAP_AREA_DROPLET_SVG}</span>`;
             }
 
             buildMapBoulderSectorIconHtml(extraClass = '') {
@@ -7229,7 +7246,7 @@
                 const subHtml = sub ? ` <span>${this.escapeHtml(sub)}</span>` : '';
                 let icon = '';
                 if (kind === 'area') {
-                    icon = '<i class="fas fa-droplet map-kind-icon map-kind-icon--area" aria-hidden="true"></i>';
+                    icon = this.buildMapAreaDropletHtml('map-kind-icon map-kind-icon--area');
                 }
                 return `<div class="parent-label${selected ? ' selected' : ''}">${icon}${this.escapeHtml(title)}${subHtml}</div>`;
             }
@@ -7806,13 +7823,20 @@
             }
 
             buildMapFeaturePointIcon(featureType, label, meta = {}) {
+                if (featureType === 'area_sign') {
+                    return L.divIcon({
+                        className: 'map-feature-point-marker map-feature-point-marker--area',
+                        html: this.buildMapAreaDropletHtml('map-feature-area-droplet'),
+                        iconSize: [28, 36],
+                        iconAnchor: [14, 36]
+                    });
+                }
                 const sectorSignIcon = meta.boulderSector
                     ? this.buildMapBoulderSectorIconHtml('map-feature-boulder-sector-icon')
                     : this.buildMapRouteSectorIconHtml('map-feature-route-sector-icon');
                 const icons = {
                     parking: '<span class="map-feature-parking-letter" aria-hidden="true">P</span>',
                     camping: '<i class="fas fa-campground" aria-hidden="true"></i>',
-                    area_sign: '<i class="fas fa-droplet" aria-hidden="true"></i>',
                     sector_sign: sectorSignIcon
                 };
                 const cls = `map-feature-icon map-feature-icon--${featureType}`;

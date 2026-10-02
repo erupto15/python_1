@@ -63,6 +63,9 @@ def normalize_grade(grade: str, *, is_boulder: bool = False) -> str:
     m45 = re.match(r"^(4|5)(\+)?$", s)
     if m45:
         return m45.group(1) + (m45.group(2) or "")
+    m5 = re.match(r"^5([abc])(\+)?$", s, re.IGNORECASE)
+    if m5:
+        return "5" + m5.group(1).lower() + (m5.group(2) or "")
     m = re.match(r"^([6-9])([A-Za-z])(\+)?$", s)
     if m:
         letter = m.group(2).upper() if is_boulder else m.group(2).lower()
