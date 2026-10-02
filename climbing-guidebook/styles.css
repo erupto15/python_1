@@ -1957,17 +1957,86 @@
             padding: 4px 0;
         }
 
+        .catalog-map-block .map-pin-label--plain {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: #fff !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 10px rgba(0, 0, 0, 0.65);
+            padding: 2px 4px;
+        }
+
+        .catalog-map-block .map-pin-label--plain span {
+            color: #fff !important;
+            opacity: 0.88;
+        }
+
+        .catalog-map-block .map-sector-badge.selected .map-sector-badge-label,
+        .catalog-map-block .map-sector-badge.selected .map-pin-label--plain {
+            background: transparent !important;
+            border: none !important;
+            color: #fff !important;
+        }
+
+        .catalog-map-block .map-sector-badge.selected .map-sector-badge-glyph {
+            background: var(--card-bg, #151b24) !important;
+        }
+
+        .catalog-map-block .map-sector-badge--route.selected .map-sector-badge-glyph {
+            border-color: var(--route-color, #22b8a8) !important;
+            color: var(--route-color, #22b8a8) !important;
+        }
+
+        .catalog-map-block .map-sector-badge--boulder.selected .map-sector-badge-glyph {
+            border-color: var(--boulder-color, #f04d23) !important;
+            color: var(--boulder-color, #f04d23) !important;
+        }
+
+        .catalog-map-block .map-sector-badge.selected .map-sector-badge-pointer {
+            border-top-color: color-mix(in srgb, var(--route-color, #22b8a8) 70%, #fff) !important;
+        }
+
+        .catalog-map-block .map-sector-badge--boulder.selected .map-sector-badge-pointer {
+            border-top-color: color-mix(in srgb, var(--boulder-color, #f04d23) 70%, #fff) !important;
+        }
+
+        .catalog-map-block .map-sector-badge.selected .map-sector-badge-dot {
+            background: var(--route-color, #22b8a8) !important;
+        }
+
+        .catalog-map-block .map-sector-badge--boulder.selected .map-sector-badge-dot {
+            background: var(--boulder-color, #f04d23) !important;
+        }
+
+        .catalog-map-block .map-area-badge--catalog .map-area-droplet-pin {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 32px;
+            margin-bottom: 2px;
+            color: #fff;
+            filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.75));
+        }
+
+        .catalog-map-block .map-area-badge--catalog .map-area-droplet-pin svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .catalog-map-block .map-area-badge--catalog .map-area-droplet-pin svg path {
+            fill: #fff;
+            stroke: rgba(0, 0, 0, 0.28);
+        }
+
+        .catalog-map-block .map-area-badge--catalog.selected .map-area-droplet-pin svg path {
+            fill: #fff;
+            stroke: rgba(255, 255, 255, 0.45);
+        }
+
         .catalog-map-block .map-sector-badge.selected {
             z-index: 2;
-            filter: drop-shadow(0 0 10px color-mix(in srgb, var(--map-accent) 55%, transparent));
-        }
-
-        .catalog-map-block .map-sector-badge--area.selected .map-sector-badge-glyph {
-            box-shadow: 0 0 0 3px color-mix(in srgb, #22c55e 45%, transparent), 0 2px 12px rgba(0, 0, 0, 0.5);
-        }
-
-        .catalog-map-block .map-sector-badge:not(.map-sector-badge--area).selected .map-sector-badge-glyph {
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--route-color, #22b8a8) 40%, transparent), 0 2px 12px rgba(0, 0, 0, 0.5);
         }
 
         .catalog-map-block .map-status {

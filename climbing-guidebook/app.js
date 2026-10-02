@@ -7210,13 +7210,19 @@
                     ? this.buildMapBoulderSectorIconHtml('map-sector-badge-glyph')
                     : this.buildMapRouteSectorIconHtml('map-sector-badge-glyph');
                 const subHtml = sub ? ` <span>${this.escapeHtml(String(sub))}</span>` : '';
-                return `<div class="map-sector-badge ${kindCls}${selected ? ' selected' : ''}">${glyph}<div class="map-sector-badge-label">${this.escapeHtml(title)}${subHtml}</div><div class="map-sector-badge-pointer" aria-hidden="true"></div><div class="map-sector-badge-dot" aria-hidden="true"></div></div>`;
+                const labelCls = this.catalogEmbeddedMapActive() ? 'map-sector-badge-label map-pin-label--plain' : 'map-sector-badge-label';
+                return `<div class="map-sector-badge ${kindCls}${selected ? ' selected' : ''}">${glyph}<div class="${labelCls}">${this.escapeHtml(title)}${subHtml}</div><div class="map-sector-badge-pointer" aria-hidden="true"></div><div class="map-sector-badge-dot" aria-hidden="true"></div></div>`;
             }
 
             buildMapAreaBadgeHtml(title, sub, selected = false) {
                 const subHtml = sub ? ` <span>${this.escapeHtml(String(sub))}</span>` : '';
+                const sel = selected ? ' selected' : '';
+                if (this.catalogEmbeddedMapActive()) {
+                    const droplet = this.buildMapAreaDropletHtml('map-area-droplet-pin');
+                    return `<div class="map-sector-badge map-sector-badge--area map-area-badge--catalog${sel}">${droplet}<div class="map-sector-badge-label map-pin-label--plain">${this.escapeHtml(title)}${subHtml}</div></div>`;
+                }
                 const glyph = this.buildMapAreaDropletHtml('map-sector-badge-glyph map-area-badge-glyph');
-                return `<div class="map-sector-badge map-sector-badge--area${selected ? ' selected' : ''}">${glyph}<div class="map-sector-badge-label">${this.escapeHtml(title)}${subHtml}</div><div class="map-sector-badge-pointer" aria-hidden="true"></div><div class="map-sector-badge-dot" aria-hidden="true"></div></div>`;
+                return `<div class="map-sector-badge map-sector-badge--area${sel}">${glyph}<div class="map-sector-badge-label">${this.escapeHtml(title)}${subHtml}</div><div class="map-sector-badge-pointer" aria-hidden="true"></div><div class="map-sector-badge-dot" aria-hidden="true"></div></div>`;
             }
 
             isMapPinLabelKind(kind) {
