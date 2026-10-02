@@ -6790,7 +6790,30 @@
 
             shouldClusterClimbMarkers() {
                 if (!this.map || typeof L.markerClusterGroup !== 'function') return false;
+                if (this.catalogEmbeddedMapActive()) return false;
                 return this.map.getZoom() < 16;
+            }
+
+            mapEntryCatalogAccent(entry) {
+                if (!this.catalogEmbeddedMapActive() || !entry) return false;
+                const areaId = Number(this.catalog.areaId);
+                if (!Number.isFinite(areaId)) return false;
+                if (entry.kind === 'area' && Number(entry.id) === areaId) return true;
+                if (entry.kind === 'sector' && Number(entry.areaId) === areaId) {
+                    if (this.catalog.view === 'problems') {
+                        return Number(entry.id) === Number(this.catalog.sectorId);
+                    }
+                    return true;
+                }
+                return false;
+            }
+
+            mapPinShowsCountSub() {
+                return !this.catalogEmbeddedMapActive();
+            }
+
+            mapEntryShowAsSelected(entry) {
+                return this.mapEntrySelected(entry) || this.mapEntryCatalogAccent(entry);
             }
 
             attachMapFullscreenControl() {
@@ -7205,7 +7228,7 @@
             }
 
             buildMapDotHtml(entry) {
-                const selected = this.mapEntrySelected(entry);
+                const selected = this.mapEntryShowAsSelected(entry);
                 const done = entry.climbType && this.hasUserSent(entry.climbType, entry.id);
                 const title = this.escapeHtml(entry.title || 'Точка');
                 return `<div class="map-climb-dot-hit" role="button" tabindex="-1" aria-label="${title}"><div class="map-climb-dot${selected ? ' focused' : ''}${done ? ' done' : ''}" aria-hidden="true"></div></div>`;
@@ -7379,7 +7402,7 @@
 
             refreshMapMarkerStyles() {
                 this.mapMarkerIndex.forEach((stored) => {
-                    const selected = this.mapEntrySelected(stored);
+                    const selected = this.mapEntryShowAsSelected(stored);
                     if (stored.kind === 'area' || stored.kind === 'sector') {
                         const isPin = this.isMapPinLabelKind(stored.kind);
                         stored.marker?.setIcon(L.divIcon({
@@ -7428,7 +7451,9 @@
                 const areaId = Number(scope.areaId);
                 const sectorId = scope.sectorId != null ? Number(scope.sectorId) : null;
 
+                const pinsOnly = this.catalogEmbeddedMapActive();
                 const pushSectorClimbs = (sid) => {
+                    if (pinsOnly) return;
                     if (!APP_BOULDER_ONLY) {
                         getRoutes().forEach((r) => {
                             if (Number(r.sectorId) !== Number(sid)) return;
@@ -7499,7 +7524,8 @@
                     const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng]));
                     if (bounds.isValid()) {
                         this._mapRestoringView = true;
-                        this.map.fitBounds(bounds.pad(0.18), { maxZoom, animate: true });
+                        const pad = this.catalogEmbeddedMapActive() ? 0.12 : 0.18;
+                        this.map.fitBounds(bounds.pad(pad), { maxZoom, animate: true });
                         requestAnimationFrame(() => {
                             this._mapRestoringView = false;
                         });
@@ -7577,7 +7603,8 @@
                     });
                 });
 
-                if (!APP_BOULDER_ONLY) {
+                const skipClimbDots = this.catalogEmbeddedMapActive();
+                if (!skipClimbDots && !APP_BOULDER_ONLY) {
                     getRoutes().forEach((route) => {
                         const c = this.validMapCoord(route.latitude, route.longitude);
                         if (!c) return;
@@ -7597,7 +7624,7 @@
                     });
                 }
 
-                getBoulders().forEach((boulder) => {
+                if (!skipClimbDots) getBoulders().forEach((boulder) => {
                     const c = this.validMapCoord(boulder.latitude, boulder.longitude);
                     if (!c) return;
                     entries.push({
@@ -7622,7 +7649,7 @@
                 const coord = this.validMapCoord(entry.lat, entry.lng);
                 if (!coord) return;
 
-                const selected = this.mapEntrySelected(entry);
+                const selected = this.mapEntryShowAsSelected(entry);
                 const stored = {
                     ...entry,
                     lat: coord.lat,
@@ -7633,7 +7660,8 @@
                 };
 
                 if (entry.kind === 'area' || entry.kind === 'sector') {
-                    const labelHtml = this.buildMapParentLabelHtml(entry.title, stored.labelSub, selected, entry.kind, entry);
+                    const labelSub = this.mapPinShowsCountSub() ? stored.labelSub : '';
+                    const labelHtml = this.buildMapParentLabelHtml(entry.title, labelSub, selected, entry.kind, entry);
                     stored.marker = this.createMapParentLabelMarker(stored, coord, labelHtml);
                     stored.labelEl = stored.marker.getElement()?.querySelector(
                         this.isMapPinLabelKind(entry.kind) ? this.mapPinLabelSelector() : '.parent-label'
@@ -7721,7 +7749,7 @@
                 this._catalogMapFitRaf = requestAnimationFrame(() => {
                     this._catalogMapFitRaf = null;
                     if (!this.catalogEmbeddedMapActive() || !this.mapCatalogScope?.areaId) return;
-                    const maxZoom = this.catalog.view === 'sectors' ? 13 : 16;
+                    const maxZoom = this.catalog.view === 'sectors' ? 15 : 17;
                     const scopeKey = `${this.catalog.view}:${this.catalog.areaId}:${this.catalog.sectorId ?? ''}`;
                     const markerCount = this.mapMarkerIndex.size;
                     const fitKey = `${scopeKey}:${markerCount}`;
@@ -8372,6 +8400,7 @@
                     this.applyCachedUserLocation();
                 }
                 this.updateMapMarkers();
+                this.refreshMapMarkerStyles();
                 const scopeKey = `${this.catalog.view}:${this.catalog.areaId}:${this.catalog.sectorId ?? ''}`;
                 if (!String(this._catalogMapFitKey || '').startsWith(`${scopeKey}:`)) {
                     this._catalogMapFitKey = null;
@@ -8472,7 +8501,7 @@
                 }
                 if (normalizedKind === 'area' || normalizedKind === 'sector') {
                     this._catalogMapFitKey = null;
-                    this.fitMapToCatalogScope(normalizedKind === 'area' ? 13 : 16);
+                    this.fitMapToCatalogScope(normalizedKind === 'area' ? 15 : 17);
                 } else if (this.map) {
                     this.map.setView([entry.lat, entry.lng], Math.max(this.map.getZoom(), 17), { animate: true });
                 }

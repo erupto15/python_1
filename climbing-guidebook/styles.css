@@ -1957,6 +1957,19 @@
             padding: 4px 0;
         }
 
+        .catalog-map-block .map-sector-badge.selected {
+            z-index: 2;
+            filter: drop-shadow(0 0 10px color-mix(in srgb, var(--map-accent) 55%, transparent));
+        }
+
+        .catalog-map-block .map-sector-badge--area.selected .map-sector-badge-glyph {
+            box-shadow: 0 0 0 3px color-mix(in srgb, #22c55e 45%, transparent), 0 2px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .catalog-map-block .map-sector-badge:not(.map-sector-badge--area).selected .map-sector-badge-glyph {
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--route-color, #22b8a8) 40%, transparent), 0 2px 12px rgba(0, 0, 0, 0.5);
+        }
+
         .catalog-map-block .map-status {
             font-size: 12px;
             line-height: 1.35;
