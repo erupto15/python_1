@@ -344,6 +344,7 @@
                     </div>
                     <div id="catalogMapContainerMount" class="catalog-map-container-mount"></div>
                     <div id="catalogMapLegendMount" class="catalog-map-legend-mount"></div>
+                    <div id="catalogMapEditMount" class="catalog-map-edit-mount admin-only hidden-by-role"></div>
                 </div>
                 <div id="catalogList"></div>
             </div>
@@ -850,8 +851,11 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="areaLocation">Местоположение</label>
-                        <input type="text" class="form-input" id="areaLocation" placeholder="61.110053, 29.165610" autocomplete="off">
-                        <p class="form-hint">Координаты для карты: широта, долгота</p>
+                        <div class="form-input-row">
+                            <input type="text" class="form-input" id="areaLocation" placeholder="61.110053, 29.165610" autocomplete="off">
+                            <button type="button" class="btn btn-ghost btn-small" data-map-pick-location="areaLocation" title="Указать на карте"><i class="fas fa-map-pin"></i></button>
+                        </div>
+                        <p class="form-hint">Координаты для карты: широта, долгота или кнопка «метка на карте»</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="areaPhoto">Картинка района</label>
@@ -896,8 +900,11 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="sectorLocation">Местоположение</label>
-                        <input type="text" class="form-input" id="sectorLocation" placeholder="61.110053, 29.165610" autocomplete="off">
-                        <p class="form-hint">Координаты для карты: широта, долгота</p>
+                        <div class="form-input-row">
+                            <input type="text" class="form-input" id="sectorLocation" placeholder="61.110053, 29.165610" autocomplete="off">
+                            <button type="button" class="btn btn-ghost btn-small" data-map-pick-location="sectorLocation" title="Указать на карте"><i class="fas fa-map-pin"></i></button>
+                        </div>
+                        <p class="form-hint">Координаты для карты: широта, долгота или кнопка «метка на карте»</p>
                     </div>
                 </form>
             </div>
@@ -1189,6 +1196,28 @@
             </div>
             <div class="dialog-footer dialog-footer--tg-native dialog-footer--log-submit">
                 <button type="button" class="climb-log-add-btn climb-log-add-btn--submit" id="climbLogConfirmBtn" aria-label="Записать пролаз" title="Записать пролаз"><i class="fas fa-plus" aria-hidden="true"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="dialog-overlay hidden" id="mapPromptDialog" style="z-index: 1105;">
+        <div class="dialog-content dialog-content--compact">
+            <div class="dialog-header">
+                <div class="dialog-header-text">
+                    <div class="dialog-title" id="mapPromptDialogTitle">Подпись</div>
+                </div>
+                <button type="button" class="dialog-close-btn" data-close-dialog="mapPromptDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i></button>
+            </div>
+            <div class="dialog-body">
+                <label class="form-label hidden" id="mapPromptDialogSelectLabel" for="mapPromptDialogSelect">Объект</label>
+                <select class="form-input hidden" id="mapPromptDialogSelect"></select>
+                <label class="form-label" id="mapPromptDialogInputLabel" for="mapPromptDialogInput">Название</label>
+                <input type="text" class="form-input" id="mapPromptDialogInput" maxlength="255" autocomplete="off">
+                <p class="form-hint hidden" id="mapPromptDialogHint"></p>
+            </div>
+            <div class="dialog-footer dialog-footer--tg-native">
+                <button type="button" class="btn btn-ghost" id="mapPromptDialogCancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="mapPromptDialogOk">OK</button>
             </div>
         </div>
     </div>

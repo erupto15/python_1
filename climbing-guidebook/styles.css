@@ -1966,6 +1966,29 @@
             margin-top: 10px;
         }
 
+        .catalog-map-edit-mount {
+            margin-top: 10px;
+        }
+
+        .catalog-map-edit-mount .map-edit-panel {
+            margin: 0;
+        }
+
+        html.catalog-map-minimal.catalog-admin .catalog-map-edit-mount {
+            display: block;
+        }
+
+        .form-input-row {
+            display: flex;
+            gap: 8px;
+            align-items: stretch;
+        }
+
+        .form-input-row .form-input {
+            flex: 1;
+            min-width: 0;
+        }
+
         .catalog-map-legend-mount .map-legend {
             display: flex;
             flex-wrap: wrap;
@@ -4715,6 +4738,10 @@
             margin-right: 5px;
             opacity: 0.88;
             font-size: 11px;
+        }
+
+        #mapContainer.map-pick-location {
+            cursor: crosshair;
         }
 
         #mapContainer.map-edit-mode {

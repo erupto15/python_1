@@ -5343,6 +5343,8 @@
                 this.mapFeatureLayers = [];
                 this.mapClimbCluster = null;
                 this._mapLocateRequested = false;
+                this._mapLocationPickTarget = null;
+                this._mapPromptResolver = null;
                 this._mapRestoringView = false;
                 this._mapViewSaveTimer = null;
                 this.mapSelectedFeatureId = null;
@@ -7855,6 +7857,9 @@
                 if (feature.featureType !== 'trail' && !this.mapShowPoi) return false;
                 const scopeAreaId = this.mapCatalogScope?.areaId;
                 if (!scopeAreaId) return true;
+                if (this.mapEditMode && this.isAdmin()) {
+                    if (feature.areaId == null && feature.sectorId == null) return true;
+                }
                 if (feature.areaId != null && Number(feature.areaId) === Number(scopeAreaId)) return true;
                 if (feature.sectorId != null) {
                     const sector = getSectors().find((s) => Number(s.id) === Number(feature.sectorId));
@@ -7916,14 +7921,22 @@
 
             bindMapFeatureLayerAdminEvents(layer, feature) {
                 if (!layer || !feature) return;
-                layer.off('click');
-                layer.on('click', (e) => {
+                const handler = (e) => {
                     if (!this.mapEditMode || !this.isAdmin()) return;
                     L.DomEvent.stopPropagation(e);
                     if (this.mapDrawTool === 'edit') {
                         this.selectMapFeature(feature.id);
                     }
-                });
+                };
+                if (typeof layer.eachLayer === 'function') {
+                    layer.eachLayer((child) => {
+                        child.off('click');
+                        child.on('click', handler);
+                    });
+                    return;
+                }
+                layer.off('click');
+                layer.on('click', handler);
             }
 
             getMapFeatureById(featureId) {
@@ -8033,8 +8046,16 @@
                     await this.patchMapFeature(feature.id, {
                         geometry: { type: 'Point', coordinates: [lng, lat] }
                     });
+                    await this.applyMapFeatureToEntityCoords(
+                        feature.featureType,
+                        lat,
+                        lng,
+                        feature.areaId ?? feature.area_id,
+                        feature.sectorId ?? feature.sector_id
+                    );
                     this.renderMapFeatureLayers();
                     this.syncMapFeatureEditBar();
+                    this.renderCatalog();
                     this.showToast('Метка перемещена');
                     this.updateMapStatus('Метка перемещена.');
                 } catch (err) {
@@ -8177,6 +8198,147 @@
                 }
             }
 
+            finishMapPromptDialog(ok) {
+                const resolve = this._mapPromptResolver;
+                const required = !!this._mapPromptRequired;
+                this._mapPromptResolver = null;
+                this._mapPromptRequired = false;
+                let result = null;
+                if (ok && resolve) {
+                    const input = document.getElementById('mapPromptDialogInput');
+                    const select = document.getElementById('mapPromptDialogSelect');
+                    const selectVisible = select && !select.classList.contains('hidden');
+                    const text = input?.value?.trim() ?? '';
+                    const selectValue = selectVisible ? select.value : null;
+                    if (selectVisible && !selectValue) {
+                        this.showToast('Выберите объект из списка', true);
+                        this._mapPromptResolver = resolve;
+                        this._mapPromptRequired = required;
+                        return;
+                    }
+                    if (required && !text && !selectVisible) {
+                        this.showToast('Укажите значение', true);
+                        this._mapPromptResolver = resolve;
+                        this._mapPromptRequired = required;
+                        return;
+                    }
+                    result = { text, selectValue };
+                }
+                const dlg = document.getElementById('mapPromptDialog');
+                dlg?.classList.add('hidden');
+                this.syncBodyDialogScreenLock();
+                this.syncCatalogSectorFocusUi();
+                resolve?.(result);
+            }
+
+            promptMapTextInput({
+                title = 'Подпись',
+                inputLabel = 'Название',
+                defaultValue = '',
+                hint = '',
+                required = false,
+                selectOptions = null,
+                selectLabel = 'Объект',
+                defaultSelectValue = null
+            } = {}) {
+                return new Promise((resolve) => {
+                    const dlg = document.getElementById('mapPromptDialog');
+                    const input = document.getElementById('mapPromptDialogInput');
+                    const select = document.getElementById('mapPromptDialogSelect');
+                    const selectLabelEl = document.getElementById('mapPromptDialogSelectLabel');
+                    const titleEl = document.getElementById('mapPromptDialogTitle');
+                    const hintEl = document.getElementById('mapPromptDialogHint');
+                    const inputLabelEl = document.getElementById('mapPromptDialogInputLabel');
+                    if (!dlg || !input) {
+                        resolve(null);
+                        return;
+                    }
+                    this._mapPromptResolver = resolve;
+                    this._mapPromptRequired = required;
+                    if (titleEl) titleEl.textContent = title;
+                    if (inputLabelEl) inputLabelEl.textContent = inputLabel;
+                    input.value = defaultValue || '';
+                    if (hintEl) {
+                        hintEl.textContent = hint;
+                        hintEl.classList.toggle('hidden', !hint);
+                    }
+                    const hasSelect = Array.isArray(selectOptions) && selectOptions.length > 0;
+                    select?.classList.toggle('hidden', !hasSelect);
+                    selectLabelEl?.classList.toggle('hidden', !hasSelect);
+                    if (hasSelect && select) {
+                        select.innerHTML = selectOptions.map((opt) => (
+                            `<option value="${this.escapeHtml(String(opt.value))}">${this.escapeHtml(String(opt.label))}</option>`
+                        )).join('');
+                        const pick = defaultSelectValue ?? selectOptions[0]?.value;
+                        if (pick != null) select.value = String(pick);
+                    } else if (select) {
+                        select.innerHTML = '';
+                    }
+                    if (selectLabelEl && hasSelect) selectLabelEl.textContent = selectLabel;
+                    this.showDialog('mapPromptDialog');
+                    requestAnimationFrame(() => (hasSelect ? select : input)?.focus?.());
+                });
+            }
+
+            beginMapLocationPick(inputId) {
+                if (!inputId) return;
+                this._mapLocationPickTarget = inputId;
+                const catalogActive = this.catalogEmbeddedMapActive();
+                const onCatalogTab = document.getElementById('catalog')?.classList.contains('active');
+                if (!this.map && (catalogActive || onCatalogTab)) {
+                    void this.syncCatalogEmbeddedMap();
+                }
+                if (!this.map) {
+                    document.querySelector('.tab-btn[data-tab="map"]')?.click();
+                    void this.showMapTab();
+                }
+                this.showToast('Кликните на карте — координаты подставятся в форму');
+                this.updateMapStatus('Режим выбора координат: кликните по карте.');
+                this.map?.getContainer()?.classList.add('map-pick-location');
+            }
+
+            cancelMapLocationPick() {
+                this._mapLocationPickTarget = null;
+                this.map?.getContainer()?.classList.remove('map-pick-location');
+            }
+
+            applyMapLocationPick(lat, lng) {
+                const inputId = this._mapLocationPickTarget;
+                if (!inputId) return false;
+                const input = document.getElementById(inputId);
+                if (input) input.value = this.formatLocationInput(lat, lng);
+                this.cancelMapLocationPick();
+                this.showToast('Координаты подставлены');
+                this.updateMapStatus('Координаты выбраны на карте.');
+                return true;
+            }
+
+            async applyMapFeatureToEntityCoords(featureType, lat, lng, areaId, sectorId) {
+                try {
+                    if (featureType === 'area_sign' && areaId) {
+                        const saved = await apiFetch(`/api/areas/${Number(areaId)}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: lat, longitude: lng })
+                        });
+                        mergeAreaFromApiResponse(saved);
+                    } else if (featureType === 'sector_sign' && sectorId) {
+                        const saved = await apiFetch(`/api/sectors/${Number(sectorId)}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: lat, longitude: lng })
+                        });
+                        mergeSectorFromApiResponse(saved);
+                    } else {
+                        return;
+                    }
+                    this.data = getClimbingData();
+                    this.updateMapMarkers();
+                } catch (err) {
+                    this.showToast(err?.message || 'Метка на карте сохранена, но координаты в каталоге не обновились', true);
+                }
+            }
+
             syncMapEditUi() {
                 const panel = document.getElementById('mapEditPanel');
                 const tools = document.getElementById('mapEditTools');
@@ -8234,6 +8396,12 @@
                 if (!this.isAdmin()) return;
                 const next = typeof force === 'boolean' ? force : !this.mapEditMode;
                 this.mapEditMode = next;
+                if (next) {
+                    if (!this.mapShowPoi) this.toggleMapLayer('poi');
+                    if (!this.mapShowTrails) this.toggleMapLayer('trails');
+                } else {
+                    this.cancelMapLocationPick();
+                }
                 if (!next) {
                     this.mapDraftTrail = null;
                     this.mapEditingTrailFeatureId = null;
@@ -8249,9 +8417,13 @@
             attachMapEditInteraction() {
                 if (!this.map || this._mapEditClickHandler) return;
                 this._mapEditClickHandler = (e) => {
+                    const { lat, lng } = e.latlng;
+                    if (this.applyMapLocationPick(lat, lng)) {
+                        L.DomEvent.stop(e);
+                        return;
+                    }
                     if (!this.mapEditMode || !this.isAdmin()) return;
                     L.DomEvent.stop(e);
-                    const { lat, lng } = e.latlng;
                     if (this.mapFeatureMovePending && this.mapSelectedFeatureId) {
                         void this.moveSelectedMapPoint(lat, lng);
                         return;
@@ -8293,9 +8465,14 @@
                 const defaultLabel = existing?.label || 'Тропа';
                 const labelInput = document.getElementById('mapFeatureEditLabelInput');
                 const labelFromBar = editingId && labelInput ? labelInput.value.trim() : '';
-                const label = labelFromBar
-                    || window.prompt('Название тропы (необязательно):', defaultLabel)?.trim()
-                    || defaultLabel;
+                const prompted = labelFromBar
+                    ? { text: labelFromBar }
+                    : await this.promptMapTextInput({
+                        title: 'Название тропы',
+                        defaultValue: defaultLabel,
+                        hint: 'Необязательно — можно оставить как есть.'
+                    });
+                const label = prompted?.text?.trim() || defaultLabel;
                 const geometry = {
                     type: 'LineString',
                     coordinates: latlngs.map(([lat, lng]) => [lng, lat])
@@ -8337,22 +8514,76 @@
                 let areaId = this.mapCatalogScope?.areaId ?? null;
                 let sectorId = this.mapCatalogScope?.sectorId ?? null;
                 if (featureType === 'area_sign') {
-                    if (areaId) {
+                    const areas = getAreas();
+                    if (!areaId && areas.length) {
+                        const pick = await this.promptMapTextInput({
+                            title: 'Метка района',
+                            selectLabel: 'Район',
+                            selectOptions: areas.map((a) => ({ value: a.id, label: a.name })),
+                            defaultSelectValue: areas[0]?.id,
+                            defaultValue: areas[0]?.name || '',
+                            hint: 'Выберите район и при необходимости измените подпись.'
+                        });
+                        if (!pick) return;
+                        areaId = Number(pick.selectValue);
+                        if (!Number.isFinite(areaId)) return;
+                        label = pick.text || areas.find((a) => Number(a.id) === areaId)?.name || '';
+                    } else {
                         label = getAreas().find((a) => Number(a.id) === Number(areaId))?.name || '';
+                        const pick = await this.promptMapTextInput({
+                            title: 'Метка района',
+                            defaultValue: label,
+                            required: !!label
+                        });
+                        if (!pick) return;
+                        label = pick.text || label;
+                        if (!label) return;
                     }
-                    if (!label) label = window.prompt('Подпись района:', '')?.trim() || '';
-                    if (!label) return;
                     sectorId = null;
                 } else if (featureType === 'sector_sign') {
-                    if (sectorId) {
+                    const sectors = getSectors().filter((s) => (
+                        !areaId || Number(s.areaId) === Number(areaId)
+                    ));
+                    if (!sectorId && sectors.length) {
+                        const pick = await this.promptMapTextInput({
+                            title: 'Метка сектора',
+                            selectLabel: 'Сектор',
+                            selectOptions: sectors.map((s) => ({ value: s.id, label: s.name })),
+                            defaultSelectValue: sectors[0]?.id,
+                            defaultValue: sectors[0]?.name || '',
+                            hint: 'Выберите сектор и при необходимости измените подпись.'
+                        });
+                        if (!pick) return;
+                        sectorId = Number(pick.selectValue);
+                        if (!Number.isFinite(sectorId)) return;
+                        const sector = sectors.find((s) => Number(s.id) === sectorId);
+                        if (sector && !areaId) areaId = Number(sector.areaId);
+                        label = pick.text || sector?.name || '';
+                    } else {
                         label = getSectors().find((s) => Number(s.id) === Number(sectorId))?.name || '';
+                        const pick = await this.promptMapTextInput({
+                            title: 'Метка сектора',
+                            defaultValue: label,
+                            required: !!label
+                        });
+                        if (!pick) return;
+                        label = pick.text || label;
+                        if (!label) return;
                     }
-                    if (!label) label = window.prompt('Подпись сектора:', '')?.trim() || '';
-                    if (!label) return;
                 } else if (featureType === 'parking') {
-                    label = window.prompt('Название парковки (необязательно):', 'Парковка')?.trim() || 'Парковка';
+                    const pick = await this.promptMapTextInput({
+                        title: 'Парковка',
+                        defaultValue: 'Парковка',
+                        hint: 'Название на карте (можно оставить по умолчанию).'
+                    });
+                    label = pick?.text?.trim() || 'Парковка';
                 } else if (featureType === 'camping') {
-                    label = window.prompt('Название кемпинга (необязательно):', 'Кемпинг')?.trim() || 'Кемпинг';
+                    const pick = await this.promptMapTextInput({
+                        title: 'Кемпинг',
+                        defaultValue: 'Кемпинг',
+                        hint: 'Название на карте (можно оставить по умолчанию).'
+                    });
+                    label = pick?.text?.trim() || 'Кемпинг';
                 }
                 const payload = {
                     area_id: areaId,
@@ -8369,7 +8600,9 @@
                         body: JSON.stringify(payload)
                     });
                     mergeMapFeatureFromApiResponse(created);
+                    await this.applyMapFeatureToEntityCoords(featureType, lat, lng, areaId, sectorId);
                     this.renderMapFeatureLayers();
+                    this.renderCatalog();
                     this.showToast(`${this.mapFeatureTypeLabel(featureType)} добавлен`);
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось сохранить объект', true);
@@ -8443,16 +8676,34 @@
                 else toolbar.appendChild(legend);
             }
 
+            _reparentCatalogMapEdit(toCatalog) {
+                const panel = document.getElementById('mapEditPanel');
+                const mount = document.getElementById('catalogMapEditMount');
+                const toolbar = document.getElementById('mapToolbar');
+                if (!panel) return;
+                if (toCatalog && mount && this.isAdmin()) {
+                    if (panel.parentElement !== mount) mount.appendChild(panel);
+                    return;
+                }
+                if (!toolbar || panel.parentElement === toolbar) return;
+                const guide = document.getElementById('mapGuideStrip');
+                if (guide?.parentElement === toolbar) toolbar.insertBefore(panel, guide);
+                else toolbar.appendChild(panel);
+            }
+
             syncCatalogEmbeddedMapUi(embedded) {
                 const active = embedded !== undefined ? embedded : this.catalogEmbeddedMapActive();
                 const minimal = active && this.catalog?.view === 'sectors';
                 document.documentElement.classList.toggle('catalog-map-minimal', !!minimal);
                 document.documentElement.classList.toggle('catalog-admin', !!minimal && this.isAdmin());
+                document.documentElement.classList.toggle('catalog-map-edit-active', !!active && this.isAdmin());
                 const block = document.getElementById('catalogMapBlock');
                 block?.classList.toggle('catalog-map-block--minimal', !!minimal);
                 block?.classList.toggle('catalog-map-block--embedded', !!active);
                 this._reparentCatalogMapLegend(!!active);
+                this._reparentCatalogMapEdit(!!active);
                 this.fillMapLegendSectorIcons();
+                this.syncMapEditUi();
             }
 
             _reparentMapDom(toCatalog) {
@@ -8527,6 +8778,7 @@
                 document.getElementById('map')?.classList.add('active');
                 this._reparentMapDom(false);
                 this.syncCatalogEmbeddedMapUi(false);
+                this._reparentCatalogMapEdit(false);
                 await ensureMarkerClusterLoaded();
                 void this.loadAscentSummary?.();
                 if (!this.map) {
@@ -11598,6 +11850,18 @@
                 document.getElementById('mapEditToggleBtn')?.addEventListener('click', () => {
                     this.toggleMapEditMode();
                 });
+                document.getElementById('mapPromptDialogOk')?.addEventListener('click', () => {
+                    this.finishMapPromptDialog(true);
+                });
+                document.getElementById('mapPromptDialogCancel')?.addEventListener('click', () => {
+                    this.finishMapPromptDialog(false);
+                });
+                document.addEventListener('click', (e) => {
+                    const pickBtn = e.target.closest('[data-map-pick-location]');
+                    if (!pickBtn) return;
+                    e.preventDefault();
+                    this.beginMapLocationPick(pickBtn.getAttribute('data-map-pick-location'));
+                });
                 document.getElementById('mapFinishTrailBtn')?.addEventListener('click', () => {
                     void this.finishMapDraftTrail();
                 });
@@ -12156,6 +12420,10 @@
             }
 
             hideDialog(dialogId) {
+                if (dialogId === 'mapPromptDialog' && this._mapPromptResolver) {
+                    this.finishMapPromptDialog(false);
+                    return;
+                }
                 const el = document.getElementById(dialogId);
                 if (!el || el.classList.contains('hidden')) return;
                 el.classList.add('hidden');
