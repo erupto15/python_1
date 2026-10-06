@@ -60,21 +60,7 @@
                             return { text, btnId: 'climbDetailOpenLogBtn' };
                         }
                     }
-                    const mkBtn = document.getElementById('climbDetailMarkupBtn');
-                    const hasPhoto = mkBtn && mkBtn.style.display !== 'none';
-                    if (!hasPhoto) {
-                        return null;
-                    }
-                    const showSave = hasPhoto;
-                    const adminEdit = !!(app && app.isAdmin && app.isAdmin());
-                    return {
-                        text: adminEdit
-                            ? ((mkBtn.textContent || '').includes('Разметить') ? 'Разметить фото' : 'Изменить разметку')
-                            : 'Схема на фото',
-                        btnId: 'climbDetailMarkupBtn',
-                        secondaryText: showSave ? 'Скачать' : '',
-                        secondaryBtnId: showSave ? 'climbDetailSavePhotoBtn' : ''
-                    };
+                    return null;
                 }
             },
             routeLineMarkupDialog: {
@@ -12364,23 +12350,6 @@
                     }
                 });
 
-                document.getElementById('climbDetailMarkupBtn')?.addEventListener('click', () => {
-                    const ctx = this._climbDetailContext;
-                    if (!ctx) return;
-                    const t = ctx.climbType;
-                    const id = ctx.climbId;
-                    const pid = ctx.shownPhotoId || ctx.photoId;
-                    // Админ всегда открывает редактор разметки текущего фото.
-                    if (this.isAdmin() && pid) {
-                        this.editPhotoMarkup(pid);
-                        return;
-                    }
-                    if (pid) {
-                        this.openPhotoMarkupView(pid);
-                    } else {
-                        this.openClimbMarkupView(t, id);
-                    }
-                });
                 document.getElementById('climbDetailEditMarkupBtn')?.addEventListener('click', () => {
                     if (!this.requireAdmin('Изменение разметки')) return;
                     const ctx = this._climbDetailContext;
@@ -13651,7 +13620,6 @@
                 const metaEl = document.getElementById('climbDetailMeta');
                 const wrap = document.getElementById('climbDetailImageWrap');
                 const noPh = document.getElementById('climbDetailNoPhoto');
-                const mkBtn = document.getElementById('climbDetailMarkupBtn');
 
                 if (titleEl) titleEl.textContent = climb.name || '—';
                 const structLabel =
@@ -13695,7 +13663,6 @@
                     wrap?.classList.remove('is-empty');
                     noPh?.classList.add('hidden');
                     this.showClimbDetailPhotoInMount('detail', photo, climb.name || '');
-                    if (mkBtn) mkBtn.style.display = '';
                 } else {
                     wrap?.classList.remove('hidden');
                     wrap?.classList.add('is-empty');
@@ -13710,7 +13677,6 @@
                         resetPhotoStageInContainer(mount);
                         this.applyPhotoPreviewMarkupOverlay(mount, null, climbType);
                     }
-                    if (mkBtn) mkBtn.style.display = 'none';
                 }
                 this.updateClimbDetailPhotoCounter();
 
@@ -13761,8 +13727,6 @@
             }
 
             syncClimbDetailMarkupActionUi() {
-                const mkBtn = document.getElementById('climbDetailMarkupBtn');
-                const mkRow = document.getElementById('climbDetailMarkupRow');
                 const editMkBtn = document.getElementById('climbDetailEditMarkupBtn');
                 const ctx = this._climbDetailContext;
                 const pid = ctx?.shownPhotoId || ctx?.photoId;
@@ -13773,17 +13737,6 @@
                 const isAdmin = this.isAdmin();
                 const hasMarkup = !!(photo?.markup);
 
-                mkRow?.classList.toggle('hidden', !hasPhoto);
-                if (mkBtn) {
-                    mkBtn.style.display = hasPhoto ? '' : 'none';
-                    if (isAdmin) {
-                        mkBtn.innerHTML = hasMarkup
-                            ? '<i class="fas fa-draw-polygon"></i> Изменить разметку'
-                            : '<i class="fas fa-draw-polygon"></i> Разметить фото';
-                    } else {
-                        mkBtn.innerHTML = '<i class="fas fa-draw-polygon"></i> Схема на фото';
-                    }
-                }
                 if (editMkBtn) {
                     const showEdit = isAdmin && hasPhoto;
                     editMkBtn.classList.toggle('hidden', !showEdit);
