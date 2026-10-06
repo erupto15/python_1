@@ -4734,6 +4734,26 @@
             background: rgba(0, 0, 0, 0.85);
         }
 
+        .map-locate-pin-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 0;
+        }
+
+        .map-locate-pin-icon svg {
+            width: 20px;
+            height: 20px;
+            display: block;
+        }
+
+        #mapLocateBtn .map-locate-pin-icon svg {
+            width: 1.05em;
+            height: 1.05em;
+            margin-right: 0.35em;
+            vertical-align: -0.15em;
+        }
+
         .map-locate-btn {
             width: 34px;
             height: 34px;
@@ -4748,6 +4768,13 @@
             align-items: center;
             justify-content: center;
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+            pointer-events: auto;
+            touch-action: manipulation;
+        }
+
+        .leaflet-bottom.leaflet-right .leaflet-control {
+            margin-bottom: 12px;
+            margin-right: 10px;
         }
 
         .map-locate-btn:hover {

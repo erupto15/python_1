@@ -563,6 +563,8 @@
         let MAP_BOULDER_SECTOR_CLIMBER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" aria-hidden="true"><circle fill="currentColor" cx="11.5" cy="5.2" r="3.35"/><rect fill="currentColor" x="8.6" y="8.8" width="5.8" height="5.6" rx="0.4"/><path fill="currentColor" d="M14.2 9.2 19.2 3.6 20.6 4.9 15.8 10.4z"/><path fill="currentColor" d="M8.4 10.1 3.8 12.4 4.9 14.1 9.2 11.5z"/><path fill="currentColor" d="M9.2 14.6 3.4 29.8 5.6 30.6 10.4 16.2z"/><path fill="currentColor" d="M12.8 14.5 17.6 27.2 19.6 26.2 14.9 15.8z"/><path fill="currentColor" d="M9.8 14.2h3.4v2.4H9.8z"/></svg>';
         /** Район: зелёная «капля» (перевёрнута — остриём вниз, как нативная метка на карте). */
         const MAP_AREA_DROPLET_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 36" aria-hidden="true"><path fill="currentColor" stroke="#fff" stroke-width="2" stroke-linejoin="round" d="M14 34s12-13.5 12-21a12 12 0 1 0-24 0c0 7.5 12 21 12 21z"/></svg>';
+        /** Кнопка «Моё местоположение»: классическая метка-pin с точкой внутри. */
+        const MAP_LOCATE_PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>';
 
         function normalizeInlineMapSectorSvg(raw) {
             if (!raw || typeof raw !== 'string' || !raw.includes('<svg')) return '';
@@ -6783,6 +6785,7 @@
                 this.renderMapCoordsBar();
                 this.syncMapZoomClass();
                 this.fillMapLegendSectorIcons();
+                this.syncMapLocateButtons();
                 this.applyCachedUserLocation();
                 this._mapRestoringView = false;
                 requestAnimationFrame(() => this.map.invalidateSize({ animate: false }));
@@ -6817,6 +6820,17 @@
                 return this.mapEntrySelected(entry) || this.mapEntryCatalogAccent(entry);
             }
 
+            buildMapLocatePinIconHtml() {
+                return `<span class="map-locate-pin-icon">${MAP_LOCATE_PIN_SVG}</span>`;
+            }
+
+            syncMapLocateButtons() {
+                const toolbarBtn = document.getElementById('mapLocateBtn');
+                if (toolbarBtn && !toolbarBtn.querySelector('.map-locate-pin-icon')) {
+                    toolbarBtn.innerHTML = `${this.buildMapLocatePinIconHtml()} Моё место`;
+                }
+            }
+
             attachMapLocateControl() {
                 if (!this.map || this._mapLocateControlAttached) return;
                 this._mapLocateControlAttached = true;
@@ -6827,10 +6841,10 @@
                         btn.type = 'button';
                         btn.title = 'Моё местоположение';
                         btn.setAttribute('aria-label', 'Моё местоположение');
-                        btn.innerHTML = '<i class="fas fa-location-crosshairs" aria-hidden="true"></i>';
+                        btn.innerHTML = this.buildMapLocatePinIconHtml();
                         L.DomEvent.disableClickPropagation(btn);
                         L.DomEvent.on(btn, 'click', (e) => {
-                            L.DomEvent.preventDefault(e);
+                            L.DomEvent.stopPropagation(e);
                             this.startUserLocationWatch();
                         });
                         return btn;
@@ -9194,8 +9208,120 @@
                 }
             }
 
-            startUserLocationWatch() {
+            canUseTelegramLocation() {
+                const tg = typeof window.getTelegramWebApp === 'function' ? window.getTelegramWebApp() : null;
+                return !!(typeof window.isTelegramMiniApp === 'function'
+                    && window.isTelegramMiniApp()
+                    && tg?.LocationManager);
+            }
+
+            formatGeolocationError(err) {
+                const code = Number(err?.code);
+                if (code === 1) return 'Доступ к геолокации запрещён. Разрешите в настройках браузера или Telegram.';
+                if (code === 2) return 'Не удалось определить местоположение. Проверьте GPS и выйдите на открытое место.';
+                if (code === 3) return 'Геолокация отвечает слишком долго. Попробуйте ещё раз.';
+                const msg = err?.message ? String(err.message).trim() : '';
+                return msg || 'Не удалось получить геолокацию.';
+            }
+
+            handleMapGeolocationError(err, { clearWatch = true } = {}) {
+                const text = this.formatGeolocationError(err);
+                this.showToast(text, true);
+                this.updateMapStatus(text);
+                if (clearWatch && this._geoWatchId != null && navigator.geolocation) {
+                    navigator.geolocation.clearWatch(this._geoWatchId);
+                    this._geoWatchId = null;
+                }
+            }
+
+            applyTelegramLocationData(data, { fromUserAction = false } = {}) {
+                if (!data || !Number.isFinite(Number(data.latitude)) || !Number.isFinite(Number(data.longitude))) {
+                    return false;
+                }
+                this.updateUserLocation({
+                    coords: {
+                        latitude: Number(data.latitude),
+                        longitude: Number(data.longitude),
+                        heading: Number.isFinite(Number(data.course)) ? Number(data.course) : undefined,
+                        accuracy: Number.isFinite(Number(data.horizontal_accuracy))
+                            ? Number(data.horizontal_accuracy)
+                            : undefined
+                    }
+                }, { fromUserAction });
+                return true;
+            }
+
+            requestTelegramLocation({ fromUserAction = false, onFail } = {}) {
+                const lm = typeof window.getTelegramWebApp === 'function'
+                    ? window.getTelegramWebApp()?.LocationManager
+                    : null;
+                if (!lm) {
+                    onFail?.(new Error('Telegram LocationManager недоступен'));
+                    return;
+                }
+                const deliver = (data) => {
+                    if (this.applyTelegramLocationData(data, { fromUserAction })) return;
+                    onFail?.(new Error('Telegram не вернул координаты'));
+                };
+                const ask = () => {
+                    try {
+                        lm.getLocation((data) => deliver(data));
+                    } catch (e) {
+                        onFail?.(e);
+                    }
+                };
+                try {
+                    if (lm.isInited) ask();
+                    else lm.init(() => ask());
+                } catch (e) {
+                    onFail?.(e);
+                }
+            }
+
+            browserGeolocationOptions(precise = true) {
+                return precise
+                    ? { enableHighAccuracy: true, maximumAge: 15000, timeout: 18000 }
+                    : { enableHighAccuracy: false, maximumAge: 120000, timeout: 28000 };
+            }
+
+            requestBrowserGeolocationPosition(fromUserAction, onFail) {
                 if (!navigator.geolocation) {
+                    onFail?.({ code: 0, message: 'Геолокация недоступна' });
+                    return;
+                }
+                const tryOnce = (precise, retried) => {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => this.updateUserLocation(pos, { fromUserAction }),
+                        (err) => {
+                            if (precise && Number(err?.code) === 3 && !retried) {
+                                tryOnce(false, true);
+                                return;
+                            }
+                            onFail?.(err);
+                        },
+                        this.browserGeolocationOptions(precise)
+                    );
+                };
+                tryOnce(true, false);
+            }
+
+            ensureBrowserGeolocationWatch() {
+                if (!navigator.geolocation || this._geoWatchId != null) return;
+                this._geoWatchId = navigator.geolocation.watchPosition(
+                    (pos) => this.updateUserLocation(pos, { fromUserAction: this._mapLocateRequested }),
+                    (err) => {
+                        if (Number(err?.code) === 1) {
+                            this.handleMapGeolocationError(err);
+                        }
+                    },
+                    this.browserGeolocationOptions(true)
+                );
+            }
+
+            startUserLocationWatch() {
+                const canBrowser = !!navigator.geolocation;
+                const canTelegram = this.canUseTelegramLocation();
+                if (!canBrowser && !canTelegram) {
                     this.showToast('Геолокация недоступна на этом устройстве', true);
                     this.updateMapStatus('Геолокация недоступна на этом устройстве.');
                     return;
@@ -9206,34 +9332,25 @@
                     const c = this.userLocation;
                     this.map.setView([c.lat, c.lng], Math.max(this.map.getZoom(), 15), { animate: true });
                     this.updateMapStatus('Показана последняя известная позиция, уточняю GPS…');
+                } else {
+                    this.updateMapStatus('Запрашиваю геолокацию…');
                 }
-                if (this._geoWatchId != null) {
-                    if (!hadCache) this.updateMapStatus('Геолокация уже включена.');
-                    navigator.geolocation.getCurrentPosition(
-                        (pos) => this.updateUserLocation(pos, { fromUserAction: true }),
-                        () => {},
-                        { enableHighAccuracy: true, maximumAge: 600000, timeout: 12000 }
-                    );
+                const onGeoFail = (err) => {
+                    if (canTelegram) {
+                        this.requestTelegramLocation({
+                            fromUserAction: true,
+                            onFail: (tgErr) => this.handleMapGeolocationError(err || tgErr, { clearWatch: Number(err?.code) === 1 })
+                        });
+                        return;
+                    }
+                    this.handleMapGeolocationError(err, { clearWatch: Number(err?.code) === 1 });
+                };
+                if (canBrowser) {
+                    this.requestBrowserGeolocationPosition(true, onGeoFail);
+                    this.ensureBrowserGeolocationWatch();
                     return;
                 }
-                this.updateMapStatus(hadCache ? 'Уточняю GPS…' : 'Запрашиваю геолокацию…');
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => this.updateUserLocation(pos, { fromUserAction: true }),
-                    () => {},
-                    { enableHighAccuracy: true, maximumAge: 600000, timeout: 12000 }
-                );
-                this._geoWatchId = navigator.geolocation.watchPosition(
-                    (pos) => this.updateUserLocation(pos, { fromUserAction: this._mapLocateRequested }),
-                    (err) => {
-                        this.showToast(err?.message || 'Не удалось получить геолокацию', true);
-                        this.updateMapStatus('Не удалось получить геолокацию.');
-                        if (this._geoWatchId != null) {
-                            navigator.geolocation.clearWatch(this._geoWatchId);
-                            this._geoWatchId = null;
-                        }
-                    },
-                    { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
-                );
+                this.requestTelegramLocation({ fromUserAction: true, onFail: onGeoFail });
             }
 
             updateUserLocation(pos, { fromUserAction = false } = {}) {
