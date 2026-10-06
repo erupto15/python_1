@@ -288,6 +288,11 @@
                 });
             }
 
+            window.syncOpenProfileButtonVisibility?.({
+                telegramUser: window.app?.isTelegramUser?.() || false
+            });
+            window.app?.renderAuthUI?.();
+
         };
 
         window.getTelegramWebApp = function getTelegramWebApp() {
@@ -296,6 +301,23 @@
 
         window.isTelegramMiniApp = function isTelegramMiniApp() {
             return document.documentElement.classList.contains('tg-mini-app');
+        };
+
+        /** Кнопка профиля в Mini App — через CSS; inline display:none от renderAuthUI не должен её гасить. */
+        window.syncOpenProfileButtonVisibility = function syncOpenProfileButtonVisibility(options = {}) {
+            const profileBtn = document.getElementById('openProfileBtn');
+            if (!profileBtn) return;
+            const inTg = window.isTelegramMiniApp?.();
+            const show = inTg || options.telegramUser === true;
+            if (!show) {
+                profileBtn.style.display = 'none';
+                return;
+            }
+            if (inTg) {
+                profileBtn.style.removeProperty('display');
+            } else {
+                profileBtn.style.display = 'inline-flex';
+            }
         };
 
         window.findOpenTelegramDialogId = function findOpenTelegramDialogId() {
@@ -5796,7 +5818,6 @@
 
                 const showAdminForm = !user && this.isAdminPasswordFormUnlocked();
 
-                const profileBtn = document.getElementById('openProfileBtn');
                 if (user) {
                     adminBlock?.classList.remove('is-visible');
                     adminBlock?.setAttribute('aria-hidden', 'true');
@@ -5806,15 +5827,10 @@
                     const icon = isAdmin ? 'fa-user-shield' : 'fa-user';
                     status.innerHTML = `<span class="role-badge ${badgeClass}"><i class="fas ${icon}"></i> ${this.escapeHtml(user.display_name || user.email || 'Пользователь')}</span>`;
                     logoutBtn.style.display = 'inline-flex';
-                    if (profileBtn) {
-                        const showProfile = window.isTelegramMiniApp?.() || this.isTelegramUser();
-                        profileBtn.style.display = showProfile ? 'inline-flex' : 'none';
-                    }
+                    window.syncOpenProfileButtonVisibility?.({ telegramUser: this.isTelegramUser() });
                     authPanel?.classList.add('auth-panel--visible');
                 } else {
-                    if (profileBtn) {
-                        profileBtn.style.display = window.isTelegramMiniApp?.() ? 'inline-flex' : 'none';
-                    }
+                    window.syncOpenProfileButtonVisibility?.({ telegramUser: false });
                     if (showAdminForm) {
                         adminBlock?.classList.add('is-visible');
                         adminBlock?.setAttribute('aria-hidden', 'false');
@@ -16289,6 +16305,29 @@
             }
         }
 
+        function bootTelegramShell() {
+            if (window.CLIMBING_STANDALONE) return;
+            if (window.Telegram?.WebApp && typeof window.initTelegramWebApp === 'function') {
+                window.initTelegramWebApp();
+            } else {
+                window.syncOpenProfileButtonVisibility?.({ telegramUser: false });
+            }
+        }
+
+        function scheduleTelegramShellRetry() {
+            if (window.CLIMBING_STANDALONE || window.isTelegramMiniApp?.()) return;
+            let attempts = 0;
+            const timer = setInterval(() => {
+                attempts += 1;
+                if (window.Telegram?.WebApp) {
+                    bootTelegramShell();
+                }
+                if (window.isTelegramMiniApp?.() || attempts >= 120) {
+                    clearInterval(timer);
+                }
+            }, 50);
+        }
+
         async function bootClimbingApp() {
             if (typeof window.signalTelegramAppReady === 'function') window.signalTelegramAppReady();
             if (window.GuidebookMapTiles?.ensureConfig) {
@@ -16297,13 +16336,13 @@
             await clearServiceWorkers();
             const hadLocalCatalog = bootstrapCatalogFromStorage();
             bindPreventHorizontalPageShift();
+            bootTelegramShell();
             window.app = new ClimbingApp();
+            bootTelegramShell();
+            scheduleTelegramShellRetry();
             if (hadLocalCatalog) {
                 void hydrateCatalogPhotosFromIndexedDb();
                 void hydrateAreaCoverImages();
-            }
-            if (!window.CLIMBING_STANDALONE && typeof window.initTelegramWebApp === 'function') {
-                window.initTelegramWebApp();
             }
             if (!window.CLIMBING_STANDALONE && typeof window.syncTelegramMiniAppUi === 'function') {
                 window.syncTelegramMiniAppUi();
