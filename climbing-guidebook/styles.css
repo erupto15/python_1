@@ -2058,11 +2058,24 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 26px;
-            height: 32px;
+            width: 36px;
+            height: 44px;
             margin-bottom: 2px;
             color: #fff;
             filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.75));
+        }
+
+        .catalog-map-block .map-sector-badge-glyph {
+            width: 30px;
+            height: 30px;
+        }
+
+        .catalog-map-block .map-sector-badge-glyph svg {
+            width: 16px;
+        }
+
+        .catalog-map-block .map-sector-badge--route .map-sector-badge-glyph svg {
+            width: 15px;
         }
 
         .catalog-map-block .map-area-badge--catalog .map-area-droplet-pin svg {
@@ -4330,8 +4343,8 @@
         }
 
         .map-sector-badge-glyph {
-            width: 44px;
-            height: 44px;
+            width: 36px;
+            height: 36px;
             margin-right: 0;
             margin-bottom: 3px;
             border-width: 2.5px;
@@ -4350,14 +4363,16 @@
         }
 
         .map-sector-badge--area .map-sector-badge-glyph.map-area-badge-glyph {
+            width: 50px;
+            height: 50px;
             border-color: #22c55e;
             color: #22c55e;
             background: var(--card-bg, #151b24);
         }
 
         .map-sector-badge--area .map-area-badge-glyph .map-area-droplet {
-            width: 17px;
-            height: 21px;
+            width: 24px;
+            height: 30px;
             filter: none;
         }
 
@@ -4388,11 +4403,11 @@
         }
 
         .map-sector-badge-glyph svg {
-            width: 24px;
+            width: 19px;
         }
 
         .map-sector-badge--route .map-sector-badge-glyph svg {
-            width: 22px;
+            width: 18px;
         }
 
         .map-sector-badge-label {
@@ -4582,6 +4597,22 @@
             display: block;
             width: 100%;
             height: 100%;
+        }
+
+        .map-legend-area-droplet--catalog {
+            width: 18px;
+            height: 22px;
+            color: #fff;
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+        }
+
+        .map-legend-area-droplet--catalog .map-area-droplet-shell {
+            fill: #fff;
+        }
+
+        .map-legend-area-droplet--catalog .map-area-droplet-inner {
+            stroke: var(--map-accent, #e8472a);
+            stroke-width: 2.8px;
         }
 
         .map-tool-area-droplet {

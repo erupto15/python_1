@@ -7216,8 +7216,16 @@
                 if (boulderEl && !boulderEl.querySelector('svg')) {
                     boulderEl.innerHTML = MAP_BOULDER_SECTOR_CLIMBER_SVG;
                 }
-                if (areaEl && !areaEl.querySelector('svg')) {
-                    areaEl.innerHTML = MAP_AREA_DROPLET_SVG;
+                if (areaEl) {
+                    const inCatalog = Boolean(areaEl.closest('#catalogMapLegendMount'));
+                    const styleKey = inCatalog ? 'catalog' : 'default';
+                    if (areaEl.dataset.legendAreaStyle !== styleKey) {
+                        areaEl.dataset.legendAreaStyle = styleKey;
+                        areaEl.classList.toggle('map-legend-area-droplet--catalog', inCatalog);
+                        areaEl.innerHTML = inCatalog
+                            ? this.buildMapAreaDropletCatalogSvg()
+                            : MAP_AREA_DROPLET_SVG;
+                    }
                 }
                 const campingEl = document.getElementById('mapLegendCamping');
                 if (campingEl && !campingEl.querySelector('svg')) {
@@ -8444,6 +8452,7 @@
                 block?.classList.toggle('catalog-map-block--minimal', !!minimal);
                 block?.classList.toggle('catalog-map-block--embedded', !!active);
                 this._reparentCatalogMapLegend(!!active);
+                this.fillMapLegendSectorIcons();
             }
 
             _reparentMapDom(toCatalog) {
