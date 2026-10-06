@@ -5811,10 +5811,15 @@
                     const icon = isAdmin ? 'fa-user-shield' : 'fa-user';
                     status.innerHTML = `<span class="role-badge ${badgeClass}"><i class="fas ${icon}"></i> ${this.escapeHtml(user.display_name || user.email || 'Пользователь')}</span>`;
                     logoutBtn.style.display = 'inline-flex';
-                    if (profileBtn) profileBtn.style.display = this.isTelegramUser() ? 'inline-flex' : 'none';
+                    if (profileBtn) {
+                        const showProfile = window.isTelegramMiniApp?.() || this.isTelegramUser();
+                        profileBtn.style.display = showProfile ? 'inline-flex' : 'none';
+                    }
                     authPanel?.classList.add('auth-panel--visible');
                 } else {
-                    if (profileBtn) profileBtn.style.display = 'none';
+                    if (profileBtn) {
+                        profileBtn.style.display = window.isTelegramMiniApp?.() ? 'inline-flex' : 'none';
+                    }
                     if (showAdminForm) {
                         adminBlock?.classList.add('is-visible');
                         adminBlock?.setAttribute('aria-hidden', 'false');

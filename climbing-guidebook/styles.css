@@ -241,6 +241,14 @@
             transform: scale(0.96);
         }
 
+        #openProfileBtn {
+            display: none;
+        }
+
+        html.tg-mini-app #openProfileBtn {
+            display: inline-flex;
+        }
+
         .header-search-auth {
             display: flex;
             flex-direction: column;
