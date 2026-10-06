@@ -565,6 +565,8 @@
         const MAP_AREA_DROPLET_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 36" aria-hidden="true"><path fill="currentColor" stroke="#fff" stroke-width="2" stroke-linejoin="round" d="M14 34s12-13.5 12-21a12 12 0 1 0-24 0c0 7.5 12 21 12 21z"/></svg>';
         /** Кнопка «Моё местоположение»: классическая метка-pin с точкой внутри. */
         const MAP_LOCATE_PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>';
+        /** Кемпинг: палатка на белом фоне. */
+        const MAP_CAMPING_SIGN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" aria-hidden="true"><rect width="20" height="20" rx="3" fill="#fff"/><path fill="#141414" d="M4.5 14.2h11v1.35H4.5z"/><path fill="#141414" d="M10 4.8 5.6 14.05h8.8L10 4.8z"/><path fill="#141414" d="M8.35 6.05 10 4.05l1.65 2-.72.72-.48-.48-.48.48z"/></svg>';
 
         function normalizeInlineMapSectorSvg(raw) {
             if (!raw || typeof raw !== 'string' || !raw.includes('<svg')) return '';
@@ -6824,6 +6826,11 @@
                 return `<span class="map-locate-pin-icon">${MAP_LOCATE_PIN_SVG}</span>`;
             }
 
+            buildMapCampingSignHtml(extraClass = '') {
+                const cls = ['map-camping-sign', extraClass].filter(Boolean).join(' ');
+                return `<span class="${cls}">${MAP_CAMPING_SIGN_SVG}</span>`;
+            }
+
             syncMapLocateButtons() {
                 const toolbarBtn = document.getElementById('mapLocateBtn');
                 if (toolbarBtn && !toolbarBtn.querySelector('.map-locate-pin-icon')) {
@@ -7211,6 +7218,14 @@
                 }
                 if (areaEl && !areaEl.querySelector('svg')) {
                     areaEl.innerHTML = MAP_AREA_DROPLET_SVG;
+                }
+                const campingEl = document.getElementById('mapLegendCamping');
+                if (campingEl && !campingEl.querySelector('svg')) {
+                    campingEl.innerHTML = MAP_CAMPING_SIGN_SVG;
+                }
+                const campingToolEl = document.getElementById('mapEditCampingIcon');
+                if (campingToolEl && !campingToolEl.querySelector('svg')) {
+                    campingToolEl.innerHTML = MAP_CAMPING_SIGN_SVG;
                 }
                 const toolEl = document.getElementById('mapToolAreaDroplet');
                 if (toolEl && !toolEl.querySelector('svg')) {
@@ -8057,9 +8072,16 @@
                 const sectorSignIcon = meta.boulderSector
                     ? this.buildMapBoulderSectorIconHtml('map-feature-boulder-sector-icon')
                     : this.buildMapRouteSectorIconHtml('map-feature-route-sector-icon');
+                if (featureType === 'camping') {
+                    return L.divIcon({
+                        className: 'map-feature-point-marker map-feature-point-marker--camping',
+                        html: this.buildMapCampingSignHtml('map-feature-camping-sign'),
+                        iconSize: [26, 26],
+                        iconAnchor: [13, 26]
+                    });
+                }
                 const icons = {
                     parking: '<span class="map-feature-parking-letter" aria-hidden="true">P</span>',
-                    camping: '<i class="fas fa-campground" aria-hidden="true"></i>',
                     sector_sign: sectorSignIcon
                 };
                 const cls = `map-feature-icon map-feature-icon--${featureType}`;

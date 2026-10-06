@@ -4013,7 +4013,41 @@
         }
 
         .map-legend-poi--parking { background: #2563eb; }
-        .map-legend-poi--camping { background: #16a34a; font-size: 9px; }
+
+        .map-legend-camping-sign,
+        .map-camping-sign {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 0;
+            flex-shrink: 0;
+        }
+
+        .map-legend-camping-sign svg {
+            width: 18px;
+            height: 18px;
+            display: block;
+            border-radius: 3px;
+            box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.45);
+        }
+
+        .map-camping-sign--tool svg {
+            height: 16px;
+            width: auto;
+            display: block;
+        }
+
+        .map-draw-tool-btn--camping {
+            gap: 6px;
+        }
+
+        .map-feature-camping-sign svg {
+            width: 26px;
+            height: 26px;
+            display: block;
+            border-radius: 4px;
+            filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.38));
+        }
 
         .map-coords-bar {
             display: flex;
@@ -4182,7 +4216,6 @@
         }
 
         .map-feature-icon--parking { background: #2563eb; font-family: inherit; }
-        .map-feature-icon--camping { background: #16a34a; font-size: 13px; }
         .map-feature-icon--sector_sign {
             background: transparent;
             border: none;
