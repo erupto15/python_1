@@ -6772,6 +6772,7 @@
                     this.schedulePersistMapView();
                 });
                 this.attachMapFullscreenControl();
+                this.attachMapLocateControl();
                 this.attachMapEditInteraction();
                 this.attachMapPointerTracking();
                 this.syncMapFilterButtons();
@@ -6814,6 +6815,28 @@
 
             mapEntryShowAsSelected(entry) {
                 return this.mapEntrySelected(entry) || this.mapEntryCatalogAccent(entry);
+            }
+
+            attachMapLocateControl() {
+                if (!this.map || this._mapLocateControlAttached) return;
+                this._mapLocateControlAttached = true;
+                const Ctrl = L.Control.extend({
+                    options: { position: 'bottomright' },
+                    onAdd: () => {
+                        const btn = L.DomUtil.create('button', 'map-locate-btn');
+                        btn.type = 'button';
+                        btn.title = 'Моё местоположение';
+                        btn.setAttribute('aria-label', 'Моё местоположение');
+                        btn.innerHTML = '<i class="fas fa-location-crosshairs" aria-hidden="true"></i>';
+                        L.DomEvent.disableClickPropagation(btn);
+                        L.DomEvent.on(btn, 'click', (e) => {
+                            L.DomEvent.preventDefault(e);
+                            this.startUserLocationWatch();
+                        });
+                        return btn;
+                    }
+                });
+                this.map.addControl(new Ctrl());
             }
 
             attachMapFullscreenControl() {
@@ -7310,10 +7333,15 @@
                     iconAnchor: [0, 0]
                 });
                 const marker = L.marker([coord.lat, coord.lng], { icon, zIndexOffset: 400 })
-                    .addTo(this.map)
-                    .bindPopup(this.buildMapPopupHtml(entry));
+                    .addTo(this.map);
+                const sectorCatalogJump = this.catalog?.view === 'sectors' && entry?.kind === 'sector';
+                if (!sectorCatalogJump) marker.bindPopup(this.buildMapPopupHtml(entry));
                 marker.on('click', (e) => {
                     L.DomEvent.stopPropagation(e);
+                    if (sectorCatalogJump) {
+                        this.openCatalogFromMap('sector', entry.id);
+                        return;
+                    }
                     this.handleMapMarkerSelection(entry, { openNavigation: false, openPopup: true });
                 });
                 return marker;
@@ -8356,25 +8384,43 @@
                 this.updateMapMarkers();
             }
 
-            _reparentMapDom(toCatalog) {
+            _reparentCatalogMapLegend(toCatalog) {
+                const legend = document.getElementById('mapLegend');
+                const mount = document.getElementById('catalogMapLegendMount');
                 const toolbar = document.getElementById('mapToolbar');
-                const container = document.getElementById('mapContainer');
-                if (!toolbar || !container) return;
-                const mapCard = document.querySelector('#map .card');
-                const tbMount = document.getElementById('catalogMapToolbarMount');
-                const ctMount = document.getElementById('catalogMapContainerMount');
-                if (toCatalog && tbMount && ctMount) {
-                    if (toolbar.parentElement !== tbMount) tbMount.appendChild(toolbar);
-                    if (container.parentElement !== ctMount) ctMount.appendChild(container);
-                } else if (mapCard) {
-                    const header = mapCard.querySelector('.card-header');
-                    if (toolbar.parentElement !== mapCard) {
-                        if (header?.nextSibling) mapCard.insertBefore(toolbar, header.nextSibling);
-                        else mapCard.insertBefore(toolbar, container.parentElement === mapCard ? container : null);
-                    }
-                    if (container.parentElement !== mapCard) mapCard.appendChild(container);
+                if (!legend) return;
+                if (toCatalog && mount) {
+                    if (legend.parentElement !== mount) mount.appendChild(legend);
+                    return;
                 }
-                this._mapDomInCatalog = !!(toCatalog && tbMount && ctMount);
+                if (!toolbar || legend.parentElement === toolbar) return;
+                const coords = document.getElementById('mapCoordsBar');
+                if (coords?.parentElement === toolbar) toolbar.insertBefore(legend, coords);
+                else toolbar.appendChild(legend);
+            }
+
+            syncCatalogEmbeddedMapUi(embedded) {
+                const active = embedded !== undefined ? embedded : this.catalogEmbeddedMapActive();
+                const minimal = active && this.catalog?.view === 'sectors';
+                document.documentElement.classList.toggle('catalog-map-minimal', !!minimal);
+                document.documentElement.classList.toggle('catalog-admin', !!minimal && this.isAdmin());
+                const block = document.getElementById('catalogMapBlock');
+                block?.classList.toggle('catalog-map-block--minimal', !!minimal);
+                block?.classList.toggle('catalog-map-block--embedded', !!active);
+                this._reparentCatalogMapLegend(!!active);
+            }
+
+            _reparentMapDom(toCatalog) {
+                const container = document.getElementById('mapContainer');
+                if (!container) return;
+                const mapCard = document.querySelector('#map .card');
+                const ctMount = document.getElementById('catalogMapContainerMount');
+                if (toCatalog && ctMount) {
+                    if (container.parentElement !== ctMount) ctMount.appendChild(container);
+                } else if (mapCard && container.parentElement !== mapCard) {
+                    mapCard.appendChild(container);
+                }
+                this._mapDomInCatalog = !!(toCatalog && ctMount);
                 if (this.map) this.syncMapAfterTabShow();
             }
 
@@ -8385,6 +8431,7 @@
                 if (!show) {
                     block?.classList.add('hidden');
                     if (this._mapDomInCatalog) this._reparentMapDom(false);
+                    this.syncCatalogEmbeddedMapUi(false);
                     this._catalogMapFitKey = null;
                     return;
                 }
@@ -8404,6 +8451,7 @@
                     }
                 }
                 this._reparentMapDom(true);
+                this.syncCatalogEmbeddedMapUi(true);
                 await ensureMarkerClusterLoaded();
                 void this.loadAscentSummary?.();
                 if (!this.map) {
@@ -8433,6 +8481,7 @@
                 document.querySelector('.tab-btn[data-tab="map"]')?.classList.add('active');
                 document.getElementById('map')?.classList.add('active');
                 this._reparentMapDom(false);
+                this.syncCatalogEmbeddedMapUi(false);
                 await ensureMarkerClusterLoaded();
                 void this.loadAscentSummary?.();
                 if (!this.map) {
@@ -9884,7 +9933,10 @@
 
                 if (this.catalog.view === 'sectors') {
                     const area = areas.find(a => Number(a.id) === Number(this.catalog.areaId));
-                    this.renderCatalogGuideHero('area', area);
+                    if (hero) {
+                        hero.classList.add('hidden');
+                        hero.innerHTML = '';
+                    }
                     bc.innerHTML = '';
                     tb.innerHTML = this.isAdmin() ? `
                         <button type="button" class="btn btn-primary" data-catalog-act="add-sector" data-id="${this.catalog.areaId}">

@@ -1869,6 +1869,14 @@
             display: none !important;
         }
 
+        html.catalog-map-minimal.catalog-admin.catalog-sector-focus #catalog .catalog-toolbar {
+            display: flex !important;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 0 0 10px;
+            padding: 0;
+        }
+
         html.catalog-sector-focus #catalog > .card {
             border: 0;
             box-shadow: none;
@@ -1936,6 +1944,40 @@
             height: min(42dvh, calc(100dvh - 220px));
             min-height: 240px;
             margin-top: 8px;
+        }
+
+        .catalog-map-block--minimal {
+            margin: 0 0 12px;
+        }
+
+        .catalog-map-block--minimal .catalog-map-block-head {
+            display: none;
+        }
+
+        .catalog-map-block--minimal #catalogMapContainerMount #mapContainer {
+            height: min(52vh, calc(100dvh - 200px));
+            min-height: 280px;
+            margin-top: 0;
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .catalog-map-legend-mount {
+            margin-top: 10px;
+        }
+
+        .catalog-map-legend-mount .map-legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px 14px;
+            padding: 8px 4px 4px;
+            font-size: 12px;
+            color: var(--light-text);
+        }
+
+        .catalog-map-block--embedded .catalog-map-legend-mount:empty {
+            display: none;
         }
 
         .catalog-map-block #mapToolbar {
@@ -4689,6 +4731,26 @@
         }
 
         .map-fs-btn:hover {
+            background: rgba(0, 0, 0, 0.85);
+        }
+
+        .map-locate-btn {
+            width: 34px;
+            height: 34px;
+            border: none;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            border-radius: 4px;
+            font-size: 15px;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        .map-locate-btn:hover {
             background: rgba(0, 0, 0, 0.85);
         }
 
