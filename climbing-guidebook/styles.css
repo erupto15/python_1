@@ -1929,6 +1929,24 @@
             display: none !important;
         }
 
+        html.catalog-sector-focus #catalog .catalog-card-search {
+            display: block !important;
+            margin: 0 0 12px;
+        }
+
+        .catalog-card-search .global-search-results {
+            position: relative;
+            left: auto;
+            right: auto;
+            top: auto;
+            margin-top: 6px;
+            max-height: min(52vh, 420px);
+        }
+
+        .ranking-card-search {
+            margin: 0 0 12px;
+        }
+
         html.catalog-map-minimal.catalog-admin.catalog-sector-focus #catalog .catalog-toolbar {
             display: flex !important;
             flex-wrap: wrap;

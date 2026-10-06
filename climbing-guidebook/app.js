@@ -5388,6 +5388,8 @@
                 this._routeSearchDebounceTimer = null;
                 this._boulderSearchDebounceTimer = null;
                 this._globalSearchDebounceTimer = null;
+                this._catalogSearchDebounceTimer = null;
+                this._rankingSearchDebounceTimer = null;
                 this.updatesFilter = 'all';
                 this._boulderHoldDrag = null;
                 this._onBoulderHoldPointerMove = this.onBoulderHoldPointerMove.bind(this);
@@ -10196,29 +10198,89 @@
                 return items;
             }
 
-            clearGlobalSearchDropdown({ clearInput = false } = {}) {
-                const input = document.getElementById('globalSearch');
-                const box = document.getElementById('globalSearchResults');
+            getSearchInput(which = 'global') {
+                return which === 'catalog'
+                    ? document.getElementById('catalogSearch')
+                    : document.getElementById('globalSearch');
+            }
+
+            getSearchResultsBox(which = 'global') {
+                return which === 'catalog'
+                    ? document.getElementById('catalogSearchResults')
+                    : document.getElementById('globalSearchResults');
+            }
+
+            syncLinkedSearchInputs(sourceWhich = 'global') {
+                const global = this.getSearchInput('global');
+                const catalog = this.getSearchInput('catalog');
+                if (!global || !catalog) return;
+                const src = sourceWhich === 'catalog' ? catalog : global;
+                const dst = sourceWhich === 'catalog' ? global : catalog;
+                dst.value = src.value;
+                this.syncSearchClearButton('global');
+                this.syncSearchClearButton('catalog');
+            }
+
+            clearSearchDropdown({ clearInput = false, which = 'global' } = {}) {
+                const input = this.getSearchInput(which);
+                const box = this.getSearchResultsBox(which);
                 if (clearInput && input) input.value = '';
-                if (clearInput) this.syncGlobalSearchClearButton();
+                if (clearInput) this.syncSearchClearButton(which);
                 if (box) {
                     box.classList.add('hidden');
                     box.innerHTML = '';
                 }
             }
 
-            syncGlobalSearchClearButton() {
-                const input = document.getElementById('globalSearch');
-                const btn = document.getElementById('globalSearchClearBtn');
+            clearAllSearchDropdowns({ clearInput = false } = {}) {
+                this.clearSearchDropdown({ clearInput, which: 'global' });
+                this.clearSearchDropdown({ clearInput, which: 'catalog' });
+                if (clearInput) {
+                    this.syncLinkedSearchInputs('global');
+                }
+            }
+
+            clearGlobalSearchDropdown(opts = {}) {
+                this.clearAllSearchDropdowns(opts);
+            }
+
+            syncSearchClearButton(which = 'global') {
+                const input = this.getSearchInput(which);
+                const btn = which === 'catalog'
+                    ? document.getElementById('catalogSearchClearBtn')
+                    : document.getElementById('globalSearchClearBtn');
                 if (!input || !btn) return;
                 const hasText = String(input.value || '').length > 0;
                 btn.classList.toggle('hidden', !hasText);
                 btn.setAttribute('aria-hidden', hasText ? 'false' : 'true');
             }
 
+            syncGlobalSearchClearButton() {
+                this.syncSearchClearButton('global');
+            }
+
             clearGlobalSearchInput() {
-                this.clearGlobalSearchDropdown({ clearInput: true });
-                document.getElementById('globalSearch')?.focus();
+                this.clearAllSearchDropdowns({ clearInput: true });
+                this.getSearchInput('global')?.focus();
+                this.renderCatalog();
+            }
+
+            clearCatalogSearchInput() {
+                this.clearAllSearchDropdowns({ clearInput: true });
+                this.getSearchInput('catalog')?.focus();
+                this.renderCatalog();
+            }
+
+            getCatalogLocalSearchTerm() {
+                const catalog = String(this.getSearchInput('catalog')?.value || '').trim().toLowerCase();
+                if (catalog) return catalog;
+                return String(this.getSearchInput('global')?.value || '').trim().toLowerCase();
+            }
+
+            catalogTextMatches(term, ...parts) {
+                if (!term) return true;
+                const hay = parts.filter(Boolean).join(' ').toLowerCase();
+                return hay.includes(term);
             }
 
             focusGlobalSearch(message = '') {
@@ -10227,13 +10289,12 @@
                 input?.focus();
             }
 
-            renderGlobalSearchResults() {
-                const input = document.getElementById('globalSearch');
-                const box = document.getElementById('globalSearchResults');
+            renderSearchDropdown(input, box) {
                 if (!input || !box) return;
                 const query = String(input.value || '').trim();
                 if (query.length < 2) {
-                    this.clearGlobalSearchDropdown();
+                    box.classList.add('hidden');
+                    box.innerHTML = '';
                     return;
                 }
                 const intent = this.classifyAssistantIntent(query);
@@ -10274,8 +10335,20 @@
                 }).join('');
             }
 
-            async submitGlobalSearch() {
-                const input = document.getElementById('globalSearch');
+            renderGlobalSearchResults() {
+                const query = String(this.getSearchInput('global')?.value || this.getSearchInput('catalog')?.value || '').trim();
+                if (query.length < 2) {
+                    this.clearAllSearchDropdowns();
+                    this.renderCatalog();
+                    return;
+                }
+                this.renderSearchDropdown(this.getSearchInput('global'), this.getSearchResultsBox('global'));
+                this.renderSearchDropdown(this.getSearchInput('catalog'), this.getSearchResultsBox('catalog'));
+                this.renderCatalog();
+            }
+
+            async submitSearch(which = 'global') {
+                const input = this.getSearchInput(which);
                 const prompt = String(input?.value || '').trim();
                 if (prompt.length < 2) return;
                 const intent = this.classifyAssistantIntent(prompt);
@@ -10310,8 +10383,12 @@
                 this.renderGlobalSearchResults();
             }
 
+            async submitGlobalSearch() {
+                await this.submitSearch('global');
+            }
+
             openGlobalSearchResult(kind, id) {
-                this.clearGlobalSearchDropdown({ clearInput: true });
+                this.clearAllSearchDropdowns({ clearInput: true });
                 if (kind === 'route' || kind === 'boulder') {
                     void this.showClimbDetailDialog(kind, id);
                     return;
@@ -10529,6 +10606,7 @@
 
                 const areas = getAreas();
                 const sectors = getSectors();
+                const catalogTerm = this.getCatalogLocalSearchTerm();
 
                 try {
                 if (this.catalog.view === 'areas') {
@@ -10541,7 +10619,10 @@
                         <button type="button" class="btn btn-primary" data-catalog-act="add-area">
                             <i class="fas fa-plus"></i> Добавить район
                         </button>` : '';
-                    list.innerHTML = areas.length ? areas.map(a => {
+                    const visibleAreas = catalogTerm
+                        ? areas.filter((a) => this.catalogTextMatches(catalogTerm, a.name, a.description))
+                        : areas;
+                    list.innerHTML = visibleAreas.length ? visibleAreas.map(a => {
                         const sc = sectors.filter(s => Number(s.areaId) === Number(a.id)).length;
                         const rc = getRoutes().filter(r => Number(r.areaId) === Number(a.id)).length;
                         const bcnt = getBoulders().filter(b => Number(b.areaId) === Number(a.id)).length;
@@ -10573,7 +10654,7 @@
                                     ${this.renderRowActions(`data-catalog-act="edit-area" data-id="${a.id}"`, `data-catalog-act="delete-area" data-id="${a.id}"`)}
                                 </div>
                             </div>`;
-                    }).join('') : '<div class="empty-state"><p>Нет районов. Создайте первый.</p></div>';
+                    }).join('') : `<div class="empty-state"><p>${catalogTerm ? 'По запросу районы не найдены.' : 'Нет районов. Создайте первый.'}</p></div>`;
                     return;
                 }
 
@@ -10589,7 +10670,10 @@
                             <i class="fas fa-plus"></i> Добавить сектор
                         </button>` : '';
                     const listSectors = sectors.filter(s => Number(s.areaId) === Number(this.catalog.areaId));
-                    list.innerHTML = listSectors.length ? listSectors.map(s => {
+                    const visibleSectors = catalogTerm
+                        ? listSectors.filter((s) => this.catalogTextMatches(catalogTerm, s.name, s.description))
+                        : listSectors;
+                    list.innerHTML = visibleSectors.length ? visibleSectors.map(s => {
                         const rc = getRoutes().filter(r => Number(r.sectorId) === Number(s.id)).length;
                         const bcnt = getBoulders().filter(b => Number(b.sectorId) === Number(s.id)).length;
                         const meta = APP_BOULDER_ONLY
@@ -10611,7 +10695,7 @@
                                     ${this.renderRowActions(`data-catalog-act="edit-sector" data-id="${s.id}"`, `data-catalog-act="delete-sector" data-id="${s.id}"`)}
                                 </div>
                             </div>`;
-                    }).join('') : '<div class="empty-state"><p>В этом районе пока нет секторов.</p></div>';
+                    }).join('') : `<div class="empty-state"><p>${catalogTerm ? 'По запросу секторы не найдены.' : 'В этом районе пока нет секторов.'}</p></div>`;
                     return;
                 }
 
@@ -10628,8 +10712,25 @@
                             <i class="fas fa-plus"></i> Добавить боулдеринг
                         </button>` : '';
 
-                    const rs = getRoutes().filter(r => Number(r.sectorId) === Number(this.catalog.sectorId));
-                    const bs = getBoulders().filter(b => Number(b.sectorId) === Number(this.catalog.sectorId));
+                    let rs = getRoutes().filter(r => Number(r.sectorId) === Number(this.catalog.sectorId));
+                    let bs = getBoulders().filter(b => Number(b.sectorId) === Number(this.catalog.sectorId));
+                    if (catalogTerm) {
+                        rs = rs.filter((r) => this.catalogTextMatches(
+                            catalogTerm,
+                            r.name,
+                            r.grade,
+                            r.category,
+                            r.description,
+                            r.sector
+                        ));
+                        bs = bs.filter((b) => this.catalogTextMatches(
+                            catalogTerm,
+                            b.name,
+                            b.grade,
+                            b.category,
+                            b.description
+                        ));
+                    }
                     const blocks = [];
                     const canReorderRoutes = this.isAdmin() && !APP_BOULDER_ONLY && rs.length > 1;
                     if (!APP_BOULDER_ONLY && rs.length) {
@@ -12200,45 +12301,73 @@
                     clearTimeout(this._boulderSearchDebounceTimer);
                     this._boulderSearchDebounceTimer = setTimeout(() => this.renderBoulders(), searchDebounceMs);
                 });
+                const bindSearchResultsClick = (box) => {
+                    box?.addEventListener('click', (e) => {
+                        const openBtn = e.target.closest('[data-global-open]');
+                        if (openBtn) {
+                            e.preventDefault();
+                            this.openGlobalSearchResult(openBtn.dataset.globalOpen, Number(openBtn.dataset.id));
+                            return;
+                        }
+                        const navBtn = e.target.closest('[data-global-nav]');
+                        if (navBtn) {
+                            e.preventDefault();
+                            const target = this.navTargetFromKindId(navBtn.dataset.globalNav, Number(navBtn.dataset.id));
+                            if (!target) {
+                                this.showToast('У объекта нет координат для карт', true);
+                                return;
+                            }
+                            this.clearAllSearchDropdowns({ clearInput: true });
+                            this.openMapsChooser(target, 'dir');
+                            return;
+                        }
+                        const item = e.target.closest('[data-global-kind]');
+                        if (!item || e.target.closest('button')) return;
+                        e.preventDefault();
+                        this.openGlobalSearchResult(item.dataset.globalKind, Number(item.dataset.id));
+                    });
+                };
                 document.getElementById('globalSearch')?.addEventListener('input', () => {
-                    this.syncGlobalSearchClearButton();
+                    this.syncLinkedSearchInputs('global');
                     clearTimeout(this._globalSearchDebounceTimer);
                     this._globalSearchDebounceTimer = setTimeout(() => this.renderGlobalSearchResults(), searchDebounceMs);
+                });
+                document.getElementById('catalogSearch')?.addEventListener('input', () => {
+                    this.syncLinkedSearchInputs('catalog');
+                    clearTimeout(this._catalogSearchDebounceTimer);
+                    this._catalogSearchDebounceTimer = setTimeout(() => this.renderGlobalSearchResults(), searchDebounceMs);
                 });
                 document.getElementById('globalSearchClearBtn')?.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     this.clearGlobalSearchInput();
                 });
-                this.syncGlobalSearchClearButton();
+                document.getElementById('catalogSearchClearBtn')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.clearCatalogSearchInput();
+                });
+                this.syncSearchClearButton('global');
+                this.syncSearchClearButton('catalog');
                 document.getElementById('globalSearch')?.addEventListener('keydown', (e) => {
                     if (e.key !== 'Enter') return;
                     e.preventDefault();
-                    void this.submitGlobalSearch();
+                    void this.submitSearch('global');
                 });
-                document.getElementById('globalSearchResults')?.addEventListener('click', (e) => {
-                    const openBtn = e.target.closest('[data-global-open]');
-                    if (openBtn) {
-                        e.preventDefault();
-                        this.openGlobalSearchResult(openBtn.dataset.globalOpen, Number(openBtn.dataset.id));
-                        return;
-                    }
-                    const navBtn = e.target.closest('[data-global-nav]');
-                    if (navBtn) {
-                        e.preventDefault();
-                        const target = this.navTargetFromKindId(navBtn.dataset.globalNav, Number(navBtn.dataset.id));
-                        if (!target) {
-                            this.showToast('У объекта нет координат для карт', true);
-                            return;
-                        }
-                        this.clearGlobalSearchDropdown({ clearInput: true });
-                        this.openMapsChooser(target, 'dir');
-                        return;
-                    }
-                    const item = e.target.closest('[data-global-kind]');
-                    if (!item || e.target.closest('button')) return;
+                document.getElementById('catalogSearch')?.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Enter') return;
                     e.preventDefault();
-                    this.openGlobalSearchResult(item.dataset.globalKind, Number(item.dataset.id));
+                    void this.submitSearch('catalog');
+                });
+                bindSearchResultsClick(document.getElementById('globalSearchResults'));
+                bindSearchResultsClick(document.getElementById('catalogSearchResults'));
+                document.getElementById('rankingSearch')?.addEventListener('input', () => {
+                    clearTimeout(this._rankingSearchDebounceTimer);
+                    this._rankingSearchDebounceTimer = setTimeout(() => {
+                        if (this._rankingLeaderboardData) {
+                            void this.renderRankingTab();
+                        }
+                    }, searchDebounceMs);
                 });
                 document.getElementById('updatesFilters')?.addEventListener('click', (e) => {
                     const btn = e.target.closest('[data-update-filter]');
@@ -15518,6 +15647,22 @@
                 return v.toLocaleString('ru-RU');
             }
 
+            getRankingSearchTerm() {
+                return String(document.getElementById('rankingSearch')?.value || '').trim().toLowerCase();
+            }
+
+            filterRankingLeaderboardRows(rows) {
+                const term = this.getRankingSearchTerm();
+                if (!term || !rows?.length) return rows || [];
+                return rows.filter((row) => {
+                    const hay = [
+                        row.display_name,
+                        row.telegram_username ? `@${row.telegram_username}` : ''
+                    ].join(' ').toLowerCase();
+                    return hay.includes(term);
+                });
+            }
+
             formatRankingRank(rank) {
                 const n = Number(rank);
                 if (!Number.isFinite(n) || n <= 0) return '—';
@@ -15583,6 +15728,37 @@
                     </div>`;
             }
 
+            paintRankingLeaderboardTable(data) {
+                const wrap = document.getElementById('rankingTableWrap');
+                if (!wrap || !data) return;
+                if (!data.rows?.length) {
+                    wrap.innerHTML = `
+                        <div class="ranking-empty">
+                            <i class="fas fa-trophy" style="font-size:28px;opacity:0.35;margin-bottom:8px;"></i>
+                            <p>Пока никто не занёс пролазы в логбук.</p>
+                            <p style="font-size:13px;margin-top:6px;">Отметьте пролаз на трассе или боулдере — и появитесь в рейтинге.</p>
+                        </div>`;
+                    return;
+                }
+                const currentId = this.getCurrentUser()?.id || '';
+                const visibleRows = this.filterRankingLeaderboardRows(data.rows);
+                if (!visibleRows.length) {
+                    wrap.innerHTML = `
+                        <div class="ranking-empty">
+                            <p>По запросу никого не найдено.</p>
+                        </div>`;
+                    return;
+                }
+                const rowsHtml = visibleRows
+                    .map((row) => this.buildRankingTableBodyRowHtml(row, currentId))
+                    .join('');
+                wrap.innerHTML = `
+                    <table class="ranking-table ranking-table--split" aria-label="Рейтинг скалолазов по баллам">
+                        <thead>${this.buildRankingTableHeadHtml()}</thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>`;
+            }
+
             async renderRankingTab() {
                 const wrap = document.getElementById('rankingTableWrap');
                 const hint = document.getElementById('rankingHint');
@@ -15595,6 +15771,7 @@
                     </div>`;
                 try {
                     const data = await apiFetch('/api/ranking/leaderboard?top=10&months=12');
+                    this._rankingLeaderboardData = data;
                     if (hint) {
                         hint.textContent = `Баллы 8a.nu за ${data.months} мес.: до ${data.top_performances} лучших пролазов в каждой дисциплине. Место по трудности и по боулдерингу считаются отдельно (сумма баллов в столбце).`;
                     }
@@ -15608,24 +15785,7 @@
                             myPlace.innerHTML = '';
                         }
                     }
-                    if (!data.rows?.length) {
-                        wrap.innerHTML = `
-                            <div class="ranking-empty">
-                                <i class="fas fa-trophy" style="font-size:28px;opacity:0.35;margin-bottom:8px;"></i>
-                                <p>Пока никто не занёс пролазы в логбук.</p>
-                                <p style="font-size:13px;margin-top:6px;">Отметьте пролаз на трассе или боулдере — и появитесь в рейтинге.</p>
-                            </div>`;
-                        return;
-                    }
-                    const currentId = this.getCurrentUser()?.id || '';
-                    const rowsHtml = data.rows
-                        .map((row) => this.buildRankingTableBodyRowHtml(row, currentId))
-                        .join('');
-                    wrap.innerHTML = `
-                        <table class="ranking-table ranking-table--split" aria-label="Рейтинг скалолазов по баллам">
-                            <thead>${this.buildRankingTableHeadHtml()}</thead>
-                            <tbody>${rowsHtml}</tbody>
-                        </table>`;
+                    this.paintRankingLeaderboardTable(data);
                 } catch (err) {
                     wrap.innerHTML = `<p style="color:var(--danger-color);padding:12px;">${this.escapeHtml(err.message || 'Не удалось загрузить рейтинг')}</p>`;
                 }
@@ -15832,14 +15992,14 @@
                         <div class="profile-ranking-discipline profile-ranking-discipline--route">
                             <span class="ranking-discipline-tag ranking-discipline-tag--route">Трудность</span>
                             <div class="profile-ranking-discipline-meta">
-                                <strong>#${routeRank}</strong>
+                                <strong>${routeRankLabel}</strong>
                                 <span>${this.formatRankingPoints(myRow.route_points)} баллов</span>
                             </div>
                         </div>
                         <div class="profile-ranking-discipline profile-ranking-discipline--boulder">
                             <span class="ranking-discipline-tag ranking-discipline-tag--boulder">Боулдеринг</span>
                             <div class="profile-ranking-discipline-meta">
-                                <strong>#${boulderRank}</strong>
+                                <strong>${boulderRankLabel}</strong>
                                 <span>${this.formatRankingPoints(myRow.boulder_points)} баллов</span>
                             </div>
                         </div>

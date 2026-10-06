@@ -333,6 +333,15 @@
                         <i class="fas fa-sitemap"></i> Районы и секторы
                     </div>
                 </div>
+                <div class="search-bar search-bar--compound catalog-card-search">
+                    <div class="global-search-field">
+                        <input type="search" class="search-input" id="catalogSearch" placeholder="Найди трассу, район или «как доехать до…»" autocomplete="off" enterkeyhint="search" aria-label="Поиск по гайду">
+                        <button type="button" class="global-search-clear dismiss-icon-btn hidden" id="catalogSearchClearBtn" aria-label="Очистить поиск" title="Очистить">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div class="global-search-results hidden" id="catalogSearchResults" role="listbox" aria-label="Результаты поиска"></div>
+                </div>
                 <div id="appDataStatus" class="app-data-status hidden" role="status" aria-live="polite"></div>
                 <div class="catalog-breadcrumb" id="catalogBreadcrumb"></div>
                 <div class="catalog-toolbar" id="catalogToolbar"></div>
@@ -646,6 +655,9 @@
                 <p class="ranking-hint" id="rankingHint">
                     Баллы 8a.nu за 12 месяцев: до 10 лучших пролазов в каждой дисциплине. Место по трудности и по боулдерингу считаются отдельно.
                 </p>
+                <div class="search-bar search-bar--compound ranking-card-search">
+                    <input type="search" class="search-input" id="rankingSearch" placeholder="Поиск по имени скалолаза…" autocomplete="off" enterkeyhint="search" aria-label="Поиск в рейтинге">
+                </div>
                 <div id="rankingMyPlace" class="ranking-my-place hidden" aria-live="polite"></div>
                 <div id="rankingTableWrap" class="ranking-table-wrap">
                     <div class="loading">
