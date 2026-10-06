@@ -529,6 +529,8 @@ class LeaderboardRow(BaseModel):
     total_points: int = 0
     route_top_count: int = 0
     boulder_top_count: int = 0
+    route_rank: Optional[int] = None
+    boulder_rank: Optional[int] = None
 
 
 class LeaderboardRead(BaseModel):
@@ -537,6 +539,8 @@ class LeaderboardRead(BaseModel):
     rows: list[LeaderboardRow] = Field(default_factory=list)
     my_rank: Optional[int] = None
     my_row: Optional[LeaderboardRow] = None
+    my_route_rank: Optional[int] = None
+    my_boulder_rank: Optional[int] = None
 
 
 MapFeatureType = Literal["trail", "parking", "camping", "area_sign", "sector_sign"]

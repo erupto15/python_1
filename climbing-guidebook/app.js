@@ -14982,11 +14982,12 @@
                     if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
                         await refreshCatalogFromApi({ skipWake: true }).catch(() => {});
                     }
-                    const [profile, ascents] = await Promise.all([
+                    const [profile, ascents, leaderboard] = await Promise.all([
                         apiFetch('/api/users/me/profile'),
-                        apiFetch('/api/me/ascents?status=send&limit=500')
+                        apiFetch('/api/me/ascents?status=send&limit=500'),
+                        apiFetch('/api/ranking/leaderboard?top=10&months=12').catch(() => null)
                     ]);
-                    this.renderProfileStatsGrid(profile, ascents);
+                    this.renderProfileStatsGrid(profile, ascents, leaderboard);
                     const sendsDialog = document.getElementById('profileSendsDialog');
                     if (sendsDialog && !sendsDialog.classList.contains('hidden')) {
                         const listEl = document.getElementById('profileSendsList');
@@ -15517,6 +15518,71 @@
                 return v.toLocaleString('ru-RU');
             }
 
+            formatRankingRank(rank) {
+                const n = Number(rank);
+                if (!Number.isFinite(n) || n <= 0) return '—';
+                return String(n);
+            }
+
+            buildRankingTableHeadHtml() {
+                return `
+                    <tr>
+                        <th class="ranking-num" scope="col" rowspan="2" title="Суммарное место">#</th>
+                        <th scope="col" rowspan="2">Скалолаз</th>
+                        <th class="ranking-col-head ranking-col-head--route" scope="colgroup" colspan="2">Трудность</th>
+                        <th class="ranking-col-head ranking-col-head--boulder" scope="colgroup" colspan="2">Боулдеринг</th>
+                    </tr>
+                    <tr>
+                        <th class="ranking-num ranking-col-head ranking-col-head--route" scope="col">#</th>
+                        <th class="ranking-points ranking-col-head ranking-col-head--route" scope="col">Баллы</th>
+                        <th class="ranking-num ranking-col-head ranking-col-head--boulder" scope="col">#</th>
+                        <th class="ranking-points ranking-col-head ranking-col-head--boulder" scope="col">Баллы</th>
+                    </tr>`;
+            }
+
+            buildRankingTableBodyRowHtml(row, currentId) {
+                const isMe = currentId && row.user_id === currentId;
+                const topClass = row.rank === 1 ? ' ranking-row--top1' : '';
+                const meClass = isMe ? ' ranking-row--me' : '';
+                const handle = row.telegram_username
+                    ? `<span class="ranking-user-handle">@${this.escapeHtml(row.telegram_username)}</span>`
+                    : '';
+                return `
+                    <tr class="ranking-row${topClass}${meClass}">
+                        <td class="ranking-num">${row.rank}</td>
+                        <td>
+                            <span class="ranking-user-name">${this.escapeHtml(row.display_name)}</span>
+                            ${handle}
+                        </td>
+                        <td class="ranking-num ranking-cell--route">${this.formatRankingRank(row.route_rank)}</td>
+                        <td class="ranking-points ranking-cell--route">${this.formatRankingPoints(row.route_points)}</td>
+                        <td class="ranking-num ranking-cell--boulder">${this.formatRankingRank(row.boulder_rank)}</td>
+                        <td class="ranking-points ranking-cell--boulder">${this.formatRankingPoints(row.boulder_points)}</td>
+                    </tr>`;
+            }
+
+            buildRankingMyPlaceHtml(data) {
+                if (!this.isLoggedIn() || !data?.my_row) return '';
+                const row = data.my_row;
+                const routeRank = this.formatRankingRank(data.my_route_rank ?? row.route_rank);
+                const boulderRank = this.formatRankingRank(data.my_boulder_rank ?? row.boulder_rank);
+                const routeRankLabel = routeRank === '—' ? '—' : `#${routeRank}`;
+                const boulderRankLabel = boulderRank === '—' ? '—' : `#${boulderRank}`;
+                const overall = data.my_rank != null ? `#${data.my_rank}` : '—';
+                return `
+                    <div class="ranking-my-place-grid">
+                        <div class="ranking-my-place-overall">Суммарно: <strong>${overall}</strong> (трудность + боулдеринг)</div>
+                        <div class="ranking-my-place-discipline ranking-my-place-discipline--route">
+                            <span class="ranking-discipline-tag ranking-discipline-tag--route">Трудность</span>
+                            место <strong>${routeRankLabel}</strong> · <strong>${this.formatRankingPoints(row.route_points)}</strong> баллов
+                        </div>
+                        <div class="ranking-my-place-discipline ranking-my-place-discipline--boulder">
+                            <span class="ranking-discipline-tag ranking-discipline-tag--boulder">Боулдеринг</span>
+                            место <strong>${boulderRankLabel}</strong> · <strong>${this.formatRankingPoints(row.boulder_points)}</strong> баллов
+                        </div>
+                    </div>`;
+            }
+
             async renderRankingTab() {
                 const wrap = document.getElementById('rankingTableWrap');
                 const hint = document.getElementById('rankingHint');
@@ -15530,12 +15596,13 @@
                 try {
                     const data = await apiFetch('/api/ranking/leaderboard?top=10&months=12');
                     if (hint) {
-                        hint.textContent = `Баллы по модели 8a.nu: сумма ${data.top_performances} лучших пролазов за ${data.months} мес. в каждой дисциплине. 8a = 1000, +50 за «+», бонусы: онсайт +147, флэш +53, второй заход +2.`;
+                        hint.textContent = `Баллы 8a.nu за ${data.months} мес.: до ${data.top_performances} лучших пролазов в каждой дисциплине. Место по трудности и по боулдерингу считаются отдельно (сумма баллов в столбце).`;
                     }
                     if (myPlace) {
-                        if (this.isLoggedIn() && data.my_row) {
+                        const placeHtml = this.buildRankingMyPlaceHtml(data);
+                        if (placeHtml) {
                             myPlace.classList.remove('hidden');
-                            myPlace.innerHTML = `Ваше место: <strong>#${data.my_rank}</strong> — трудность <strong>${this.formatRankingPoints(data.my_row.route_points)}</strong>, боулдеринг <strong>${this.formatRankingPoints(data.my_row.boulder_points)}</strong>, итого <strong>${this.formatRankingPoints(data.my_row.total_points)}</strong>`;
+                            myPlace.innerHTML = placeHtml;
                         } else {
                             myPlace.classList.add('hidden');
                             myPlace.innerHTML = '';
@@ -15551,36 +15618,12 @@
                         return;
                     }
                     const currentId = this.getCurrentUser()?.id || '';
-                    const rowsHtml = data.rows.map((row) => {
-                        const isMe = currentId && row.user_id === currentId;
-                        const topClass = row.rank === 1 ? ' ranking-row--top1' : '';
-                        const meClass = isMe ? ' ranking-row--me' : '';
-                        const handle = row.telegram_username
-                            ? `<span class="ranking-user-handle">@${this.escapeHtml(row.telegram_username)}</span>`
-                            : '';
-                        return `
-                            <tr class="ranking-row${topClass}${meClass}">
-                                <td class="ranking-num">${row.rank}</td>
-                                <td>
-                                    <span class="ranking-user-name">${this.escapeHtml(row.display_name)}</span>
-                                    ${handle}
-                                </td>
-                                <td class="ranking-points">${this.formatRankingPoints(row.route_points)}</td>
-                                <td class="ranking-points">${this.formatRankingPoints(row.boulder_points)}</td>
-                                <td class="ranking-points">${this.formatRankingPoints(row.total_points)}</td>
-                            </tr>`;
-                    }).join('');
+                    const rowsHtml = data.rows
+                        .map((row) => this.buildRankingTableBodyRowHtml(row, currentId))
+                        .join('');
                     wrap.innerHTML = `
-                        <table class="ranking-table" aria-label="Рейтинг скалолазов по баллам">
-                            <thead>
-                                <tr>
-                                    <th class="ranking-num" scope="col">#</th>
-                                    <th scope="col">Скалолаз</th>
-                                    <th class="ranking-points" scope="col">Трудность</th>
-                                    <th class="ranking-points" scope="col">Боулдеринг</th>
-                                    <th class="ranking-points" scope="col">Итого</th>
-                                </tr>
-                            </thead>
+                        <table class="ranking-table ranking-table--split" aria-label="Рейтинг скалолазов по баллам">
+                            <thead>${this.buildRankingTableHeadHtml()}</thead>
                             <tbody>${rowsHtml}</tbody>
                         </table>`;
                 } catch (err) {
@@ -15766,11 +15809,13 @@
 
             buildProfileRankingStatCardHtml(leaderboard, user) {
                 const myRow = leaderboard?.my_row;
-                const myRank = leaderboard?.my_rank;
-                const displayName = this.escapeHtml(
-                    user?.display_name || myRow?.display_name || 'Вы'
-                );
-                if (!myRow || !myRank) {
+                const routeRank = this.formatRankingRank(leaderboard?.my_route_rank ?? myRow?.route_rank);
+                const boulderRank = this.formatRankingRank(leaderboard?.my_boulder_rank ?? myRow?.boulder_rank);
+                const routeRankLabel = routeRank === '—' ? '—' : `#${routeRank}`;
+                const boulderRankLabel = boulderRank === '—' ? '—' : `#${boulderRank}`;
+                const hasRoute = myRow && Number(myRow.route_points) > 0;
+                const hasBoulder = myRow && Number(myRow.boulder_points) > 0;
+                if (!myRow || (!hasRoute && !hasBoulder)) {
                     return `<div class="profile-stat-card profile-stat-card--ranking">
                         <div class="profile-stat-card-head">
                             <strong>—</strong>
@@ -15781,30 +15826,23 @@
                 }
                 return `<button type="button" class="profile-stat-card profile-stat-card--ranking" data-profile-open-ranking aria-label="Открыть таблицу рейтинга">
                     <div class="profile-stat-card-head">
-                        <strong>#${myRank}</strong>
-                        <span class="profile-stat-card-label">место в рейтинге</span>
+                        <span class="profile-stat-card-label">рейтинг 8a.nu</span>
                     </div>
-                    <div class="profile-ranking-row-wrap">
-                        <table class="profile-ranking-row" aria-label="Ваша строка в рейтинге">
-                            <thead>
-                                <tr>
-                                    <th class="ranking-num" scope="col">#</th>
-                                    <th scope="col">Скалолаз</th>
-                                    <th class="ranking-points" scope="col">Труд.</th>
-                                    <th class="ranking-points" scope="col">Боул.</th>
-                                    <th class="ranking-points" scope="col">Итого</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr class="ranking-row ranking-row--me">
-                                    <td class="ranking-num">${myRank}</td>
-                                    <td><span class="ranking-user-name">${displayName}</span></td>
-                                    <td class="ranking-points">${this.formatRankingPoints(myRow.route_points)}</td>
-                                    <td class="ranking-points">${this.formatRankingPoints(myRow.boulder_points)}</td>
-                                    <td class="ranking-points">${this.formatRankingPoints(myRow.total_points)}</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div class="profile-ranking-disciplines">
+                        <div class="profile-ranking-discipline profile-ranking-discipline--route">
+                            <span class="ranking-discipline-tag ranking-discipline-tag--route">Трудность</span>
+                            <div class="profile-ranking-discipline-meta">
+                                <strong>#${routeRank}</strong>
+                                <span>${this.formatRankingPoints(myRow.route_points)} баллов</span>
+                            </div>
+                        </div>
+                        <div class="profile-ranking-discipline profile-ranking-discipline--boulder">
+                            <span class="ranking-discipline-tag ranking-discipline-tag--boulder">Боулдеринг</span>
+                            <div class="profile-ranking-discipline-meta">
+                                <strong>#${boulderRank}</strong>
+                                <span>${this.formatRankingPoints(myRow.boulder_points)} баллов</span>
+                            </div>
+                        </div>
                     </div>
                 </button>`;
             }

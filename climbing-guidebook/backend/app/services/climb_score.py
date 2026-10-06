@@ -221,6 +221,24 @@ def build_leaderboard(
 
     totals.sort(key=lambda t: (-t.total_points, -t.route_points, -t.boulder_points, t.user_id))
 
+    route_rank_by_user: dict[str, int | None] = {}
+    route_rank = 0
+    for item in sorted(totals, key=lambda t: (-t.route_points, t.user_id)):
+        if item.route_points <= 0:
+            route_rank_by_user[item.user_id] = None
+        else:
+            route_rank += 1
+            route_rank_by_user[item.user_id] = route_rank
+
+    boulder_rank_by_user: dict[str, int | None] = {}
+    boulder_rank = 0
+    for item in sorted(totals, key=lambda t: (-t.boulder_points, t.user_id)):
+        if item.boulder_points <= 0:
+            boulder_rank_by_user[item.user_id] = None
+        else:
+            boulder_rank += 1
+            boulder_rank_by_user[item.user_id] = boulder_rank
+
     rows: list[dict] = []
     for idx, item in enumerate(totals, start=1):
         user = db.get(User, item.user_id)
@@ -235,6 +253,8 @@ def build_leaderboard(
                 "total_points": item.total_points,
                 "route_top_count": item.route_top_count,
                 "boulder_top_count": item.boulder_top_count,
+                "route_rank": route_rank_by_user.get(item.user_id),
+                "boulder_rank": boulder_rank_by_user.get(item.user_id),
             }
         )
 

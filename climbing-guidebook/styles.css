@@ -6483,6 +6483,125 @@
             line-height: 1.4;
         }
 
+        .ranking-my-place-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .ranking-my-place-overall {
+            font-size: 13px;
+            color: var(--light-text);
+        }
+
+        .ranking-my-place-discipline {
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+        .ranking-discipline-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            margin-right: 6px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            vertical-align: middle;
+        }
+
+        .ranking-discipline-tag--route {
+            background: color-mix(in srgb, var(--route-color) 22%, transparent);
+            color: var(--route-color);
+            border: 1px solid color-mix(in srgb, var(--route-color) 45%, transparent);
+        }
+
+        .ranking-discipline-tag--boulder {
+            background: color-mix(in srgb, var(--boulder-color) 22%, transparent);
+            color: var(--boulder-color);
+            border: 1px solid color-mix(in srgb, var(--boulder-color) 45%, transparent);
+        }
+
+        .ranking-col-head--route {
+            color: var(--route-color) !important;
+            background: color-mix(in srgb, var(--route-color) 10%, transparent);
+        }
+
+        .ranking-col-head--boulder {
+            color: var(--boulder-color) !important;
+            background: color-mix(in srgb, var(--boulder-color) 10%, transparent);
+        }
+
+        .ranking-table--split td.ranking-cell--route {
+            background: color-mix(in srgb, var(--route-color) 6%, transparent);
+        }
+
+        .ranking-table--split td.ranking-cell--route.ranking-points {
+            color: var(--route-color);
+            font-weight: 700;
+        }
+
+        .ranking-table--split td.ranking-cell--boulder {
+            background: color-mix(in srgb, var(--boulder-color) 6%, transparent);
+        }
+
+        .ranking-table--split td.ranking-cell--boulder.ranking-points {
+            color: var(--boulder-color);
+            font-weight: 700;
+        }
+
+        .profile-ranking-disciplines {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .profile-ranking-discipline {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+            padding: 8px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .profile-ranking-discipline--route {
+            background: color-mix(in srgb, var(--route-color) 10%, var(--surface-elevated));
+            border-color: color-mix(in srgb, var(--route-color) 35%, var(--border-color));
+        }
+
+        .profile-ranking-discipline--boulder {
+            background: color-mix(in srgb, var(--boulder-color) 10%, var(--surface-elevated));
+            border-color: color-mix(in srgb, var(--boulder-color) 35%, var(--border-color));
+        }
+
+        .profile-ranking-discipline-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-size: 12px;
+            line-height: 1.35;
+            color: var(--light-text);
+        }
+
+        .profile-ranking-discipline-meta strong {
+            font-size: 20px;
+            line-height: 1.1;
+            color: var(--text-color);
+        }
+
+        .profile-ranking-discipline--route .profile-ranking-discipline-meta strong {
+            color: var(--route-color);
+        }
+
+        .profile-ranking-discipline--boulder .profile-ranking-discipline-meta strong {
+            color: var(--boulder-color);
+        }
+
         .ranking-table-wrap {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;

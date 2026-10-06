@@ -286,11 +286,15 @@ def ranking_leaderboard(
     rows = [schemas.LeaderboardRow(**row) for row in payload["rows"]]
     my_rank = None
     my_row = None
+    my_route_rank = None
+    my_boulder_rank = None
     if current:
         for row in rows:
             if row.user_id == current.id:
                 my_rank = row.rank
                 my_row = row
+                my_route_rank = row.route_rank
+                my_boulder_rank = row.boulder_rank
                 break
     return schemas.LeaderboardRead(
         top_performances=payload["top_performances"],
@@ -298,6 +302,8 @@ def ranking_leaderboard(
         rows=rows,
         my_rank=my_rank,
         my_row=my_row,
+        my_route_rank=my_route_rank,
+        my_boulder_rank=my_boulder_rank,
     )
 
 
