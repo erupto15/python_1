@@ -23,55 +23,89 @@ def _catalog_rows(
     return areas, sectors, routes, boulders, map_features
 
 
-def _catalog_version(*groups: list[object]) -> str:
+def _row_group_version_part(class_name: str, rows: list[object]) -> str:
+    count = len(rows)
+    max_updated_at = None
+    for item in rows:
+        updated_at = getattr(item, "updated_at", None) or getattr(item, "created_at", None)
+        if updated_at and (max_updated_at is None or updated_at > max_updated_at):
+            max_updated_at = updated_at
+    return f"{class_name}:{count}:{max_updated_at}"
+
+
+def _catalog_version_from_rows(
+    areas: list[Area],
+    sectors: list[Sector],
+    routes: list[Route],
+    boulders: list[Boulder],
+    map_features: list[MapFeature],
+) -> tuple[str, dict[str, int]]:
+    parts = [
+        _row_group_version_part("Area", areas),
+        _row_group_version_part("Sector", sectors),
+        _row_group_version_part("Route", routes),
+        _row_group_version_part("Boulder", boulders),
+        _row_group_version_part("MapFeature", map_features),
+    ]
+    version = sha256("|".join(parts).encode("utf-8")).hexdigest()[:16]
+    counts = {
+        "areas": len(areas),
+        "sectors": len(sectors),
+        "routes": len(routes),
+        "boulders": len(boulders),
+        "map_features": len(map_features),
+    }
+    return version, counts
+
+
+def _catalog_manifest_stats(db: Session) -> tuple[str | None, str, dict[str, int]]:
+    """Быстрая версия каталога без загрузки всех строк (для /manifest)."""
     parts: list[str] = []
-    for group in groups:
-        for item in group:
-            item_id = getattr(item, "id", "")
-            updated_at = getattr(item, "updated_at", None) or getattr(item, "created_at", None)
-            parts.append(f"{item.__class__.__name__}:{item_id}:{updated_at}")
-    return sha256("|".join(parts).encode("utf-8")).hexdigest()[:16]
+    counts: dict[str, int] = {}
+    max_updated_at = None
+    for model, key in (
+        (Area, "areas"),
+        (Sector, "sectors"),
+        (Route, "routes"),
+        (Boulder, "boulders"),
+    ):
+        count = db.scalar(select(func.count()).select_from(model).where(model.deleted_at.is_(None))) or 0
+        counts[key] = int(count)
+        updated_at = db.scalar(select(func.max(model.updated_at)).where(model.deleted_at.is_(None)))
+        parts.append(f"{model.__name__}:{count}:{updated_at}")
+        if updated_at and (max_updated_at is None or updated_at > max_updated_at):
+            max_updated_at = updated_at
+    map_count = db.scalar(select(func.count()).select_from(MapFeature)) or 0
+    counts["map_features"] = int(map_count)
+    map_updated_at = db.scalar(select(func.max(MapFeature.updated_at)))
+    parts.append(f"MapFeature:{map_count}:{map_updated_at}")
+    if map_updated_at and (max_updated_at is None or map_updated_at > max_updated_at):
+        max_updated_at = map_updated_at
+    version = sha256("|".join(parts).encode("utf-8")).hexdigest()[:16]
+    updated_iso = max_updated_at.isoformat() if max_updated_at else None
+    return updated_iso, version, counts
 
 
 @router.get("/manifest")
 def catalog_manifest(db: Session = Depends(get_db)) -> dict[str, object]:
-    areas, sectors, routes, boulders, map_features = _catalog_rows(db)
-    max_updated_at = None
-    for model in (Area, Sector, Route, Boulder):
-        value = db.scalar(select(func.max(model.updated_at)).where(model.deleted_at.is_(None)))
-        if value and (max_updated_at is None or value > max_updated_at):
-            max_updated_at = value
-    map_features_updated_at = db.scalar(select(func.max(MapFeature.updated_at)))
-    if map_features_updated_at and (max_updated_at is None or map_features_updated_at > max_updated_at):
-        max_updated_at = map_features_updated_at
+    updated_at, version, counts = _catalog_manifest_stats(db)
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": max_updated_at.isoformat() if max_updated_at else None,
-        "version": _catalog_version(areas, sectors, routes, boulders, map_features),
-        "counts": {
-            "areas": len(areas),
-            "sectors": len(sectors),
-            "routes": len(routes),
-            "boulders": len(boulders),
-            "map_features": len(map_features),
-        },
+        "updated_at": updated_at,
+        "version": version,
+        "counts": counts,
     }
 
 
 @router.get("/bundle")
 def catalog_bundle(db: Session = Depends(get_db)) -> dict[str, object]:
     areas, sectors, routes, boulders, map_features = _catalog_rows(db)
+    version, counts = _catalog_version_from_rows(areas, sectors, routes, boulders, map_features)
     return {
         "manifest": {
             "generated_at": datetime.now(timezone.utc).isoformat(),
-            "version": _catalog_version(areas, sectors, routes, boulders, map_features),
-            "counts": {
-                "areas": len(areas),
-                "sectors": len(sectors),
-                "routes": len(routes),
-                "boulders": len(boulders),
-                "map_features": len(map_features),
-            },
+            "version": version,
+            "counts": counts,
         },
         "areas": [schemas.AreaRead.model_validate(area).model_dump(mode="json") for area in areas],
         "sectors": [schemas.SectorRead.model_validate(sector).model_dump(mode="json") for sector in sectors],

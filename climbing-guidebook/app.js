@@ -715,9 +715,9 @@
         /** Запросы секторов по районам — небольшими пачками, чтобы не забивать канал. */
         const SECTOR_FETCH_BATCH = 6;
         /** Проверка доступности API перед первичной загрузкой каталога. */
-        const API_WAKE_ATTEMPTS = 12;
-        const API_WAKE_ATTEMPT_TIMEOUT_MS = 20000;
-        const API_WAKE_PAUSE_MS = 2000;
+        const API_WAKE_ATTEMPTS = 4;
+        const API_WAKE_ATTEMPT_TIMEOUT_MS = 8000;
+        const API_WAKE_PAUSE_MS = 600;
         const CATALOG_RELOAD_DEBOUNCE_MS = 4000;
         let _catalogReloadPromise = null;
         let _lastCatalogReloadFinishedAt = 0;
@@ -2650,10 +2650,12 @@
             if (_catalogReloadPromise) return _catalogReloadPromise;
 
             _catalogReloadPromise = (async () => {
+                const background = options.background === true;
+                const showBusy = !background && (!isInitial || !catalogHasContent(getClimbingData()));
                 const busyMsg = isInitial ? 'Загрузка каталога…' : 'Обновление каталога…';
-                setGlobalUiBusy(true, busyMsg);
+                if (showBusy) setGlobalUiBusy(true, busyMsg);
                 try {
-                    if (!isInitial && _appRemoteDataReady) {
+                    if (!background && !isInitial && _appRemoteDataReady) {
                         window.app?.showToast?.('Обновление данных…', false);
                     }
                     if (!options.skipWake) {
@@ -2689,7 +2691,7 @@
                     }
                     throw err;
                 } finally {
-                    setGlobalUiBusy(false);
+                    if (showBusy) setGlobalUiBusy(false);
                     _catalogReloadPromise = null;
                 }
             })();
@@ -2699,7 +2701,7 @@
         function scheduleCatalogRefreshOnAppVisible() {
             if (!_appRemoteDataReady) return;
             if (shouldTrustOfflineHint()) return;
-            void refreshCatalogFromApi().catch(() => {});
+            void refreshCatalogFromApi({ background: true, skipWake: true }).catch(() => {});
         }
 
         let _globalUiBusyDepth = 0;
@@ -4342,16 +4344,7 @@
                 && catalogHasContent(getClimbingData())
             ) {
                 console.info('catalog up to date', manifest.version);
-                await hydrateAreaCoverImages();
-                if (areasMissingCoverImages(getClimbingData().areas) && !shouldTrustOfflineHint()) {
-                    console.info('area covers missing after hydrate, reloading catalog bundle');
-                    try {
-                        await loadClimbingDataFromApiBundle({ includePhotos: false });
-                    } catch (err) {
-                        console.warn('area cover bundle reload', err);
-                        await hydrateAreaCoverImages();
-                    }
-                }
+                void hydrateAreaCoverImages();
                 return getClimbingData();
             }
             try {
@@ -12365,7 +12358,7 @@
                     clearTimeout(this._rankingSearchDebounceTimer);
                     this._rankingSearchDebounceTimer = setTimeout(() => {
                         if (this._rankingLeaderboardData) {
-                            void this.renderRankingTab();
+                            this.paintRankingLeaderboardTable(this._rankingLeaderboardData);
                         }
                     }, searchDebounceMs);
                 });
@@ -15108,9 +15101,6 @@
             async refreshProfileLogbookSection() {
                 if (!this.isLoggedIn()) return;
                 try {
-                    if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
-                        await refreshCatalogFromApi({ skipWake: true }).catch(() => {});
-                    }
                     const [profile, ascents, leaderboard] = await Promise.all([
                         apiFetch('/api/users/me/profile'),
                         apiFetch('/api/me/ascents?status=send&limit=500'),
@@ -15811,9 +15801,6 @@
                 this.renderProfileIdentity(user);
 
                 try {
-                    if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
-                        await refreshCatalogFromApi({ skipWake: true }).catch(() => {});
-                    }
                     const [profile, ascents, leaderboard] = await Promise.all([
                         apiFetch('/api/users/me/profile'),
                         apiFetch('/api/me/ascents?status=send&limit=500'),
@@ -15864,12 +15851,6 @@
                 const existing = this.findClimbInCatalog(climbType, id);
                 if (existing) return existing;
 
-                if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
-                    await refreshCatalogFromApi({ skipWake: true }).catch(() => {});
-                    const refreshed = this.findClimbInCatalog(climbType, id);
-                    if (refreshed) return refreshed;
-                }
-
                 try {
                     if (climbType === 'route') {
                         const apiRoute = await apiFetch(`/api/routes/${encodeURIComponent(id)}`);
@@ -15882,6 +15863,11 @@
                     saveBoulders([...getBoulders().filter((b) => String(b.id) !== id), boulder]);
                     return boulder;
                 } catch (err) {
+                    if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
+                        await refreshCatalogFromApi({ skipWake: true, background: true }).catch(() => {});
+                        const refreshed = this.findClimbInCatalog(climbType, id);
+                        if (refreshed) return refreshed;
+                    }
                     console.warn('ensure climb in catalog', err);
                     return null;
                 }
@@ -16193,9 +16179,6 @@
                 listEl.innerHTML = '<p style="padding:12px;color:var(--light-text);margin:0;">Загрузка…</p>';
                 this.showDialog('profileSendsDialog');
                 try {
-                    if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
-                        await refreshCatalogFromApi({ skipWake: true }).catch(() => {});
-                    }
                     const ascents = await apiFetch('/api/me/ascents?status=send&limit=500');
                     listEl.innerHTML = this.renderProfileLogbookByDays(ascents);
                     this.bindProfileLogbookClicks(listEl);
@@ -16275,7 +16258,11 @@
                     throw new Error('Сервер не отвечает');
                 }
                 await warnIfApiStorageNotPersistent();
-                await refreshCatalogFromApi({ initial: true, skipWake: true });
+                await refreshCatalogFromApi({
+                    initial: true,
+                    skipWake: true,
+                    background: hadLocalCatalog
+                });
                 leaveOfflineMode();
                 void flushOfflineOutbox();
                 void runTelegramAuthBootstrap();
@@ -16309,12 +16296,12 @@
             }
             await clearServiceWorkers();
             const hadLocalCatalog = bootstrapCatalogFromStorage();
-            if (hadLocalCatalog) {
-                await hydrateCatalogPhotosFromIndexedDb();
-                await hydrateAreaCoverImages();
-            }
             bindPreventHorizontalPageShift();
             window.app = new ClimbingApp();
+            if (hadLocalCatalog) {
+                void hydrateCatalogPhotosFromIndexedDb();
+                void hydrateAreaCoverImages();
+            }
             if (!window.CLIMBING_STANDALONE && typeof window.initTelegramWebApp === 'function') {
                 window.initTelegramWebApp();
             }
@@ -16327,6 +16314,9 @@
                 setAppDataStatus('loading', 'Загрузка каталога…');
             }
             void bootstrapRemoteCatalog(hadLocalCatalog);
+            if (navigator.onLine !== false) {
+                void ensureLeafletLoaded().catch(() => {});
+            }
         }
 
         if (document.readyState === 'loading') {
