@@ -6009,13 +6009,19 @@
                 const showSentFilter = loggedIn && this.isTelegramUser();
                 document.getElementById('hideSentRoutesWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
                 document.getElementById('hideSentBouldersWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
-                document.getElementById('profileTabBtn')?.classList.toggle('hidden-by-role', !loggedIn);
                 if (!adminMode) {
                     this.toggleMapEditMode(false);
                     const activeTab = document.querySelector('.tab-content.active')?.id || '';
                     if (activeTab === 'routes' || activeTab === 'boulders') {
                         document.querySelector('.tab-btn[data-tab="catalog"]')?.click();
                     }
+                }
+                const activeTab = document.querySelector('.tab-content.active')?.id || '';
+                if (activeTab === 'photos' || activeTab === 'updates') {
+                    document.querySelector('.tab-btn[data-tab="catalog"]')?.click();
+                }
+                if (activeTab === 'profile' && !loggedIn) {
+                    document.querySelector('.tab-btn[data-tab="catalog"]')?.click();
                 }
             }
 
@@ -10095,7 +10101,23 @@
 
             switchToTab(tabId) {
                 const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-                if (btn) btn.click();
+                if (btn) {
+                    btn.click();
+                    return;
+                }
+                if (tabId === 'profile') {
+                    this.openProfileTab();
+                }
+            }
+
+            openProfileTab() {
+                document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+                document.getElementById('profile')?.classList.add('active');
+                void this.renderProfileTab();
+                if (typeof window.syncTelegramMiniAppUi === 'function') {
+                    window.syncTelegramMiniAppUi();
+                }
             }
 
             buildGlobalSearchIndex() {
@@ -14653,14 +14675,10 @@
 
             setupCommunityListeners() {
                 document.getElementById('openProfileBtn')?.addEventListener('click', () => {
-                    document.querySelector('.tab-btn[data-tab="profile"]')?.click();
-                    void this.renderProfileTab();
+                    this.openProfileTab();
                 });
                 document.getElementById('hideSentRoutes')?.addEventListener('change', () => this.renderRoutes());
                 document.getElementById('hideSentBoulders')?.addEventListener('change', () => this.renderBoulders());
-                document.querySelector('.tab-btn[data-tab="profile"]')?.addEventListener('click', () => {
-                    void this.renderProfileTab();
-                });
                 document.querySelector('.tab-btn[data-tab="ranking"]')?.addEventListener('click', () => {
                     void this.renderRankingTab();
                 });

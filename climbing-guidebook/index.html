@@ -253,6 +253,9 @@
         <!-- Шапка -->
         <header>
             <div class="header-top">
+                <button type="button" class="header-profile-btn" id="openProfileBtn" style="display:none;" title="Мой профиль" aria-label="Мой профиль">
+                    <i class="fas fa-user-circle" aria-hidden="true"></i>
+                </button>
                 <div class="header-brand">
                     <h1 class="site-logo" title="6А9А">
                         <span class="site-logo-mark">
@@ -290,7 +293,6 @@
                             <button type="button" class="btn btn-primary" id="loginBtn">Войти</button>
                         </div>
                         <div id="authStatus" style="display:none;"></div>
-                        <button type="button" class="btn btn-ghost" id="openProfileBtn" style="display:none;" title="Мой профиль"><i class="fas fa-user"></i></button>
                         <button type="button" class="btn btn-ghost" id="logoutBtn" style="display:none;"><i class="fas fa-sign-out-alt"></i> Выйти</button>
                         </div>
                     </div>
@@ -312,17 +314,8 @@
             <button class="tab-btn hidden" data-tab="map">
                 <i class="fas fa-map-marked-alt"></i> Карта
             </button>
-            <button class="tab-btn" data-tab="photos">
-                <i class="fas fa-images"></i> Фотоальбом
-            </button>
-            <button class="tab-btn" data-tab="updates">
-                <i class="fas fa-newspaper"></i> Лента
-            </button>
             <button class="tab-btn" data-tab="ranking" id="rankingTabBtn">
                 <i class="fas fa-trophy"></i> Рейтинг
-            </button>
-            <button class="tab-btn" data-tab="profile" id="profileTabBtn">
-                <i class="fas fa-user-circle"></i> Профиль
             </button>
         </div>
 
@@ -635,72 +628,6 @@
             </div>
         </div>
     </div>
-
-        <div class="tab-content" id="photos">
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">
-                        <i class="fas fa-images"></i> Фотоальбом
-                    </div>
-                    <div class="card-header-actions">
-                        <button type="button" class="btn btn-ghost card-header-icon-btn" data-action="load-photos" title="Загрузить фото с сервера" aria-label="Загрузить фото с сервера">
-                            <i class="fas fa-cloud-download-alt" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="search-bar search-bar--compound">
-                    <input
-                        type="search"
-                        class="search-input"
-                        id="photoAlbumSearch"
-                        placeholder="Поиск по названию трассы или боулдера…"
-                        autocomplete="off"
-                        enterkeyhint="search"
-                        title="Поиск по названию трассы или боулдера"
-                    >
-                </div>
-
-                <div class="filters">
-                    <button class="filter-btn active" data-type="all">Все фото</button>
-                    <button class="filter-btn photo-filter-routes" data-type="route">Трудность</button>
-                    <button class="filter-btn" data-type="boulder">Боулдеринг</button>
-                    <button class="filter-btn" data-type="marked">С разметкой</button>
-                </div>
-
-                <div class="photo-preview" id="photoAlbum">
-                    <!-- Фотографии будут загружены JavaScript -->
-                    <div class="empty-state">
-                        <i class="fas fa-images"></i>
-                        <h3>Фото не загружены</h3>
-                        <p>Нажмите <i class="fas fa-cloud-download-alt" aria-hidden="true"></i> в шапке вкладки, чтобы подтянуть снимки трасс и боулдеров с сервера.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="tab-content" id="updates">
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">
-                        <i class="fas fa-newspaper"></i> Лента обновлений
-                    </div>
-                </div>
-                <div class="filters" id="updatesFilters">
-                    <button class="filter-btn active" data-update-filter="all">Все</button>
-                    <button class="filter-btn" data-update-filter="places">Районы и секторы</button>
-                    <button class="filter-btn photo-filter-routes" data-update-filter="routes">Трассы</button>
-                    <button class="filter-btn" data-update-filter="boulders">Боулдеры</button>
-                </div>
-                <div class="updates-feed" id="updatesFeed">
-                    <div class="empty-state">
-                        <i class="fas fa-newspaper"></i>
-                        <h3>Лента пока пустая</h3>
-                        <p>Обновления появятся после загрузки каталога.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <!-- Контент вкладки «Рейтинг» (баллы 8a.nu) -->
         <div class="tab-content" id="ranking">
