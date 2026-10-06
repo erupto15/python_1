@@ -5345,6 +5345,7 @@
                 this._mapLocateRequested = false;
                 this._mapLocationPickTarget = null;
                 this._mapPromptResolver = null;
+                this._mapCatalogPinMove = null;
                 this._mapRestoringView = false;
                 this._mapViewSaveTimer = null;
                 this.mapSelectedFeatureId = null;
@@ -7377,6 +7378,16 @@
                 if (!sectorCatalogJump) marker.bindPopup(this.buildMapPopupHtml(entry));
                 marker.on('click', (e) => {
                     L.DomEvent.stopPropagation(e);
+                    if (this.mapEditMode && this.isAdmin()) {
+                        if (this.mapDrawTool === 'delete' && (entry.kind === 'area' || entry.kind === 'sector')) {
+                            void this.deleteCatalogMapPin(entry);
+                            return;
+                        }
+                        if (this.mapDrawTool === 'edit' && (entry.kind === 'area' || entry.kind === 'sector')) {
+                            this.beginMoveCatalogMapPin(entry);
+                            return;
+                        }
+                    }
                     if (sectorCatalogJump) {
                         this.openCatalogFromMap('sector', entry.id);
                         return;
@@ -7463,6 +7474,12 @@
                 const guideButton = entry.kind === 'area' || entry.kind === 'sector'
                     ? `<button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('guide','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Guide</button>`
                     : '';
+                const adminPinActions = this.isAdmin() && (entry.kind === 'area' || entry.kind === 'sector')
+                    ? `
+                        <button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.beginMoveCatalogMapPinFromPopup?.('${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Переместить</button>
+                        <button type="button" class="btn btn-small btn-danger" onclick="event.preventDefault(); window.app?.deleteCatalogMapPinFromPopup?.('${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Удалить метку</button>
+                    `
+                    : '';
                 return `
                     <div class="map-popup">
                         <strong>${this.escapeHtml(entry.title)}</strong>
@@ -7473,6 +7490,7 @@
                             ${detailButton}
                             ${guideButton}
                             ${catalogButton}
+                            ${adminPinActions}
                             <button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('target','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">К точке</button>
                             <button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('external','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;"><i class="fas fa-diamond-turn-right"></i> Маршрут</button>
                         </div>
@@ -7851,10 +7869,26 @@
                 this.mapFeatureLayers = [];
             }
 
+            mapFeatureCoordsDuplicateEntity(feature) {
+                if (!feature) return false;
+                const aid = feature.areaId ?? feature.area_id;
+                const sid = feature.sectorId ?? feature.sector_id;
+                if (feature.featureType === 'area_sign' && aid != null) {
+                    const area = getAreas().find((a) => Number(a.id) === Number(aid));
+                    return !!this.validMapCoord(area?.latitude, area?.longitude);
+                }
+                if (feature.featureType === 'sector_sign' && sid != null) {
+                    const sector = getSectors().find((s) => Number(s.id) === Number(sid));
+                    return !!this.validMapCoord(sector?.latitude, sector?.longitude);
+                }
+                return false;
+            }
+
             mapFeatureVisible(feature) {
                 if (!feature) return false;
                 if (feature.featureType === 'trail' && !this.mapShowTrails) return false;
                 if (feature.featureType !== 'trail' && !this.mapShowPoi) return false;
+                if (this.mapFeatureCoordsDuplicateEntity(feature)) return false;
                 const scopeAreaId = this.mapCatalogScope?.areaId;
                 if (!scopeAreaId) return true;
                 if (this.mapEditMode && this.isAdmin()) {
@@ -8319,6 +8353,134 @@
                 return true;
             }
 
+            async removeMapSignFeaturesForEntity(kind, entityId) {
+                const signType = kind === 'area' ? 'area_sign' : kind === 'sector' ? 'sector_sign' : null;
+                if (!signType || entityId == null) return;
+                const features = getMapFeatures().filter((f) => {
+                    if (f.featureType !== signType) return false;
+                    if (kind === 'area') return Number(f.areaId ?? f.area_id) === Number(entityId);
+                    return Number(f.sectorId ?? f.sector_id) === Number(entityId);
+                });
+                for (const feature of features) {
+                    try {
+                        await apiFetch(`/api/map-features/${Number(feature.id)}`, { method: 'DELETE' });
+                        removeMapFeatureFromLocalCache(feature.id);
+                    } catch (_) {
+                        /* ignore single failure */
+                    }
+                }
+            }
+
+            catalogMapPinEntry(kind, id) {
+                const stored = this.mapMarkerIndex.get(this.mapKey(kind, id));
+                if (stored) return stored;
+                if (kind === 'area') {
+                    const area = getAreas().find((a) => Number(a.id) === Number(id));
+                    const coord = area ? this.areaMapCoordinate(area.id) : null;
+                    if (!area || !coord) return null;
+                    return { kind: 'area', id: area.id, title: area.name, lat: coord.lat, lng: coord.lng };
+                }
+                if (kind === 'sector') {
+                    const sector = getSectors().find((s) => Number(s.id) === Number(id));
+                    const coord = sector ? this.sectorMapCoordinate(sector.id) : null;
+                    if (!sector || !coord) return null;
+                    return { kind: 'sector', id: sector.id, title: sector.name, lat: coord.lat, lng: coord.lng };
+                }
+                return null;
+            }
+
+            beginMoveCatalogMapPinFromPopup(kind, id) {
+                const entry = this.catalogMapPinEntry(kind, id);
+                if (!entry) return;
+                if (!this.mapEditMode) this.toggleMapEditMode(true);
+                this.setMapDrawTool('edit');
+                this.beginMoveCatalogMapPin(entry);
+            }
+
+            deleteCatalogMapPinFromPopup(kind, id) {
+                const entry = this.catalogMapPinEntry(kind, id);
+                if (!entry) return;
+                void this.deleteCatalogMapPin(entry);
+            }
+
+            beginMoveCatalogMapPin(entry) {
+                if (!entry || (entry.kind !== 'area' && entry.kind !== 'sector')) return;
+                this._mapCatalogPinMove = { kind: entry.kind, id: Number(entry.id) };
+                this.mapFeatureMovePending = false;
+                const label = entry.kind === 'area' ? 'района' : 'сектора';
+                this.updateMapStatus(`Кликните на карте — новое положение метки ${label}.`);
+                this.syncMapEditUi();
+            }
+
+            async moveCatalogMapPin(lat, lng) {
+                const move = this._mapCatalogPinMove;
+                this._mapCatalogPinMove = null;
+                if (!move?.kind || !move?.id) return;
+                if (!this.requireAdmin('Перемещение метки')) return;
+                try {
+                    if (move.kind === 'area') {
+                        const saved = await apiFetch(`/api/areas/${Number(move.id)}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: lat, longitude: lng })
+                        });
+                        mergeAreaFromApiResponse(saved);
+                        await this.removeMapSignFeaturesForEntity('area', move.id);
+                    } else {
+                        const saved = await apiFetch(`/api/sectors/${Number(move.id)}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: lat, longitude: lng })
+                        });
+                        mergeSectorFromApiResponse(saved);
+                        await this.removeMapSignFeaturesForEntity('sector', move.id);
+                    }
+                    this.data = getClimbingData();
+                    this.map?.closePopup();
+                    this.updateMapMarkers();
+                    this.renderCatalog();
+                    this.showToast('Метка перемещена');
+                    this.updateMapStatus('Метка перемещена.');
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось переместить метку', true);
+                }
+            }
+
+            async deleteCatalogMapPin(entry) {
+                if (!entry || (entry.kind !== 'area' && entry.kind !== 'sector')) return;
+                if (!this.requireAdmin('Удаление метки')) return;
+                const name = entry.title || (entry.kind === 'area' ? 'район' : 'сектор');
+                const msg = `Убрать метку «${name}» с карты? Координаты в каталоге будут очищены.`;
+                if (!(await confirmDestructive(msg))) return;
+                try {
+                    if (entry.kind === 'area') {
+                        const saved = await apiFetch(`/api/areas/${Number(entry.id)}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: null, longitude: null })
+                        });
+                        mergeAreaFromApiResponse(saved);
+                        await this.removeMapSignFeaturesForEntity('area', entry.id);
+                    } else {
+                        const saved = await apiFetch(`/api/sectors/${Number(entry.id)}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: null, longitude: null })
+                        });
+                        mergeSectorFromApiResponse(saved);
+                        await this.removeMapSignFeaturesForEntity('sector', entry.id);
+                    }
+                    this.data = getClimbingData();
+                    this.map?.closePopup();
+                    this.updateMapMarkers();
+                    this.renderCatalog();
+                    this.showToast('Метка удалена');
+                    this.updateMapStatus('Метка района/сектора удалена с карты.');
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось удалить метку', true);
+                }
+            }
+
             async applyMapFeatureToEntityCoords(featureType, lat, lng, areaId, sectorId) {
                 try {
                     if (featureType === 'area_sign' && areaId) {
@@ -8373,9 +8535,11 @@
                         area_sign: 'Клик по карте — метка района.',
                         sector_sign: 'Клик по карте — метка сектора.'
                     };
-                    hint.textContent = this.mapFeatureMovePending
+                    hint.textContent = this._mapCatalogPinMove
+                        ? 'Кликните на карте — новое положение метки района/сектора.'
+                        : (this.mapFeatureMovePending
                         ? 'Кликните на карте — новое положение выбранной метки.'
-                        : (toolHints[this.mapDrawTool] || hint.textContent);
+                        : (toolHints[this.mapDrawTool] || hint.textContent));
                 }
                 const finishTrailBtn = document.getElementById('mapFinishTrailBtn');
                 if (finishTrailBtn) {
@@ -8411,6 +8575,7 @@
                     if (!this.mapShowTrails) this.toggleMapLayer('trails');
                 } else {
                     this.cancelMapLocationPick();
+                    this._mapCatalogPinMove = null;
                 }
                 if (!next) {
                     this.mapDraftTrail = null;
@@ -8430,6 +8595,11 @@
                     const { lat, lng } = e.latlng;
                     if (this.applyMapLocationPick(lat, lng)) {
                         L.DomEvent.stop(e);
+                        return;
+                    }
+                    if (this._mapCatalogPinMove) {
+                        L.DomEvent.stop(e);
+                        void this.moveCatalogMapPin(lat, lng);
                         return;
                     }
                     if (!this.mapEditMode || !this.isAdmin()) return;
@@ -8615,9 +8785,20 @@
                     });
                     mergeMapFeatureFromApiResponse(created);
                     await this.applyMapFeatureToEntityCoords(featureType, lat, lng, areaId, sectorId);
+                    if (featureType === 'area_sign' || featureType === 'sector_sign') {
+                        try {
+                            await apiFetch(`/api/map-features/${Number(created.id)}`, { method: 'DELETE' });
+                            removeMapFeatureFromLocalCache(created.id);
+                        } catch (_) {
+                            /* entity coords are source of truth */
+                        }
+                    }
                     this.renderMapFeatureLayers();
                     this.renderCatalog();
-                    this.showToast(`${this.mapFeatureTypeLabel(featureType)} добавлен`);
+                    this.updateMapMarkers();
+                    this.showToast(featureType === 'area_sign' || featureType === 'sector_sign'
+                        ? 'Метка на карте обновлена'
+                        : `${this.mapFeatureTypeLabel(featureType)} добавлен`);
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось сохранить объект', true);
                 }
