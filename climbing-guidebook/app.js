@@ -7903,7 +7903,7 @@
                 const targetBtn = coordsPt
                     ? `<button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.setMapTarget?.({ kind: 'feature', id: ${Number(feature.id)}, title: '${this.escapeHtml(title).replace(/'/g, "\\'")}', lat: ${coordsPt.lat}, lng: ${coordsPt.lng} }); return false;">К точке</button>`
                     : '';
-                const adminActions = this.mapEditMode && this.isAdmin()
+                const adminActions = this.isAdmin()
                     ? `
                         <button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.editMapFeatureFromPopup?.(${Number(feature.id)}); return false;">Изменить</button>
                         <button type="button" class="btn btn-small btn-danger" onclick="event.preventDefault(); window.app?.deleteMapFeature?.(${Number(feature.id)}); return false;">Удалить</button>
@@ -7922,7 +7922,13 @@
             bindMapFeatureLayerAdminEvents(layer, feature) {
                 if (!layer || !feature) return;
                 const handler = (e) => {
-                    if (!this.mapEditMode || !this.isAdmin()) return;
+                    if (!this.isAdmin()) return;
+                    if (this.mapEditMode && this.mapDrawTool === 'delete') {
+                        L.DomEvent.stopPropagation(e);
+                        void this.deleteMapFeature(feature.id);
+                        return;
+                    }
+                    if (!this.mapEditMode) return;
                     L.DomEvent.stopPropagation(e);
                     if (this.mapDrawTool === 'edit') {
                         this.selectMapFeature(feature.id);
@@ -8359,7 +8365,8 @@
                 }
                 if (hint && this.mapEditMode) {
                     const toolHints = {
-                        edit: 'Кликните по объекту на карте, чтобы изменить или удалить его.',
+                        edit: 'Кликните по объекту на карте, чтобы изменить подпись или переместить его.',
+                        delete: 'Кликните по объекту на карте, чтобы удалить только его.',
                         trail: 'Кликайте по карте, чтобы добавить точки тропы. «Завершить тропу» — сохранить.',
                         parking: 'Клик по карте — поставить парковку.',
                         camping: 'Клик по карте — поставить кемпинг.',
@@ -8384,10 +8391,13 @@
             }
 
             setMapDrawTool(tool) {
-                const allowed = ['edit', 'trail', 'parking', 'camping', 'area_sign', 'sector_sign'];
+                const allowed = ['edit', 'delete', 'trail', 'parking', 'camping', 'area_sign', 'sector_sign'];
                 this.mapDrawTool = allowed.includes(tool) ? tool : 'trail';
                 if (this.mapDrawTool !== 'edit') {
                     this.mapFeatureMovePending = false;
+                }
+                if (this.mapDrawTool === 'delete') {
+                    this.deselectMapFeature();
                 }
                 this.syncMapEditUi();
             }
@@ -8431,6 +8441,10 @@
                     if (this.mapDrawTool === 'edit') {
                         this.deselectMapFeature();
                         this.updateMapStatus('Выбор снят. Кликните по объекту на карте.');
+                        return;
+                    }
+                    if (this.mapDrawTool === 'delete') {
+                        this.updateMapStatus('Кликните по объекту на карте, который нужно удалить.');
                         return;
                     }
                     if (this.mapDrawTool === 'trail') {
@@ -8611,15 +8625,23 @@
 
             async deleteMapFeature(featureId) {
                 if (!this.requireAdmin('Удаление с карты')) return;
-                if (!confirm('Удалить объект с карты?')) return;
+                const feature = this.getMapFeatureById(featureId);
+                const name = feature?.label || this.mapFeatureTypeLabel(feature?.featureType);
+                const msg = name
+                    ? `Удалить «${name}» с карты?`
+                    : 'Удалить этот объект с карты?';
+                if (!(await confirmDestructive(msg))) return;
                 try {
                     await apiFetch(`/api/map-features/${Number(featureId)}`, { method: 'DELETE' });
                     removeMapFeatureFromLocalCache(featureId);
                     if (Number(this.mapSelectedFeatureId) === Number(featureId)) {
                         this.deselectMapFeature();
                     }
+                    this.map?.closePopup();
                     this.renderMapFeatureLayers();
+                    this.renderCatalog();
                     this.showToast('Объект удалён');
+                    this.updateMapStatus('Объект удалён с карты.');
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось удалить объект', true);
                 }
