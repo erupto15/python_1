@@ -45,7 +45,20 @@
                     const app = window.app;
                     const canLog = app && app.isLoggedIn && app.isLoggedIn() && app.isTelegramUser && app.isTelegramUser();
                     if (canLog) {
-                        return null;
+                        const ctx = app._climbDetailContext;
+                        const alreadySent = ctx
+                            && (app.hasUserSent(ctx.climbType, ctx.climbId)
+                                || app._climbCommunityStats?.my_status === 'send');
+                        const logRow = document.getElementById('climbDetailLogRow');
+                        const logBtn = document.getElementById('climbDetailOpenLogBtn');
+                        const logHidden = !logRow
+                            || logRow.classList.contains('hidden')
+                            || logBtn?.classList.contains('hidden');
+                        if (!logHidden && !alreadySent) {
+                            const logLabel = logRow?.querySelector('.climb-detail-log-row-label');
+                            const text = (logLabel?.textContent || '').trim() || 'Добавить в логбук';
+                            return { text, btnId: 'climbDetailOpenLogBtn' };
+                        }
                     }
                     const mkBtn = document.getElementById('climbDetailMarkupBtn');
                     const hasPhoto = mkBtn && mkBtn.style.display !== 'none';
@@ -12525,7 +12538,20 @@
                 });
                 this.setupClimbPhotoViewerListeners();
 
-                document.getElementById('climbDetailOpenLogBtn')?.addEventListener('click', () => {
+                const climbDetailLogRow = document.getElementById('climbDetailLogRow');
+                climbDetailLogRow?.addEventListener('click', (e) => {
+                    if (e.target.closest('#climbDetailOpenLogBtn')) return;
+                    if (climbDetailLogRow.classList.contains('hidden')) return;
+                    const logBtn = document.getElementById('climbDetailOpenLogBtn');
+                    if (logBtn && !logBtn.classList.contains('hidden')) logBtn.click();
+                });
+                climbDetailLogRow?.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    e.preventDefault();
+                    climbDetailLogRow?.click();
+                });
+                document.getElementById('climbDetailOpenLogBtn')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     void this.openClimbLogDialog();
                 });
                 document.addEventListener('click', (e) => {
@@ -13720,11 +13746,23 @@
                 if (logLabel) {
                     logLabel.textContent = alreadySent ? 'Пролаз в логбуке' : 'Добавить в логбук';
                 }
+                if (logRow) {
+                    const logActionable = canLog && !alreadySent;
+                    logRow.classList.toggle('is-sent', canLog && alreadySent);
+                    if (logActionable) {
+                        logRow.setAttribute('role', 'button');
+                        logRow.setAttribute('tabindex', '0');
+                    } else {
+                        logRow.removeAttribute('role');
+                        logRow.removeAttribute('tabindex');
+                    }
+                }
                 this.syncClimbDetailMarkupActionUi();
             }
 
             syncClimbDetailMarkupActionUi() {
                 const mkBtn = document.getElementById('climbDetailMarkupBtn');
+                const mkRow = document.getElementById('climbDetailMarkupRow');
                 const editMkBtn = document.getElementById('climbDetailEditMarkupBtn');
                 const ctx = this._climbDetailContext;
                 const pid = ctx?.shownPhotoId || ctx?.photoId;
@@ -13735,6 +13773,7 @@
                 const isAdmin = this.isAdmin();
                 const hasMarkup = !!(photo?.markup);
 
+                mkRow?.classList.toggle('hidden', !hasPhoto);
                 if (mkBtn) {
                     mkBtn.style.display = hasPhoto ? '' : 'none';
                     if (isAdmin) {

@@ -3660,15 +3660,45 @@
             font-size: 22px;
         }
 
+        .climb-detail-markup-row {
+            margin-bottom: 14px;
+        }
+
+        .climb-detail-markup-row.hidden {
+            display: none;
+        }
+
+        .climb-detail-markup-row .climb-detail-markup-btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        #climbDetailDialog .dialog-footer--climb-detail {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+        }
+
         .climb-detail-log-row {
             display: flex;
             align-items: center;
             gap: 12px;
-            margin-bottom: 14px;
+            margin-bottom: 0;
             padding: 10px 12px;
             border: 1px solid var(--border-color);
             border-radius: var(--radius);
             background: var(--surface-elevated);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .climb-detail-log-row:not(.hidden):not(.is-sent) {
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .climb-detail-log-row:not(.hidden):not(.is-sent):active {
+            opacity: 0.92;
         }
 
         .climb-detail-log-row.hidden {
@@ -3676,6 +3706,7 @@
         }
 
         .climb-detail-log-row-label {
+            flex: 1;
             font-size: 15px;
             font-weight: 600;
             color: var(--text-color);

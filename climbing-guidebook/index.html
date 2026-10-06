@@ -1078,10 +1078,8 @@
                 </div>
             </div>
             <div class="dialog-body">
-                <div class="climb-detail-log-row hidden" id="climbDetailLogRow">
-                    <button type="button" class="climb-log-add-btn" id="climbDetailOpenLogBtn" aria-label="Добавить в логбук" title="Записать пролаз"><i class="fas fa-plus" aria-hidden="true"></i></button>
-                    <span class="climb-log-sent-mark hidden" id="climbDetailSentMark" title="Пролазано" aria-label="Пролазано">✓</span>
-                    <span class="climb-detail-log-row-label">Добавить в логбук</span>
+                <div class="climb-detail-markup-row hidden" id="climbDetailMarkupRow">
+                    <button type="button" class="btn btn-primary climb-detail-markup-btn" id="climbDetailMarkupBtn"><i class="fas fa-draw-polygon"></i> Схема на фото</button>
                 </div>
                 <div id="climbDetailMediaSection" class="climb-detail-media-section">
                     <div class="climb-detail-media-label">Медиа</div>
@@ -1159,8 +1157,12 @@
                     <div id="climbDetailDescription" class="guide-desc-text">—</div>
                 </div>
             </div>
-            <div class="dialog-footer dialog-footer--tg-native">
-                <button type="button" class="btn btn-primary" id="climbDetailMarkupBtn"><i class="fas fa-draw-polygon"></i> Схема на фото</button>
+            <div class="dialog-footer dialog-footer--tg-native dialog-footer--climb-detail">
+                <div class="climb-detail-log-row hidden" id="climbDetailLogRow" role="button" tabindex="0" aria-label="Добавить в логбук">
+                    <button type="button" class="climb-log-add-btn" id="climbDetailOpenLogBtn" aria-label="Добавить в логбук" title="Записать пролаз"><i class="fas fa-plus" aria-hidden="true"></i></button>
+                    <span class="climb-log-sent-mark hidden" id="climbDetailSentMark" title="Пролазано" aria-label="Пролазано">✓</span>
+                    <span class="climb-detail-log-row-label">Добавить в логбук</span>
+                </div>
                 <button type="button" class="btn btn-secondary hidden" id="climbDetailSavePhotoBtn"><i class="fas fa-download"></i> Скачать фото</button>
             </div>
         </div>
