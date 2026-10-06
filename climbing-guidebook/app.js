@@ -11803,6 +11803,10 @@
 
             renderPhotoAlbum() {
                 const photoAlbum = document.getElementById('photoAlbum');
+                if (!photoAlbum) {
+                    this._photoAlbumNavList = [];
+                    return;
+                }
                 const photos = getPhotos();
                 const filterType = document.querySelector('#photos .filter-btn.active')?.dataset.type || 'all';
                 const searchTerm = (document.getElementById('photoAlbumSearch')?.value || '').trim().toLowerCase();
@@ -11910,7 +11914,9 @@
                             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
                             btn.classList.add('active');
-                            document.getElementById(tabId).classList.add('active');
+                            const panel = document.getElementById(tabId);
+                            if (!panel) return;
+                            panel.classList.add('active');
 
                             if (tabId === 'map') {
                                 void ensureLeafletLoaded()
