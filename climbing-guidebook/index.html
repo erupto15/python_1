@@ -253,9 +253,14 @@
         <!-- Шапка -->
         <header>
             <div class="header-top">
-                <button type="button" class="header-profile-btn" id="openProfileBtn" style="display:none;" title="Мой профиль" aria-label="Мой профиль">
-                    <i class="fas fa-user-circle" aria-hidden="true"></i>
-                </button>
+                <div class="header-corner-actions">
+                    <button type="button" class="header-corner-btn" id="openRankingBtn" title="Рейтинг" aria-label="Рейтинг скалолазов">
+                        <i class="fas fa-trophy" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="header-corner-btn" id="openProfileBtn" style="display:none;" title="Мой профиль" aria-label="Мой профиль">
+                        <i class="fas fa-user-circle" aria-hidden="true"></i>
+                    </button>
+                </div>
                 <div class="header-brand">
                     <h1 class="site-logo" title="6А9А">
                         <span class="site-logo-mark">
@@ -313,9 +318,6 @@
             </button>
             <button class="tab-btn hidden" data-tab="map">
                 <i class="fas fa-map-marked-alt"></i> Карта
-            </button>
-            <button class="tab-btn" data-tab="ranking" id="rankingTabBtn">
-                <i class="fas fa-trophy"></i> Рейтинг
             </button>
         </div>
 

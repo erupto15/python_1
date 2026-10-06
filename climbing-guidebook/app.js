@@ -10107,6 +10107,8 @@
                 }
                 if (tabId === 'profile') {
                     this.openProfileTab();
+                } else if (tabId === 'ranking') {
+                    this.openRankingTab();
                 }
             }
 
@@ -10115,6 +10117,16 @@
                 document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
                 document.getElementById('profile')?.classList.add('active');
                 void this.renderProfileTab();
+                if (typeof window.syncTelegramMiniAppUi === 'function') {
+                    window.syncTelegramMiniAppUi();
+                }
+            }
+
+            openRankingTab() {
+                document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+                document.getElementById('ranking')?.classList.add('active');
+                void this.renderRankingTab();
                 if (typeof window.syncTelegramMiniAppUi === 'function') {
                     window.syncTelegramMiniAppUi();
                 }
@@ -14677,11 +14689,11 @@
                 document.getElementById('openProfileBtn')?.addEventListener('click', () => {
                     this.openProfileTab();
                 });
+                document.getElementById('openRankingBtn')?.addEventListener('click', () => {
+                    this.openRankingTab();
+                });
                 document.getElementById('hideSentRoutes')?.addEventListener('change', () => this.renderRoutes());
                 document.getElementById('hideSentBoulders')?.addEventListener('change', () => this.renderBoulders());
-                document.querySelector('.tab-btn[data-tab="ranking"]')?.addEventListener('click', () => {
-                    void this.renderRankingTab();
-                });
             }
 
             async logClimbAscentFromDetail(status) {
