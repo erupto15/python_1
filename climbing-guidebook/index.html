@@ -682,9 +682,8 @@
             <div class="dialog-body">
                 <div class="markup-instructions">
                     <i class="fas fa-info-circle"></i>
-                    <strong>Инструкция:</strong> «Линия хода» — клики по порядку (на конце стрелка). «Стартовые кружки» — до двух прозрачных кружков с подписью «Старт». «Топ» — один финишный кружок.
-                    Категория трассы показывается на линии автоматически. Удаление: Ctrl / ⌘ + клик.
-                    <span class="markup-touch-note">На телефоне без клавиатуры — «Очистить все».</span>
+                    <strong>Инструкция:</strong> «Линия хода» — клики по порядку (на конце стрелка). «Стартовые кружки» — до двух кружков «Старт». «Топ» — один финишный кружок.
+                    Режим «Удалить» — клик по маркеру или рядом с ним (на компьютере также Ctrl / ⌘ + клик). Кружки можно перетаскивать.
                 </div>
 
                 <div class="markup-mode-toolbar">
@@ -692,6 +691,7 @@
                     <button type="button" class="btn btn-small route-markup-mode-btn" id="routeMarkupModeStarts" data-mode="starts">Стартовые кружки</button>
                     <button type="button" class="btn btn-small route-markup-mode-btn active" id="routeMarkupModeLine" data-mode="line">Линия хода</button>
                     <button type="button" class="btn btn-small route-markup-mode-btn" id="routeMarkupModeTop" data-mode="top">Топ</button>
+                    <button type="button" class="btn btn-small route-markup-mode-btn" id="routeMarkupModeErase" data-mode="erase">Удалить</button>
                 </div>
 
                 <div id="routeLineMarkupContainer" class="markup-dialog-stage">
@@ -736,9 +736,8 @@
             <div class="dialog-body">
                 <div class="markup-instructions">
                     <i class="fas fa-info-circle"></i>
-                    <strong>Инструкция:</strong> «Старт» / «Финиш» — клик по фото (подписи у кружков, можно перетащить). «Линия» — кликами по порядку; на конце стрелка.
-                    Удаление: Ctrl / ⌘ + клик рядом с маркером.
-                    <span class="markup-touch-note">На телефоне — «Очистить все».</span>
+                    <strong>Инструкция:</strong> «Старт» — до двух кружков (клик по фото, перетаскивание). «Финиш» — один кружок. «Линия» — кликами по порядку; на конце стрелка.
+                    Режим «Удалить» — клик по маркеру или рядом (Ctrl / ⌘ + клик на компьютере).
                 </div>
 
                 <div class="markup-mode-toolbar">
@@ -746,6 +745,7 @@
                     <button type="button" class="btn btn-small boulder-markup-mode-btn active" id="boulderMarkupModeStart" data-mode="start">Старт</button>
                     <button type="button" class="btn btn-small boulder-markup-mode-btn" id="boulderMarkupModeFinish" data-mode="finish">Финиш</button>
                     <button type="button" class="btn btn-small boulder-markup-mode-btn" id="boulderMarkupModeLine" data-mode="line">Линия</button>
+                    <button type="button" class="btn btn-small boulder-markup-mode-btn" id="boulderMarkupModeErase" data-mode="erase">Удалить</button>
                 </div>
 
                 <div id="boulderHoldsMarkupContainer" class="markup-dialog-stage">

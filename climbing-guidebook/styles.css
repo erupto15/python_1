@@ -1657,6 +1657,16 @@
             cursor: grab;
         }
 
+        .markup-dialog-stage.markup-erase-mode {
+            cursor: cell;
+        }
+
+        .markup-dialog-stage.markup-erase-mode .markup-hold-hit,
+        .markup-dialog-stage.markup-erase-mode .line-marker {
+            cursor: pointer;
+            box-shadow: 0 0 0 2px rgba(255, 82, 82, 0.85);
+        }
+
         .markup-editor-toolbar {
             display: flex;
             gap: 5px;

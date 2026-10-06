@@ -1500,9 +1500,11 @@
                         : null
                 };
             }
+            const startHolds = (normalized.startHolds || []).map((p) => transformNormPointByQuarterTurns(p, t));
             return {
                 ...normalized,
-                startHold: normalized.startHold ? transformNormPointByQuarterTurns(normalized.startHold, t) : null,
+                startHolds,
+                startHold: startHolds[0] || null,
                 finishHold: normalized.finishHold ? transformNormPointByQuarterTurns(normalized.finishHold, t) : null,
                 linePoints: (normalized.linePoints || []).map((p) => transformNormPointByQuarterTurns(p, t))
             };
@@ -2342,7 +2344,7 @@
                             const linePts = Array.isArray(boulderMarkup.linePoints) ? boulderMarkup.linePoints : [];
                             drawLine(linePts);
                             drawLineEnd(linePts, 'arrow');
-                            if (boulderMarkup.startHold) drawLabeledHold(boulderMarkup.startHold, 'Старт');
+                            (boulderMarkup.startHolds || []).forEach((p) => drawLabeledHold(p, 'Старт'));
                             if (boulderMarkup.finishHold) drawLabeledHold(boulderMarkup.finishHold, 'Финиш');
                             if (gradeForLine) {
                                 const mid = topoLineMidpointNorm(linePts);
@@ -4653,7 +4655,7 @@
             }
             if (climbType === 'boulder') {
                 const pts = [...(normalized.linePoints || [])];
-                if (normalized.startHold) pts.push(normalized.startHold);
+                (normalized.startHolds || []).forEach((p) => pts.push(p));
                 if (normalized.finishHold) pts.push(normalized.finishHold);
                 return pts;
             }
@@ -4663,6 +4665,10 @@
         /** Кадр с разметкой: фиксированная высота, фото целиком по центру (без crop по разметке). */
         function applyTopoPhotoFraming(container, markup, climbType) {
             if (!container) return;
+            if (container.classList.contains('markup-dialog-stage')) {
+                container.classList.remove('topo-framed');
+                return;
+            }
             const isDetailMount = container.classList.contains('climb-detail-photo-mount')
                 && !container.classList.contains('climb-photo-viewer-mount');
             if (isDetailMount) {
@@ -4727,17 +4733,30 @@
                 const linePoints = Array.isArray(m.linePoints)
                     ? m.linePoints
                     : (Array.isArray(m.points) ? m.points : []);
-                let startHold = normPoint(m.startHold);
+                const startHoldsRaw = Array.isArray(m.startHolds) ? m.startHolds : [];
+                const legacyStart = normPoint(m.startHold);
+                const starts = startHoldsRaw.map(normPoint).filter(Boolean);
+                if (legacyStart) starts.unshift(legacyStart);
+                if (!starts.length && legacyHolds[0]) starts.push(normPoint(legacyHolds[0]));
+                if (legacyHolds.length === 1 && !starts.length && !normPoint(m.finishHold)) {
+                    const only = normPoint(legacyHolds[0]);
+                    if (only) starts.push(only);
+                }
+                const uniqueStarts = [];
+                starts.forEach((p) => {
+                    if (!p || uniqueStarts.length >= 2) return;
+                    if (uniqueStarts.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 0.004)) return;
+                    uniqueStarts.push(p);
+                });
                 let finishHold = normPoint(m.finishHold);
-                if (!startHold && legacyHolds[0]) startHold = normPoint(legacyHolds[0]);
                 if (!finishHold && legacyHolds[1]) finishHold = normPoint(legacyHolds[1]);
-                if (!startHold && legacyHolds.length === 1 && !finishHold) startHold = normPoint(legacyHolds[0]);
                 const lp = linePoints.map(normPoint).filter(Boolean);
-                if (!startHold && !finishHold && lp.length < 2) return null;
+                if (!uniqueStarts.length && !finishHold && lp.length < 2) return null;
                 return {
                     type: 'boulder-holds',
                     coordSpace: m.coordSpace === 'image' ? 'image' : (m.coordSpace || 'image'),
-                    startHold,
+                    startHolds: uniqueStarts,
+                    startHold: uniqueStarts[0] || null,
                     finishHold,
                     linePoints: lp,
                     savedAt: m.savedAt
@@ -5045,6 +5064,20 @@
                 y
             });
             return true;
+        }
+
+        /** Точка из сохранённой разметки → норм. координаты видимой области фото в редакторе. */
+        function markupPointToEditorNorm(stored, geom, coordSpaceImage) {
+            if (coordSpaceImage) {
+                const x = Number(stored?.x);
+                const y = Number(stored?.y);
+                if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+                return {
+                    x: Math.max(0, Math.min(1, x)),
+                    y: Math.max(0, Math.min(1, y))
+                };
+            }
+            return boulderStoredToImageNorm(stored, geom, false);
         }
 
         /** Старые точки (0–1 по контейнеру) → 0–1 по видимой области фото. */
@@ -5388,7 +5421,7 @@
                 };
 
                 this.currentBoulderHoldsMarkup = {
-                    startHold: null,
+                    startHolds: [],
                     finishHold: null,
                     linePoints: [],
                     photoId: null,
@@ -5406,12 +5439,12 @@
                 this._catalogSearchDebounceTimer = null;
                 this._rankingSearchDebounceTimer = null;
                 this.updatesFilter = 'all';
-                this._boulderHoldDrag = null;
-                this._onBoulderHoldPointerMove = this.onBoulderHoldPointerMove.bind(this);
-                this._onBoulderHoldPointerUp = this.onBoulderHoldPointerUp.bind(this);
-                document.addEventListener('pointermove', this._onBoulderHoldPointerMove);
-                document.addEventListener('pointerup', this._onBoulderHoldPointerUp);
-                document.addEventListener('pointercancel', this._onBoulderHoldPointerUp);
+                this._markupHoldDrag = null;
+                this._onMarkupHoldPointerMove = this.onMarkupHoldPointerMove.bind(this);
+                this._onMarkupHoldPointerUp = this.onMarkupHoldPointerUp.bind(this);
+                document.addEventListener('pointermove', this._onMarkupHoldPointerMove);
+                document.addEventListener('pointerup', this._onMarkupHoldPointerUp);
+                document.addEventListener('pointercancel', this._onMarkupHoldPointerUp);
 
                 this.catalog = { view: 'areas', areaId: null, sectorId: null };
                 this._uiActionLockUntil = 0;
@@ -5426,30 +5459,63 @@
                 this.init();
             }
 
-            onBoulderHoldPointerMove(e) {
-                const drag = this._boulderHoldDrag;
+            markupEditorActive() {
+                return !document.getElementById('routeLineMarkupDialog')?.classList.contains('hidden')
+                    || !document.getElementById('boulderHoldsMarkupDialog')?.classList.contains('hidden');
+            }
+
+            markupEraseModeActive() {
+                return this.routeMarkupMode === 'erase' || this.boulderMarkupMode === 'erase';
+            }
+
+            syncMarkupDialogEraseCursor(container) {
+                if (!container) return;
+                container.classList.toggle('markup-erase-mode', this.markupEraseModeActive());
+            }
+
+            onMarkupHoldPointerMove(e) {
+                const drag = this._markupHoldDrag;
                 if (!drag || e.pointerId !== drag.pointerId) return;
 
-                const container = document.getElementById('boulderHoldsMarkupContainer');
+                const containerId = drag.target === 'route'
+                    ? 'routeLineMarkupContainer'
+                    : 'boulderHoldsMarkupContainer';
+                const container = document.getElementById(containerId);
                 if (!container) return;
 
                 const { x, y, px, py } = markupNormFromClient(container, e.clientX, e.clientY);
                 drag.marker.style.left = `${px}px`;
                 drag.marker.style.top = `${py}px`;
 
-                const holdRef = drag.roleKey
-                    ? this.currentBoulderHoldsMarkup?.[drag.roleKey]
-                    : null;
+                const state = drag.target === 'route'
+                    ? this.currentRouteLineMarkup
+                    : this.currentBoulderHoldsMarkup;
+                if (!state) return;
+
+                let holdRef = null;
+                if (drag.roleKey === 'startHolds' && Number.isFinite(drag.index)) {
+                    holdRef = state.startHolds?.[drag.index] || null;
+                } else if (drag.roleKey === 'points' && Number.isFinite(drag.index)) {
+                    holdRef = state.points?.[drag.index] || null;
+                } else if (drag.roleKey === 'linePoints' && Number.isFinite(drag.index)) {
+                    holdRef = state.linePoints?.[drag.index] || null;
+                } else if (drag.roleKey) {
+                    holdRef = state[drag.roleKey] || null;
+                }
                 if (holdRef) {
                     holdRef.x = x;
                     holdRef.y = y;
                 }
 
-                this.updateBoulderHoldsPolyline();
+                if (drag.target === 'route') {
+                    this.updateRouteLinePolyline();
+                } else {
+                    this.updateBoulderHoldsPolyline();
+                }
             }
 
-            onBoulderHoldPointerUp(e) {
-                const drag = this._boulderHoldDrag;
+            onMarkupHoldPointerUp(e) {
+                const drag = this._markupHoldDrag;
                 if (!drag || (e && e.pointerId !== drag.pointerId)) return;
                 try {
                     drag.marker.releasePointerCapture(drag.pointerId);
@@ -5457,7 +5523,12 @@
                     /* ignore */
                 }
                 drag.marker.classList.remove('active');
-                this._boulderHoldDrag = null;
+                this._markupHoldDrag = null;
+                if (drag.target === 'route') {
+                    this.renderRouteLineMarkup();
+                } else {
+                    this.renderBoulderHoldsMarkup();
+                }
             }
 
             init() {
@@ -13086,7 +13157,9 @@
                     const boulderLineColor = lineColor || topoLineColorFromGrade(gradeLabel);
                     appendTopoLineSvg(svg, NS, linePts, geom, 'arrow', boulderLineColor);
                     appendTopoGradeLabelOnLine(svg, NS, linePts, geom, gradeLabel, boulderLineColor);
-                    if (markup.startHold) appendTopoHoldSvg(svg, NS, markup.startHold, geom, { label: 'Старт' });
+                    (markup.startHolds || []).forEach((p) => {
+                        appendTopoHoldSvg(svg, NS, p, geom, { label: 'Старт' });
+                    });
                     if (markup.finishHold) appendTopoHoldSvg(svg, NS, markup.finishHold, geom, { label: 'Финиш' });
                 }
 
@@ -13205,11 +13278,11 @@
                                 : null
                         };
                     } else if (climbType === 'boulder' && normalized.coordSpace !== 'image') {
+                        const startHolds = (normalized.startHolds || []).map((p) => boulderStoredToImageNorm(p, geom, false));
                         markupForSvg = {
                             ...normalized,
-                            startHold: normalized.startHold
-                                ? boulderStoredToImageNorm(normalized.startHold, geom, false)
-                                : null,
+                            startHolds,
+                            startHold: startHolds[0] || null,
                             finishHold: normalized.finishHold
                                 ? boulderStoredToImageNorm(normalized.finishHold, geom, false)
                                 : null,
@@ -13282,6 +13355,7 @@
                 if (!dlg || dlg.classList.contains('hidden') || !ctx) return;
                 const mount = document.getElementById('climbDetailPhotoMount');
                 if (!mount) return;
+                resetPhotoStageInContainer(mount);
                 const g = this._photoGallery;
                 const fromGallery = g?.entries?.[g.index]?.photo;
                 let photo = fromGallery;
@@ -14087,6 +14161,7 @@
                 document.querySelectorAll('#routeLineMarkupDialog .route-markup-mode-btn').forEach(btn => {
                     btn.classList.toggle('active', btn.dataset.mode === this.routeMarkupMode);
                 });
+                this.syncMarkupDialogEraseCursor(document.getElementById('routeLineMarkupContainer'));
             }
 
             // Методы для разметки трасс (линии + стартовые кружки), координаты 0–1 по видимой области фото
@@ -14131,7 +14206,6 @@
 
                 const applyLoadedMarkup = () => {
                     const container = document.getElementById('routeLineMarkupContainer');
-                    const geom = getMarkupStageGeometry(container);
                     const m = normalizePhotoMarkup(photo.markup, 'route') || {
                         points: [],
                         startHolds: [],
@@ -14139,21 +14213,16 @@
                         coordSpace: 'image'
                     };
                     const imageCoords = m.coordSpace === 'image';
+                    const geom = getMarkupStageGeometry(container);
+                    const toPt = (p, idOffset) => {
+                        const n = markupPointToEditorNorm(p, geom, imageCoords);
+                        if (!n) return null;
+                        return { id: Date.now() + idOffset, x: n.x, y: n.y };
+                    };
                     this.currentRouteLineMarkup = {
-                        points: (m.points || []).map((p, i) => {
-                            const n = boulderStoredToImageNorm(p, geom, imageCoords);
-                            return { id: Date.now() + i, x: n.x, y: n.y };
-                        }),
-                        startHolds: (m.startHolds || []).map((p, i) => {
-                            const n = boulderStoredToImageNorm(p, geom, imageCoords);
-                            return { id: Date.now() + 10000 + i, x: n.x, y: n.y };
-                        }),
-                        finishHold: m.finishHold
-                            ? (() => {
-                                const n = boulderStoredToImageNorm(m.finishHold, geom, imageCoords);
-                                return { id: Date.now() + 20000, x: n.x, y: n.y };
-                            })()
-                            : null,
+                        points: (m.points || []).map((p, i) => toPt(p, i)).filter(Boolean),
+                        startHolds: (m.startHolds || []).map((p, i) => toPt(p, 10000 + i)).filter(Boolean),
+                        finishHold: toPt(m.finishHold, 20000),
                         photoId: photo.id,
                         climbId: climbId
                     };
@@ -14286,7 +14355,7 @@
 
                     const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
 
-                    if (e.ctrlKey || e.metaKey) {
+                    if (this.routeMarkupMode === 'erase' || e.ctrlKey || e.metaKey) {
                         this.deleteNearestRouteMarkupAt(x, y, geom);
                         return;
                     }
@@ -14295,7 +14364,7 @@
                         this.addRouteStartHold(x, y);
                     } else if (this.routeMarkupMode === 'top') {
                         this.addRouteFinishHold(x, y);
-                    } else {
+                    } else if (this.routeMarkupMode === 'line') {
                         this.addRouteLinePoint(x, y);
                     }
                 }, { signal });
@@ -14364,8 +14433,41 @@
                             marker.style.left = `${pos.x}px`;
                             marker.style.top = `${pos.y}px`;
                             marker.dataset.index = String(index);
+                            marker.dataset.kind = 'line';
+                            this.bindMarkupLineMarkerErase(marker, 'route', index);
+                            this.makeHoldDraggable(marker, 'route', 'points', index);
                             container.appendChild(marker);
                         });
+                        (this.currentRouteLineMarkup.startHolds || []).forEach((hold, index) => {
+                            const pos = markupPxFromNorm(hold.x, hold.y, geom);
+                            const hit = document.createElement('div');
+                            hit.className = 'markup-hold-hit';
+                            hit.style.left = `${pos.x}px`;
+                            hit.style.top = `${pos.y}px`;
+                            hit.dataset.role = 'startHolds';
+                            hit.dataset.index = String(index);
+                            this.bindMarkupHoldErase(hit, () => {
+                                this.currentRouteLineMarkup.startHolds.splice(index, 1);
+                                this.renderRouteLineMarkup();
+                            });
+                            this.makeHoldDraggable(hit, 'route', 'startHolds', index);
+                            container.appendChild(hit);
+                        });
+                        if (this.currentRouteLineMarkup.finishHold) {
+                            const hold = this.currentRouteLineMarkup.finishHold;
+                            const pos = markupPxFromNorm(hold.x, hold.y, geom);
+                            const hit = document.createElement('div');
+                            hit.className = 'markup-hold-hit';
+                            hit.style.left = `${pos.x}px`;
+                            hit.style.top = `${pos.y}px`;
+                            hit.dataset.role = 'finishHold';
+                            this.bindMarkupHoldErase(hit, () => {
+                                this.currentRouteLineMarkup.finishHold = null;
+                                this.renderRouteLineMarkup();
+                            });
+                            this.makeHoldDraggable(hit, 'route', 'finishHold');
+                            container.appendChild(hit);
+                        }
                     }
 
                     this.updateRouteLinePolyline();
@@ -14441,6 +14543,7 @@
                     const pid = String(photoId);
                     const prev = document.querySelector(`.photo-preview-with-markup[data-photo-id="${pid}"]`);
                     if (prev) {
+                        resetPhotoStageInContainer(prev);
                         this.applyPhotoPreviewMarkupOverlay(prev, newMarkup, prev.dataset.climbType || 'route');
                         this.syncMarkupButtonOnPreviewItem(prev, true);
                     }
@@ -14458,6 +14561,7 @@
                 document.querySelectorAll('#boulderHoldsMarkupDialog .boulder-markup-mode-btn').forEach(btn => {
                     btn.classList.toggle('active', btn.dataset.mode === this.boulderMarkupMode);
                 });
+                this.syncMarkupDialogEraseCursor(document.getElementById('boulderHoldsMarkupContainer'));
             }
 
             // Методы для разметки боулдеринга (кружки и линия раздельно)
@@ -14466,7 +14570,7 @@
                 this.resetBoulderMarkupDialogChrome();
                 this.boulderMarkupMode = 'start';
                 this.currentBoulderHoldsMarkup = {
-                    startHold: null,
+                    startHolds: [],
                     finishHold: null,
                     linePoints: [],
                     photoId: photoData.climbId,
@@ -14502,30 +14606,23 @@
 
                 const applyLoadedMarkup = () => {
                     const container = document.getElementById('boulderHoldsMarkupContainer');
-                    const geom = getMarkupStageGeometry(container);
                     const m = normalizePhotoMarkup(photo.markup, 'boulder') || {
-                        startHold: null,
+                        startHolds: [],
                         finishHold: null,
                         linePoints: [],
                         coordSpace: 'image'
                     };
                     const imageCoords = m.coordSpace === 'image';
+                    const geom = getMarkupStageGeometry(container);
                     const toEditorHold = (p, idOffset) => {
-                        if (!p) return null;
-                        const n = boulderStoredToImageNorm(p, geom, imageCoords);
+                        const n = markupPointToEditorNorm(p, geom, imageCoords);
+                        if (!n) return null;
                         return { id: Date.now() + idOffset, x: n.x, y: n.y };
                     };
                     this.currentBoulderHoldsMarkup = {
-                        startHold: toEditorHold(m.startHold, 10000),
+                        startHolds: (m.startHolds || []).map((p, i) => toEditorHold(p, 10000 + i)).filter(Boolean),
                         finishHold: toEditorHold(m.finishHold, 20000),
-                        linePoints: (m.linePoints || []).map((p, i) => {
-                            const n = boulderStoredToImageNorm(p, geom, imageCoords);
-                            return {
-                                id: Date.now() + 5000 + i,
-                                x: n.x,
-                                y: n.y
-                            };
-                        }),
+                        linePoints: (m.linePoints || []).map((p, i) => toEditorHold(p, 5000 + i)).filter(Boolean),
                         photoId: photo.id,
                         climbId: climbId
                     };
@@ -14547,10 +14644,10 @@
                 const hitNorm = TOPO_MARKUP.hitRadiusPx / (geom.iw || 400);
                 let best = { kind: null, index: -1, d: hitNorm };
 
-                if (this.currentBoulderHoldsMarkup.startHold) {
-                    const d = Math.hypot(this.currentBoulderHoldsMarkup.startHold.x - x, this.currentBoulderHoldsMarkup.startHold.y - y);
-                    if (d < best.d) best = { kind: 'start', index: 0, d };
-                }
+                (this.currentBoulderHoldsMarkup.startHolds || []).forEach((point, index) => {
+                    const d = Math.hypot(point.x - x, point.y - y);
+                    if (d < best.d) best = { kind: 'start', index, d };
+                });
                 if (this.currentBoulderHoldsMarkup.finishHold) {
                     const d = Math.hypot(this.currentBoulderHoldsMarkup.finishHold.x - x, this.currentBoulderHoldsMarkup.finishHold.y - y);
                     if (d < best.d) best = { kind: 'finish', index: 0, d };
@@ -14562,15 +14659,15 @@
                     }
                 });
 
-                if (best.kind === 'start') {
-                    this.currentBoulderHoldsMarkup.startHold = null;
+                if (best.kind === 'start' && best.index !== -1) {
+                    this.currentBoulderHoldsMarkup.startHolds.splice(best.index, 1);
                     this.renderBoulderHoldsMarkup();
                 } else if (best.kind === 'finish') {
                     this.currentBoulderHoldsMarkup.finishHold = null;
                     this.renderBoulderHoldsMarkup();
                 } else if (best.kind === 'line' && best.index !== -1) {
                     this.currentBoulderHoldsMarkup.linePoints.splice(best.index, 1);
-                    this.updateBoulderHoldsPolyline();
+                    this.renderBoulderHoldsMarkup();
                 }
             }
 
@@ -14590,11 +14687,11 @@
 
                 container.addEventListener('click', (e) => {
                     if (this._markupDialogViewOnly) return;
-                    if (e.target.closest('.markup-hold-hit')) return;
+                    if (e.target.closest('.markup-hold-hit') || e.target.closest('.line-marker')) return;
 
                     const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
 
-                    if (e.ctrlKey || e.metaKey) {
+                    if (this.boulderMarkupMode === 'erase' || e.ctrlKey || e.metaKey) {
                         this.deleteNearestBoulderMarkupAt(x, y, geom);
                         return;
                     }
@@ -14602,11 +14699,53 @@
                     if (this.boulderMarkupMode === 'line') {
                         this.addBoulderLinePoint(x, y);
                     } else if (this.boulderMarkupMode === 'start') {
-                        this.setBoulderRoleHold('startHold', x, y);
+                        this.addBoulderStartHold(x, y);
                     } else if (this.boulderMarkupMode === 'finish') {
                         this.setBoulderRoleHold('finishHold', x, y);
                     }
                 }, { signal });
+            }
+
+            bindMarkupHoldErase(el, onErase) {
+                el.addEventListener('click', (e) => {
+                    if (this._markupDialogViewOnly) return;
+                    if (!this.markupEraseModeActive()) return;
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onErase();
+                });
+            }
+
+            bindMarkupLineMarkerErase(marker, target, index) {
+                marker.addEventListener('click', (e) => {
+                    if (this._markupDialogViewOnly) return;
+                    if (!this.markupEraseModeActive()) return;
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (target === 'route') {
+                        this.currentRouteLineMarkup.points.splice(index, 1);
+                        this.renderRouteLineMarkup();
+                        return;
+                    }
+                    this.currentBoulderHoldsMarkup.linePoints.splice(index, 1);
+                    this.renderBoulderHoldsMarkup();
+                });
+            }
+
+            addBoulderStartHold(x, y) {
+                if (!this.currentBoulderHoldsMarkup.startHolds) {
+                    this.currentBoulderHoldsMarkup.startHolds = [];
+                }
+                if (this.currentBoulderHoldsMarkup.startHolds.length >= 2) {
+                    this.showToast('Можно поставить не больше двух стартовых кружков', true);
+                    return;
+                }
+                this.currentBoulderHoldsMarkup.startHolds.push({
+                    id: Date.now(),
+                    x,
+                    y
+                });
+                this.renderBoulderHoldsMarkup();
             }
 
             setBoulderRoleHold(roleKey, x, y) {
@@ -14627,7 +14766,7 @@
                     x,
                     y
                 });
-                this.updateBoulderHoldsPolyline();
+                this.renderBoulderHoldsMarkup();
             }
 
             updateBoulderHoldsPolyline() {
@@ -14676,9 +14815,9 @@
                         : ''
                 );
                 appendTopoGradeLabelOnLine(svg, 'http://www.w3.org/2000/svg', pts, geom, gradeLabel, lineColor);
-                if (this.currentBoulderHoldsMarkup.startHold) {
-                    appendBoulderHoldSvg(svg, 'http://www.w3.org/2000/svg', this.currentBoulderHoldsMarkup.startHold, geom, { label: 'Старт' });
-                }
+                (this.currentBoulderHoldsMarkup.startHolds || []).forEach((p) => {
+                    appendBoulderHoldSvg(svg, 'http://www.w3.org/2000/svg', p, geom, { label: 'Старт' });
+                });
                 if (this.currentBoulderHoldsMarkup.finishHold) {
                     appendBoulderHoldSvg(svg, 'http://www.w3.org/2000/svg', this.currentBoulderHoldsMarkup.finishHold, geom, { label: 'Финиш' });
                 }
@@ -14693,7 +14832,7 @@
                 applyTopoPhotoFraming(container, {
                     type: 'boulder-holds',
                     coordSpace: 'image',
-                    startHold: this.currentBoulderHoldsMarkup.startHold || null,
+                    startHolds: this.currentBoulderHoldsMarkup.startHolds || [],
                     finishHold: this.currentBoulderHoldsMarkup.finishHold || null,
                     linePoints: this.currentBoulderHoldsMarkup.linePoints || []
                 }, 'boulder');
@@ -14703,21 +14842,38 @@
                     container.querySelectorAll('.markup-hold-hit').forEach((marker) => marker.remove());
 
                     if (!this._markupDialogViewOnly) {
-                        [
-                            { hold: this.currentBoulderHoldsMarkup.startHold, roleKey: 'startHold' },
-                            { hold: this.currentBoulderHoldsMarkup.finishHold, roleKey: 'finishHold' }
-                        ].forEach(({ hold, roleKey }) => {
-                            if (!hold) return;
+                        (this.currentBoulderHoldsMarkup.startHolds || []).forEach((hold, index) => {
                             const pos = markupPxFromNorm(hold.x, hold.y, geom);
                             const hit = document.createElement('div');
                             hit.className = 'markup-hold-hit';
                             hit.style.left = `${pos.x}px`;
                             hit.style.top = `${pos.y}px`;
-                            hit.dataset.role = roleKey;
+                            hit.dataset.role = 'startHolds';
+                            hit.dataset.index = String(index);
                             hit.setAttribute('aria-hidden', 'true');
-                            this.makeHoldDraggable(hit, roleKey);
+                            this.bindMarkupHoldErase(hit, () => {
+                                this.currentBoulderHoldsMarkup.startHolds.splice(index, 1);
+                                this.renderBoulderHoldsMarkup();
+                            });
+                            this.makeHoldDraggable(hit, 'boulder', 'startHolds', index);
                             container.appendChild(hit);
                         });
+                        if (this.currentBoulderHoldsMarkup.finishHold) {
+                            const hold = this.currentBoulderHoldsMarkup.finishHold;
+                            const pos = markupPxFromNorm(hold.x, hold.y, geom);
+                            const hit = document.createElement('div');
+                            hit.className = 'markup-hold-hit';
+                            hit.style.left = `${pos.x}px`;
+                            hit.style.top = `${pos.y}px`;
+                            hit.dataset.role = 'finishHold';
+                            hit.setAttribute('aria-hidden', 'true');
+                            this.bindMarkupHoldErase(hit, () => {
+                                this.currentBoulderHoldsMarkup.finishHold = null;
+                                this.renderBoulderHoldsMarkup();
+                            });
+                            this.makeHoldDraggable(hit, 'boulder', 'finishHold');
+                            container.appendChild(hit);
+                        }
                     }
 
                     if (!this._markupDialogViewOnly) {
@@ -14728,6 +14884,8 @@
                             marker.style.left = `${pos.x}px`;
                             marker.style.top = `${pos.y}px`;
                             marker.dataset.index = String(index);
+                            this.bindMarkupLineMarkerErase(marker, 'boulder', index);
+                            this.makeHoldDraggable(marker, 'boulder', 'linePoints', index);
                             container.appendChild(marker);
                         });
                     }
@@ -14742,8 +14900,10 @@
                 }
             }
 
-            makeHoldDraggable(marker, roleKey) {
+            makeHoldDraggable(marker, target, roleKey, index) {
                 marker.addEventListener('pointerdown', (e) => {
+                    if (this._markupDialogViewOnly) return;
+                    if (this.markupEraseModeActive()) return;
                     if (e.pointerType === 'mouse' && e.button !== 0) return;
                     e.preventDefault();
                     e.stopPropagation();
@@ -14753,13 +14913,19 @@
                     } catch (_) {
                         /* ignore */
                     }
-                    this._boulderHoldDrag = { roleKey, marker, pointerId: e.pointerId };
+                    this._markupHoldDrag = {
+                        target,
+                        roleKey,
+                        index: Number.isFinite(index) ? index : null,
+                        marker,
+                        pointerId: e.pointerId
+                    };
                 });
             }
 
             clearBoulderHoldsMarkup() {
                 if (!confirm('Очистить всю разметку (кружки и линию)?')) return;
-                this.currentBoulderHoldsMarkup.startHold = null;
+                this.currentBoulderHoldsMarkup.startHolds = [];
                 this.currentBoulderHoldsMarkup.finishHold = null;
                 this.currentBoulderHoldsMarkup.linePoints = [];
                 this.renderBoulderHoldsMarkup();
@@ -14768,7 +14934,10 @@
             async saveBoulderHoldsMarkup() {
                 if (!this.requireAdmin('Сохранение разметки')) return;
                 const linePts = this.currentBoulderHoldsMarkup.linePoints || [];
-                const hasStart = !!this.currentBoulderHoldsMarkup.startHold;
+                const normalizedStarts = (this.currentBoulderHoldsMarkup.startHolds || [])
+                    .slice(0, 2)
+                    .map((p) => ({ x: p.x, y: p.y }));
+                const hasStart = normalizedStarts.length > 0;
                 const hasFinish = !!this.currentBoulderHoldsMarkup.finishHold;
                 const hasLine = linePts.length >= 2;
                 if (!hasStart && !hasFinish && !hasLine) {
@@ -14776,9 +14945,6 @@
                     return;
                 }
 
-                const normalizedStart = this.currentBoulderHoldsMarkup.startHold
-                    ? { x: this.currentBoulderHoldsMarkup.startHold.x, y: this.currentBoulderHoldsMarkup.startHold.y }
-                    : null;
                 const normalizedFinish = this.currentBoulderHoldsMarkup.finishHold
                     ? { x: this.currentBoulderHoldsMarkup.finishHold.x, y: this.currentBoulderHoldsMarkup.finishHold.y }
                     : null;
@@ -14791,7 +14957,8 @@
                 const buildSavedMarkup = () => ({
                     type: 'boulder-holds',
                     coordSpace: 'image',
-                    startHold: normalizedStart,
+                    startHolds: normalizedStarts,
+                    startHold: normalizedStarts[0] || null,
                     finishHold: normalizedFinish,
                     linePoints: normalizedLine,
                     savedAt: new Date().toISOString()
@@ -14821,6 +14988,7 @@
                     const pid = String(photoId);
                     const prev = document.querySelector(`.photo-preview-with-markup[data-photo-id="${pid}"]`);
                     if (prev) {
+                        resetPhotoStageInContainer(prev);
                         this.applyPhotoPreviewMarkupOverlay(prev, newMarkup, prev.dataset.climbType || 'boulder');
                         this.syncMarkupButtonOnPreviewItem(prev, true);
                     }
