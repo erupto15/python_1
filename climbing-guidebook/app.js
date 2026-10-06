@@ -6821,6 +6821,11 @@
                 return !this.catalogEmbeddedMapActive();
             }
 
+            mapPinLabelSub(entry) {
+                if (!entry || entry.kind === 'area') return '';
+                return this.mapPinShowsCountSub() ? String(entry.labelSub || '') : '';
+            }
+
             mapEntryShowAsSelected(entry) {
                 return this.mapEntrySelected(entry) || this.mapEntryCatalogAccent(entry);
             }
@@ -7505,7 +7510,7 @@
                         const isPin = this.isMapPinLabelKind(stored.kind);
                         stored.marker?.setIcon(L.divIcon({
                             className: isPin ? 'parent-label-icon map-sector-marker' : 'parent-label-icon',
-                            html: this.buildMapParentLabelHtml(stored.title, stored.labelSub || '', selected, stored.kind, stored),
+                            html: this.buildMapParentLabelHtml(stored.title, this.mapPinLabelSub(stored), selected, stored.kind, stored),
                             iconSize: [0, 0],
                             iconAnchor: [0, 0]
                         }));
@@ -7671,7 +7676,7 @@
                         id: area.id,
                         title: area.name,
                         meta: `${sectorsCount} секторов`,
-                        labelSub: String(sectorsCount),
+                        labelSub: '',
                         lat: c.lat,
                         lng: c.lng,
                         catalog: true,
@@ -7758,7 +7763,7 @@
                 };
 
                 if (entry.kind === 'area' || entry.kind === 'sector') {
-                    const labelSub = this.mapPinShowsCountSub() ? stored.labelSub : '';
+                    const labelSub = this.mapPinLabelSub(entry);
                     const labelHtml = this.buildMapParentLabelHtml(entry.title, labelSub, selected, entry.kind, entry);
                     stored.marker = this.createMapParentLabelMarker(stored, coord, labelHtml);
                     stored.labelEl = stored.marker.getElement()?.querySelector(
