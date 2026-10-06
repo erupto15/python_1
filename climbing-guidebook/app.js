@@ -15611,12 +15611,13 @@
                     if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
                         await refreshCatalogFromApi({ skipWake: true }).catch(() => {});
                     }
-                    const [profile, ascents] = await Promise.all([
+                    const [profile, ascents, leaderboard] = await Promise.all([
                         apiFetch('/api/users/me/profile'),
-                        apiFetch('/api/me/ascents?status=send&limit=500')
+                        apiFetch('/api/me/ascents?status=send&limit=500'),
+                        apiFetch('/api/ranking/leaderboard?top=10&months=12').catch(() => null)
                     ]);
                     this.updateProfileAvatar(user, profile);
-                    this.renderProfileStatsGrid(profile, ascents);
+                    this.renderProfileStatsGrid(profile, ascents, leaderboard);
                 } catch (err) {
                     const grid = document.getElementById('profileStatsGrid');
                     if (grid) {
@@ -15763,18 +15764,68 @@
                 });
             }
 
-            renderProfileStatsGrid(profile, ascents = []) {
+            buildProfileRankingStatCardHtml(leaderboard, user) {
+                const myRow = leaderboard?.my_row;
+                const myRank = leaderboard?.my_rank;
+                const displayName = this.escapeHtml(
+                    user?.display_name || myRow?.display_name || 'Вы'
+                );
+                if (!myRow || !myRank) {
+                    return `<div class="profile-stat-card profile-stat-card--ranking">
+                        <div class="profile-stat-card-head">
+                            <strong>—</strong>
+                            <span class="profile-stat-card-label">рейтинг 8a.nu</span>
+                        </div>
+                        <p class="profile-ranking-empty">Нет баллов за последние 12 мес. Запишите пролазы в логбук.</p>
+                    </div>`;
+                }
+                return `<button type="button" class="profile-stat-card profile-stat-card--ranking" data-profile-open-ranking aria-label="Открыть таблицу рейтинга">
+                    <div class="profile-stat-card-head">
+                        <strong>#${myRank}</strong>
+                        <span class="profile-stat-card-label">место в рейтинге</span>
+                    </div>
+                    <div class="profile-ranking-row-wrap">
+                        <table class="profile-ranking-row" aria-label="Ваша строка в рейтинге">
+                            <thead>
+                                <tr>
+                                    <th class="ranking-num" scope="col">#</th>
+                                    <th scope="col">Скалолаз</th>
+                                    <th class="ranking-points" scope="col">Труд.</th>
+                                    <th class="ranking-points" scope="col">Боул.</th>
+                                    <th class="ranking-points" scope="col">Итого</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="ranking-row ranking-row--me">
+                                    <td class="ranking-num">${myRank}</td>
+                                    <td><span class="ranking-user-name">${displayName}</span></td>
+                                    <td class="ranking-points">${this.formatRankingPoints(myRow.route_points)}</td>
+                                    <td class="ranking-points">${this.formatRankingPoints(myRow.boulder_points)}</td>
+                                    <td class="ranking-points">${this.formatRankingPoints(myRow.total_points)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </button>`;
+            }
+
+            bindProfileRankingStatCardClick(container) {
+                container?.querySelector('[data-profile-open-ranking]')?.addEventListener('click', () => {
+                    this.openRankingTab();
+                });
+            }
+
+            renderProfileStatsGrid(profile, ascents = [], leaderboard = null) {
                 const grid = document.getElementById('profileStatsGrid');
                 if (!grid) return;
+                const user = this.getCurrentUser();
                 grid.className = 'profile-stats-grid';
                 grid.innerHTML = `
                     ${this.buildProfileSendsStatCardHtml(profile.sends_count ?? 0, ascents)}
-                    <div class="profile-stat-card">
-                        <strong>${profile.ratings_count ?? 0}</strong>
-                        <span class="profile-stat-card-label">рейтинг</span>
-                    </div>
+                    ${this.buildProfileRankingStatCardHtml(leaderboard, user)}
                 `;
                 this.bindProfileSendsStatCardClicks(grid.querySelector('[data-profile-stat="sends"]'));
+                this.bindProfileRankingStatCardClick(grid);
             }
 
             isClimbInCatalog(climbType, climbId) {

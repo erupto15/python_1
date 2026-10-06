@@ -6642,6 +6642,54 @@
             margin-bottom: 8px;
         }
 
+        .profile-stat-card--ranking {
+            grid-column: span 1;
+            text-align: left;
+            align-items: stretch;
+        }
+
+        .profile-stat-card--ranking .profile-stat-card-head {
+            margin-bottom: 8px;
+        }
+
+        .profile-ranking-empty {
+            margin: 0;
+            font-size: 12px;
+            line-height: 1.4;
+            color: var(--light-text);
+        }
+
+        .profile-ranking-row-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin: 0 -2px;
+        }
+
+        .profile-ranking-row {
+            width: 100%;
+            min-width: 0;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .profile-ranking-row th,
+        .profile-ranking-row td {
+            padding: 6px 4px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .profile-ranking-row th {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            color: var(--light-text);
+        }
+
+        .profile-stat-card--ranking.profile-stat-card {
+            cursor: pointer;
+        }
+
         .profile-stat-card--sends {
             grid-column: 1 / -1;
             text-align: left;
