@@ -2219,6 +2219,7 @@
                         const gradeForLine = climbType === 'route'
                             ? (climbGrade || resolveRouteGradeForMarkup(photo?.climbId || photo?.route_id, ''))
                             : (climbGrade || resolveBoulderGradeForMarkup(photo?.climbId || photo?.boulder_id, ''));
+                        const gradeLineLabel = formatGradeLabel(gradeForLine) || gradeForLine;
                         const lineColor = gradeForLine
                             ? topoLineColorFromGrade(gradeForLine)
                             : TOPO_MARKUP.lineColor;
@@ -2324,7 +2325,7 @@
                                 if (mid) {
                                     const q = toPx(mid);
                                     ctx.font = `800 ${Math.max(11, Math.round(Math.min(w, h) * 0.018))}px system-ui, sans-serif`;
-                                    const tw = ctx.measureText(gradeForLine).width;
+                                    const tw = ctx.measureText(gradeLineLabel).width;
                                     const pad = 6;
                                     ctx.fillStyle = 'rgba(255,255,255,0.92)';
                                     ctx.strokeStyle = lineColor;
@@ -2336,7 +2337,7 @@
                                     ctx.fillStyle = lineColor;
                                     ctx.textAlign = 'center';
                                     ctx.textBaseline = 'middle';
-                                    ctx.fillText(gradeForLine, q.x, q.y);
+                                    ctx.fillText(gradeLineLabel, q.x, q.y);
                                 }
                             }
                         } else {
@@ -2351,7 +2352,7 @@
                                 if (mid) {
                                     const q = toPx(mid);
                                     ctx.font = `800 ${Math.max(11, Math.round(Math.min(w, h) * 0.018))}px system-ui, sans-serif`;
-                                    const tw = ctx.measureText(gradeForLine).width;
+                                    const tw = ctx.measureText(gradeLineLabel).width;
                                     const pad = 6;
                                     ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
                                     ctx.strokeStyle = lineColor;
@@ -2363,7 +2364,7 @@
                                     ctx.fillStyle = lineColor;
                                     ctx.textAlign = 'center';
                                     ctx.textBaseline = 'middle';
-                                    ctx.fillText(gradeForLine, q.x, q.y);
+                                    ctx.fillText(gradeLineLabel, q.x, q.y);
                                 }
                             }
                         }
@@ -3142,10 +3143,23 @@
             };
         }
 
+        const GRADE_PROJECT_VALUE = 'проект';
+
+        function isProjectGrade(g) {
+            const s = String(g || '').trim();
+            return /^проект$/i.test(s) || /^project$/i.test(s);
+        }
+
+        function formatGradeLabel(grade) {
+            if (isProjectGrade(grade)) return 'Проект';
+            return String(grade ?? '').trim();
+        }
+
         /** Трасса: французская шкала 4 … 9c; буквы a, b, c — строчные; есть ступени с «+». */
         function normalizeRouteGrade(g) {
             if (g == null || g === '') return '';
             const s = String(g).trim();
+            if (isProjectGrade(s)) return GRADE_PROJECT_VALUE;
             const m45 = s.match(/^(4|5)(\+)?$/);
             if (m45) return m45[1] + (m45[2] || '');
             const m5 = s.match(/^5([abc])(\+)?$/i);
@@ -3159,6 +3173,7 @@
         function normalizeBoulderGrade(g) {
             if (g == null || g === '') return '';
             const s = String(g).trim();
+            if (isProjectGrade(s)) return GRADE_PROJECT_VALUE;
             if (/^[45]$/.test(s)) return s;
             const m = s.match(/^([6-9])([A-Za-z])(\+)?$/);
             if (m) return m[1] + m[2].toUpperCase() + (m[3] || '');
@@ -3167,21 +3182,23 @@
 
         /**
          * Цветовые группы категорий (трассы и боулдеринг):
-         * 4–5 жёлтый, 6 зелёный, 7 оранжевый, 8 красный, 9 чёрный (у боулдера верх — 9A).
+         * 4–5 жёлтый, 6 зелёный, 7 оранжевый, 8 красный, 9 чёрный; «проект» — серый.
          */
-        const GRADE_BAND_ORDER = ['yellow', 'green', 'orange', 'red', 'black'];
+        const GRADE_BAND_ORDER = ['yellow', 'green', 'orange', 'red', 'black', 'project'];
         const GRADE_BAND_FILLS = {
             yellow: '#f5c518',
             green: '#2e9e4f',
             orange: '#f0851a',
             red: '#e53935',
             black: '#2a2a2e',
+            project: '#9e9e9e',
             all: '#e8472a'
         };
 
         function gradeBandFromValue(v) {
             const s = String(v || '').trim();
             if (!s) return 'all';
+            if (isProjectGrade(s)) return 'project';
             const m = s.match(/^(\d+)/);
             const n = m ? Number(m[1]) : NaN;
             if (!Number.isFinite(n)) return 'all';
@@ -3201,7 +3218,8 @@
             '6a', '6a+', '6b', '6b+', '6c', '6c+',
             '7a', '7a+', '7b', '7b+', '7c', '7c+',
             '8a', '8a+', '8b', '8b+', '8c', '8c+',
-            '9a', '9a+', '9b', '9b+', '9c'
+            '9a', '9a+', '9b', '9b+', '9c',
+            GRADE_PROJECT_VALUE
         ];
 
         const BOULDER_GRADE_OPTIONS = [
@@ -3209,10 +3227,13 @@
             '6A', '6A+', '6B', '6B+', '6C', '6C+',
             '7A', '7A+', '7B', '7B+', '7C', '7C+',
             '8A', '8A+', '8B', '8B+', '8C', '8C+',
-            '9A', '9A+'
+            '9A', '9A+',
+            GRADE_PROJECT_VALUE
         ];
 
         function harderGradeBand(a, b) {
+            if (a === 'project') return b === 'project' ? 'project' : b;
+            if (b === 'project') return a;
             const ia = GRADE_BAND_ORDER.indexOf(a);
             const ib = GRADE_BAND_ORDER.indexOf(b);
             if (ia < 0) return b;
@@ -4941,6 +4962,7 @@
         }
 
         function appendTopoGradeLabelOnLine(svg, NS, linePts, geom, gradeText, lineColor = TOPO_MARKUP.lineColor) {
+            gradeText = formatGradeLabel(gradeText) || gradeText;
             const grade = String(gradeText || '').trim();
             if (!grade || !isMarkupStageReady(geom) || !linePts || linePts.length < 2) return;
             const mid = topoLineMidpointNorm(linePts);
@@ -6166,7 +6188,9 @@
                     chip.setAttribute('aria-selected', active ? 'true' : 'false');
                 });
                 if (!toggle) return;
-                const display = selectedValue || cfg.emptyLabel || cfg.placeholder || 'Категория';
+                const display = selectedValue
+                    ? formatGradeLabel(selectedValue)
+                    : (cfg.emptyLabel || cfg.placeholder || 'Категория');
                 toggle.textContent = display;
                 toggle.classList.remove(
                     'grade-picker-toggle--yellow',
@@ -6174,6 +6198,7 @@
                     'grade-picker-toggle--orange',
                     'grade-picker-toggle--red',
                     'grade-picker-toggle--black',
+                    'grade-picker-toggle--project',
                     'grade-picker-toggle--all'
                 );
                 toggle.classList.add(this._formGradeToggleToneClass(gradeBandFromValue(selectedValue)));
@@ -6195,7 +6220,7 @@
                     const tone = value ? this._gradeChipToneByValue(value) : 'all';
                     chip.className = `grade-chip grade-chip--${tone}`;
                     chip.dataset.value = value;
-                    chip.textContent = value || emptyLabel || '—';
+                    chip.textContent = value ? formatGradeLabel(value) : (emptyLabel || '—');
                     chip.setAttribute('role', 'option');
                     chip.setAttribute('aria-selected', 'false');
                     chip.addEventListener('click', () => {
@@ -10829,7 +10854,7 @@
                                         <div class="item-info">
                                             <h3 style="font-size:16px">${sent.badge}${this.escapeHtml(r.name)}</h3>
                                             <div class="item-meta">
-                                                <span>Категория: <span class="${gradeBadgeClassName(r.grade)}">${this.escapeHtml(r.grade)}</span></span>
+                                                <span>Категория: <span class="${gradeBadgeClassName(r.grade)}">${this.escapeHtml(formatGradeLabel(r.grade))}</span></span>
                                                 ${r.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(r.category)}</span>` : ''}
                                                 ${r.rating != null && r.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(r.rating))}</span>` : ''}
                                                 ${r.length ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(r.length)}м</span>` : ''}
@@ -10857,7 +10882,7 @@
                                         <div class="item-info">
                                             <h3 style="font-size:16px">${sent.badge}${this.escapeHtml(b.name)}</h3>
                                             <div class="item-meta">
-                                                <span>Категория: <span class="${gradeBadgeClassName(b.grade)}">${this.escapeHtml(b.grade)}</span></span>
+                                                <span>Категория: <span class="${gradeBadgeClassName(b.grade)}">${this.escapeHtml(formatGradeLabel(b.grade))}</span></span>
                                                 ${b.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(b.category)}</span>` : ''}
                                                 ${b.rating != null && b.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(b.rating))}</span>` : ''}
                                                 ${b.height ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(b.height)}м</span>` : ''}
@@ -11742,7 +11767,7 @@
                                 <h3>${sent.badge}${this.escapeHtml(route.name)}</h3>
                                 <div class="item-meta">
                                     ${route.sectorId != null && this.getStructureLabel(route.sectorId) ? `<span><i class="fas fa-layer-group"></i> ${this.getStructureLabel(route.sectorId)}</span>` : ''}
-                                    <span>Категория: <span class="${gradeBadgeClassName(route.grade)}">${this.escapeHtml(route.grade)}</span></span>
+                                    <span>Категория: <span class="${gradeBadgeClassName(route.grade)}">${this.escapeHtml(formatGradeLabel(route.grade))}</span></span>
                                     ${route.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(route.category)}</span>` : ''}
                                     ${route.rating != null && route.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(route.rating))}</span>` : ''}
                                     ${route.length ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(route.length)}м</span>` : ''}
@@ -11916,7 +11941,7 @@
                                 <h3>${sent.badge}${this.escapeHtml(boulder.name)}</h3>
                                 <div class="item-meta">
                                     ${boulder.sectorId != null && this.getStructureLabel(boulder.sectorId) ? `<span><i class="fas fa-layer-group"></i> ${this.getStructureLabel(boulder.sectorId)}</span>` : ''}
-                                    <span>Категория: <span class="${gradeBadgeClassName(boulder.grade)}">${this.escapeHtml(boulder.grade)}</span></span>
+                                    <span>Категория: <span class="${gradeBadgeClassName(boulder.grade)}">${this.escapeHtml(formatGradeLabel(boulder.grade))}</span></span>
                                     ${boulder.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(boulder.category)}</span>` : ''}
                                     ${boulder.rating != null && boulder.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(boulder.rating))}</span>` : ''}
                                     ${boulder.height ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(boulder.height)}м</span>` : ''}
@@ -13762,7 +13787,7 @@
                     : '';
                 const grade =
                     climb.grade != null && climb.grade !== ''
-                        ? `<span class="${gradeBadgeClassName(climb.grade)}">${this.escapeHtml(String(climb.grade))}</span>`
+                        ? `<span class="${gradeBadgeClassName(climb.grade)}">${this.escapeHtml(formatGradeLabel(climb.grade))}</span>`
                         : '—';
                 const kindRu = climbType === 'route' ? 'Трасса' : 'Боулдеринг';
                 let extraBits = '';
@@ -13884,7 +13909,7 @@
                 const structHtml = structLabel ? `<br><span style="opacity:.92;font-size:13px">${this.escapeHtml(structLabel)}</span>` : '';
                 const grade =
                     climb.grade != null && climb.grade !== ''
-                        ? `<span class="${gradeBadgeClassName(climb.grade)}">${this.escapeHtml(String(climb.grade))}</span>`
+                        ? `<span class="${gradeBadgeClassName(climb.grade)}">${this.escapeHtml(formatGradeLabel(climb.grade))}</span>`
                         : '—';
                 const kindRu = climbType === 'route' ? 'Трасса' : 'Боулдеринг';
                 let extraBits = '';

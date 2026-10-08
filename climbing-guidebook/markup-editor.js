@@ -486,7 +486,10 @@
                     r: r || 0.035
                 });
             };
-            addCircle(m.startHold, 'startFinish', 0.04);
+            const startPts = Array.isArray(m.startHolds)
+                ? m.startHolds
+                : (m.startHold ? [m.startHold] : []);
+            startPts.slice(0, 2).forEach((pt) => addCircle(pt, 'startFinish', 0.04));
             addCircle(m.finishHold, 'hold', 0.035);
             const lp = (m.linePoints || []).map((p) => [clamp01(Number(p.x)), clamp01(Number(p.y))]);
             if (lp.length >= 2) {
@@ -512,14 +515,15 @@
         }
 
         exportBoulderMarkup() {
-            let startHold = null;
+            const startHolds = [];
             let finishHold = null;
             const linePoints = [];
             for (const obj of this.objects) {
                 if (obj.type === 'circle') {
                     const center = { x: clamp01(obj.cx), y: clamp01(obj.cy) };
-                    if (obj.kind === 'startFinish' && !startHold) startHold = center;
-                    else if (obj.kind === 'hold' && !finishHold) finishHold = center;
+                    if (obj.kind === 'startFinish' && startHolds.length < 2) {
+                        startHolds.push(center);
+                    } else if (obj.kind === 'hold' && !finishHold) finishHold = center;
                     else if (obj.kind === 'startFinish' && !finishHold) finishHold = center;
                 } else if (obj.type === 'polyline') {
                     for (const pt of obj.points) {
@@ -527,7 +531,12 @@
                     }
                 }
             }
-            return { startHold, finishHold, linePoints };
+            return {
+                startHolds,
+                startHold: startHolds[0] || null,
+                finishHold,
+                linePoints
+            };
         }
     }
 

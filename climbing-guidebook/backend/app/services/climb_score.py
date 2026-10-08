@@ -60,6 +60,8 @@ def normalize_grade(grade: str, *, is_boulder: bool = False) -> str:
     if not grade:
         return ""
     s = str(grade).strip()
+    if re.match(r"^(проект|project)$", s, re.IGNORECASE):
+        return "проект"
     m45 = re.match(r"^(4|5)(\+)?$", s)
     if m45:
         return m45.group(1) + (m45.group(2) or "")
