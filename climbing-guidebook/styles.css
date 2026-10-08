@@ -743,6 +743,38 @@
             margin-bottom: 20px;
         }
 
+        .card-header--with-back {
+            flex-wrap: wrap;
+            gap: 10px 12px;
+        }
+
+        .card-header--with-back .overlay-screen-back {
+            flex: 0 0 auto;
+            margin-right: auto;
+        }
+
+        .card-header--with-back .card-title {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .overlay-screen-back,
+        .catalog-screen-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .catalog-guide-back-row {
+            margin-bottom: 10px;
+        }
+
+        html.catalog-sector-focus #catalog .catalog-guide-back-row {
+            padding: 0 12px;
+            margin-top: 4px;
+        }
+
         .card-title {
             font-family: var(--ui-font);
             font-size: 1.35rem;

@@ -389,6 +389,13 @@
             }
 
             const app = window.app;
+            if (app && typeof app.closeOverlayTab === 'function' && app.closeOverlayTab()) {
+                if (typeof window.syncTelegramMiniAppUi === 'function') {
+                    window.syncTelegramMiniAppUi();
+                }
+                return true;
+            }
+
             if (app && app.catalog) {
                 if (app.catalog.view === 'problems') {
                     app.catalog = { view: 'sectors', areaId: app.catalog.areaId, sectorId: null };
@@ -545,7 +552,12 @@
             if (!tg || !tg.BackButton) return;
             const app = window.app;
             const dialogOpen = !!window.findOpenTelegramDialogId();
+            const overlayTab = app && typeof app.getOpenOverlayTabId === 'function'
+                ? app.getOpenOverlayTabId()
+                : null;
             if (dialogOpen) {
+                tg.BackButton.show();
+            } else if (overlayTab) {
                 tg.BackButton.show();
             } else if (app && app.catalog && app.catalog.view !== 'areas') {
                 tg.BackButton.show();
@@ -5469,6 +5481,7 @@
                 document.addEventListener('pointercancel', this._onMarkupHoldPointerUp);
 
                 this.catalog = { view: 'areas', areaId: null, sectorId: null };
+                this._lastMainTabBeforeOverlay = 'catalog';
                 this._uiActionLockUntil = 0;
                 this._climbDetailOpenFlight = null;
 
@@ -10147,6 +10160,10 @@
                         : (APP_BOULDER_ONLY
                             ? `${boulders.length} боулдеров`
                             : `${routes.length} трасс · ${boulders.length} боулдеров`);
+                    const backAct = areaFocus ? 'nav-areas' : 'nav-area';
+                    const backLabel = areaFocus ? 'Районы' : (area?.name || 'Секторы');
+                    const backDataId = areaFocus ? '' : ` data-id="${Number(this.catalog?.areaId)}"`;
+                    const catalogBackBtn = `<button type="button" class="catalog-screen-back btn btn-ghost btn-small" data-catalog-act="${backAct}"${backDataId} aria-label="Назад: ${this.escapeHtml(backLabel)}"><i class="fas fa-arrow-left" aria-hidden="true"></i> ${this.escapeHtml(backLabel)}</button>`;
                     let compactActions = '';
                     if (areaFocus && entity?.id != null) {
                         compactActions = `<div class="catalog-guide-actions catalog-guide-actions--compact">
@@ -10171,6 +10188,7 @@
                     hero.classList.add('catalog-guide-hero--sector-focus');
                     hero.innerHTML = `
                     ${heroImage}
+                    <div class="catalog-guide-back-row">${catalogBackBtn}</div>
                     <div class="catalog-guide-head catalog-guide-head--compact">
                         <div>
                             <div class="catalog-guide-kicker">${this.escapeHtml(kicker)}</div>
@@ -10224,7 +10242,40 @@
                 }
             }
 
+            getOpenOverlayTabId() {
+                const profile = document.getElementById('profile');
+                if (profile?.classList.contains('active')) return 'profile';
+                const ranking = document.getElementById('ranking');
+                if (ranking?.classList.contains('active')) return 'ranking';
+                return null;
+            }
+
+            rememberMainTabBeforeOverlay() {
+                const activeBtn = document.querySelector('.tab-btn.active');
+                const tab = activeBtn?.dataset?.tab;
+                if (tab) this._lastMainTabBeforeOverlay = tab;
+            }
+
+            closeOverlayTab() {
+                const overlay = this.getOpenOverlayTabId();
+                if (!overlay) return false;
+                const tabId = this._lastMainTabBeforeOverlay || 'catalog';
+                this._lastMainTabBeforeOverlay = 'catalog';
+                document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+                const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+                if (btn) {
+                    btn.click();
+                } else {
+                    document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+                    document.querySelector('.tab-btn[data-tab="catalog"]')?.classList.add('active');
+                    document.getElementById('catalog')?.classList.add('active');
+                    this.renderCatalog();
+                }
+                return true;
+            }
+
             openProfileTab() {
+                if (!this.getOpenOverlayTabId()) this.rememberMainTabBeforeOverlay();
                 document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
                 document.getElementById('profile')?.classList.add('active');
@@ -10235,6 +10286,7 @@
             }
 
             openRankingTab() {
+                if (!this.getOpenOverlayTabId()) this.rememberMainTabBeforeOverlay();
                 document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
                 document.getElementById('ranking')?.classList.add('active');
@@ -10765,11 +10817,15 @@
 
                 if (this.catalog.view === 'sectors') {
                     const area = areas.find(a => Number(a.id) === Number(this.catalog.areaId));
-                    if (hero) {
+                    if (area) {
+                        this.renderCatalogGuideHero('area', area);
+                    } else if (hero) {
                         hero.classList.add('hidden');
                         hero.innerHTML = '';
                     }
-                    bc.innerHTML = '';
+                    bc.innerHTML = area
+                        ? `<button type="button" class="linkish catalog-screen-back" data-catalog-act="nav-areas" aria-label="Назад к списку районов"><i class="fas fa-arrow-left" aria-hidden="true"></i> Районы</button>`
+                        : '';
                     tb.innerHTML = this.isAdmin() ? `
                         <button type="button" class="btn btn-primary" data-catalog-act="add-sector" data-id="${this.catalog.areaId}">
                             <i class="fas fa-plus"></i> Добавить сектор
@@ -15033,6 +15089,18 @@
                 });
                 document.getElementById('openRankingBtn')?.addEventListener('click', () => {
                     this.openRankingTab();
+                });
+                document.getElementById('profileBackBtn')?.addEventListener('click', () => {
+                    this.closeOverlayTab();
+                    if (typeof window.syncTelegramMiniAppUi === 'function') {
+                        window.syncTelegramMiniAppUi();
+                    }
+                });
+                document.getElementById('rankingBackBtn')?.addEventListener('click', () => {
+                    this.closeOverlayTab();
+                    if (typeof window.syncTelegramMiniAppUi === 'function') {
+                        window.syncTelegramMiniAppUi();
+                    }
                 });
                 document.getElementById('hideSentRoutes')?.addEventListener('change', () => this.renderRoutes());
                 document.getElementById('hideSentBoulders')?.addEventListener('change', () => this.renderBoulders());
