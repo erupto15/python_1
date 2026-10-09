@@ -81,7 +81,11 @@ Main public reads:
 Auth and admin writes:
 
 - `POST /api/auth/login`
-- `POST /api/auth/telegram`
+- `POST /api/auth/telegram` — Mini App (initData)
+- `GET /api/auth/telegram-config` — @username бота для Login Widget (APK)
+- `POST /api/auth/telegram-widget` — вход через Telegram Login Widget
+- `POST /api/auth/telegram-deeplink` — ссылка для входа в APK через бота
+- `GET /api/auth/telegram-deeplink?start=login_…` — опрос готовности JWT после /start в Telegram
 - `GET /api/auth/me`
 - `POST/PATCH/DELETE /api/areas`
 - `POST/PATCH/DELETE /api/routes`

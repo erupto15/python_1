@@ -144,6 +144,8 @@ class Settings(BaseSettings):
     admin_password: str = ""
     admin_display_name: str = "Administrator"
     telegram_bot_token: str = ""
+    # Опционально: @username бота для Login Widget (иначе берётся из getMe).
+    telegram_bot_username: str = ""
     telegram_auth_max_age_sec: int = 86400
     telegram_webhook_secret: str = ""
     public_url: str = ""

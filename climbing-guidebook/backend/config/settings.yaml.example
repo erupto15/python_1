@@ -20,4 +20,5 @@ admin:
 
 telegram:
   bot_token: ""
+  # bot_username: your_bot   # для Login Widget в APK (если не задан — getMe)
   auth_max_age_sec: 86400

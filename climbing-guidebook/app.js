@@ -116,8 +116,12 @@
                     if (node.closest('.leaflet-container')) return true;
                     if (node.closest(
                         '.tabs, .markup-editor-toolbar, .climb-sends-swipe, .grade-visual-strip, '
-                        + '.catalog-table-wrap, .ranking-table-wrap, .photo-album-grid'
+                        + '.catalog-table-wrap, .ranking-table-wrap, .photo-album-grid, .photo-wrap'
                     )) {
+                        return true;
+                    }
+                    const photoWrap = node.closest('.photo-wrap');
+                    if (photoWrap && typeof isPhotoStageZoomed === 'function' && isPhotoStageZoomed(photoWrap)) {
                         return true;
                     }
                     const style = window.getComputedStyle(node);
@@ -308,7 +312,7 @@
             const profileBtn = document.getElementById('openProfileBtn');
             if (!profileBtn) return;
             const inTg = window.isTelegramMiniApp?.();
-            const show = inTg || options.telegramUser === true;
+            const show = inTg || options.telegramUser === true || window.CLIMBING_STANDALONE === true;
             if (!show) {
                 profileBtn.style.display = 'none';
                 return;
@@ -721,6 +725,10 @@
             root.classList.toggle('theme-light', next === 'light');
             root.classList.toggle('theme-dark', next === 'dark');
             root.style.colorScheme = next;
+            if (root.classList.contains('tg-mini-app')) {
+                root.classList.toggle('tg-theme-light', next === 'light');
+                root.classList.toggle('tg-theme-dark', next !== 'light');
+            }
             if (persist) {
                 try {
                     localStorage.setItem(THEME_STORAGE_KEY, next);
@@ -2848,6 +2856,12 @@
                         console.warn('Telegram login skipped or failed; catalog still available');
                     }
                 }
+                if (isStandaloneShell()) {
+                    window.syncOpenProfileButtonVisibility?.({
+                        telegramUser: window.app?.isTelegramUser?.() || false
+                    });
+                    void window.app.prepareStandaloneTelegramLoginUi?.();
+                }
                 await window.app.syncLegacyLocalStorageToBackend();
                 if (window.app?.isLoggedIn?.()) {
                     window.app.refreshListsAfterRoleChange();
@@ -3556,6 +3570,13 @@
             return window.CLIMBING_STANDALONE === true;
         }
 
+        function authTelegramGateMessage() {
+            if (isStandaloneShell()) {
+                return 'Войдите через Telegram в разделе «Профиль»';
+            }
+            return 'Войдите через Telegram Mini App';
+        }
+
         /** WebView (MIUI и др.) часто ошибочно сообщает navigator.onLine === false при рабочей сети. */
         function shouldTrustOfflineHint() {
             if (isStandaloneShell()) return false;
@@ -3965,6 +3986,8 @@
 
             const onStart = (e) => {
                 if (ignoreTarget(e)) return;
+                const wrap = e.target?.closest?.('.photo-wrap');
+                if (wrap && photoWrapBlocksGalleryNav(wrap)) return;
                 if (e.pointerType === 'mouse' && e.button !== 0) return;
                 const p = pointFrom(e);
                 startX = p.x;
@@ -3989,6 +4012,16 @@
                 const dx = p.x - startX;
                 const dy = p.y - startY;
                 if (!moved && Math.abs(dx) <= tapMaxMove && Math.abs(dy) <= tapMaxMove) {
+                    const wrap = e.target?.closest?.('.photo-wrap');
+                    if (wrap) {
+                        if (photoWrapBlocksGalleryNav(wrap)) return;
+                        const viewer = document.getElementById('climbPhotoViewer');
+                        const viewerOpen = viewer && !viewer.classList.contains('hidden');
+                        if (!viewerOpen) {
+                            void window.app?.openClimbPhotoViewer?.();
+                        }
+                        return;
+                    }
                     handlers.onTap?.();
                     return;
                 }
@@ -4014,11 +4047,11 @@
             return wrap._zoom;
         }
 
-        function applyPhotoStageTransform(wrap) {
+        function applyPhotoStageTransform(wrap, { snap = false } = {}) {
             const stage = wrap?.querySelector('.stage');
             if (!stage) return;
             const z = getPhotoZoomState(wrap);
-            if (z.scale <= 1.02) {
+            if (snap && z.scale <= 1.04) {
                 z.scale = 1;
                 z.tx = 0;
                 z.ty = 0;
@@ -4030,12 +4063,16 @@
             const z = getPhotoZoomState(wrap);
             const W = Math.max(1, wrap.clientWidth || 1);
             const H = Math.max(1, wrap.clientHeight || 1);
-            const sw = W * z.scale;
-            const sh = H * z.scale;
-            const minX = Math.min(0, W - sw);
-            const minY = Math.min(0, H - sh);
-            z.tx = Math.max(minX, Math.min(0, z.tx));
-            z.ty = Math.max(minY, Math.min(0, z.ty));
+            if (z.scale <= 1.001) {
+                z.scale = 1;
+                z.tx = 0;
+                z.ty = 0;
+                return;
+            }
+            const maxTx = (W * (z.scale - 1)) / 2;
+            const maxTy = (H * (z.scale - 1)) / 2;
+            z.tx = Math.max(-maxTx, Math.min(maxTx, z.tx));
+            z.ty = Math.max(-maxTy, Math.min(maxTy, z.ty));
         }
 
         function resetPhotoStageZoom(wrap) {
@@ -4049,21 +4086,42 @@
 
         function photoStageZoomBy(wrap, factor, cx, cy) {
             const z = getPhotoZoomState(wrap);
-            const newScale = Math.max(1, Math.min(8, z.scale * factor));
-            if (newScale === z.scale) return;
+            const newScale = Math.max(1, Math.min(6, z.scale * factor));
+            if (Math.abs(newScale - z.scale) < 0.0001) return;
             const rect = wrap.getBoundingClientRect();
-            const localCx = cx == null ? rect.width / 2 : cx;
-            const localCy = cy == null ? rect.height / 2 : cy;
+            const W = Math.max(1, rect.width);
+            const H = Math.max(1, rect.height);
+            const ox = W / 2;
+            const oy = H / 2;
+            const px = cx == null ? ox : cx;
+            const py = cy == null ? oy : cy;
             const ratio = newScale / z.scale;
-            z.tx = localCx - (localCx - z.tx) * ratio;
-            z.ty = localCy - (localCy - z.ty) * ratio;
+            z.tx = (px - ox) - (px - ox - z.tx) * ratio;
+            z.ty = (py - oy) - (py - oy - z.ty) * ratio;
             z.scale = newScale;
             clampPhotoStagePan(wrap);
             applyPhotoStageTransform(wrap);
         }
 
         function isPhotoStageZoomed(wrap) {
-            return getPhotoZoomState(wrap).scale > 1.05;
+            return getPhotoZoomState(wrap).scale > 1.04;
+        }
+
+        function photoWrapBlocksGalleryNav(wrap) {
+            if (!wrap) return false;
+            return isPhotoStageZoomed(wrap)
+                || wrap.classList.contains('is-photo-panning')
+                || wrap.dataset.photoPinching === '1';
+        }
+
+        function photoStageSnapAfterGesture(wrap) {
+            const z = getPhotoZoomState(wrap);
+            wrap.classList.remove('is-photo-gesturing');
+            if (z.scale <= 1.04) {
+                wrap.classList.add('is-photo-snap');
+                resetPhotoStageZoom(wrap);
+                window.setTimeout(() => wrap.classList.remove('is-photo-snap'), 240);
+            }
         }
 
         function attachPhotoStageZoomPan(wrap) {
@@ -4075,41 +4133,178 @@
                 const rect = wrap.getBoundingClientRect();
                 photoStageZoomBy(
                     wrap,
-                    e.deltaY < 0 ? 1.2 : 1 / 1.2,
+                    e.deltaY < 0 ? 1.15 : 1 / 1.15,
                     e.clientX - rect.left,
                     e.clientY - rect.top
                 );
             }, { passive: false });
+
+            const touchSpan = (t0, t1) => Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+            const localPoint = (t, rect) => ({
+                x: t.clientX - rect.left,
+                y: t.clientY - rect.top
+            });
+
+            let mode = 'idle';
+            let touchActive = false;
+            let panStartX = 0;
+            let panStartY = 0;
+            let panBaseTx = 0;
+            let panBaseTy = 0;
+            let pinchStartDist = 1;
+            let pinchStartScale = 1;
+            let pinchStartTx = 0;
+            let pinchStartTy = 0;
+            let pinchCx = 0;
+            let pinchCy = 0;
+            let lastTapAt = 0;
+            let lastTapX = 0;
+            let lastTapY = 0;
+
+            const beginGesture = () => {
+                wrap.classList.add('is-photo-gesturing');
+                wrap.classList.remove('is-photo-snap');
+            };
+
+            wrap.addEventListener('touchstart', (e) => {
+                touchActive = true;
+                wrap._touchGestureUntil = Date.now() + 400;
+                if (e.touches.length >= 2) {
+                    mode = 'pinch';
+                    wrap.dataset.photoPinching = '1';
+                    beginGesture();
+                    const rect = wrap.getBoundingClientRect();
+                    pinchStartDist = Math.max(1, touchSpan(e.touches[0], e.touches[1]));
+                    const z = getPhotoZoomState(wrap);
+                    pinchStartScale = z.scale;
+                    pinchStartTx = z.tx;
+                    pinchStartTy = z.ty;
+                    const c = localPoint(
+                        { clientX: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                            clientY: (e.touches[0].clientY + e.touches[1].clientY) / 2 },
+                        rect
+                    );
+                    pinchCx = c.x;
+                    pinchCy = c.y;
+                    e.preventDefault();
+                    return;
+                }
+                if (e.touches.length === 1) {
+                    const z = getPhotoZoomState(wrap);
+                    if (z.scale > 1.001) {
+                        mode = 'pan';
+                        beginGesture();
+                        panStartX = e.touches[0].clientX;
+                        panStartY = e.touches[0].clientY;
+                        panBaseTx = z.tx;
+                        panBaseTy = z.ty;
+                        wrap.classList.add('is-photo-panning');
+                    } else {
+                        mode = 'idle';
+                    }
+                }
+            }, { passive: false });
+
+            wrap.addEventListener('touchmove', (e) => {
+                if (mode === 'pinch' && e.touches.length >= 2) {
+                    e.preventDefault();
+                    const rect = wrap.getBoundingClientRect();
+                    const dist = touchSpan(e.touches[0], e.touches[1]);
+                    const newScale = Math.max(1, Math.min(6, pinchStartScale * (dist / pinchStartDist)));
+                    const ratio = newScale / pinchStartScale;
+                    const z = getPhotoZoomState(wrap);
+                    z.scale = newScale;
+                    z.tx = pinchCx - (pinchCx - pinchStartTx) * ratio;
+                    z.ty = pinchCy - (pinchCy - pinchStartTy) * ratio;
+                    clampPhotoStagePan(wrap);
+                    applyPhotoStageTransform(wrap);
+                    return;
+                }
+                if (mode === 'pan' && e.touches.length === 1) {
+                    e.preventDefault();
+                    const z = getPhotoZoomState(wrap);
+                    z.tx = panBaseTx + (e.touches[0].clientX - panStartX);
+                    z.ty = panBaseTy + (e.touches[0].clientY - panStartY);
+                    clampPhotoStagePan(wrap);
+                    applyPhotoStageTransform(wrap);
+                }
+            }, { passive: false });
+
+            wrap.addEventListener('touchend', (e) => {
+                if (mode === 'pinch' && e.touches.length < 2) {
+                    delete wrap.dataset.photoPinching;
+                    mode = 'idle';
+                    photoStageSnapAfterGesture(wrap);
+                }
+                if (mode === 'pan' && e.touches.length === 0) {
+                    mode = 'idle';
+                    wrap.classList.remove('is-photo-panning');
+                    photoStageSnapAfterGesture(wrap);
+                }
+                if (e.touches.length === 0) {
+                    touchActive = false;
+                    if (mode === 'idle' && e.changedTouches.length === 1) {
+                        const t = e.changedTouches[0];
+                        const rect = wrap.getBoundingClientRect();
+                        const now = Date.now();
+                        const dx = t.clientX - lastTapX;
+                        const dy = t.clientY - lastTapY;
+                        if (now - lastTapAt < 320 && Math.hypot(dx, dy) < 32) {
+                            lastTapAt = 0;
+                            const z = getPhotoZoomState(wrap);
+                            if (z.scale > 1.04) {
+                                wrap.classList.add('is-photo-snap');
+                                resetPhotoStageZoom(wrap);
+                                window.setTimeout(() => wrap.classList.remove('is-photo-snap'), 240);
+                            } else {
+                                photoStageZoomBy(
+                                    wrap,
+                                    2.2,
+                                    t.clientX - rect.left,
+                                    t.clientY - rect.top
+                                );
+                            }
+                        } else {
+                            lastTapAt = now;
+                            lastTapX = t.clientX;
+                            lastTapY = t.clientY;
+                        }
+                    }
+                }
+            }, { passive: true });
+
+            wrap.addEventListener('touchcancel', () => {
+                mode = 'idle';
+                touchActive = false;
+                delete wrap.dataset.photoPinching;
+                wrap.classList.remove('is-photo-panning');
+                photoStageSnapAfterGesture(wrap);
+            }, { passive: true });
 
             let dragging = false;
             let sx = 0;
             let sy = 0;
             let btx = 0;
             let bty = 0;
-            let didMove = false;
             let pendingPid = null;
 
             wrap.addEventListener('pointerdown', (e) => {
+                if (touchActive || Date.now() < (wrap._touchGestureUntil || 0)) return;
                 if (e.pointerType === 'mouse' && e.button !== 0) return;
                 const z = getPhotoZoomState(wrap);
-                if (z.scale <= 1) return;
+                if (z.scale <= 1.001) return;
                 dragging = true;
-                didMove = false;
                 pendingPid = e.pointerId;
                 sx = e.clientX;
                 sy = e.clientY;
                 btx = z.tx;
                 bty = z.ty;
+                beginGesture();
+                wrap.classList.add('is-photo-panning');
             });
 
             wrap.addEventListener('pointermove', (e) => {
-                if (!dragging) return;
-                if (!didMove && (Math.abs(e.clientX - sx) > 3 || Math.abs(e.clientY - sy) > 3)) {
-                    didMove = true;
-                    wrap.setPointerCapture(pendingPid);
-                    wrap.style.cursor = 'grabbing';
-                }
-                if (!didMove) return;
+                if (!dragging || e.pointerId !== pendingPid) return;
                 const z = getPhotoZoomState(wrap);
                 z.tx = btx + (e.clientX - sx);
                 z.ty = bty + (e.clientY - sy);
@@ -4117,94 +4312,27 @@
                 applyPhotoStageTransform(wrap);
             });
 
-            const endDrag = (e) => {
+            const endPointerPan = () => {
                 if (!dragging) return;
-                if (pendingPid != null) {
-                    try {
-                        wrap.releasePointerCapture(pendingPid);
-                    } catch (_) {
-                        /* ignore */
-                    }
-                }
                 dragging = false;
                 pendingPid = null;
-                wrap.style.cursor = '';
-                if (didMove && e) e.stopPropagation();
+                wrap.classList.remove('is-photo-panning');
+                photoStageSnapAfterGesture(wrap);
             };
-            wrap.addEventListener('pointerup', endDrag);
-            wrap.addEventListener('pointercancel', endDrag);
-            wrap.addEventListener('lostpointercapture', () => {
-                dragging = false;
-                pendingPid = null;
-                wrap.style.cursor = '';
-            });
+            wrap.addEventListener('pointerup', endPointerPan);
+            wrap.addEventListener('pointercancel', endPointerPan);
 
             wrap.addEventListener('dblclick', (e) => {
                 const z = getPhotoZoomState(wrap);
-                if (z.scale > 1.05) {
+                if (z.scale > 1.04) {
+                    wrap.classList.add('is-photo-snap');
                     resetPhotoStageZoom(wrap);
+                    window.setTimeout(() => wrap.classList.remove('is-photo-snap'), 240);
                     return;
                 }
                 const rect = wrap.getBoundingClientRect();
-                photoStageZoomBy(wrap, 2.5, e.clientX - rect.left, e.clientY - rect.top);
+                photoStageZoomBy(wrap, 2.2, e.clientX - rect.left, e.clientY - rect.top);
             });
-
-            let pinching = false;
-            let pinchStartDist = 0;
-            let pinchStartScale = 1;
-            let pinchStartTx = 0;
-            let pinchStartTy = 0;
-            let pinchCx = 0;
-            let pinchCy = 0;
-
-            const touchSpan = (t0, t1) => Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
-            const touchCenterLocal = (t0, t1, rect) => ({
-                x: (t0.clientX + t1.clientX) / 2 - rect.left,
-                y: (t0.clientY + t1.clientY) / 2 - rect.top
-            });
-
-            wrap.addEventListener('touchstart', (e) => {
-                if (e.touches.length !== 2) return;
-                pinching = true;
-                dragging = false;
-                const rect = wrap.getBoundingClientRect();
-                pinchStartDist = Math.max(1, touchSpan(e.touches[0], e.touches[1]));
-                const z = getPhotoZoomState(wrap);
-                pinchStartScale = z.scale;
-                pinchStartTx = z.tx;
-                pinchStartTy = z.ty;
-                const c = touchCenterLocal(e.touches[0], e.touches[1], rect);
-                pinchCx = c.x;
-                pinchCy = c.y;
-                e.preventDefault();
-            }, { passive: false });
-
-            wrap.addEventListener('touchmove', (e) => {
-                if (!pinching || e.touches.length < 2) return;
-                e.preventDefault();
-                const rect = wrap.getBoundingClientRect();
-                const dist = touchSpan(e.touches[0], e.touches[1]);
-                const newScale = Math.max(1, Math.min(8, pinchStartScale * (dist / pinchStartDist)));
-                const ratio = newScale / pinchStartScale;
-                const z = getPhotoZoomState(wrap);
-                z.scale = newScale;
-                z.tx = pinchCx - (pinchCx - pinchStartTx) * ratio;
-                z.ty = pinchCy - (pinchCy - pinchStartTy) * ratio;
-                clampPhotoStagePan(wrap);
-                applyPhotoStageTransform(wrap);
-            }, { passive: false });
-
-            const endPinch = (e) => {
-                if (!pinching) return;
-                if (e.touches && e.touches.length >= 2) return;
-                pinching = false;
-                const z = getPhotoZoomState(wrap);
-                if (z.scale <= 1.02) {
-                    resetPhotoStageZoom(wrap);
-                }
-            };
-            wrap.addEventListener('touchend', endPinch, { passive: true });
-            wrap.addEventListener('touchcancel', endPinch, { passive: true });
         }
 
         function inferPhotoControlMode(container) {
@@ -4256,10 +4384,20 @@
                     void window.app?.openClimbPhotoViewer?.();
                 }));
             } else {
-                zc.appendChild(mkBtn('Увеличить', '+', () => photoStageZoomBy(wrap, 1.4)));
-                zc.appendChild(mkBtn('Уменьшить', '−', () => photoStageZoomBy(wrap, 1 / 1.4)));
+                zc.appendChild(mkBtn('Увеличить', '+', () => {
+                    const r = wrap.getBoundingClientRect();
+                    photoStageZoomBy(wrap, 1.35, r.width / 2, r.height / 2);
+                }));
+                zc.appendChild(mkBtn('Уменьшить', '−', () => {
+                    const r = wrap.getBoundingClientRect();
+                    photoStageZoomBy(wrap, 1 / 1.35, r.width / 2, r.height / 2);
+                }));
                 if (mode === 'viewer') {
-                    zc.appendChild(mkBtn('Сброс zoom', '↺', () => resetPhotoStageZoom(wrap)));
+                    zc.appendChild(mkBtn('Уместить', '↺', () => {
+                        wrap.classList.add('is-photo-snap');
+                        resetPhotoStageZoom(wrap);
+                        window.setTimeout(() => wrap.classList.remove('is-photo-snap'), 240);
+                    }));
                 } else {
                     zc.appendChild(mkBtn('На весь экран', '⛶', () => {
                         void window.app?.openClimbPhotoViewer?.();
@@ -5807,6 +5945,135 @@
                 }
             }
 
+            async loginWithTelegramWidget(user) {
+                const tokenData = await apiFetch('/api/auth/telegram-widget', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(user)
+                });
+                await this.applyTelegramAuthTokenData(tokenData);
+                return true;
+            }
+
+            async applyTelegramAuthTokenData(tokenData) {
+                const auth = {
+                    accessToken: tokenData.access_token,
+                    currentUser: tokenData.user || null
+                };
+                if (!auth.currentUser) {
+                    saveAuthData(auth);
+                    auth.currentUser = await apiFetch('/api/auth/me');
+                }
+                saveAuthData(auth);
+                this.auth = auth;
+                this.renderAuthUI();
+                this.applyRoleUI();
+                await this.loadAscentSummary();
+                this.refreshListsAfterRoleChange();
+                window.syncOpenProfileButtonVisibility?.({ telegramUser: true });
+            }
+
+            openTelegramDeepLink(url) {
+                const link = String(url || '').trim();
+                if (!link) return;
+                try {
+                    const opened = window.open(link, '_blank', 'noopener,noreferrer');
+                    if (!opened) {
+                        window.location.href = link;
+                    }
+                } catch (_) {
+                    window.location.href = link;
+                }
+            }
+
+            async startStandaloneTelegramDeeplinkLogin() {
+                if (!isStandaloneShell()) return;
+                if (this._apkDeeplinkLoginInFlight) return;
+                this._apkDeeplinkLoginInFlight = true;
+                this._apkDeeplinkPollAbort = false;
+                const btn = document.getElementById('profileTelegramDeeplinkBtn');
+                const statusEl = document.getElementById('profileTelegramDeeplinkStatus');
+                if (btn) btn.disabled = true;
+                if (statusEl) {
+                    statusEl.classList.remove('hidden');
+                    statusEl.textContent = 'Запрашиваем ссылку для входа…';
+                }
+                try {
+                    const start = await apiFetch('/api/auth/telegram-deeplink', {
+                        method: 'POST',
+                        timeoutMs: 20000
+                    });
+                    const deepLink = String(start?.deep_link || '').trim();
+                    const startParam = String(start?.start_param || '').trim();
+                    const ttlSec = Number(start?.expires_in) || 300;
+                    if (!deepLink || !startParam) {
+                        throw new Error('Сервер не вернул ссылку для входа');
+                    }
+                    if (statusEl) {
+                        statusEl.textContent = 'Откройте Telegram, нажмите «Start» / «Запустить», затем вернитесь в гайд.';
+                    }
+                    this.openTelegramDeepLink(deepLink);
+                    const deadline = Date.now() + ttlSec * 1000;
+                    while (Date.now() < deadline && !this._apkDeeplinkPollAbort) {
+                        await new Promise((r) => setTimeout(r, 2000));
+                        if (this._apkDeeplinkPollAbort) break;
+                        let poll;
+                        try {
+                            poll = await apiFetch(
+                                `/api/auth/telegram-deeplink?start=${encodeURIComponent(startParam)}`,
+                                { timeoutMs: 12000 }
+                            );
+                        } catch (err) {
+                            if (statusEl && isFetchNetworkError(err)) {
+                                statusEl.textContent = 'Нет связи с сервером гайда. Отключите VPN или проверьте сеть.';
+                            }
+                            continue;
+                        }
+                        if (poll?.status === 'ready' && poll.access_token) {
+                            await this.applyTelegramAuthTokenData(poll);
+                            await this.renderProfileTab();
+                            this.showToast('Вход через Telegram выполнен');
+                            if (statusEl) statusEl.classList.add('hidden');
+                            return;
+                        }
+                        if (poll?.status === 'expired') {
+                            break;
+                        }
+                    }
+                    if (!this._apkDeeplinkPollAbort && statusEl) {
+                        statusEl.textContent = 'Время вышло. Нажмите «Войти через Telegram» ещё раз.';
+                    }
+                } catch (err) {
+                    const msg = err?.message || 'Не удалось начать вход';
+                    if (statusEl) statusEl.textContent = msg;
+                    this.showToast(msg, true);
+                } finally {
+                    this._apkDeeplinkLoginInFlight = false;
+                    if (btn) btn.disabled = false;
+                }
+            }
+
+            prepareStandaloneTelegramLoginUi() {
+                if (!isStandaloneShell()) return;
+                document.getElementById('profileGuestHintMiniApp')?.classList.add('hidden');
+                document.getElementById('profileGuestHintStandalone')?.classList.remove('hidden');
+                document.getElementById('profileTelegramDeeplinkBtn')?.classList.remove('hidden');
+                document.getElementById('telegramLoginWidgetMount')?.classList.add('hidden');
+            }
+
+            logoutTelegramSession() {
+                this._apkDeeplinkPollAbort = true;
+                saveAuthData({ accessToken: null, currentUser: null });
+                this.auth = getAuthData();
+                this._ascentSummary = null;
+                this.renderAuthUI();
+                this.applyRoleUI();
+                this.refreshListsAfterRoleChange();
+                window.syncOpenProfileButtonVisibility?.({ telegramUser: false });
+                void this.renderProfileTab();
+                void this.prepareStandaloneTelegramLoginUi();
+            }
+
             async loadAscentSummary() {
                 if (!this.isLoggedIn()) {
                     this._ascentSummary = null;
@@ -5888,7 +6155,7 @@
 
             async openClimbLogFromList(climbType, climbId) {
                 if (!this.isLoggedIn() || !this.isTelegramUser()) {
-                    this.showToast('Войдите через Telegram Mini App', true);
+                    this.showToast(authTelegramGateMessage(), true);
                     return;
                 }
                 const idStr = String(climbId);
@@ -9537,9 +9804,13 @@
                 if (!url) return;
                 if (window.Telegram?.WebApp?.openLink) {
                     window.Telegram.WebApp.openLink(url);
-                } else {
-                    window.open(url, '_blank', 'noopener');
+                    return;
                 }
+                if (isStandaloneShell()) {
+                    window.location.href = url;
+                    return;
+                }
+                window.open(url, '_blank', 'noopener');
             }
 
             openMapsChooser(entry = null, preferredMode = '') {
@@ -12222,7 +12493,7 @@
             setupEventListeners() {
                 this.setupAuthEventListeners();
                 document.getElementById('themeToggleBtn')?.addEventListener('click', () => {
-                    toggleAppTheme();
+                    const next = toggleAppTheme();
                     if (window.isTelegramMiniApp && window.isTelegramMiniApp()) {
                         try {
                             const tg = window.Telegram?.WebApp;
@@ -13674,15 +13945,13 @@
                             const viewer = document.getElementById('climbPhotoViewer');
                             if (viewer && !viewer.classList.contains('hidden')) {
                                 this.closeClimbPhotoViewer();
-                            } else {
-                                void this.openClimbPhotoViewer();
                             }
                         },
                         onSwipeLeft: () => this.navigatePhotoGallery(1),
                         onSwipeRight: () => this.navigatePhotoGallery(-1),
                         canSwipe: () => {
                             const wrap = findPhotoStageWrap(mount);
-                            return !wrap || !isPhotoStageZoomed(wrap);
+                            return !wrap || !photoWrapBlocksGalleryNav(wrap);
                         }
                     });
                 };
@@ -14027,6 +14296,7 @@
                 });
                 void this.refreshClimbDetailVideos(climbType, idStr);
                 this.clearClimbCommentDraft();
+                this.syncClimbCommentComposerAuth();
                 void this.refreshClimbDetailComments(climbType, idStr);
                 } finally {
                     this._climbDetailOpenFlight = null;
@@ -15102,6 +15372,12 @@
                         window.syncTelegramMiniAppUi();
                     }
                 });
+                document.getElementById('profileTelegramLogoutBtn')?.addEventListener('click', () => {
+                    this.logoutTelegramSession();
+                });
+                document.getElementById('profileTelegramDeeplinkBtn')?.addEventListener('click', () => {
+                    void this.startStandaloneTelegramDeeplinkLogin();
+                });
                 document.getElementById('hideSentRoutes')?.addEventListener('change', () => this.renderRoutes());
                 document.getElementById('hideSentBoulders')?.addEventListener('change', () => this.renderBoulders());
             }
@@ -15112,7 +15388,7 @@
                     throw new Error('Откройте трассу из каталога');
                 }
                 if (!this.isLoggedIn() || !this.isTelegramUser()) {
-                    throw new Error('Войдите через Telegram Mini App');
+                    throw new Error(authTelegramGateMessage());
                 }
                 const climbType = ctx.climbType;
                 const climbId = ctx.climbId;
@@ -15689,6 +15965,7 @@
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось отправить комментарий', true);
                 } finally {
+                    if (btn) btn.disabled = !this.isLoggedIn();
                     this.syncClimbCommentComposerAuth();
                 }
             }
@@ -15712,7 +15989,7 @@
                     return;
                 }
                 if (!this.isLoggedIn() || !this.isTelegramUser()) {
-                    this.showToast('Войдите через Telegram Mini App', true);
+                    this.showToast(authTelegramGateMessage(), true);
                     return;
                 }
                 const climbType = ctx.climbType;
@@ -15840,25 +16117,37 @@
             }
 
             async refreshTelegramProfile() {
-                if (!window.isTelegramMiniApp?.() || !window.__TG_INIT_DATA) return null;
-                try {
-                    const tokenData = await apiFetch('/api/auth/telegram', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ init_data: window.__TG_INIT_DATA })
-                    });
-                    const auth = getAuthData();
-                    auth.accessToken = tokenData.access_token || auth.accessToken;
-                    auth.currentUser = tokenData.user || auth.currentUser;
-                    if (!auth.currentUser && auth.accessToken) {
-                        auth.currentUser = await apiFetch('/api/auth/me');
+                if (window.isTelegramMiniApp?.() && window.__TG_INIT_DATA) {
+                    try {
+                        const tokenData = await apiFetch('/api/auth/telegram', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ init_data: window.__TG_INIT_DATA })
+                        });
+                        const auth = getAuthData();
+                        auth.accessToken = tokenData.access_token || auth.accessToken;
+                        auth.currentUser = tokenData.user || auth.currentUser;
+                        if (!auth.currentUser && auth.accessToken) {
+                            auth.currentUser = await apiFetch('/api/auth/me');
+                        }
+                        saveAuthData(auth);
+                        this.auth = auth;
+                        return auth.currentUser;
+                    } catch {
+                        return null;
                     }
-                    saveAuthData(auth);
-                    this.auth = auth;
-                    return auth.currentUser;
-                } catch {
-                    return null;
                 }
+                if (isStandaloneShell() && this.isTelegramUser() && getAuthData().accessToken) {
+                    try {
+                        const me = await apiFetch('/api/auth/me');
+                        saveAuthData({ ...getAuthData(), currentUser: me });
+                        this.auth = getAuthData();
+                        return me;
+                    } catch {
+                        return null;
+                    }
+                }
+                return null;
             }
 
             updateProfileAvatar(user, profile) {
@@ -16061,14 +16350,26 @@
             async renderProfileTab() {
                 const guest = document.getElementById('profileGuestBlock');
                 const userBlock = document.getElementById('profileUserBlock');
+                const logoutBtn = document.getElementById('profileTelegramLogoutBtn');
                 if (!guest || !userBlock) return;
-                if (!this.isLoggedIn()) {
+                if (!this.isLoggedIn() || !this.isTelegramUser()) {
                     guest.classList.remove('hidden');
                     userBlock.classList.add('hidden');
+                    if (isStandaloneShell()) {
+                        this.prepareStandaloneTelegramLoginUi();
+                    } else {
+                        document.getElementById('profileGuestHintMiniApp')?.classList.remove('hidden');
+                        document.getElementById('profileGuestHintStandalone')?.classList.add('hidden');
+                        document.getElementById('telegramLoginWidgetMount')?.classList.add('hidden');
+                    }
                     return;
                 }
                 guest.classList.add('hidden');
                 userBlock.classList.remove('hidden');
+                if (logoutBtn) {
+                    const showLogout = isStandaloneShell() && this.isTelegramUser();
+                    logoutBtn.classList.toggle('hidden', !showLogout);
+                }
 
                 let user = this.getCurrentUser();
                 if (this.isTelegramUser()) {
@@ -16518,9 +16819,9 @@
                 if (online) {
                     const standalone = isStandaloneShell();
                     awake = await wakeApiServer({
-                        attempts: hadLocalCatalog ? (standalone ? 2 : 1) : (standalone ? 6 : 2),
-                        timeoutMs: standalone ? 12000 : 3500,
-                        pauseMs: standalone ? 800 : 400
+                        attempts: hadLocalCatalog ? (standalone ? 2 : 1) : (standalone ? 3 : 2),
+                        timeoutMs: standalone ? 8000 : 3500,
+                        pauseMs: standalone ? 600 : 400
                     });
                 }
                 if (!awake && catalogHasContent(getClimbingData())) {
@@ -16605,7 +16906,9 @@
                 void hydrateCatalogPhotosFromIndexedDb();
                 void hydrateAreaCoverImages();
             }
-            if (!window.CLIMBING_STANDALONE && typeof window.syncTelegramMiniAppUi === 'function') {
+            if (window.CLIMBING_STANDALONE) {
+                window.syncOpenProfileButtonVisibility?.({ telegramUser: false });
+            } else if (typeof window.syncTelegramMiniAppUi === 'function') {
                 window.syncTelegramMiniAppUi();
             }
             if (hadLocalCatalog && shouldUseOfflineQueue()) {

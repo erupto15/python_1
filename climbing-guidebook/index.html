@@ -11,6 +11,9 @@
             if (q.get('app') === 'android' || q.get('standalone') === '1') {
                 window.CLIMBING_STANDALONE = true;
             }
+            if (window.CLIMBING_STANDALONE) {
+                document.documentElement.classList.add('standalone-app');
+            }
             var ua = navigator.userAgent || '';
             if (!window.CLIMBING_STANDALONE && /; wv\)/i.test(ua) && !/Telegram/i.test(ua)) {
                 window.CLIMBING_STANDALONE = true;
@@ -594,7 +597,11 @@
                 </div>
                 <div id="profileGuestBlock" class="empty-state">
                     <h3>Войдите через Telegram</h3>
-                    <p>Откройте гайдбук как Mini App в Telegram — тогда можно логировать пролазы и ставить оценки.</p>
+                    <p id="profileGuestHintMiniApp">Откройте гайдбук как Mini App в Telegram — тогда можно логировать пролазы и ставить оценки.</p>
+                    <p id="profileGuestHintStandalone" class="hidden">Вход через приложение Telegram (без VPN). Каталог можно смотреть офлайн; для синхронизации пролазов нужен доступ к серверу гайда <strong>без VPN</strong>.</p>
+                    <button type="button" class="btn btn-primary profile-telegram-deeplink-btn hidden" id="profileTelegramDeeplinkBtn">Войти через Telegram</button>
+                    <p id="profileTelegramDeeplinkStatus" class="profile-login-hint hidden" aria-live="polite"></p>
+                    <div id="telegramLoginWidgetMount" class="profile-telegram-login hidden" aria-live="polite"></div>
                 </div>
                 <div id="profileUserBlock" class="hidden">
                     <div class="profile-header">
@@ -606,6 +613,7 @@
                             <h2 id="profileDisplayName">—</h2>
                             <p id="profileUsername"></p>
                         </div>
+                        <button type="button" class="btn btn-ghost btn-small hidden" id="profileTelegramLogoutBtn">Выйти</button>
                     </div>
                     <div class="profile-stats-grid" id="profileStatsGrid"></div>
                 </div>

@@ -10,6 +10,34 @@ class TelegramAuthRequest(BaseModel):
     init_data: str = Field(min_length=1)
 
 
+class TelegramLoginWidgetAuthRequest(BaseModel):
+    id: int
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    username: Optional[str] = Field(None, max_length=64)
+    photo_url: Optional[str] = Field(None, max_length=512)
+    auth_date: int
+    hash: str = Field(min_length=1)
+
+
+class TelegramLoginConfigRead(BaseModel):
+    bot_username: str
+
+
+class TelegramDeeplinkStartResponse(BaseModel):
+    start_param: str
+    deep_link: str
+    expires_in: int = 300
+
+
+class TelegramDeeplinkPollResponse(BaseModel):
+    status: Literal["pending", "ready", "expired"]
+    expires_in: Optional[int] = None
+    access_token: Optional[str] = None
+    token_type: str = "bearer"
+    user: Optional["UserRead"] = None
+
+
 class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)

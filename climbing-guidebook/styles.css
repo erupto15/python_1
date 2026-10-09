@@ -249,6 +249,14 @@
             display: inline-flex;
         }
 
+        html.standalone-app #openProfileBtn {
+            display: inline-flex;
+        }
+
+        .profile-telegram-deeplink-btn {
+            margin-top: 14px;
+        }
+
         .header-search-auth {
             display: flex;
             flex-direction: column;
@@ -2672,8 +2680,16 @@
         .photo-wrap .stage {
             position: absolute;
             inset: 0;
-            transform-origin: 0 0;
+            transform-origin: center center;
             will-change: transform;
+        }
+
+        .photo-wrap.is-photo-gesturing .stage {
+            transition: none;
+        }
+
+        .photo-wrap.is-photo-snap .stage {
+            transition: transform 0.22s ease-out;
         }
 
         .photo-wrap img {
@@ -6764,6 +6780,24 @@
             margin-bottom: 8px;
         }
 
+        .profile-telegram-login {
+            display: flex;
+            justify-content: center;
+            margin-top: 16px;
+            min-height: 48px;
+        }
+
+        .profile-login-hint {
+            margin: 12px 0 0;
+            font-size: 14px;
+            color: var(--light-text);
+            text-align: center;
+        }
+
+        #profileTelegramLogoutBtn {
+            margin-top: 4px;
+        }
+
         .profile-avatar-wrap {
             position: relative;
             width: 60px;
@@ -7425,6 +7459,14 @@
 
         html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] {
             --tg-chrome-bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+        }
+
+        html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] #climbDetailDialog .dialog-body {
+            padding-bottom: calc(20px + var(--tg-chrome-bottom, 0px));
+        }
+
+        html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] #climbDetailCommentComposer {
+            margin-bottom: calc(8px + var(--tg-chrome-bottom, 0px));
         }
 
         html.tg-mini-app.tg-webapp-buttons[data-tg-secondary-visible="true"] {

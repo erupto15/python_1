@@ -52,6 +52,8 @@ def flatten_yaml_config(data: dict[str, Any]) -> dict[str, Any]:
     telegram = data.get("telegram") or {}
     if "bot_token" in telegram:
         out["telegram_bot_token"] = telegram["bot_token"] or ""
+    if telegram.get("bot_username"):
+        out["telegram_bot_username"] = str(telegram["bot_username"]).strip().lstrip("@")
     if telegram.get("auth_max_age_sec") is not None:
         out["telegram_auth_max_age_sec"] = telegram["auth_max_age_sec"]
 

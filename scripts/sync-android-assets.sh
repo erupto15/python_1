@@ -15,7 +15,7 @@ copy_file() {
   fi
 }
 
-for f in index.html app.js boot.js styles.css sw.js map-tiles.js telegram-web-app.js; do
+for f in index.html app.js boot.js styles.css sw.js map-tiles.js telegram-web-app.js offline_fallback.html; do
   copy_file "$f"
 done
 
