@@ -217,12 +217,19 @@
                 }
             }
 
+            let _tgLastViewportHeight = 0;
+            let _tgViewportResizeTimer = null;
             function syncTelegramViewport() {
                 const h = tg.viewportStableHeight || tg.viewportHeight;
-                if (h && h > 0) {
-                    document.documentElement.style.setProperty('--app-height', `${h}px`);
-                }
-                window.dispatchEvent(new Event('resize'));
+                if (!h || h <= 0) return;
+                if (Math.abs(h - _tgLastViewportHeight) < 2) return;
+                _tgLastViewportHeight = h;
+                document.documentElement.style.setProperty('--app-height', `${h}px`);
+                clearTimeout(_tgViewportResizeTimer);
+                _tgViewportResizeTimer = setTimeout(() => {
+                    _tgViewportResizeTimer = null;
+                    window.dispatchEvent(new Event('resize'));
+                }, 100);
             }
 
             tg.ready();
@@ -2092,7 +2099,7 @@
             if (!photos.length) return false;
             const changed = await hydratePhotosFromIndexedDb(photos);
             if (changed) {
-                window.app?.refreshUiAfterRemoteLoad?.();
+                scheduleRefreshUiAfterRemoteLoad();
             }
             await refreshPhotoCacheStats();
             return changed;
@@ -2167,7 +2174,6 @@
             if (changed) {
                 saveClimbingData(data);
                 void cacheAreaCoversToIndexedDb(data.areas);
-                window.app?.refreshUiAfterRemoteLoad?.();
             }
             return changed;
         }
@@ -2175,8 +2181,8 @@
         async function hydrateAreaCoverImages() {
             const fromCache = await hydrateAreaCoversFromIndexedDb();
             const fromApi = await hydrateAreaCoversFromApiIfNeeded();
-            if (fromCache && !fromApi) {
-                window.app?.refreshUiAfterRemoteLoad?.();
+            if (fromCache || fromApi) {
+                scheduleRefreshUiAfterRemoteLoad();
             }
             return fromCache || fromApi;
         }
@@ -2719,7 +2725,7 @@
                     _appRemoteDataReady = true;
                     _lastCatalogReloadFinishedAt = Date.now();
                     leaveOfflineMode();
-                    window.app?.refreshUiAfterRemoteLoad?.();
+                    scheduleRefreshUiAfterRemoteLoad();
                     if (options.refreshPhotos) {
                         await ensurePhotosLoadedFromApi();
                         window.app?.renderPhotoAlbum?.();
@@ -2747,6 +2753,17 @@
             if (!_appRemoteDataReady) return;
             if (shouldTrustOfflineHint()) return;
             void refreshCatalogFromApi({ background: true, skipWake: true }).catch(() => {});
+        }
+
+        let _remoteUiRefreshTimer = null;
+        /** Сливает несколько refresh подряд (кэш обложек + API + auth) в один кадр — меньше дёрганья списка. */
+        function scheduleRefreshUiAfterRemoteLoad() {
+            if (!window.app) return;
+            clearTimeout(_remoteUiRefreshTimer);
+            _remoteUiRefreshTimer = setTimeout(() => {
+                _remoteUiRefreshTimer = null;
+                window.app.refreshUiAfterRemoteLoad();
+            }, 140);
         }
 
         let _globalUiBusyDepth = 0;
@@ -5742,7 +5759,9 @@
                             this.renderRoutes();
                         }
                         this.renderBoulders();
-                        this.renderCatalog();
+                        if (this.catalog.view !== 'areas') {
+                            this.renderCatalog();
+                        }
                     });
                     void this.refreshProfileLogbookSection();
                 }
@@ -11025,6 +11044,97 @@
                 }
             }
 
+            catalogAreaCardMeta(area) {
+                const sectors = getSectors();
+                const sc = sectors.filter((s) => Number(s.areaId) === Number(area.id)).length;
+                const rc = getRoutes().filter((r) => Number(r.areaId) === Number(area.id)).length;
+                const bcnt = getBoulders().filter((b) => Number(b.areaId) === Number(area.id)).length;
+                return APP_BOULDER_ONLY
+                    ? `${sc} сект. · ${bcnt} боулд.`
+                    : `${sc} сект. · ${rc} трасс · ${bcnt} боулд.`;
+            }
+
+            catalogImageSrcMatches(img, url) {
+                if (!img || !url) return false;
+                try {
+                    const want = new URL(url, window.location.href).href;
+                    const have = new URL(img.currentSrc || img.src, window.location.href).href;
+                    return want === have;
+                } catch {
+                    return (img.getAttribute('src') || '') === url;
+                }
+            }
+
+            updateCatalogAreaCardThumb(openBtn, area) {
+                if (!openBtn) return;
+                const imageUrl = resolvePhotoDisplayUrl(area.imageData);
+                const name = String(area.name || '');
+                const img = openBtn.querySelector('img.catalog-area-card-image');
+                const ph = openBtn.querySelector('.catalog-area-card-image--placeholder');
+                if (imageUrl) {
+                    if (img) {
+                        if (!this.catalogImageSrcMatches(img, imageUrl)) {
+                            img.src = imageUrl;
+                        }
+                        img.alt = name;
+                        return;
+                    }
+                    if (ph) {
+                        const el = document.createElement('img');
+                        el.className = 'catalog-area-card-image';
+                        el.src = imageUrl;
+                        el.alt = name;
+                        el.loading = 'lazy';
+                        ph.replaceWith(el);
+                    }
+                    return;
+                }
+                if (img && !ph) {
+                    const el = document.createElement('div');
+                    el.className = 'catalog-area-card-image catalog-area-card-image--placeholder';
+                    el.innerHTML = '<i class="fas fa-mountain-sun"></i>';
+                    img.replaceWith(el);
+                }
+            }
+
+            tryPatchCatalogAreaCards(list, visibleAreas) {
+                if (!list || !visibleAreas.length) return false;
+                const rows = list.querySelectorAll(':scope > .catalog-area-card');
+                if (rows.length !== visibleAreas.length) return false;
+                for (let i = 0; i < visibleAreas.length; i += 1) {
+                    const btn = rows[i].querySelector('[data-catalog-go="area"]');
+                    if (!btn || String(btn.dataset.id) !== String(visibleAreas[i].id)) return false;
+                }
+                list.classList.add('catalog-list--syncing');
+                visibleAreas.forEach((area, i) => {
+                    const row = rows[i];
+                    const openBtn = row.querySelector('.catalog-area-card-open');
+                    const titleEl = row.querySelector('.catalog-row-title');
+                    const metaEl = row.querySelector('.catalog-row-meta');
+                    let descEl = row.querySelector('.catalog-area-card-desc');
+                    const desc = String(area.description || '').trim();
+                    const name = String(area.name || '');
+                    if (titleEl) titleEl.textContent = name;
+                    if (metaEl) metaEl.textContent = this.catalogAreaCardMeta(area);
+                    if (desc) {
+                        if (!descEl && openBtn) {
+                            descEl = document.createElement('div');
+                            descEl.className = 'catalog-area-card-desc';
+                            openBtn.querySelector('.catalog-area-card-text')?.appendChild(descEl);
+                        }
+                        if (descEl) descEl.textContent = desc;
+                    } else if (descEl) {
+                        descEl.remove();
+                    }
+                    this.updateCatalogAreaCardThumb(openBtn, area);
+                    if (openBtn) {
+                        openBtn.setAttribute('aria-label', `Открыть район: ${name}`);
+                    }
+                });
+                requestAnimationFrame(() => list.classList.remove('catalog-list--syncing'));
+                return true;
+            }
+
             renderCatalog() {
                 const bc = document.getElementById('catalogBreadcrumb');
                 const tb = document.getElementById('catalogToolbar');
@@ -11050,13 +11160,15 @@
                     const visibleAreas = catalogTerm
                         ? areas.filter((a) => this.catalogTextMatches(catalogTerm, a.name, a.description))
                         : areas;
+                    if (visibleAreas.length && this.tryPatchCatalogAreaCards(list, visibleAreas)) {
+                        return;
+                    }
+                    const scrollParent = document.documentElement.classList.contains('tg-mini-app')
+                        ? document.body
+                        : (list.closest('.tab-content') || document.scrollingElement || document.documentElement);
+                    const scrollTop = scrollParent?.scrollTop ?? 0;
                     list.innerHTML = visibleAreas.length ? visibleAreas.map(a => {
-                        const sc = sectors.filter(s => Number(s.areaId) === Number(a.id)).length;
-                        const rc = getRoutes().filter(r => Number(r.areaId) === Number(a.id)).length;
-                        const bcnt = getBoulders().filter(b => Number(b.areaId) === Number(a.id)).length;
-                        const meta = APP_BOULDER_ONLY
-                            ? `${sc} сект. · ${bcnt} боулд.`
-                            : `${sc} сект. · ${rc} трасс · ${bcnt} боулд.`;
+                        const meta = this.catalogAreaCardMeta(a);
                         const imageUrl = resolvePhotoDisplayUrl(a.imageData);
                         const thumb = imageUrl
                             ? `<img class="catalog-area-card-image" src="${this.escapeHtml(imageUrl)}" alt="${this.escapeHtml(a.name)}" loading="lazy">`
@@ -11083,6 +11195,11 @@
                                 </div>
                             </div>`;
                     }).join('') : `<div class="empty-state"><p>${catalogTerm ? 'По запросу районы не найдены.' : 'Нет районов. Создайте первый.'}</p></div>`;
+                    if (visibleAreas.length && scrollParent) {
+                        requestAnimationFrame(() => {
+                            scrollParent.scrollTop = scrollTop;
+                        });
+                    }
                     return;
                 }
 
@@ -16810,9 +16927,7 @@
                 let awake = false;
                 if (!online && hadLocalCatalog) {
                     enterOfflineMode('Офлайн — показаны сохранённые данные.');
-                    void hydrateAreaCoverImages().then((ok) => {
-                        if (ok) window.app?.refreshUiAfterRemoteLoad?.();
-                    });
+                    void hydrateAreaCoverImages();
                     void runTelegramAuthBootstrap();
                     return;
                 }
@@ -16826,9 +16941,7 @@
                 }
                 if (!awake && catalogHasContent(getClimbingData())) {
                     enterOfflineMode('Офлайн — показаны сохранённые данные. Подключите сеть для обновления.');
-                    void hydrateAreaCoverImages().then((ok) => {
-                        if (ok) window.app?.refreshUiAfterRemoteLoad?.();
-                    });
+                    void hydrateAreaCoverImages();
                     void runTelegramAuthBootstrap();
                     return;
                 }
