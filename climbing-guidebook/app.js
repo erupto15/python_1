@@ -105,6 +105,37 @@
             profileStylesDialog: 'profileStylesDialogCloseBtn'
         };
 
+        function blurStickyControlFocus() {
+            const el = document.activeElement;
+            if (!el || el === document.body || el === document.documentElement) return;
+            if (el.matches('input, textarea, select, [contenteditable="true"]')) return;
+            if (typeof el.blur === 'function') el.blur();
+        }
+
+        function bindBlurControlFocusAfterTap() {
+            if (window.__blurControlFocusBound) return;
+            window.__blurControlFocusBound = true;
+            const isBlurTarget = (el) => {
+                if (!el || el.matches('input, textarea, select, [contenteditable="true"]')) return false;
+                return el.matches(
+                    'button, .btn, .climb-row-open, .catalog-row-open, .climb-detail-photo-mount, '
+                    + '.climb-detail-log-row, .climb-log-add-btn, .action-btn, .zoom-controls button'
+                ) || !!el.closest?.('[role="button"]');
+            };
+            document.addEventListener('pointerup', (e) => {
+                if (e.pointerType === 'mouse') return;
+                const hit = e.target?.closest?.(
+                    'button, .climb-row-open, .catalog-row-open, .climb-detail-photo-mount, '
+                    + '.climb-detail-log-row, .climb-log-add-btn, .action-btn, [role="button"]'
+                );
+                if (!hit) return;
+                requestAnimationFrame(() => {
+                    const active = document.activeElement;
+                    if (active && isBlurTarget(active)) active.blur();
+                });
+            }, { capture: true, passive: true });
+        }
+
         function bindPreventHorizontalPageShift() {
             if (window.__HORIZONTAL_SHIFT_GUARD_BOUND) return;
             window.__HORIZONTAL_SHIFT_GUARD_BOUND = true;
@@ -4179,6 +4210,7 @@
             let lastTapY = 0;
 
             const beginGesture = () => {
+                blurStickyControlFocus();
                 wrap.classList.add('is-photo-gesturing');
                 wrap.classList.remove('is-photo-snap');
             };
@@ -17011,6 +17043,7 @@
             await clearServiceWorkers();
             const hadLocalCatalog = bootstrapCatalogFromStorage();
             bindPreventHorizontalPageShift();
+            bindBlurControlFocusAfterTap();
             bootTelegramShell();
             window.app = new ClimbingApp();
             bootTelegramShell();

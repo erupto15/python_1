@@ -102,6 +102,23 @@
             touch-action: pan-y pinch-zoom;
         }
 
+        /* WebView/Android: после тапа не держим красный outline (--primary-color) на кнопках */
+        html.tg-mini-app button:focus:not(:focus-visible),
+        html.tg-mini-app [role="button"]:focus:not(:focus-visible),
+        html.standalone-app button:focus:not(:focus-visible),
+        html.standalone-app [role="button"]:focus:not(:focus-visible),
+        .climb-detail-photo-mount:focus:not(:focus-visible),
+        .climb-detail-log-row:focus:not(:focus-visible),
+        .photo-wrap:focus:not(:focus-visible) {
+            outline: none !important;
+            box-shadow: none;
+        }
+
+        .photo-wrap.is-photo-gesturing,
+        .photo-wrap.is-photo-gesturing * {
+            -webkit-tap-highlight-color: transparent !important;
+        }
+
         /* Базовые стили */
         * {
             margin: 0;
@@ -1203,6 +1220,7 @@
         .catalog-climb-row {
             touch-action: manipulation;
             cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .climb-row-open {
@@ -1220,11 +1238,15 @@
             text-align: left;
             cursor: pointer;
             touch-action: manipulation;
-            -webkit-tap-highlight-color: rgba(93, 156, 255, 0.15);
+            -webkit-tap-highlight-color: transparent;
         }
 
         .climb-row-open:focus {
-            outline: 2px solid var(--primary-color);
+            outline: none;
+        }
+
+        .climb-row-open:focus-visible {
+            outline: 2px solid color-mix(in srgb, var(--tg-blue) 75%, transparent);
             outline-offset: 2px;
         }
 
@@ -2534,7 +2556,11 @@
         }
 
         .catalog-row-open:focus {
-            outline: 2px solid var(--primary-color);
+            outline: none;
+        }
+
+        .catalog-row-open:focus-visible {
+            outline: 2px solid color-mix(in srgb, var(--tg-blue) 75%, transparent);
             outline-offset: -2px;
         }
 
@@ -2732,9 +2758,14 @@
             line-height: 1;
             cursor: pointer;
             touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
             display: inline-flex;
             align-items: center;
             justify-content: center;
+        }
+
+        .zoom-controls button:focus:not(:focus-visible) {
+            outline: none;
         }
 
         .zoom-controls button .btn-glyph {
