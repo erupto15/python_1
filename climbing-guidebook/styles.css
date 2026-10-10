@@ -806,6 +806,42 @@
             margin-top: 4px;
         }
 
+        .catalog-nav-back {
+            margin: 0 0 10px;
+        }
+
+        html.catalog-sector-focus #catalog .catalog-nav-back {
+            padding: 0 12px;
+            margin-top: 4px;
+        }
+
+        html.catalog-assistant-search-open #catalog .catalog-nav-back {
+            display: block !important;
+            padding: 0 4px;
+            margin-bottom: 8px;
+        }
+
+        .dialog-header--with-back {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 8px 10px;
+        }
+
+        .dialog-header--with-back .overlay-screen-back {
+            flex: 0 0 auto;
+        }
+
+        .dialog-header--with-back .dialog-header-text {
+            flex: 1 1 12rem;
+            min-width: 0;
+        }
+
+        .dialog-header--with-back .dialog-header-actions {
+            flex: 0 0 auto;
+            margin-left: auto;
+        }
+
         .card-title {
             font-family: var(--ui-font);
             font-size: 1.35rem;

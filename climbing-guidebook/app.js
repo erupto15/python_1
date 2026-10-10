@@ -425,13 +425,15 @@
 
             const globalResults = document.getElementById('globalSearchResults');
             const catalogResults = document.getElementById('catalogSearchResults');
-            const searchOpen = (globalResults && !globalResults.classList.contains('hidden'))
+            const assistantSearch = document.documentElement.classList.contains('catalog-assistant-search-open');
+            const searchOpen = assistantSearch
+                || (globalResults && !globalResults.classList.contains('hidden'))
                 || (catalogResults && !catalogResults.classList.contains('hidden'));
             if (searchOpen) {
-                globalResults?.classList.add('hidden');
-                catalogResults?.classList.add('hidden');
+                window.app?.clearAllSearchDropdowns?.({ refreshCatalog: true });
                 document.getElementById('globalSearch')?.blur();
                 document.getElementById('catalogSearch')?.blur();
+                if (typeof window.syncTelegramMiniAppUi === 'function') window.syncTelegramMiniAppUi();
                 return true;
             }
 
@@ -605,6 +607,8 @@
             if (dialogOpen) {
                 tg.BackButton.show();
             } else if (overlayTab) {
+                tg.BackButton.show();
+            } else if (document.documentElement.classList.contains('catalog-assistant-search-open')) {
                 tg.BackButton.show();
             } else if (app && app.catalog && app.catalog.view !== 'areas') {
                 tg.BackButton.show();
@@ -10442,6 +10446,36 @@
                 }
             }
 
+            updateCatalogNavBack(areas, sectors) {
+                const bar = document.getElementById('catalogNavBack');
+                if (!bar) return;
+                const view = this.catalog?.view || 'areas';
+                if (view === 'areas') {
+                    bar.classList.add('hidden');
+                    bar.innerHTML = '';
+                    return;
+                }
+                let backAct = '';
+                let backId = '';
+                let label = 'Назад';
+                if (view === 'sectors') {
+                    backAct = 'nav-areas';
+                    label = 'Районы';
+                } else if (view === 'problems') {
+                    backAct = 'nav-area';
+                    const areaId = Number(this.catalog?.areaId);
+                    const area = (areas || getAreas()).find((a) => Number(a.id) === areaId);
+                    backId = Number.isFinite(areaId) ? String(areaId) : '';
+                    const sector = (sectors || getSectors()).find((s) => Number(s.id) === Number(this.catalog?.sectorId));
+                    label = area?.name || sector?.name || 'Секторы';
+                }
+                bar.classList.remove('hidden');
+                bar.innerHTML = `
+                    <button type="button" class="catalog-screen-back btn btn-ghost btn-small" data-catalog-act="${backAct}"${backId ? ` data-id="${backId}"` : ''} aria-label="Назад: ${this.escapeHtml(label)}">
+                        <i class="fas fa-arrow-left" aria-hidden="true"></i> ${this.escapeHtml(label)}
+                    </button>`;
+            }
+
             renderCatalogGuideHero(kind, entity) {
                 const hero = document.getElementById('catalogGuideHero');
                 if (!hero) return;
@@ -10489,10 +10523,6 @@
                         : (APP_BOULDER_ONLY
                             ? `${boulders.length} боулдеров`
                             : `${routes.length} трасс · ${boulders.length} боулдеров`);
-                    const backAct = areaFocus ? 'nav-areas' : 'nav-area';
-                    const backLabel = areaFocus ? 'Районы' : (area?.name || 'Секторы');
-                    const backDataId = areaFocus ? '' : ` data-id="${Number(this.catalog?.areaId)}"`;
-                    const catalogBackBtn = `<button type="button" class="catalog-screen-back btn btn-ghost btn-small" data-catalog-act="${backAct}"${backDataId} aria-label="Назад: ${this.escapeHtml(backLabel)}"><i class="fas fa-arrow-left" aria-hidden="true"></i> ${this.escapeHtml(backLabel)}</button>`;
                     let compactActions = '';
                     if (areaFocus && entity?.id != null) {
                         compactActions = `<div class="catalog-guide-actions catalog-guide-actions--compact">
@@ -10517,7 +10547,6 @@
                     hero.classList.add('catalog-guide-hero--sector-focus');
                     hero.innerHTML = `
                     ${heroImage}
-                    <div class="catalog-guide-back-row">${catalogBackBtn}</div>
                     <div class="catalog-guide-head catalog-guide-head--compact">
                         <div>
                             <div class="catalog-guide-kicker">${this.escapeHtml(kicker)}</div>
@@ -10754,15 +10783,13 @@
             }
 
             clearGlobalSearchInput() {
-                this.clearAllSearchDropdowns({ clearInput: true });
+                this.clearAllSearchDropdowns({ clearInput: true, refreshCatalog: true });
                 this.getSearchInput('global')?.focus();
-                this.renderCatalog();
             }
 
             clearCatalogSearchInput() {
-                this.clearAllSearchDropdowns({ clearInput: true });
+                this.clearAllSearchDropdowns({ clearInput: true, refreshCatalog: true });
                 this.getSearchInput('catalog')?.focus();
-                this.renderCatalog();
             }
 
             getCatalogLocalSearchTerm() {
@@ -11212,6 +11239,7 @@
                 const areas = getAreas();
                 const sectors = getSectors();
                 const catalogTerm = this.getCatalogLocalSearchTerm();
+                this.updateCatalogNavBack(areas, sectors);
 
                 try {
                 if (this.catalog.view === 'areas') {
@@ -11279,7 +11307,7 @@
                         hero.innerHTML = '';
                     }
                     bc.innerHTML = area
-                        ? `<button type="button" class="linkish catalog-screen-back" data-catalog-act="nav-areas" aria-label="Назад к списку районов"><i class="fas fa-arrow-left" aria-hidden="true"></i> Районы</button>`
+                        ? `<span><strong>${this.escapeHtml(area.name)}</strong></span>`
                         : '';
                     tb.innerHTML = this.isAdmin() ? `
                         <button type="button" class="btn btn-primary" data-catalog-act="add-sector" data-id="${this.catalog.areaId}">
@@ -11319,7 +11347,9 @@
                     const area = areas.find(a => Number(a.id) === Number(this.catalog.areaId));
                     const sector = sectors.find(s => Number(s.id) === Number(this.catalog.sectorId));
                     this.renderCatalogGuideHero('sector', sector);
-                    bc.innerHTML = '';
+                    bc.innerHTML = sector
+                        ? `<span><strong>${this.escapeHtml(sector.name)}</strong>${area ? ` · ${this.escapeHtml(area.name)}` : ''}</span>`
+                        : '';
                     tb.innerHTML = this.isAdmin() ? `
                         ${APP_BOULDER_ONLY ? '' : `<button type="button" class="btn btn-primary" data-catalog-act="add-route" data-id="${this.catalog.sectorId}">
                             <i class="fas fa-plus"></i> Добавить трассу
@@ -11477,10 +11507,12 @@
                         if (id != null) void this.downloadAreaGuidePdf(id);
                     }
                     if (action === 'nav-areas') {
+                        this.clearAllSearchDropdowns();
                         this.catalog = { view: 'areas', areaId: null, sectorId: null };
                         this.renderCatalog();
                     }
                     if (action === 'nav-area') {
+                        this.clearAllSearchDropdowns();
                         this.catalog = { view: 'sectors', areaId: id, sectorId: null };
                         this.renderCatalog();
                     }
@@ -13031,8 +13063,12 @@
                     if (e.target && e.target.closest && e.target.closest('.grade-picker')) return;
                     if (e.target && e.target.closest && e.target.closest('.global-search-wrap')) return;
                     if (e.target && e.target.closest && e.target.closest('.catalog-card-search')) return;
-                    this.getSearchResultsBox('global')?.classList.add('hidden');
-                    this.getSearchResultsBox('catalog')?.classList.add('hidden');
+                    const dropdownVisible = !this.getSearchResultsBox('global')?.classList.contains('hidden')
+                        || !this.getSearchResultsBox('catalog')?.classList.contains('hidden')
+                        || document.documentElement.classList.contains('catalog-assistant-search-open');
+                    if (dropdownVisible) {
+                        this.clearAllSearchDropdowns({ refreshCatalog: true });
+                    }
                     this._closeAllGradePickers();
                 });
                 document.addEventListener('keydown', (e) => {
@@ -13041,8 +13077,12 @@
                             e.preventDefault();
                             return;
                         }
-                        this.getSearchResultsBox('global')?.classList.add('hidden');
-                        this.getSearchResultsBox('catalog')?.classList.add('hidden');
+                        const dropdownVisible = !this.getSearchResultsBox('global')?.classList.contains('hidden')
+                            || !this.getSearchResultsBox('catalog')?.classList.contains('hidden')
+                            || document.documentElement.classList.contains('catalog-assistant-search-open');
+                        if (dropdownVisible) {
+                            this.clearAllSearchDropdowns({ refreshCatalog: true });
+                        }
                         this._closeAllGradePickers();
                     }
                 });

@@ -345,6 +345,7 @@
                     </div>
                     <div class="global-search-results hidden" id="catalogSearchResults" role="listbox" aria-label="Результаты поиска"></div>
                 </div>
+                <div id="catalogNavBack" class="catalog-nav-back hidden" role="navigation" aria-label="Назад по каталогу"></div>
                 <div id="appDataStatus" class="app-data-status hidden" role="status" aria-live="polite"></div>
                 <div class="catalog-breadcrumb" id="catalogBreadcrumb"></div>
                 <div class="catalog-toolbar" id="catalogToolbar"></div>
@@ -1024,7 +1025,8 @@
     <!-- Просмотр трассы / боулдеринга: фото и описание -->
     <div class="dialog-overlay hidden" id="climbDetailDialog" style="z-index: 998;">
         <div class="dialog-content">
-            <div class="dialog-header">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="climbDetailBackBtn" data-close-dialog="climbDetailDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                 <div class="dialog-header-text">
                     <div class="dialog-title" id="climbDetailTitle">—</div>
                     <div class="dialog-subtitle" id="climbDetailMeta"></div>
