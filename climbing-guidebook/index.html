@@ -1021,14 +1021,11 @@
     <!-- Просмотр трассы / боулдеринга: фото и описание -->
     <div class="dialog-overlay hidden" id="climbDetailDialog" style="z-index: 998;">
         <div class="dialog-content">
-            <div class="dialog-header dialog-header--with-back">
-                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="climbDetailBackBtn" data-close-dialog="climbDetailDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
+            <div class="dialog-header dialog-header--with-back dialog-header--climb-detail">
+                <button type="button" class="dialog-close-btn dialog-close-btn--back dialog-close-btn--icon-only" id="climbDetailBackBtn" data-close-dialog="climbDetailDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i></button>
                 <div class="dialog-header-text">
                     <div class="dialog-title" id="climbDetailTitle">—</div>
                     <div class="dialog-subtitle" id="climbDetailMeta"></div>
-                </div>
-                <div class="dialog-header-actions">
-                    <button type="button" class="dialog-close-btn" id="closeClimbDetailDialogBtn" data-close-dialog="climbDetailDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
                 </div>
             </div>
             <div class="dialog-body">

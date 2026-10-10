@@ -97,7 +97,7 @@
             sectorDialog: 'closeSectorDialogBtn',
             quickRouteDialog: 'closeQuickRouteDialogBtn',
             quickBoulderDialog: 'closeQuickBoulderDialogBtn',
-            climbDetailDialog: 'closeClimbDetailDialogBtn',
+            climbDetailDialog: 'climbDetailBackBtn',
             climbLogDialog: 'closeClimbLogDialogBtn',
             routeLineMarkupDialog: 'closeRouteLineMarkupDialogBtn',
             boulderHoldsMarkupDialog: 'closeBoulderHoldsMarkupDialogBtn',
