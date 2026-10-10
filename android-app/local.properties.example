@@ -1,0 +1,10 @@
+# Скопируйте в local.properties (файл в .gitignore).
+# Данные из кабинета VK ID (RuStore → Инструменты → Авторизация VK ID → кабинет VK ID).
+
+sdk.dir=/path/to/Android/sdk
+
+VKIDClientID=12345678
+VKIDClientSecret=your_client_secret
+
+# На сервере гайда задайте тот же client_id:
+# VK_ID_CLIENT_ID=12345678

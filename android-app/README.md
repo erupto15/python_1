@@ -29,7 +29,16 @@ cd android-app && ./gradlew assembleDebug
 | **Фото** | IndexedDB (`hydrateCatalogPhotosFromIndexedDb`) — превью топо после первого онлайн-просмотра. |
 | **Исходящие действия** | `climbingApp_sync_outbox_v1` — очередь POST/PATCH при «офлайне»; `flushOfflineOutbox()` при `online` и возврате в приложение. |
 | **Android-режим** | `?app=android` → `CLIMBING_STANDALONE`: без Telegram SDK; `shouldTrustOfflineHint()` не доверяет ложному `navigator.onLine` в WebView. |
+| **Вход VK ID (RuStore)** | В «Профиль» — **Войти через VK ID** (нативный SDK). Токен отправляется на `POST /api/auth/vk-id`. Нужны `VKIDClientID` / `VKIDClientSecret` в `android-app/local.properties` и `VK_ID_CLIENT_ID` на сервере. |
 | **Вход Telegram** | В «Профиль» — **deep link** `t.me/бот?start=login_…` (без oauth.telegram.org / VPN). APK опрашивает `GET /api/auth/telegram-deeplink`. WebView открывает `t.me` во внешнем Telegram. |
+
+### RuStore: настройка VK ID
+
+1. [RuStore Консоль](https://console.rustore.ru/) → **Инструменты** → приложение → **Авторизация VK ID** → перейти в кабинет VK ID.
+2. Создайте приложение Android: пакет **`io.sixa9a.guide`**, SHA-256 подписи APK (для sideload — debug keystore: `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`).
+3. Скопируйте **ID приложения** и **защищённый ключ** в `android-app/local.properties` (`VKIDClientID`, `VKIDClientSecret`).
+4. На сервере гайда: переменная **`VK_ID_CLIENT_ID`** (тот же ID).
+5. Соберите APK: `./scripts/build-android-apk.sh`.
 
 ### Рекомендуемый сценарий для пользователя
 

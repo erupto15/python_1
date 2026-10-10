@@ -1,3 +1,26 @@
 plugins {
     id 'com.android.application' version '8.5.2' apply false
+    id 'org.jetbrains.kotlin.android' version '1.9.24' apply false
+    id 'vkid.manifest.placeholders' version '1.1.0' apply true
+}
+
+def vkProps = new Properties()
+def vkLocal = rootProject.file('local.properties')
+if (vkLocal.exists()) {
+    vkLocal.withInputStream { vkProps.load(it) }
+}
+
+def vkClientId = (vkProps.getProperty('VKIDClientID') ?: '0').trim()
+def vkClientSecret = (vkProps.getProperty('VKIDClientSecret') ?: 'vkid-build-placeholder').trim()
+
+vkidManifestPlaceholders {
+    init(vkClientId, vkClientSecret)
+}
+
+subprojects {
+    configurations.configureEach {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module('com.vk.id:tracking-tracer:2.7.3')).using(module('com.vk.id:tracking-noop:2.7.3'))
+        }
+    }
 }

@@ -51,6 +51,7 @@ public class MainActivity extends AppCompatActivity {
 
         webView = new WebView(this);
         setContentView(webView);
+        webView.addJavascriptInterface(new GuideAndroidBridge(this, webView), "GuideAndroidBridge");
 
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);

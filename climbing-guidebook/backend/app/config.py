@@ -148,6 +148,8 @@ class Settings(BaseSettings):
     telegram_bot_username: str = ""
     telegram_auth_max_age_sec: int = 86400
     telegram_webhook_secret: str = ""
+    # VK ID (RuStore APK): client_id из кабинета VK ID — для проверки access_token на /auth/vk-id
+    vk_id_client_id: str = ""
     public_url: str = ""
 
     # Медиа-хранилище (фото/видео к маршрутам и вложения комментариев)

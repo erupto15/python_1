@@ -17,6 +17,7 @@ from app.services.telegram_deeplink_auth import (
     get_apk_login_session,
 )
 from app.services.telegram_user import upsert_telegram_user
+from app.services import vk_user as vk_user_service
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -86,6 +87,29 @@ def login_telegram_widget(payload: schemas.TelegramLoginWidgetAuthRequest, db: S
     """Вход через Telegram Login Widget (Android APK, браузер)."""
     tg_user = validate_login_widget(payload.model_dump())
     return _telegram_login_response(db, tg_user)
+
+
+@router.post("/vk-id", response_model=schemas.Token)
+def login_vk_id(payload: schemas.VkIdAuthRequest, db: Session = Depends(get_db)) -> dict:
+    """Вход через VK ID SDK (Android APK / RuStore)."""
+    try:
+        vk_profile = vk_user_service.fetch_vk_user_info(payload.access_token)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="VK ID user_info request failed",
+        ) from exc
+    user = vk_user_service.upsert_vk_user(db, vk_profile)
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive")
+    token = security.create_access_token(user.id)
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": schemas.UserRead.model_validate(user),
+    }
 
 
 @router.post("/telegram-deeplink", response_model=schemas.TelegramDeeplinkStartResponse)

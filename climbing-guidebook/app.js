@@ -3665,9 +3665,18 @@
 
         function authTelegramGateMessage() {
             if (isStandaloneShell()) {
-                return 'Войдите через Telegram в разделе «Профиль»';
+                return 'Войдите через VK ID или Telegram в разделе «Профиль»';
             }
             return 'Войдите через Telegram Mini App';
+        }
+
+        function isStandaloneVkIdBridgeAvailable() {
+            try {
+                const bridge = window.GuideAndroidBridge;
+                return !!(bridge && bridge.isVkIdLoginAvailable && bridge.isVkIdLoginAvailable());
+            } catch (_) {
+                return false;
+            }
         }
 
         /** WebView (MIUI и др.) часто ошибочно сообщает navigator.onLine === false при рабочей сети. */
@@ -5991,7 +6000,7 @@
 
             isTelegramUser() {
                 const em = String(this.getCurrentUser()?.email || '').toLowerCase();
-                return em.endsWith('@telegram.local');
+                return em.endsWith('@telegram.local') || em.endsWith('@vk.local');
             }
 
             async tryTelegramLogin() {
@@ -6155,7 +6164,58 @@
                 document.getElementById('profileGuestHintMiniApp')?.classList.add('hidden');
                 document.getElementById('profileGuestHintStandalone')?.classList.remove('hidden');
                 document.getElementById('profileTelegramDeeplinkBtn')?.classList.remove('hidden');
+                if (isStandaloneVkIdBridgeAvailable()) {
+                    document.getElementById('profileVkIdBtn')?.classList.remove('hidden');
+                }
                 document.getElementById('telegramLoginWidgetMount')?.classList.add('hidden');
+            }
+
+            async completeStandaloneVkIdLogin(accessToken) {
+                if (!isStandaloneShell()) return;
+                const token = String(accessToken || '').trim();
+                if (!token) {
+                    throw new Error('Пустой токен VK ID');
+                }
+                const statusEl = document.getElementById('profileTelegramDeeplinkStatus');
+                const vkBtn = document.getElementById('profileVkIdBtn');
+                const tgBtn = document.getElementById('profileTelegramDeeplinkBtn');
+                if (vkBtn) vkBtn.disabled = true;
+                if (tgBtn) tgBtn.disabled = true;
+                if (statusEl) {
+                    statusEl.classList.remove('hidden');
+                    statusEl.textContent = 'Проверяем вход VK ID…';
+                }
+                try {
+                    const tokenData = await apiFetch('/api/auth/vk-id', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ access_token: token }),
+                        timeoutMs: 25000
+                    });
+                    await this.applyTelegramAuthTokenData(tokenData);
+                    await this.renderProfileTab();
+                    this.showToast('Вход через VK ID выполнен');
+                    if (statusEl) statusEl.classList.add('hidden');
+                } catch (err) {
+                    const msg = err?.message || 'Не удалось войти через VK ID';
+                    if (statusEl) statusEl.textContent = msg;
+                    this.showToast(msg, true);
+                } finally {
+                    if (vkBtn) vkBtn.disabled = false;
+                    if (tgBtn) tgBtn.disabled = false;
+                }
+            }
+
+            startStandaloneVkIdLogin() {
+                if (!isStandaloneShell() || !isStandaloneVkIdBridgeAvailable()) {
+                    this.showToast('VK ID доступен только в APK с настроенным client_id', true);
+                    return;
+                }
+                try {
+                    window.GuideAndroidBridge.startVkIdLogin();
+                } catch (err) {
+                    this.showToast(err?.message || 'Не удалось открыть VK ID', true);
+                }
             }
 
             logoutTelegramSession() {
@@ -15624,6 +15684,9 @@
                 document.getElementById('profileTelegramDeeplinkBtn')?.addEventListener('click', () => {
                     void this.startStandaloneTelegramDeeplinkLogin();
                 });
+                document.getElementById('profileVkIdBtn')?.addEventListener('click', () => {
+                    this.startStandaloneVkIdLogin();
+                });
                 document.getElementById('hideSentRoutes')?.addEventListener('change', () => this.renderRoutes());
                 document.getElementById('hideSentBoulders')?.addEventListener('change', () => this.renderBoulders());
             }
@@ -17227,6 +17290,19 @@
                 void ensureLeafletLoaded().catch(() => {});
             }
         }
+
+        window.__guidebookHandleVkIdAccessToken = (token) => {
+            void window.app?.completeStandaloneVkIdLogin?.(token).catch((err) => {
+                window.app?.showToast?.(err?.message || 'Ошибка входа VK ID', true);
+            });
+        };
+        window.__guidebookHandleVkIdAccessTokenError = (message) => {
+            const statusEl = document.getElementById('profileTelegramDeeplinkStatus');
+            if (statusEl) {
+                statusEl.classList.remove('hidden');
+                statusEl.textContent = String(message || 'Вход VK ID отменён');
+            }
+        };
 
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => { void bootClimbingApp(); });

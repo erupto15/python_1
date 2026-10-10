@@ -6,6 +6,10 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
+class VkIdAuthRequest(BaseModel):
+    access_token: str = Field(min_length=16, max_length=4096)
+
+
 class TelegramAuthRequest(BaseModel):
     init_data: str = Field(min_length=1)
 

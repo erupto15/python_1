@@ -593,10 +593,11 @@
                     <div class="card-title"><i class="fas fa-user-circle"></i> Профиль</div>
                 </div>
                 <div id="profileGuestBlock" class="empty-state">
-                    <h3>Войдите через Telegram</h3>
+                    <h3>Войдите в аккаунт</h3>
                     <p id="profileGuestHintMiniApp">Откройте гайдбук как Mini App в Telegram — тогда можно логировать пролазы и ставить оценки.</p>
-                    <p id="profileGuestHintStandalone" class="hidden">Вход через приложение Telegram (без VPN). Каталог можно смотреть офлайн; для синхронизации пролазов нужен доступ к серверу гайда <strong>без VPN</strong>.</p>
-                    <button type="button" class="btn btn-primary profile-telegram-deeplink-btn hidden" id="profileTelegramDeeplinkBtn">Войти через Telegram</button>
+                    <p id="profileGuestHintStandalone" class="hidden">В APK: вход через <strong>VK ID</strong> (рекомендуется для RuStore) или Telegram. Каталог можно смотреть офлайн; для синхронизации пролазов нужен доступ к серверу гайда <strong>без VPN</strong>.</p>
+                    <button type="button" class="btn btn-primary profile-vkid-btn hidden" id="profileVkIdBtn">Войти через VK ID</button>
+                    <button type="button" class="btn btn-secondary profile-telegram-deeplink-btn hidden" id="profileTelegramDeeplinkBtn">Войти через Telegram</button>
                     <p id="profileTelegramDeeplinkStatus" class="profile-login-hint hidden" aria-live="polite"></p>
                     <div id="telegramLoginWidgetMount" class="profile-telegram-login hidden" aria-live="polite"></div>
                 </div>
@@ -1022,7 +1023,7 @@
     <div class="dialog-overlay hidden" id="climbDetailDialog" style="z-index: 998;">
         <div class="dialog-content">
             <div class="dialog-header dialog-header--with-back dialog-header--climb-detail">
-                <button type="button" class="dialog-close-btn dialog-close-btn--back dialog-close-btn--icon-only" id="climbDetailBackBtn" data-close-dialog="climbDetailDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i></button>
+                <button type="button" class="guide-back-chevron-btn" id="climbDetailBackBtn" data-close-dialog="climbDetailDialog" aria-label="Назад"></button>
                 <div class="dialog-header-text">
                     <div class="dialog-title" id="climbDetailTitle">—</div>
                     <div class="dialog-subtitle" id="climbDetailMeta"></div>
