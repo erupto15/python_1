@@ -2026,13 +2026,36 @@
             margin: 0 0 12px;
         }
 
+        .catalog-card-search {
+            position: relative;
+            z-index: 20;
+        }
+
         .catalog-card-search .global-search-results {
             position: relative;
             left: auto;
             right: auto;
             top: auto;
-            margin-top: 6px;
-            max-height: min(52vh, 420px);
+            margin-top: 8px;
+            max-height: min(62vh, 520px);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            background: var(--card-bg);
+            isolation: isolate;
+        }
+
+        /* Умный поиск (≥2 символа): только dropdown, без параллельного списка каталога под ним */
+        html.catalog-assistant-search-open #catalogList,
+        html.catalog-assistant-search-open #catalog .catalog-breadcrumb,
+        html.catalog-assistant-search-open #catalog .catalog-toolbar,
+        html.catalog-assistant-search-open #catalog .catalog-guide-hero,
+        html.catalog-assistant-search-open #catalog .catalog-map-block,
+        html.catalog-assistant-search-open #catalog > .card > .card-header {
+            display: none !important;
+        }
+
+        html.catalog-assistant-search-open #catalog .catalog-card-search {
+            margin-bottom: 0;
         }
 
         .ranking-card-search {

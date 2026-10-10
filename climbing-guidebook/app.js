@@ -10718,11 +10718,19 @@
                 }
             }
 
-            clearAllSearchDropdowns({ clearInput = false } = {}) {
+            setCatalogAssistantSearchOpen(active) {
+                document.documentElement.classList.toggle('catalog-assistant-search-open', !!active);
+            }
+
+            clearAllSearchDropdowns({ clearInput = false, refreshCatalog = false } = {}) {
                 this.clearSearchDropdown({ clearInput, which: 'global' });
                 this.clearSearchDropdown({ clearInput, which: 'catalog' });
+                this.setCatalogAssistantSearchOpen(false);
                 if (clearInput) {
                     this.syncLinkedSearchInputs('global');
+                }
+                if (refreshCatalog) {
+                    this.renderCatalog();
                 }
             }
 
@@ -10758,6 +10766,9 @@
             }
 
             getCatalogLocalSearchTerm() {
+                if (document.documentElement.classList.contains('catalog-assistant-search-open')) {
+                    return '';
+                }
                 const catalog = String(this.getSearchInput('catalog')?.value || '').trim().toLowerCase();
                 if (catalog) return catalog;
                 return String(this.getSearchInput('global')?.value || '').trim().toLowerCase();
@@ -10837,10 +10848,10 @@
                 const which = this.resolveActiveSearchWhich(preferredWhich);
                 const query = String(this.getSearchInput(which)?.value || '').trim();
                 if (query.length < 2) {
-                    this.clearAllSearchDropdowns();
-                    this.renderCatalog();
+                    this.clearAllSearchDropdowns({ refreshCatalog: true });
                     return;
                 }
+                this.setCatalogAssistantSearchOpen(true);
                 this.renderSearchDropdown(this.getSearchInput(which), this.getSearchResultsBox(which));
                 const other = which === 'catalog' ? 'global' : 'catalog';
                 const otherBox = this.getSearchResultsBox(other);
@@ -10848,7 +10859,6 @@
                     otherBox.classList.add('hidden');
                     otherBox.innerHTML = '';
                 }
-                this.renderCatalog();
             }
 
             async submitSearch(which = 'global') {
