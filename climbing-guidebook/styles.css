@@ -2557,8 +2557,47 @@
             background:
                 linear-gradient(135deg, var(--accent-soft), rgba(34, 184, 168, 0.08)),
                 var(--card-bg);
-            color: color-mix(in srgb, var(--primary-color) 72%, var(--text-color));
-            font-size: 38px;
+            color: var(--text-color);
+        }
+
+        .area-district-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 0;
+            color: var(--text-color);
+        }
+
+        .area-district-icon svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .area-district-icon-hole {
+            fill: var(--card-bg);
+        }
+
+        .catalog-area-card-image--placeholder .area-district-icon--card {
+            width: 72px;
+            height: 80px;
+            opacity: 0.94;
+        }
+
+        .global-search-kind .area-district-icon--search {
+            width: 22px;
+            height: 24px;
+            margin-right: 4px;
+            vertical-align: -5px;
+        }
+
+        .updates-feed-icon .area-district-icon--feed {
+            width: 28px;
+            height: 32px;
+        }
+
+        .map-area-droplet .area-district-icon-hole {
+            fill: #fff;
         }
 
         .catalog-area-card .catalog-row-open.catalog-area-card-open {
