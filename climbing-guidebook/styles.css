@@ -274,10 +274,13 @@
             margin-top: 14px;
         }
 
-        /* На вкладке «Районы» достаточно поиска в карточке каталога — не дублируем поле в шапке */
-        html.tg-mini-app:has(#catalog.tab-content.active) header .global-search-wrap,
-        html.standalone-app:has(#catalog.tab-content.active) header .global-search-wrap {
-            display: none;
+        /* На вкладке «Районы» — один поиск (в карточке), без дубля в шапке и заголовка карточки */
+        html.catalog-tab-active header .global-search-wrap {
+            display: none !important;
+        }
+
+        html.catalog-tab-active:not(.catalog-sector-focus):not(.catalog-assistant-search-open) #catalog > .card > .card-header {
+            display: none !important;
         }
 
         .header-search-auth {
@@ -482,10 +485,15 @@
         .global-search-kind {
             grid-row: span 2;
             align-self: center;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
             padding: 4px 8px;
             border-radius: 999px;
             background: var(--accent-soft);
-            color: var(--primary-color);
+            color: var(--text-color);
             font-size: 11px;
             font-weight: 700;
             letter-spacing: 0.02em;

@@ -596,6 +596,11 @@
             window.syncTelegramWebAppButtons(null);
         };
 
+        window.syncMainTabChrome = function syncMainTabChrome() {
+            const catalogActive = !!document.getElementById('catalog')?.classList.contains('active');
+            document.documentElement.classList.toggle('catalog-tab-active', catalogActive);
+        };
+
         window.syncTelegramMiniAppUi = function syncTelegramMiniAppUi() {
             const tg = window.getTelegramWebApp();
             if (!tg || !tg.BackButton) return;
@@ -618,6 +623,9 @@
             window.syncTelegramWebAppButtons();
         };
 
+        if (typeof window.syncMainTabChrome === 'function') {
+            window.syncMainTabChrome();
+        }
         if (window.isTelegramMiniApp()) {
             window.syncTelegramWebAppButtons();
             window.syncTelegramMiniAppUi();
@@ -10641,6 +10649,7 @@
                 document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
                 document.getElementById('profile')?.classList.add('active');
                 void this.renderProfileTab();
+                if (typeof window.syncMainTabChrome === 'function') window.syncMainTabChrome();
                 if (typeof window.syncTelegramMiniAppUi === 'function') {
                     window.syncTelegramMiniAppUi();
                 }
@@ -10652,6 +10661,7 @@
                 document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
                 document.getElementById('ranking')?.classList.add('active');
                 void this.renderRankingTab();
+                if (typeof window.syncMainTabChrome === 'function') window.syncMainTabChrome();
                 if (typeof window.syncTelegramMiniAppUi === 'function') {
                     window.syncTelegramMiniAppUi();
                 }
@@ -12709,6 +12719,9 @@
                                 this.renderUpdatesTab();
                             } else if (tabId === 'ranking') {
                                 void this.renderRankingTab();
+                            }
+                            if (typeof window.syncMainTabChrome === 'function') {
+                                window.syncMainTabChrome();
                             }
                             if (typeof window.syncTelegramMiniAppUi === 'function') {
                                 window.syncTelegramMiniAppUi();
@@ -17154,6 +17167,9 @@
                 setAppDataStatus('loading', 'Загрузка каталога…');
             }
             void bootstrapRemoteCatalog(hadLocalCatalog);
+            if (typeof window.syncMainTabChrome === 'function') {
+                window.syncMainTabChrome();
+            }
             if (navigator.onLine !== false) {
                 void ensureLeafletLoaded().catch(() => {});
             }
