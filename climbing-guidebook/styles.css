@@ -2718,6 +2718,30 @@
             flex-shrink: 0;
         }
 
+        .catalog-route-nav-btn {
+            align-self: center;
+            padding: 10px 12px;
+            line-height: 0;
+            min-width: 48px;
+            min-height: 48px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .catalog-route-nav-icon {
+            display: block;
+            width: 34px;
+            height: auto;
+            max-height: 20px;
+            object-fit: contain;
+            pointer-events: none;
+            background: #fff;
+            border-radius: 6px;
+            padding: 4px 6px;
+            box-sizing: content-box;
+        }
+
         .area-photo-preview {
             display: grid;
             grid-template-columns: 96px 1fr;
@@ -5516,6 +5540,11 @@
             align-self: center;
             margin-right: 8px;
             white-space: nowrap;
+        }
+
+        .catalog-area-card > .catalog-route-nav-btn {
+            margin: 0 12px 0 0;
+            align-self: center;
         }
 
         .catalog-map-climb-btn {

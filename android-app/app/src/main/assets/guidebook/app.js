@@ -45,26 +45,22 @@
                     const app = window.app;
                     const canLog = app && app.isLoggedIn && app.isLoggedIn() && app.isTelegramUser && app.isTelegramUser();
                     if (canLog) {
-                        return {
-                            text: 'В логбук',
-                            btnId: 'climbDetailOpenLogBtn'
-                        };
+                        const ctx = app._climbDetailContext;
+                        const alreadySent = ctx
+                            && (app.hasUserSent(ctx.climbType, ctx.climbId)
+                                || app._climbCommunityStats?.my_status === 'send');
+                        const logRow = document.getElementById('climbDetailLogRow');
+                        const logBtn = document.getElementById('climbDetailOpenLogBtn');
+                        const logHidden = !logRow
+                            || logRow.classList.contains('hidden')
+                            || logBtn?.classList.contains('hidden');
+                        if (!logHidden && !alreadySent) {
+                            const logLabel = logRow?.querySelector('.climb-detail-log-row-label');
+                            const text = (logLabel?.textContent || '').trim() || 'Добавить в логбук';
+                            return { text, btnId: 'climbDetailOpenLogBtn' };
+                        }
                     }
-                    const mkBtn = document.getElementById('climbDetailMarkupBtn');
-                    const hasPhoto = mkBtn && mkBtn.style.display !== 'none';
-                    if (!hasPhoto) {
-                        return null;
-                    }
-                    const showSave = hasPhoto;
-                    const adminEdit = !!(app && app.isAdmin && app.isAdmin());
-                    return {
-                        text: adminEdit
-                            ? ((mkBtn.textContent || '').includes('Разметить') ? 'Разметить фото' : 'Изменить разметку')
-                            : 'Схема на фото',
-                        btnId: 'climbDetailMarkupBtn',
-                        secondaryText: showSave ? 'Скачать' : '',
-                        secondaryBtnId: showSave ? 'climbDetailSavePhotoBtn' : ''
-                    };
+                    return null;
                 }
             },
             routeLineMarkupDialog: {
@@ -90,8 +86,9 @@
                 }
             },
             climbLogDialog: {
-                text: 'Записать пролаз',
-                btnId: 'climbTgLogConfirmBtn'
+                resolve() {
+                    return null;
+                }
             }
         };
 
@@ -108,6 +105,37 @@
             profileStylesDialog: 'profileStylesDialogCloseBtn'
         };
 
+        function blurStickyControlFocus() {
+            const el = document.activeElement;
+            if (!el || el === document.body || el === document.documentElement) return;
+            if (el.matches('input, textarea, select, [contenteditable="true"]')) return;
+            if (typeof el.blur === 'function') el.blur();
+        }
+
+        function bindBlurControlFocusAfterTap() {
+            if (window.__blurControlFocusBound) return;
+            window.__blurControlFocusBound = true;
+            const isBlurTarget = (el) => {
+                if (!el || el.matches('input, textarea, select, [contenteditable="true"]')) return false;
+                return el.matches(
+                    'button, .btn, .climb-row-open, .catalog-row-open, .climb-detail-photo-mount, '
+                    + '.climb-detail-log-row, .climb-log-add-btn, .action-btn, .zoom-controls button'
+                ) || !!el.closest?.('[role="button"]');
+            };
+            document.addEventListener('pointerup', (e) => {
+                if (e.pointerType === 'mouse') return;
+                const hit = e.target?.closest?.(
+                    'button, .climb-row-open, .catalog-row-open, .climb-detail-photo-mount, '
+                    + '.climb-detail-log-row, .climb-log-add-btn, .action-btn, [role="button"]'
+                );
+                if (!hit) return;
+                requestAnimationFrame(() => {
+                    const active = document.activeElement;
+                    if (active && isBlurTarget(active)) active.blur();
+                });
+            }, { capture: true, passive: true });
+        }
+
         function bindPreventHorizontalPageShift() {
             if (window.__HORIZONTAL_SHIFT_GUARD_BOUND) return;
             window.__HORIZONTAL_SHIFT_GUARD_BOUND = true;
@@ -119,8 +147,12 @@
                     if (node.closest('.leaflet-container')) return true;
                     if (node.closest(
                         '.tabs, .markup-editor-toolbar, .climb-sends-swipe, .grade-visual-strip, '
-                        + '.catalog-table-wrap, .ranking-table-wrap, .photo-album-grid'
+                        + '.catalog-table-wrap, .ranking-table-wrap, .photo-album-grid, .photo-wrap'
                     )) {
+                        return true;
+                    }
+                    const photoWrap = node.closest('.photo-wrap');
+                    if (photoWrap && typeof isPhotoStageZoomed === 'function' && isPhotoStageZoomed(photoWrap)) {
                         return true;
                     }
                     const style = window.getComputedStyle(node);
@@ -216,12 +248,19 @@
                 }
             }
 
+            let _tgLastViewportHeight = 0;
+            let _tgViewportResizeTimer = null;
             function syncTelegramViewport() {
                 const h = tg.viewportStableHeight || tg.viewportHeight;
-                if (h && h > 0) {
-                    document.documentElement.style.setProperty('--app-height', `${h}px`);
-                }
-                window.dispatchEvent(new Event('resize'));
+                if (!h || h <= 0) return;
+                if (Math.abs(h - _tgLastViewportHeight) < 2) return;
+                _tgLastViewportHeight = h;
+                document.documentElement.style.setProperty('--app-height', `${h}px`);
+                clearTimeout(_tgViewportResizeTimer);
+                _tgViewportResizeTimer = setTimeout(() => {
+                    _tgViewportResizeTimer = null;
+                    window.dispatchEvent(new Event('resize'));
+                }, 100);
             }
 
             tg.ready();
@@ -291,6 +330,11 @@
                 });
             }
 
+            window.syncOpenProfileButtonVisibility?.({
+                telegramUser: window.app?.isTelegramUser?.() || false
+            });
+            window.app?.renderAuthUI?.();
+
         };
 
         window.getTelegramWebApp = function getTelegramWebApp() {
@@ -299,6 +343,23 @@
 
         window.isTelegramMiniApp = function isTelegramMiniApp() {
             return document.documentElement.classList.contains('tg-mini-app');
+        };
+
+        /** Кнопка профиля в Mini App — через CSS; inline display:none от renderAuthUI не должен её гасить. */
+        window.syncOpenProfileButtonVisibility = function syncOpenProfileButtonVisibility(options = {}) {
+            const profileBtn = document.getElementById('openProfileBtn');
+            if (!profileBtn) return;
+            const inTg = window.isTelegramMiniApp?.();
+            const show = inTg || options.telegramUser === true || window.CLIMBING_STANDALONE === true;
+            if (!show) {
+                profileBtn.style.display = 'none';
+                return;
+            }
+            if (inTg) {
+                profileBtn.style.removeProperty('display');
+            } else {
+                profileBtn.style.display = 'inline-flex';
+            }
         };
 
         window.findOpenTelegramDialogId = function findOpenTelegramDialogId() {
@@ -362,14 +423,28 @@
                 return true;
             }
 
-            const searchResults = document.getElementById('globalSearchResults');
-            if (searchResults && !searchResults.classList.contains('hidden')) {
-                searchResults.classList.add('hidden');
+            const globalResults = document.getElementById('globalSearchResults');
+            const catalogResults = document.getElementById('catalogSearchResults');
+            const assistantSearch = document.documentElement.classList.contains('catalog-assistant-search-open');
+            const searchOpen = assistantSearch
+                || (globalResults && !globalResults.classList.contains('hidden'))
+                || (catalogResults && !catalogResults.classList.contains('hidden'));
+            if (searchOpen) {
+                window.app?.clearAllSearchDropdowns?.({ refreshCatalog: true });
                 document.getElementById('globalSearch')?.blur();
+                document.getElementById('catalogSearch')?.blur();
+                if (typeof window.syncTelegramMiniAppUi === 'function') window.syncTelegramMiniAppUi();
                 return true;
             }
 
             const app = window.app;
+            if (app && typeof app.closeOverlayTab === 'function' && app.closeOverlayTab()) {
+                if (typeof window.syncTelegramMiniAppUi === 'function') {
+                    window.syncTelegramMiniAppUi();
+                }
+                return true;
+            }
+
             if (app && app.catalog) {
                 if (app.catalog.view === 'problems') {
                     app.catalog = { view: 'sectors', areaId: app.catalog.areaId, sectorId: null };
@@ -521,12 +596,24 @@
             window.syncTelegramWebAppButtons(null);
         };
 
+        window.syncMainTabChrome = function syncMainTabChrome() {
+            const catalogActive = !!document.getElementById('catalog')?.classList.contains('active');
+            document.documentElement.classList.toggle('catalog-tab-active', catalogActive);
+        };
+
         window.syncTelegramMiniAppUi = function syncTelegramMiniAppUi() {
             const tg = window.getTelegramWebApp();
             if (!tg || !tg.BackButton) return;
             const app = window.app;
             const dialogOpen = !!window.findOpenTelegramDialogId();
+            const overlayTab = app && typeof app.getOpenOverlayTabId === 'function'
+                ? app.getOpenOverlayTabId()
+                : null;
             if (dialogOpen) {
+                tg.BackButton.show();
+            } else if (overlayTab) {
+                tg.BackButton.show();
+            } else if (document.documentElement.classList.contains('catalog-assistant-search-open')) {
                 tg.BackButton.show();
             } else if (app && app.catalog && app.catalog.view !== 'areas') {
                 tg.BackButton.show();
@@ -536,6 +623,9 @@
             window.syncTelegramWebAppButtons();
         };
 
+        if (typeof window.syncMainTabChrome === 'function') {
+            window.syncMainTabChrome();
+        }
         if (window.isTelegramMiniApp()) {
             window.syncTelegramWebAppButtons();
             window.syncTelegramMiniAppUi();
@@ -563,6 +653,22 @@
         /** Трассы / боулдер: icons/map-*-sector-climber.svg (AllClimb-style) */
         let MAP_ROUTE_SECTOR_CLIMBER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26.27 41" aria-hidden="true"><path fill="currentColor" d="M12.41,9.72A3.86,3.86,0,1,0,8.55,5.85,3.87,3.87,0,0,0,12.41,9.72Z"/><path fill="currentColor" d="M23.19,0a1.52,1.52,0,0,0-1.52,1.52,9.38,9.38,0,0,1-9,9.36c0,1-.08,2-.13,3A12.42,12.42,0,0,0,24.71,1.52,1.52,1.52,0,0,0,23.19,0Z"/><rect fill="currentColor" x="8.77" y="12" width="7.29" height="6.23"/><path fill="currentColor" d="M3.11,40.08A1.82,1.82,0,0,1,1.5,37.41l7.26-13.9A1.82,1.82,0,0,1,12,25.2L4.72,39.1A1.82,1.82,0,0,1,3.11,40.08Z"/><path fill="currentColor" d="M19,30.5a1.82,1.82,0,0,1-1.77-2.27l1.27-4.94L14.9,24.77a1.82,1.82,0,0,1-1.38-3.37l7-2.86a1.82,1.82,0,0,1,2.46,2.14l-2.17,8.45A1.82,1.82,0,0,1,19,30.5Z"/><path fill="currentColor" d="M15.44,18.25a.61.61,0,0,1,0-1.22,9.89,9.89,0,0,0,8.25-4.51c1.34-2.15,2.37-5.86-.33-11.36A.61.61,0,0,1,24.45.63c2.94,6,1.77,10.13.27,12.54A11.13,11.13,0,0,1,15.44,18.25Z"/><path fill="currentColor" d="M8.76,20.37v3a2,2,0,0,0,2,2H13c1.13,0,3-1.08,3-2.16V20.37Z"/><rect fill="currentColor" x="12.54" y="26.75" width="1.22" height="14.26"/><path fill="currentColor" d="M12.7,10.88l-.29,0A12.43,12.43,0,0,0,0,23.27a1.52,1.52,0,1,0,3,0,9.39,9.39,0,0,1,9.38-9.37h.29Z"/></svg>';
         let MAP_BOULDER_SECTOR_CLIMBER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" aria-hidden="true"><circle fill="currentColor" cx="11.5" cy="5.2" r="3.35"/><rect fill="currentColor" x="8.6" y="8.8" width="5.8" height="5.6" rx="0.4"/><path fill="currentColor" d="M14.2 9.2 19.2 3.6 20.6 4.9 15.8 10.4z"/><path fill="currentColor" d="M8.4 10.1 3.8 12.4 4.9 14.1 9.2 11.5z"/><path fill="currentColor" d="M9.2 14.6 3.4 29.8 5.6 30.6 10.4 16.2z"/><path fill="currentColor" d="M12.8 14.5 17.6 27.2 19.6 26.2 14.9 15.8z"/><path fill="currentColor" d="M9.8 14.2h3.4v2.4H9.8z"/></svg>';
+        /** Район: метка на сложенной карте (как в UI-кит). */
+        const AREA_DISTRICT_ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" d="M10 58h44M10 58l9-7 11 5 11-5 9 7"/><path fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" d="M19 51v7M32 46v19M45 51v7"/><path fill="currentColor" d="M32 7C23.16 7 16 14.04 16 22.67 16 32.23 32 47 32 47S48 32.23 48 22.67C48 14.04 40.84 7 32 7z"/><circle cx="32" cy="20.5" r="6" class="area-district-icon-hole"/></svg>';
+        const MAP_AREA_DROPLET_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 36" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M3 30h22M3 30l4-2.5 4 1.5 4-1.5 4 2.5"/><path fill="currentColor" d="M14 3.5c-3.2 0-5.8 2.5-5.8 5.6 0 3.3 5.8 10.9 5.8 10.9s5.8-7.6 5.8-10.9c0-3.1-2.6-5.6-5.8-5.6zm0 3.6a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/><circle cx="14" cy="8.6" r="1.55" class="area-district-icon-hole"/></svg>';
+
+        function buildAreaDistrictIconHtml(extraClass = 'area-district-icon') {
+            return `<span class="${extraClass}" aria-hidden="true">${AREA_DISTRICT_ICON_SVG}</span>`;
+        }
+
+        function buildCatalogRouteNavButtonHtml(mapKind, entityId) {
+            const id = String(entityId);
+            return `<button type="button" class="catalog-map-btn catalog-route-nav-btn btn btn-primary btn-small" data-catalog-act="nav-route" data-map-kind="${mapKind}" data-id="${id}" aria-label="Маршрут" title="Маршрут"><img class="catalog-route-nav-icon" src="icons/route-nav.png" alt="" width="32" height="17" decoding="async"></button>`;
+        }
+        /** Кнопка «Моё местоположение»: классическая метка-pin с точкой внутри. */
+        const MAP_LOCATE_PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>';
+        /** Кемпинг: палатка на белом фоне. */
+        const MAP_CAMPING_SIGN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" aria-hidden="true"><rect width="20" height="20" rx="3" fill="#fff"/><path fill="#141414" d="M4.5 14.2h11v1.35H4.5z"/><path fill="#141414" d="M10 4.8 5.6 14.05h8.8L10 4.8z"/><path fill="#141414" d="M8.35 6.05 10 4.05l1.65 2-.72.72-.48-.48-.48.48z"/></svg>';
 
         function normalizeInlineMapSectorSvg(raw) {
             if (!raw || typeof raw !== 'string' || !raw.includes('<svg')) return '';
@@ -684,6 +790,10 @@
             root.classList.toggle('theme-light', next === 'light');
             root.classList.toggle('theme-dark', next === 'dark');
             root.style.colorScheme = next;
+            if (root.classList.contains('tg-mini-app')) {
+                root.classList.toggle('tg-theme-light', next === 'light');
+                root.classList.toggle('tg-theme-dark', next !== 'light');
+            }
             if (persist) {
                 try {
                     localStorage.setItem(THEME_STORAGE_KEY, next);
@@ -712,9 +822,9 @@
         /** Запросы секторов по районам — небольшими пачками, чтобы не забивать канал. */
         const SECTOR_FETCH_BATCH = 6;
         /** Проверка доступности API перед первичной загрузкой каталога. */
-        const API_WAKE_ATTEMPTS = 12;
-        const API_WAKE_ATTEMPT_TIMEOUT_MS = 20000;
-        const API_WAKE_PAUSE_MS = 2000;
+        const API_WAKE_ATTEMPTS = 4;
+        const API_WAKE_ATTEMPT_TIMEOUT_MS = 8000;
+        const API_WAKE_PAUSE_MS = 600;
         const CATALOG_RELOAD_DEBOUNCE_MS = 4000;
         let _catalogReloadPromise = null;
         let _lastCatalogReloadFinishedAt = 0;
@@ -1475,9 +1585,11 @@
                         : null
                 };
             }
+            const startHolds = (normalized.startHolds || []).map((p) => transformNormPointByQuarterTurns(p, t));
             return {
                 ...normalized,
-                startHold: normalized.startHold ? transformNormPointByQuarterTurns(normalized.startHold, t) : null,
+                startHolds,
+                startHold: startHolds[0] || null,
                 finishHold: normalized.finishHold ? transformNormPointByQuarterTurns(normalized.finishHold, t) : null,
                 linePoints: (normalized.linePoints || []).map((p) => transformNormPointByQuarterTurns(p, t))
             };
@@ -2045,7 +2157,7 @@
             if (!photos.length) return false;
             const changed = await hydratePhotosFromIndexedDb(photos);
             if (changed) {
-                window.app?.refreshUiAfterRemoteLoad?.();
+                scheduleRefreshUiAfterRemoteLoad();
             }
             await refreshPhotoCacheStats();
             return changed;
@@ -2057,6 +2169,10 @@
 
         function areaHasCoverDisplayUrl(area) {
             return !!resolvePhotoDisplayUrl(area?.imageData);
+        }
+
+        function areasMissingCoverImages(areas) {
+            return (areas || []).some((a) => !areaHasCoverDisplayUrl(a));
         }
 
         async function cacheAreaCoversToIndexedDb(areas) {
@@ -2116,7 +2232,6 @@
             if (changed) {
                 saveClimbingData(data);
                 void cacheAreaCoversToIndexedDb(data.areas);
-                window.app?.refreshUiAfterRemoteLoad?.();
             }
             return changed;
         }
@@ -2124,8 +2239,8 @@
         async function hydrateAreaCoverImages() {
             const fromCache = await hydrateAreaCoversFromIndexedDb();
             const fromApi = await hydrateAreaCoversFromApiIfNeeded();
-            if (fromCache && !fromApi) {
-                window.app?.refreshUiAfterRemoteLoad?.();
+            if (fromCache || fromApi) {
+                scheduleRefreshUiAfterRemoteLoad();
             }
             return fromCache || fromApi;
         }
@@ -2188,6 +2303,7 @@
                         const gradeForLine = climbType === 'route'
                             ? (climbGrade || resolveRouteGradeForMarkup(photo?.climbId || photo?.route_id, ''))
                             : (climbGrade || resolveBoulderGradeForMarkup(photo?.climbId || photo?.boulder_id, ''));
+                        const gradeLineLabel = formatGradeLabel(gradeForLine) || gradeForLine;
                         const lineColor = gradeForLine
                             ? topoLineColorFromGrade(gradeForLine)
                             : TOPO_MARKUP.lineColor;
@@ -2293,7 +2409,7 @@
                                 if (mid) {
                                     const q = toPx(mid);
                                     ctx.font = `800 ${Math.max(11, Math.round(Math.min(w, h) * 0.018))}px system-ui, sans-serif`;
-                                    const tw = ctx.measureText(gradeForLine).width;
+                                    const tw = ctx.measureText(gradeLineLabel).width;
                                     const pad = 6;
                                     ctx.fillStyle = 'rgba(255,255,255,0.92)';
                                     ctx.strokeStyle = lineColor;
@@ -2305,7 +2421,7 @@
                                     ctx.fillStyle = lineColor;
                                     ctx.textAlign = 'center';
                                     ctx.textBaseline = 'middle';
-                                    ctx.fillText(gradeForLine, q.x, q.y);
+                                    ctx.fillText(gradeLineLabel, q.x, q.y);
                                 }
                             }
                         } else {
@@ -2313,14 +2429,14 @@
                             const linePts = Array.isArray(boulderMarkup.linePoints) ? boulderMarkup.linePoints : [];
                             drawLine(linePts);
                             drawLineEnd(linePts, 'arrow');
-                            if (boulderMarkup.startHold) drawLabeledHold(boulderMarkup.startHold, 'Старт');
+                            (boulderMarkup.startHolds || []).forEach((p) => drawLabeledHold(p, 'Старт'));
                             if (boulderMarkup.finishHold) drawLabeledHold(boulderMarkup.finishHold, 'Финиш');
                             if (gradeForLine) {
                                 const mid = topoLineMidpointNorm(linePts);
                                 if (mid) {
                                     const q = toPx(mid);
                                     ctx.font = `800 ${Math.max(11, Math.round(Math.min(w, h) * 0.018))}px system-ui, sans-serif`;
-                                    const tw = ctx.measureText(gradeForLine).width;
+                                    const tw = ctx.measureText(gradeLineLabel).width;
                                     const pad = 6;
                                     ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
                                     ctx.strokeStyle = lineColor;
@@ -2332,7 +2448,7 @@
                                     ctx.fillStyle = lineColor;
                                     ctx.textAlign = 'center';
                                     ctx.textBaseline = 'middle';
-                                    ctx.fillText(gradeForLine, q.x, q.y);
+                                    ctx.fillText(gradeLineLabel, q.x, q.y);
                                 }
                             }
                         }
@@ -2643,10 +2759,12 @@
             if (_catalogReloadPromise) return _catalogReloadPromise;
 
             _catalogReloadPromise = (async () => {
+                const background = options.background === true;
+                const showBusy = !background && (!isInitial || !catalogHasContent(getClimbingData()));
                 const busyMsg = isInitial ? 'Загрузка каталога…' : 'Обновление каталога…';
-                setGlobalUiBusy(true, busyMsg);
+                if (showBusy) setGlobalUiBusy(true, busyMsg);
                 try {
-                    if (!isInitial && _appRemoteDataReady) {
+                    if (!background && !isInitial && _appRemoteDataReady) {
                         window.app?.showToast?.('Обновление данных…', false);
                     }
                     if (!options.skipWake) {
@@ -2665,7 +2783,7 @@
                     _appRemoteDataReady = true;
                     _lastCatalogReloadFinishedAt = Date.now();
                     leaveOfflineMode();
-                    window.app?.refreshUiAfterRemoteLoad?.();
+                    scheduleRefreshUiAfterRemoteLoad();
                     if (options.refreshPhotos) {
                         await ensurePhotosLoadedFromApi();
                         window.app?.renderPhotoAlbum?.();
@@ -2682,7 +2800,7 @@
                     }
                     throw err;
                 } finally {
-                    setGlobalUiBusy(false);
+                    if (showBusy) setGlobalUiBusy(false);
                     _catalogReloadPromise = null;
                 }
             })();
@@ -2692,7 +2810,18 @@
         function scheduleCatalogRefreshOnAppVisible() {
             if (!_appRemoteDataReady) return;
             if (shouldTrustOfflineHint()) return;
-            void refreshCatalogFromApi().catch(() => {});
+            void refreshCatalogFromApi({ background: true, skipWake: true }).catch(() => {});
+        }
+
+        let _remoteUiRefreshTimer = null;
+        /** Сливает несколько refresh подряд (кэш обложек + API + auth) в один кадр — меньше дёрганья списка. */
+        function scheduleRefreshUiAfterRemoteLoad() {
+            if (!window.app) return;
+            clearTimeout(_remoteUiRefreshTimer);
+            _remoteUiRefreshTimer = setTimeout(() => {
+                _remoteUiRefreshTimer = null;
+                window.app.refreshUiAfterRemoteLoad();
+            }, 140);
         }
 
         let _globalUiBusyDepth = 0;
@@ -2801,6 +2930,12 @@
                     if (!loggedIn && window.isTelegramMiniApp?.()) {
                         console.warn('Telegram login skipped or failed; catalog still available');
                     }
+                }
+                if (isStandaloneShell()) {
+                    window.syncOpenProfileButtonVisibility?.({
+                        telegramUser: window.app?.isTelegramUser?.() || false
+                    });
+                    void window.app.prepareStandaloneTelegramLoginUi?.();
                 }
                 await window.app.syncLegacyLocalStorageToBackend();
                 if (window.app?.isLoggedIn?.()) {
@@ -3109,12 +3244,27 @@
             };
         }
 
+        const GRADE_PROJECT_VALUE = 'проект';
+
+        function isProjectGrade(g) {
+            const s = String(g || '').trim();
+            return /^проект$/i.test(s) || /^project$/i.test(s);
+        }
+
+        function formatGradeLabel(grade) {
+            if (isProjectGrade(grade)) return 'Проект';
+            return String(grade ?? '').trim();
+        }
+
         /** Трасса: французская шкала 4 … 9c; буквы a, b, c — строчные; есть ступени с «+». */
         function normalizeRouteGrade(g) {
             if (g == null || g === '') return '';
             const s = String(g).trim();
+            if (isProjectGrade(s)) return GRADE_PROJECT_VALUE;
             const m45 = s.match(/^(4|5)(\+)?$/);
             if (m45) return m45[1] + (m45[2] || '');
+            const m5 = s.match(/^5([abc])(\+)?$/i);
+            if (m5) return '5' + m5[1].toLowerCase() + (m5[2] || '');
             const m = s.match(/^([6-9])([A-Za-z])(\+)?$/);
             if (m) return m[1] + m[2].toLowerCase() + (m[3] || '');
             return s;
@@ -3124,6 +3274,7 @@
         function normalizeBoulderGrade(g) {
             if (g == null || g === '') return '';
             const s = String(g).trim();
+            if (isProjectGrade(s)) return GRADE_PROJECT_VALUE;
             if (/^[45]$/.test(s)) return s;
             const m = s.match(/^([6-9])([A-Za-z])(\+)?$/);
             if (m) return m[1] + m[2].toUpperCase() + (m[3] || '');
@@ -3132,21 +3283,23 @@
 
         /**
          * Цветовые группы категорий (трассы и боулдеринг):
-         * 4–5 жёлтый, 6 зелёный, 7 оранжевый, 8 красный, 9 чёрный (у боулдера верх — 9A).
+         * 4–5 жёлтый, 6 зелёный, 7 оранжевый, 8 красный, 9 чёрный; «проект» — серый.
          */
-        const GRADE_BAND_ORDER = ['yellow', 'green', 'orange', 'red', 'black'];
+        const GRADE_BAND_ORDER = ['yellow', 'green', 'orange', 'red', 'black', 'project'];
         const GRADE_BAND_FILLS = {
             yellow: '#f5c518',
             green: '#2e9e4f',
             orange: '#f0851a',
             red: '#e53935',
             black: '#2a2a2e',
+            project: '#9e9e9e',
             all: '#e8472a'
         };
 
         function gradeBandFromValue(v) {
             const s = String(v || '').trim();
             if (!s) return 'all';
+            if (isProjectGrade(s)) return 'project';
             const m = s.match(/^(\d+)/);
             const n = m ? Number(m[1]) : NaN;
             if (!Number.isFinite(n)) return 'all';
@@ -3162,11 +3315,12 @@
         }
 
         const ROUTE_GRADE_OPTIONS = [
-            '4', '4+', '5', '5+',
+            '4', '4+', '5', '5a', '5b', '5c',
             '6a', '6a+', '6b', '6b+', '6c', '6c+',
             '7a', '7a+', '7b', '7b+', '7c', '7c+',
             '8a', '8a+', '8b', '8b+', '8c', '8c+',
-            '9a', '9a+', '9b', '9b+', '9c'
+            '9a', '9a+', '9b', '9b+', '9c',
+            GRADE_PROJECT_VALUE
         ];
 
         const BOULDER_GRADE_OPTIONS = [
@@ -3174,10 +3328,13 @@
             '6A', '6A+', '6B', '6B+', '6C', '6C+',
             '7A', '7A+', '7B', '7B+', '7C', '7C+',
             '8A', '8A+', '8B', '8B+', '8C', '8C+',
-            '9A', '9A+'
+            '9A', '9A+',
+            GRADE_PROJECT_VALUE
         ];
 
         function harderGradeBand(a, b) {
+            if (a === 'project') return b === 'project' ? 'project' : b;
+            if (b === 'project') return a;
             const ia = GRADE_BAND_ORDER.indexOf(a);
             const ib = GRADE_BAND_ORDER.indexOf(b);
             if (ia < 0) return b;
@@ -3486,6 +3643,13 @@
 
         function isStandaloneShell() {
             return window.CLIMBING_STANDALONE === true;
+        }
+
+        function authTelegramGateMessage() {
+            if (isStandaloneShell()) {
+                return 'Войдите через Telegram в разделе «Профиль»';
+            }
+            return 'Войдите через Telegram Mini App';
         }
 
         /** WebView (MIUI и др.) часто ошибочно сообщает navigator.onLine === false при рабочей сети. */
@@ -3897,6 +4061,8 @@
 
             const onStart = (e) => {
                 if (ignoreTarget(e)) return;
+                const wrap = e.target?.closest?.('.photo-wrap');
+                if (wrap && photoWrapBlocksGalleryNav(wrap)) return;
                 if (e.pointerType === 'mouse' && e.button !== 0) return;
                 const p = pointFrom(e);
                 startX = p.x;
@@ -3921,6 +4087,16 @@
                 const dx = p.x - startX;
                 const dy = p.y - startY;
                 if (!moved && Math.abs(dx) <= tapMaxMove && Math.abs(dy) <= tapMaxMove) {
+                    const wrap = e.target?.closest?.('.photo-wrap');
+                    if (wrap) {
+                        if (photoWrapBlocksGalleryNav(wrap)) return;
+                        const viewer = document.getElementById('climbPhotoViewer');
+                        const viewerOpen = viewer && !viewer.classList.contains('hidden');
+                        if (!viewerOpen) {
+                            void window.app?.openClimbPhotoViewer?.();
+                        }
+                        return;
+                    }
                     handlers.onTap?.();
                     return;
                 }
@@ -3946,11 +4122,11 @@
             return wrap._zoom;
         }
 
-        function applyPhotoStageTransform(wrap) {
+        function applyPhotoStageTransform(wrap, { snap = false } = {}) {
             const stage = wrap?.querySelector('.stage');
             if (!stage) return;
             const z = getPhotoZoomState(wrap);
-            if (z.scale <= 1.02) {
+            if (snap && z.scale <= 1.04) {
                 z.scale = 1;
                 z.tx = 0;
                 z.ty = 0;
@@ -3962,12 +4138,16 @@
             const z = getPhotoZoomState(wrap);
             const W = Math.max(1, wrap.clientWidth || 1);
             const H = Math.max(1, wrap.clientHeight || 1);
-            const sw = W * z.scale;
-            const sh = H * z.scale;
-            const minX = Math.min(0, W - sw);
-            const minY = Math.min(0, H - sh);
-            z.tx = Math.max(minX, Math.min(0, z.tx));
-            z.ty = Math.max(minY, Math.min(0, z.ty));
+            if (z.scale <= 1.001) {
+                z.scale = 1;
+                z.tx = 0;
+                z.ty = 0;
+                return;
+            }
+            const maxTx = (W * (z.scale - 1)) / 2;
+            const maxTy = (H * (z.scale - 1)) / 2;
+            z.tx = Math.max(-maxTx, Math.min(maxTx, z.tx));
+            z.ty = Math.max(-maxTy, Math.min(maxTy, z.ty));
         }
 
         function resetPhotoStageZoom(wrap) {
@@ -3981,21 +4161,42 @@
 
         function photoStageZoomBy(wrap, factor, cx, cy) {
             const z = getPhotoZoomState(wrap);
-            const newScale = Math.max(1, Math.min(8, z.scale * factor));
-            if (newScale === z.scale) return;
+            const newScale = Math.max(1, Math.min(6, z.scale * factor));
+            if (Math.abs(newScale - z.scale) < 0.0001) return;
             const rect = wrap.getBoundingClientRect();
-            const localCx = cx == null ? rect.width / 2 : cx;
-            const localCy = cy == null ? rect.height / 2 : cy;
+            const W = Math.max(1, rect.width);
+            const H = Math.max(1, rect.height);
+            const ox = W / 2;
+            const oy = H / 2;
+            const px = cx == null ? ox : cx;
+            const py = cy == null ? oy : cy;
             const ratio = newScale / z.scale;
-            z.tx = localCx - (localCx - z.tx) * ratio;
-            z.ty = localCy - (localCy - z.ty) * ratio;
+            z.tx = (px - ox) - (px - ox - z.tx) * ratio;
+            z.ty = (py - oy) - (py - oy - z.ty) * ratio;
             z.scale = newScale;
             clampPhotoStagePan(wrap);
             applyPhotoStageTransform(wrap);
         }
 
         function isPhotoStageZoomed(wrap) {
-            return getPhotoZoomState(wrap).scale > 1.05;
+            return getPhotoZoomState(wrap).scale > 1.04;
+        }
+
+        function photoWrapBlocksGalleryNav(wrap) {
+            if (!wrap) return false;
+            return isPhotoStageZoomed(wrap)
+                || wrap.classList.contains('is-photo-panning')
+                || wrap.dataset.photoPinching === '1';
+        }
+
+        function photoStageSnapAfterGesture(wrap) {
+            const z = getPhotoZoomState(wrap);
+            wrap.classList.remove('is-photo-gesturing');
+            if (z.scale <= 1.04) {
+                wrap.classList.add('is-photo-snap');
+                resetPhotoStageZoom(wrap);
+                window.setTimeout(() => wrap.classList.remove('is-photo-snap'), 240);
+            }
         }
 
         function attachPhotoStageZoomPan(wrap) {
@@ -4007,41 +4208,179 @@
                 const rect = wrap.getBoundingClientRect();
                 photoStageZoomBy(
                     wrap,
-                    e.deltaY < 0 ? 1.2 : 1 / 1.2,
+                    e.deltaY < 0 ? 1.15 : 1 / 1.15,
                     e.clientX - rect.left,
                     e.clientY - rect.top
                 );
             }, { passive: false });
+
+            const touchSpan = (t0, t1) => Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+            const localPoint = (t, rect) => ({
+                x: t.clientX - rect.left,
+                y: t.clientY - rect.top
+            });
+
+            let mode = 'idle';
+            let touchActive = false;
+            let panStartX = 0;
+            let panStartY = 0;
+            let panBaseTx = 0;
+            let panBaseTy = 0;
+            let pinchStartDist = 1;
+            let pinchStartScale = 1;
+            let pinchStartTx = 0;
+            let pinchStartTy = 0;
+            let pinchCx = 0;
+            let pinchCy = 0;
+            let lastTapAt = 0;
+            let lastTapX = 0;
+            let lastTapY = 0;
+
+            const beginGesture = () => {
+                blurStickyControlFocus();
+                wrap.classList.add('is-photo-gesturing');
+                wrap.classList.remove('is-photo-snap');
+            };
+
+            wrap.addEventListener('touchstart', (e) => {
+                touchActive = true;
+                wrap._touchGestureUntil = Date.now() + 400;
+                if (e.touches.length >= 2) {
+                    mode = 'pinch';
+                    wrap.dataset.photoPinching = '1';
+                    beginGesture();
+                    const rect = wrap.getBoundingClientRect();
+                    pinchStartDist = Math.max(1, touchSpan(e.touches[0], e.touches[1]));
+                    const z = getPhotoZoomState(wrap);
+                    pinchStartScale = z.scale;
+                    pinchStartTx = z.tx;
+                    pinchStartTy = z.ty;
+                    const c = localPoint(
+                        { clientX: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                            clientY: (e.touches[0].clientY + e.touches[1].clientY) / 2 },
+                        rect
+                    );
+                    pinchCx = c.x;
+                    pinchCy = c.y;
+                    e.preventDefault();
+                    return;
+                }
+                if (e.touches.length === 1) {
+                    const z = getPhotoZoomState(wrap);
+                    if (z.scale > 1.001) {
+                        mode = 'pan';
+                        beginGesture();
+                        panStartX = e.touches[0].clientX;
+                        panStartY = e.touches[0].clientY;
+                        panBaseTx = z.tx;
+                        panBaseTy = z.ty;
+                        wrap.classList.add('is-photo-panning');
+                    } else {
+                        mode = 'idle';
+                    }
+                }
+            }, { passive: false });
+
+            wrap.addEventListener('touchmove', (e) => {
+                if (mode === 'pinch' && e.touches.length >= 2) {
+                    e.preventDefault();
+                    const rect = wrap.getBoundingClientRect();
+                    const dist = touchSpan(e.touches[0], e.touches[1]);
+                    const newScale = Math.max(1, Math.min(6, pinchStartScale * (dist / pinchStartDist)));
+                    const ratio = newScale / pinchStartScale;
+                    const z = getPhotoZoomState(wrap);
+                    z.scale = newScale;
+                    z.tx = pinchCx - (pinchCx - pinchStartTx) * ratio;
+                    z.ty = pinchCy - (pinchCy - pinchStartTy) * ratio;
+                    clampPhotoStagePan(wrap);
+                    applyPhotoStageTransform(wrap);
+                    return;
+                }
+                if (mode === 'pan' && e.touches.length === 1) {
+                    e.preventDefault();
+                    const z = getPhotoZoomState(wrap);
+                    z.tx = panBaseTx + (e.touches[0].clientX - panStartX);
+                    z.ty = panBaseTy + (e.touches[0].clientY - panStartY);
+                    clampPhotoStagePan(wrap);
+                    applyPhotoStageTransform(wrap);
+                }
+            }, { passive: false });
+
+            wrap.addEventListener('touchend', (e) => {
+                if (mode === 'pinch' && e.touches.length < 2) {
+                    delete wrap.dataset.photoPinching;
+                    mode = 'idle';
+                    photoStageSnapAfterGesture(wrap);
+                }
+                if (mode === 'pan' && e.touches.length === 0) {
+                    mode = 'idle';
+                    wrap.classList.remove('is-photo-panning');
+                    photoStageSnapAfterGesture(wrap);
+                }
+                if (e.touches.length === 0) {
+                    touchActive = false;
+                    if (mode === 'idle' && e.changedTouches.length === 1) {
+                        const t = e.changedTouches[0];
+                        const rect = wrap.getBoundingClientRect();
+                        const now = Date.now();
+                        const dx = t.clientX - lastTapX;
+                        const dy = t.clientY - lastTapY;
+                        if (now - lastTapAt < 320 && Math.hypot(dx, dy) < 32) {
+                            lastTapAt = 0;
+                            const z = getPhotoZoomState(wrap);
+                            if (z.scale > 1.04) {
+                                wrap.classList.add('is-photo-snap');
+                                resetPhotoStageZoom(wrap);
+                                window.setTimeout(() => wrap.classList.remove('is-photo-snap'), 240);
+                            } else {
+                                photoStageZoomBy(
+                                    wrap,
+                                    2.2,
+                                    t.clientX - rect.left,
+                                    t.clientY - rect.top
+                                );
+                            }
+                        } else {
+                            lastTapAt = now;
+                            lastTapX = t.clientX;
+                            lastTapY = t.clientY;
+                        }
+                    }
+                }
+            }, { passive: true });
+
+            wrap.addEventListener('touchcancel', () => {
+                mode = 'idle';
+                touchActive = false;
+                delete wrap.dataset.photoPinching;
+                wrap.classList.remove('is-photo-panning');
+                photoStageSnapAfterGesture(wrap);
+            }, { passive: true });
 
             let dragging = false;
             let sx = 0;
             let sy = 0;
             let btx = 0;
             let bty = 0;
-            let didMove = false;
             let pendingPid = null;
 
             wrap.addEventListener('pointerdown', (e) => {
+                if (touchActive || Date.now() < (wrap._touchGestureUntil || 0)) return;
                 if (e.pointerType === 'mouse' && e.button !== 0) return;
                 const z = getPhotoZoomState(wrap);
-                if (z.scale <= 1) return;
+                if (z.scale <= 1.001) return;
                 dragging = true;
-                didMove = false;
                 pendingPid = e.pointerId;
                 sx = e.clientX;
                 sy = e.clientY;
                 btx = z.tx;
                 bty = z.ty;
+                beginGesture();
+                wrap.classList.add('is-photo-panning');
             });
 
             wrap.addEventListener('pointermove', (e) => {
-                if (!dragging) return;
-                if (!didMove && (Math.abs(e.clientX - sx) > 3 || Math.abs(e.clientY - sy) > 3)) {
-                    didMove = true;
-                    wrap.setPointerCapture(pendingPid);
-                    wrap.style.cursor = 'grabbing';
-                }
-                if (!didMove) return;
+                if (!dragging || e.pointerId !== pendingPid) return;
                 const z = getPhotoZoomState(wrap);
                 z.tx = btx + (e.clientX - sx);
                 z.ty = bty + (e.clientY - sy);
@@ -4049,94 +4388,27 @@
                 applyPhotoStageTransform(wrap);
             });
 
-            const endDrag = (e) => {
+            const endPointerPan = () => {
                 if (!dragging) return;
-                if (pendingPid != null) {
-                    try {
-                        wrap.releasePointerCapture(pendingPid);
-                    } catch (_) {
-                        /* ignore */
-                    }
-                }
                 dragging = false;
                 pendingPid = null;
-                wrap.style.cursor = '';
-                if (didMove && e) e.stopPropagation();
+                wrap.classList.remove('is-photo-panning');
+                photoStageSnapAfterGesture(wrap);
             };
-            wrap.addEventListener('pointerup', endDrag);
-            wrap.addEventListener('pointercancel', endDrag);
-            wrap.addEventListener('lostpointercapture', () => {
-                dragging = false;
-                pendingPid = null;
-                wrap.style.cursor = '';
-            });
+            wrap.addEventListener('pointerup', endPointerPan);
+            wrap.addEventListener('pointercancel', endPointerPan);
 
             wrap.addEventListener('dblclick', (e) => {
                 const z = getPhotoZoomState(wrap);
-                if (z.scale > 1.05) {
+                if (z.scale > 1.04) {
+                    wrap.classList.add('is-photo-snap');
                     resetPhotoStageZoom(wrap);
+                    window.setTimeout(() => wrap.classList.remove('is-photo-snap'), 240);
                     return;
                 }
                 const rect = wrap.getBoundingClientRect();
-                photoStageZoomBy(wrap, 2.5, e.clientX - rect.left, e.clientY - rect.top);
+                photoStageZoomBy(wrap, 2.2, e.clientX - rect.left, e.clientY - rect.top);
             });
-
-            let pinching = false;
-            let pinchStartDist = 0;
-            let pinchStartScale = 1;
-            let pinchStartTx = 0;
-            let pinchStartTy = 0;
-            let pinchCx = 0;
-            let pinchCy = 0;
-
-            const touchSpan = (t0, t1) => Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
-            const touchCenterLocal = (t0, t1, rect) => ({
-                x: (t0.clientX + t1.clientX) / 2 - rect.left,
-                y: (t0.clientY + t1.clientY) / 2 - rect.top
-            });
-
-            wrap.addEventListener('touchstart', (e) => {
-                if (e.touches.length !== 2) return;
-                pinching = true;
-                dragging = false;
-                const rect = wrap.getBoundingClientRect();
-                pinchStartDist = Math.max(1, touchSpan(e.touches[0], e.touches[1]));
-                const z = getPhotoZoomState(wrap);
-                pinchStartScale = z.scale;
-                pinchStartTx = z.tx;
-                pinchStartTy = z.ty;
-                const c = touchCenterLocal(e.touches[0], e.touches[1], rect);
-                pinchCx = c.x;
-                pinchCy = c.y;
-                e.preventDefault();
-            }, { passive: false });
-
-            wrap.addEventListener('touchmove', (e) => {
-                if (!pinching || e.touches.length < 2) return;
-                e.preventDefault();
-                const rect = wrap.getBoundingClientRect();
-                const dist = touchSpan(e.touches[0], e.touches[1]);
-                const newScale = Math.max(1, Math.min(8, pinchStartScale * (dist / pinchStartDist)));
-                const ratio = newScale / pinchStartScale;
-                const z = getPhotoZoomState(wrap);
-                z.scale = newScale;
-                z.tx = pinchCx - (pinchCx - pinchStartTx) * ratio;
-                z.ty = pinchCy - (pinchCy - pinchStartTy) * ratio;
-                clampPhotoStagePan(wrap);
-                applyPhotoStageTransform(wrap);
-            }, { passive: false });
-
-            const endPinch = (e) => {
-                if (!pinching) return;
-                if (e.touches && e.touches.length >= 2) return;
-                pinching = false;
-                const z = getPhotoZoomState(wrap);
-                if (z.scale <= 1.02) {
-                    resetPhotoStageZoom(wrap);
-                }
-            };
-            wrap.addEventListener('touchend', endPinch, { passive: true });
-            wrap.addEventListener('touchcancel', endPinch, { passive: true });
         }
 
         function inferPhotoControlMode(container) {
@@ -4188,10 +4460,20 @@
                     void window.app?.openClimbPhotoViewer?.();
                 }));
             } else {
-                zc.appendChild(mkBtn('Увеличить', '+', () => photoStageZoomBy(wrap, 1.4)));
-                zc.appendChild(mkBtn('Уменьшить', '−', () => photoStageZoomBy(wrap, 1 / 1.4)));
+                zc.appendChild(mkBtn('Увеличить', '+', () => {
+                    const r = wrap.getBoundingClientRect();
+                    photoStageZoomBy(wrap, 1.35, r.width / 2, r.height / 2);
+                }));
+                zc.appendChild(mkBtn('Уменьшить', '−', () => {
+                    const r = wrap.getBoundingClientRect();
+                    photoStageZoomBy(wrap, 1 / 1.35, r.width / 2, r.height / 2);
+                }));
                 if (mode === 'viewer') {
-                    zc.appendChild(mkBtn('Сброс zoom', '↺', () => resetPhotoStageZoom(wrap)));
+                    zc.appendChild(mkBtn('Уместить', '↺', () => {
+                        wrap.classList.add('is-photo-snap');
+                        resetPhotoStageZoom(wrap);
+                        window.setTimeout(() => wrap.classList.remove('is-photo-snap'), 240);
+                    }));
                 } else {
                     zc.appendChild(mkBtn('На весь экран', '⛶', () => {
                         void window.app?.openClimbPhotoViewer?.();
@@ -4333,7 +4615,7 @@
                 && catalogHasContent(getClimbingData())
             ) {
                 console.info('catalog up to date', manifest.version);
-                await hydrateAreaCoverImages();
+                void hydrateAreaCoverImages();
                 return getClimbingData();
             }
             try {
@@ -4620,7 +4902,7 @@
             }
             if (climbType === 'boulder') {
                 const pts = [...(normalized.linePoints || [])];
-                if (normalized.startHold) pts.push(normalized.startHold);
+                (normalized.startHolds || []).forEach((p) => pts.push(p));
                 if (normalized.finishHold) pts.push(normalized.finishHold);
                 return pts;
             }
@@ -4630,6 +4912,10 @@
         /** Кадр с разметкой: фиксированная высота, фото целиком по центру (без crop по разметке). */
         function applyTopoPhotoFraming(container, markup, climbType) {
             if (!container) return;
+            if (container.classList.contains('markup-dialog-stage')) {
+                container.classList.remove('topo-framed');
+                return;
+            }
             const isDetailMount = container.classList.contains('climb-detail-photo-mount')
                 && !container.classList.contains('climb-photo-viewer-mount');
             if (isDetailMount) {
@@ -4694,17 +4980,30 @@
                 const linePoints = Array.isArray(m.linePoints)
                     ? m.linePoints
                     : (Array.isArray(m.points) ? m.points : []);
-                let startHold = normPoint(m.startHold);
+                const startHoldsRaw = Array.isArray(m.startHolds) ? m.startHolds : [];
+                const legacyStart = normPoint(m.startHold);
+                const starts = startHoldsRaw.map(normPoint).filter(Boolean);
+                if (legacyStart) starts.unshift(legacyStart);
+                if (!starts.length && legacyHolds[0]) starts.push(normPoint(legacyHolds[0]));
+                if (legacyHolds.length === 1 && !starts.length && !normPoint(m.finishHold)) {
+                    const only = normPoint(legacyHolds[0]);
+                    if (only) starts.push(only);
+                }
+                const uniqueStarts = [];
+                starts.forEach((p) => {
+                    if (!p || uniqueStarts.length >= 2) return;
+                    if (uniqueStarts.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 0.004)) return;
+                    uniqueStarts.push(p);
+                });
                 let finishHold = normPoint(m.finishHold);
-                if (!startHold && legacyHolds[0]) startHold = normPoint(legacyHolds[0]);
                 if (!finishHold && legacyHolds[1]) finishHold = normPoint(legacyHolds[1]);
-                if (!startHold && legacyHolds.length === 1 && !finishHold) startHold = normPoint(legacyHolds[0]);
                 const lp = linePoints.map(normPoint).filter(Boolean);
-                if (!startHold && !finishHold && lp.length < 2) return null;
+                if (!uniqueStarts.length && !finishHold && lp.length < 2) return null;
                 return {
                     type: 'boulder-holds',
                     coordSpace: m.coordSpace === 'image' ? 'image' : (m.coordSpace || 'image'),
-                    startHold,
+                    startHolds: uniqueStarts,
+                    startHold: uniqueStarts[0] || null,
                     finishHold,
                     linePoints: lp,
                     savedAt: m.savedAt
@@ -4889,6 +5188,7 @@
         }
 
         function appendTopoGradeLabelOnLine(svg, NS, linePts, geom, gradeText, lineColor = TOPO_MARKUP.lineColor) {
+            gradeText = formatGradeLabel(gradeText) || gradeText;
             const grade = String(gradeText || '').trim();
             if (!grade || !isMarkupStageReady(geom) || !linePts || linePts.length < 2) return;
             const mid = topoLineMidpointNorm(linePts);
@@ -5012,6 +5312,20 @@
                 y
             });
             return true;
+        }
+
+        /** Точка из сохранённой разметки → норм. координаты видимой области фото в редакторе. */
+        function markupPointToEditorNorm(stored, geom, coordSpaceImage) {
+            if (coordSpaceImage) {
+                const x = Number(stored?.x);
+                const y = Number(stored?.y);
+                if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+                return {
+                    x: Math.max(0, Math.min(1, x)),
+                    y: Math.max(0, Math.min(1, y))
+                };
+            }
+            return boulderStoredToImageNorm(stored, geom, false);
         }
 
         /** Старые точки (0–1 по контейнеру) → 0–1 по видимой области фото. */
@@ -5306,6 +5620,8 @@
                 this.mapShowTrails = true;
                 this.mapShowPoi = true;
                 this.mapCatalogScope = null;
+                this._catalogMapFitKey = null;
+                this._mapDomInCatalog = false;
                 this.mapTarget = null;
                 this.userLocation = null;
                 this.userLocationHeading = null;
@@ -5322,6 +5638,9 @@
                 this.mapFeatureLayers = [];
                 this.mapClimbCluster = null;
                 this._mapLocateRequested = false;
+                this._mapLocationPickTarget = null;
+                this._mapPromptResolver = null;
+                this._mapCatalogPinMove = null;
                 this._mapRestoringView = false;
                 this._mapViewSaveTimer = null;
                 this.mapSelectedFeatureId = null;
@@ -5350,7 +5669,7 @@
                 };
 
                 this.currentBoulderHoldsMarkup = {
-                    startHold: null,
+                    startHolds: [],
                     finishHold: null,
                     linePoints: [],
                     photoId: null,
@@ -5365,15 +5684,19 @@
                 this._routeSearchDebounceTimer = null;
                 this._boulderSearchDebounceTimer = null;
                 this._globalSearchDebounceTimer = null;
+                this._catalogSearchDebounceTimer = null;
+                this._activeSearchSource = 'catalog';
+                this._rankingSearchDebounceTimer = null;
                 this.updatesFilter = 'all';
-                this._boulderHoldDrag = null;
-                this._onBoulderHoldPointerMove = this.onBoulderHoldPointerMove.bind(this);
-                this._onBoulderHoldPointerUp = this.onBoulderHoldPointerUp.bind(this);
-                document.addEventListener('pointermove', this._onBoulderHoldPointerMove);
-                document.addEventListener('pointerup', this._onBoulderHoldPointerUp);
-                document.addEventListener('pointercancel', this._onBoulderHoldPointerUp);
+                this._markupHoldDrag = null;
+                this._onMarkupHoldPointerMove = this.onMarkupHoldPointerMove.bind(this);
+                this._onMarkupHoldPointerUp = this.onMarkupHoldPointerUp.bind(this);
+                document.addEventListener('pointermove', this._onMarkupHoldPointerMove);
+                document.addEventListener('pointerup', this._onMarkupHoldPointerUp);
+                document.addEventListener('pointercancel', this._onMarkupHoldPointerUp);
 
                 this.catalog = { view: 'areas', areaId: null, sectorId: null };
+                this._lastMainTabBeforeOverlay = 'catalog';
                 this._uiActionLockUntil = 0;
                 this._climbDetailOpenFlight = null;
 
@@ -5386,30 +5709,63 @@
                 this.init();
             }
 
-            onBoulderHoldPointerMove(e) {
-                const drag = this._boulderHoldDrag;
+            markupEditorActive() {
+                return !document.getElementById('routeLineMarkupDialog')?.classList.contains('hidden')
+                    || !document.getElementById('boulderHoldsMarkupDialog')?.classList.contains('hidden');
+            }
+
+            markupEraseModeActive() {
+                return this.routeMarkupMode === 'erase' || this.boulderMarkupMode === 'erase';
+            }
+
+            syncMarkupDialogEraseCursor(container) {
+                if (!container) return;
+                container.classList.toggle('markup-erase-mode', this.markupEraseModeActive());
+            }
+
+            onMarkupHoldPointerMove(e) {
+                const drag = this._markupHoldDrag;
                 if (!drag || e.pointerId !== drag.pointerId) return;
 
-                const container = document.getElementById('boulderHoldsMarkupContainer');
+                const containerId = drag.target === 'route'
+                    ? 'routeLineMarkupContainer'
+                    : 'boulderHoldsMarkupContainer';
+                const container = document.getElementById(containerId);
                 if (!container) return;
 
                 const { x, y, px, py } = markupNormFromClient(container, e.clientX, e.clientY);
                 drag.marker.style.left = `${px}px`;
                 drag.marker.style.top = `${py}px`;
 
-                const holdRef = drag.roleKey
-                    ? this.currentBoulderHoldsMarkup?.[drag.roleKey]
-                    : null;
+                const state = drag.target === 'route'
+                    ? this.currentRouteLineMarkup
+                    : this.currentBoulderHoldsMarkup;
+                if (!state) return;
+
+                let holdRef = null;
+                if (drag.roleKey === 'startHolds' && Number.isFinite(drag.index)) {
+                    holdRef = state.startHolds?.[drag.index] || null;
+                } else if (drag.roleKey === 'points' && Number.isFinite(drag.index)) {
+                    holdRef = state.points?.[drag.index] || null;
+                } else if (drag.roleKey === 'linePoints' && Number.isFinite(drag.index)) {
+                    holdRef = state.linePoints?.[drag.index] || null;
+                } else if (drag.roleKey) {
+                    holdRef = state[drag.roleKey] || null;
+                }
                 if (holdRef) {
                     holdRef.x = x;
                     holdRef.y = y;
                 }
 
-                this.updateBoulderHoldsPolyline();
+                if (drag.target === 'route') {
+                    this.updateRouteLinePolyline();
+                } else {
+                    this.updateBoulderHoldsPolyline();
+                }
             }
 
-            onBoulderHoldPointerUp(e) {
-                const drag = this._boulderHoldDrag;
+            onMarkupHoldPointerUp(e) {
+                const drag = this._markupHoldDrag;
                 if (!drag || (e && e.pointerId !== drag.pointerId)) return;
                 try {
                     drag.marker.releasePointerCapture(drag.pointerId);
@@ -5417,7 +5773,12 @@
                     /* ignore */
                 }
                 drag.marker.classList.remove('active');
-                this._boulderHoldDrag = null;
+                this._markupHoldDrag = null;
+                if (drag.target === 'route') {
+                    this.renderRouteLineMarkup();
+                } else {
+                    this.renderBoulderHoldsMarkup();
+                }
             }
 
             init() {
@@ -5453,6 +5814,15 @@
                 }
                 this.applyRoleUI();
                 if (this.isLoggedIn()) {
+                    void this.ensureClimbLogbookReady().then(() => {
+                        if (!APP_BOULDER_ONLY) {
+                            this.renderRoutes();
+                        }
+                        this.renderBoulders();
+                        if (this.catalog.view !== 'areas') {
+                            this.renderCatalog();
+                        }
+                    });
                     void this.refreshProfileLogbookSection();
                 }
                 if (this.map) {
@@ -5608,7 +5978,25 @@
 
             async tryTelegramLogin() {
                 if (!window.isTelegramMiniApp?.() || !window.__TG_INIT_DATA) return false;
-                if (getAuthData().accessToken) return false;
+                if (getAuthData().accessToken) {
+                    if (!getAuthData().currentUser) {
+                        try {
+                            const me = await apiFetch('/api/auth/me');
+                            saveAuthData({ ...getAuthData(), currentUser: me });
+                            this.auth = getAuthData();
+                            this.renderAuthUI();
+                            this.applyRoleUI();
+                        } catch (err) {
+                            console.warn('telegram session restore', err);
+                            return false;
+                        }
+                    }
+                    if (this.isTelegramUser()) {
+                        await this.loadAscentSummary();
+                        this.refreshListsAfterRoleChange();
+                    }
+                    return true;
+                }
                 try {
                     const tokenData = await apiFetch('/api/auth/telegram', {
                         method: 'POST',
@@ -5636,6 +6024,135 @@
                 }
             }
 
+            async loginWithTelegramWidget(user) {
+                const tokenData = await apiFetch('/api/auth/telegram-widget', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(user)
+                });
+                await this.applyTelegramAuthTokenData(tokenData);
+                return true;
+            }
+
+            async applyTelegramAuthTokenData(tokenData) {
+                const auth = {
+                    accessToken: tokenData.access_token,
+                    currentUser: tokenData.user || null
+                };
+                if (!auth.currentUser) {
+                    saveAuthData(auth);
+                    auth.currentUser = await apiFetch('/api/auth/me');
+                }
+                saveAuthData(auth);
+                this.auth = auth;
+                this.renderAuthUI();
+                this.applyRoleUI();
+                await this.loadAscentSummary();
+                this.refreshListsAfterRoleChange();
+                window.syncOpenProfileButtonVisibility?.({ telegramUser: true });
+            }
+
+            openTelegramDeepLink(url) {
+                const link = String(url || '').trim();
+                if (!link) return;
+                try {
+                    const opened = window.open(link, '_blank', 'noopener,noreferrer');
+                    if (!opened) {
+                        window.location.href = link;
+                    }
+                } catch (_) {
+                    window.location.href = link;
+                }
+            }
+
+            async startStandaloneTelegramDeeplinkLogin() {
+                if (!isStandaloneShell()) return;
+                if (this._apkDeeplinkLoginInFlight) return;
+                this._apkDeeplinkLoginInFlight = true;
+                this._apkDeeplinkPollAbort = false;
+                const btn = document.getElementById('profileTelegramDeeplinkBtn');
+                const statusEl = document.getElementById('profileTelegramDeeplinkStatus');
+                if (btn) btn.disabled = true;
+                if (statusEl) {
+                    statusEl.classList.remove('hidden');
+                    statusEl.textContent = 'Запрашиваем ссылку для входа…';
+                }
+                try {
+                    const start = await apiFetch('/api/auth/telegram-deeplink', {
+                        method: 'POST',
+                        timeoutMs: 20000
+                    });
+                    const deepLink = String(start?.deep_link || '').trim();
+                    const startParam = String(start?.start_param || '').trim();
+                    const ttlSec = Number(start?.expires_in) || 300;
+                    if (!deepLink || !startParam) {
+                        throw new Error('Сервер не вернул ссылку для входа');
+                    }
+                    if (statusEl) {
+                        statusEl.textContent = 'Откройте Telegram, нажмите «Start» / «Запустить», затем вернитесь в гайд.';
+                    }
+                    this.openTelegramDeepLink(deepLink);
+                    const deadline = Date.now() + ttlSec * 1000;
+                    while (Date.now() < deadline && !this._apkDeeplinkPollAbort) {
+                        await new Promise((r) => setTimeout(r, 2000));
+                        if (this._apkDeeplinkPollAbort) break;
+                        let poll;
+                        try {
+                            poll = await apiFetch(
+                                `/api/auth/telegram-deeplink?start=${encodeURIComponent(startParam)}`,
+                                { timeoutMs: 12000 }
+                            );
+                        } catch (err) {
+                            if (statusEl && isFetchNetworkError(err)) {
+                                statusEl.textContent = 'Нет связи с сервером гайда. Отключите VPN или проверьте сеть.';
+                            }
+                            continue;
+                        }
+                        if (poll?.status === 'ready' && poll.access_token) {
+                            await this.applyTelegramAuthTokenData(poll);
+                            await this.renderProfileTab();
+                            this.showToast('Вход через Telegram выполнен');
+                            if (statusEl) statusEl.classList.add('hidden');
+                            return;
+                        }
+                        if (poll?.status === 'expired') {
+                            break;
+                        }
+                    }
+                    if (!this._apkDeeplinkPollAbort && statusEl) {
+                        statusEl.textContent = 'Время вышло. Нажмите «Войти через Telegram» ещё раз.';
+                    }
+                } catch (err) {
+                    const msg = err?.message || 'Не удалось начать вход';
+                    if (statusEl) statusEl.textContent = msg;
+                    this.showToast(msg, true);
+                } finally {
+                    this._apkDeeplinkLoginInFlight = false;
+                    if (btn) btn.disabled = false;
+                }
+            }
+
+            prepareStandaloneTelegramLoginUi() {
+                if (!isStandaloneShell()) return;
+                document.getElementById('profileGuestHintMiniApp')?.classList.add('hidden');
+                document.getElementById('profileGuestHintStandalone')?.classList.remove('hidden');
+                document.getElementById('profileTelegramDeeplinkBtn')?.classList.remove('hidden');
+                document.getElementById('telegramLoginWidgetMount')?.classList.add('hidden');
+            }
+
+            logoutTelegramSession() {
+                this._apkDeeplinkPollAbort = true;
+                saveAuthData({ accessToken: null, currentUser: null });
+                this.auth = getAuthData();
+                this._ascentSummary = null;
+                this.renderAuthUI();
+                this.applyRoleUI();
+                this.refreshListsAfterRoleChange();
+                window.syncOpenProfileButtonVisibility?.({ telegramUser: false });
+                void this.renderProfileTab();
+                void this.prepareStandaloneTelegramLoginUi();
+            }
+
             async loadAscentSummary() {
                 if (!this.isLoggedIn()) {
                     this._ascentSummary = null;
@@ -5651,34 +6168,73 @@
                 }
             }
 
+            canUseClimbLogbook() {
+                return this.isLoggedIn() && this.isTelegramUser();
+            }
+
             hasUserSent(climbType, climbId) {
                 const s = this._ascentSummary;
                 if (!s) return false;
                 const id = Number(climbId);
-                if (climbType === 'route') return (s.sent_route_ids || []).includes(id);
-                return (s.sent_boulder_ids || []).includes(id);
+                if (!Number.isFinite(id)) return false;
+                const list = climbType === 'route'
+                    ? (s.sent_route_ids || [])
+                    : (s.sent_boulder_ids || []);
+                return list.some((x) => Number(x) === id);
+            }
+
+            markAscentSentLocally(climbType, climbId) {
+                const id = Number(climbId);
+                if (!Number.isFinite(id)) return;
+                if (!this._ascentSummary) {
+                    this._ascentSummary = {
+                        sent_route_ids: [],
+                        sent_boulder_ids: [],
+                        attempted_route_ids: [],
+                        attempted_boulder_ids: []
+                    };
+                }
+                const sentKey = climbType === 'route' ? 'sent_route_ids' : 'sent_boulder_ids';
+                const attKey = climbType === 'route' ? 'attempted_route_ids' : 'attempted_boulder_ids';
+                const sent = (this._ascentSummary[sentKey] || []).map(Number).filter(Number.isFinite);
+                if (!sent.includes(id)) {
+                    sent.push(id);
+                    sent.sort((a, b) => a - b);
+                    this._ascentSummary[sentKey] = sent;
+                }
+                this._ascentSummary[attKey] = (this._ascentSummary[attKey] || [])
+                    .map(Number)
+                    .filter((x) => Number.isFinite(x) && x !== id);
+            }
+
+            async ensureClimbLogbookReady() {
+                if (!this.canUseClimbLogbook()) return;
+                if (this._ascentSummary) return;
+                await this.loadAscentSummary();
             }
 
             climbSentRowAttrs(climbType, climbId) {
                 if (!this.hasUserSent(climbType, climbId)) return { className: '', badge: '' };
                 return {
                     className: ' is-sent',
-                    badge: '<span class="climb-sent-check" title="Пролазано"><i class="fas fa-check"></i></span>'
+                    badge: '<span class="climb-sent-check" title="Пролазано" aria-hidden="true">✓</span>'
                 };
             }
 
-            renderClimbLogAddBtn(climbType, climbId) {
-                if (!this.isLoggedIn() || !this.isTelegramUser()) return '';
-                if (this.hasUserSent(climbType, climbId)) return '';
+            renderClimbLogStatusCell(climbType, climbId) {
+                if (!this.canUseClimbLogbook()) return '';
                 const ct = climbType === 'route' ? 'route' : 'boulder';
                 const id = Number(climbId);
                 if (!Number.isFinite(id)) return '';
+                if (this.hasUserSent(climbType, climbId)) {
+                    return '<span class="climb-log-sent-mark" title="Пролазано" aria-label="Пролазано">✓</span>';
+                }
                 return `<button type="button" class="climb-log-add-btn" data-climb-log-add="${ct}" data-climb-id="${id}" aria-label="Добавить в логбук" title="Записать пролаз"><i class="fas fa-plus" aria-hidden="true"></i></button>`;
             }
 
             async openClimbLogFromList(climbType, climbId) {
                 if (!this.isLoggedIn() || !this.isTelegramUser()) {
-                    this.showToast('Войдите через Telegram Mini App', true);
+                    this.showToast(authTelegramGateMessage(), true);
                     return;
                 }
                 const idStr = String(climbId);
@@ -5714,7 +6270,6 @@
 
                 const showAdminForm = !user && this.isAdminPasswordFormUnlocked();
 
-                const profileBtn = document.getElementById('openProfileBtn');
                 if (user) {
                     adminBlock?.classList.remove('is-visible');
                     adminBlock?.setAttribute('aria-hidden', 'true');
@@ -5724,10 +6279,10 @@
                     const icon = isAdmin ? 'fa-user-shield' : 'fa-user';
                     status.innerHTML = `<span class="role-badge ${badgeClass}"><i class="fas ${icon}"></i> ${this.escapeHtml(user.display_name || user.email || 'Пользователь')}</span>`;
                     logoutBtn.style.display = 'inline-flex';
-                    if (profileBtn) profileBtn.style.display = this.isTelegramUser() ? 'inline-flex' : 'none';
+                    window.syncOpenProfileButtonVisibility?.({ telegramUser: this.isTelegramUser() });
                     authPanel?.classList.add('auth-panel--visible');
                 } else {
-                    if (profileBtn) profileBtn.style.display = 'none';
+                    window.syncOpenProfileButtonVisibility?.({ telegramUser: false });
                     if (showAdminForm) {
                         adminBlock?.classList.add('is-visible');
                         adminBlock?.setAttribute('aria-hidden', 'false');
@@ -5922,13 +6477,19 @@
                 const showSentFilter = loggedIn && this.isTelegramUser();
                 document.getElementById('hideSentRoutesWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
                 document.getElementById('hideSentBouldersWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
-                document.getElementById('profileTabBtn')?.classList.toggle('hidden-by-role', !loggedIn);
                 if (!adminMode) {
                     this.toggleMapEditMode(false);
                     const activeTab = document.querySelector('.tab-content.active')?.id || '';
                     if (activeTab === 'routes' || activeTab === 'boulders') {
                         document.querySelector('.tab-btn[data-tab="catalog"]')?.click();
                     }
+                }
+                const activeTab = document.querySelector('.tab-content.active')?.id || '';
+                if (activeTab === 'photos' || activeTab === 'updates') {
+                    document.querySelector('.tab-btn[data-tab="catalog"]')?.click();
+                }
+                if (activeTab === 'profile' && !loggedIn) {
+                    document.querySelector('.tab-btn[data-tab="catalog"]')?.click();
                 }
             }
 
@@ -5938,21 +6499,24 @@
              * иначе десятки base64-картинок в одном синхронном проходе дают длинный фриз.
              */
             refreshListsAfterRoleChange() {
-                this.renderCatalog();
-                if (!APP_BOULDER_ONLY) {
-                    this.renderRoutes();
-                }
-                this.renderBoulders();
-                const activeTab = document.querySelector('.tab-content.active')?.id || '';
-                if (activeTab !== 'photos') {
-                    return;
-                }
-                const run = () => this.renderPhotoAlbum();
-                if (typeof requestAnimationFrame === 'function') {
-                    requestAnimationFrame(() => requestAnimationFrame(run));
-                } else {
-                    setTimeout(run, 0);
-                }
+                const finish = () => {
+                    this.renderCatalog();
+                    if (!APP_BOULDER_ONLY) {
+                        this.renderRoutes();
+                    }
+                    this.renderBoulders();
+                    const activeTab = document.querySelector('.tab-content.active')?.id || '';
+                    if (activeTab !== 'photos') {
+                        return;
+                    }
+                    const run = () => this.renderPhotoAlbum();
+                    if (typeof requestAnimationFrame === 'function') {
+                        requestAnimationFrame(() => requestAnimationFrame(run));
+                    } else {
+                        setTimeout(run, 0);
+                    }
+                };
+                void this.ensureClimbLogbookReady().finally(finish);
             }
 
             setStarRating(targetId, value) {
@@ -5983,7 +6547,9 @@
                     chip.setAttribute('aria-selected', active ? 'true' : 'false');
                 });
                 if (!toggle) return;
-                const display = selectedValue || cfg.emptyLabel || cfg.placeholder || 'Категория';
+                const display = selectedValue
+                    ? formatGradeLabel(selectedValue)
+                    : (cfg.emptyLabel || cfg.placeholder || 'Категория');
                 toggle.textContent = display;
                 toggle.classList.remove(
                     'grade-picker-toggle--yellow',
@@ -5991,6 +6557,7 @@
                     'grade-picker-toggle--orange',
                     'grade-picker-toggle--red',
                     'grade-picker-toggle--black',
+                    'grade-picker-toggle--project',
                     'grade-picker-toggle--all'
                 );
                 toggle.classList.add(this._formGradeToggleToneClass(gradeBandFromValue(selectedValue)));
@@ -6012,7 +6579,7 @@
                     const tone = value ? this._gradeChipToneByValue(value) : 'all';
                     chip.className = `grade-chip grade-chip--${tone}`;
                     chip.dataset.value = value;
-                    chip.textContent = value || emptyLabel || '—';
+                    chip.textContent = value ? formatGradeLabel(value) : (emptyLabel || '—');
                     chip.setAttribute('role', 'option');
                     chip.setAttribute('aria-selected', 'false');
                     chip.addEventListener('click', () => {
@@ -6634,7 +7201,7 @@
             }
 
             persistMapView() {
-                if (!this.map) return;
+                if (!this.map || this.catalogEmbeddedMapActive()) return;
                 try {
                     const c = this.map.getCenter();
                     localStorage.setItem(MAP_VIEW_STORAGE_KEY, JSON.stringify({
@@ -6650,7 +7217,8 @@
                 const mapContainer = document.getElementById('mapContainer');
                 if (!mapContainer || this.map) return;
 
-                const savedView = this.loadSavedMapView();
+                const catalogMapNow = this.catalog?.view === 'sectors' || this.catalog?.view === 'problems';
+                const savedView = catalogMapNow ? null : this.loadSavedMapView();
                 if (savedView?.scope) {
                     this._mapRestoringView = true;
                     this.mapCatalogScope = savedView.scope;
@@ -6687,6 +7255,7 @@
                     this.schedulePersistMapView();
                 });
                 this.attachMapFullscreenControl();
+                this.attachMapLocateControl();
                 this.attachMapEditInteraction();
                 this.attachMapPointerTracking();
                 this.syncMapFilterButtons();
@@ -6697,6 +7266,7 @@
                 this.renderMapCoordsBar();
                 this.syncMapZoomClass();
                 this.fillMapLegendSectorIcons();
+                this.syncMapLocateButtons();
                 this.applyCachedUserLocation();
                 this._mapRestoringView = false;
                 requestAnimationFrame(() => this.map.invalidateSize({ animate: false }));
@@ -6705,7 +7275,73 @@
 
             shouldClusterClimbMarkers() {
                 if (!this.map || typeof L.markerClusterGroup !== 'function') return false;
+                if (this.catalogEmbeddedMapActive()) return false;
                 return this.map.getZoom() < 16;
+            }
+
+            mapEntryCatalogAccent(entry) {
+                if (!this.catalogEmbeddedMapActive() || !entry) return false;
+                const areaId = Number(this.catalog.areaId);
+                if (!Number.isFinite(areaId)) return false;
+                if (entry.kind === 'area' && Number(entry.id) === areaId) return true;
+                if (entry.kind === 'sector' && Number(entry.areaId) === areaId) {
+                    if (this.catalog.view === 'problems') {
+                        return Number(entry.id) === Number(this.catalog.sectorId);
+                    }
+                    return true;
+                }
+                return false;
+            }
+
+            mapPinShowsCountSub() {
+                return !this.catalogEmbeddedMapActive();
+            }
+
+            mapPinLabelSub(entry) {
+                if (!entry || entry.kind === 'area') return '';
+                return this.mapPinShowsCountSub() ? String(entry.labelSub || '') : '';
+            }
+
+            mapEntryShowAsSelected(entry) {
+                return this.mapEntrySelected(entry) || this.mapEntryCatalogAccent(entry);
+            }
+
+            buildMapLocatePinIconHtml() {
+                return `<span class="map-locate-pin-icon">${MAP_LOCATE_PIN_SVG}</span>`;
+            }
+
+            buildMapCampingSignHtml(extraClass = '') {
+                const cls = ['map-camping-sign', extraClass].filter(Boolean).join(' ');
+                return `<span class="${cls}">${MAP_CAMPING_SIGN_SVG}</span>`;
+            }
+
+            syncMapLocateButtons() {
+                const toolbarBtn = document.getElementById('mapLocateBtn');
+                if (toolbarBtn && !toolbarBtn.querySelector('.map-locate-pin-icon')) {
+                    toolbarBtn.innerHTML = `${this.buildMapLocatePinIconHtml()} Моё место`;
+                }
+            }
+
+            attachMapLocateControl() {
+                if (!this.map || this._mapLocateControlAttached) return;
+                this._mapLocateControlAttached = true;
+                const Ctrl = L.Control.extend({
+                    options: { position: 'bottomright' },
+                    onAdd: () => {
+                        const btn = L.DomUtil.create('button', 'map-locate-btn');
+                        btn.type = 'button';
+                        btn.title = 'Моё местоположение';
+                        btn.setAttribute('aria-label', 'Моё местоположение');
+                        btn.innerHTML = this.buildMapLocatePinIconHtml();
+                        L.DomEvent.disableClickPropagation(btn);
+                        L.DomEvent.on(btn, 'click', (e) => {
+                            L.DomEvent.stopPropagation(e);
+                            this.startUserLocationWatch();
+                        });
+                        return btn;
+                    }
+                });
+                this.map.addControl(new Ctrl());
             }
 
             attachMapFullscreenControl() {
@@ -7057,12 +7693,46 @@
             fillMapLegendSectorIcons() {
                 const routeEl = document.getElementById('mapLegendSectorRoute');
                 const boulderEl = document.getElementById('mapLegendSectorBoulder');
+                const areaEl = document.getElementById('mapLegendAreaDroplet');
                 if (routeEl && !routeEl.querySelector('svg')) {
                     routeEl.innerHTML = MAP_ROUTE_SECTOR_CLIMBER_SVG;
                 }
                 if (boulderEl && !boulderEl.querySelector('svg')) {
                     boulderEl.innerHTML = MAP_BOULDER_SECTOR_CLIMBER_SVG;
                 }
+                if (areaEl) {
+                    const inCatalog = Boolean(areaEl.closest('#catalogMapLegendMount'));
+                    const styleKey = inCatalog ? 'catalog' : 'default';
+                    if (areaEl.dataset.legendAreaStyle !== styleKey) {
+                        areaEl.dataset.legendAreaStyle = styleKey;
+                        areaEl.classList.toggle('map-legend-area-droplet--catalog', inCatalog);
+                        areaEl.innerHTML = inCatalog
+                            ? this.buildMapAreaDropletCatalogSvg()
+                            : MAP_AREA_DROPLET_SVG;
+                    }
+                }
+                const campingEl = document.getElementById('mapLegendCamping');
+                if (campingEl && !campingEl.querySelector('svg')) {
+                    campingEl.innerHTML = MAP_CAMPING_SIGN_SVG;
+                }
+                const campingToolEl = document.getElementById('mapEditCampingIcon');
+                if (campingToolEl && !campingToolEl.querySelector('svg')) {
+                    campingToolEl.innerHTML = MAP_CAMPING_SIGN_SVG;
+                }
+                const toolEl = document.getElementById('mapToolAreaDroplet');
+                if (toolEl && !toolEl.querySelector('svg')) {
+                    toolEl.innerHTML = MAP_AREA_DROPLET_SVG;
+                }
+            }
+
+            buildMapAreaDropletCatalogSvg() {
+                return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 36" aria-hidden="true"><rect width="28" height="36" fill="#fff" rx="3"/><path fill="none" stroke="#e8472a" stroke-width="1.6" stroke-linejoin="round" d="M3 30h22M3 30l4-2.5 4 1.5 4-1.5 4 2.5"/><path fill="#e8472a" d="M14 3.5c-3.2 0-5.8 2.5-5.8 5.6 0 3.3 5.8 10.9 5.8 10.9s5.8-7.6 5.8-10.9c0-3.1-2.6-5.6-5.8-5.6zm0 3.6a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/><circle cx="14" cy="8.6" r="1.55" fill="#fff"/></svg>';
+            }
+
+            buildMapAreaDropletHtml(extraClass = '', { catalogWhite = false } = {}) {
+                const cls = ['map-area-droplet', extraClass].filter(Boolean).join(' ');
+                const svg = catalogWhite ? this.buildMapAreaDropletCatalogSvg() : MAP_AREA_DROPLET_SVG;
+                return `<span class="${cls}">${svg}</span>`;
             }
 
             buildMapBoulderSectorIconHtml(extraClass = '') {
@@ -7089,11 +7759,31 @@
                     ? this.buildMapBoulderSectorIconHtml('map-sector-badge-glyph')
                     : this.buildMapRouteSectorIconHtml('map-sector-badge-glyph');
                 const subHtml = sub ? ` <span>${this.escapeHtml(String(sub))}</span>` : '';
-                return `<div class="map-sector-badge ${kindCls}${selected ? ' selected' : ''}">${glyph}<div class="map-sector-badge-label">${this.escapeHtml(title)}${subHtml}</div><div class="map-sector-badge-pointer" aria-hidden="true"></div><div class="map-sector-badge-dot" aria-hidden="true"></div></div>`;
+                const labelCls = this.catalogEmbeddedMapActive() ? 'map-sector-badge-label map-pin-label--plain' : 'map-sector-badge-label';
+                return `<div class="map-sector-badge ${kindCls}${selected ? ' selected' : ''}">${glyph}<div class="${labelCls}">${this.escapeHtml(title)}${subHtml}</div><div class="map-sector-badge-pointer" aria-hidden="true"></div><div class="map-sector-badge-dot" aria-hidden="true"></div></div>`;
+            }
+
+            buildMapAreaBadgeHtml(title, sub, selected = false) {
+                const subHtml = sub ? ` <span>${this.escapeHtml(String(sub))}</span>` : '';
+                const sel = selected ? ' selected' : '';
+                if (this.catalogEmbeddedMapActive()) {
+                    const droplet = this.buildMapAreaDropletHtml('map-area-droplet-pin', { catalogWhite: true });
+                    return `<div class="map-sector-badge map-sector-badge--area map-area-badge--catalog${sel}">${droplet}<div class="map-sector-badge-label map-pin-label--plain">${this.escapeHtml(title)}${subHtml}</div></div>`;
+                }
+                const glyph = this.buildMapAreaDropletHtml('map-sector-badge-glyph map-area-badge-glyph');
+                return `<div class="map-sector-badge map-sector-badge--area${sel}">${glyph}<div class="map-sector-badge-label">${this.escapeHtml(title)}${subHtml}</div><div class="map-sector-badge-pointer" aria-hidden="true"></div><div class="map-sector-badge-dot" aria-hidden="true"></div></div>`;
+            }
+
+            isMapPinLabelKind(kind) {
+                return kind === 'area' || kind === 'sector';
+            }
+
+            mapPinLabelSelector() {
+                return '.map-sector-badge';
             }
 
             buildMapDotHtml(entry) {
-                const selected = this.mapEntrySelected(entry);
+                const selected = this.mapEntryShowAsSelected(entry);
                 const done = entry.climbType && this.hasUserSent(entry.climbType, entry.id);
                 const title = this.escapeHtml(entry.title || 'Точка');
                 return `<div class="map-climb-dot-hit" role="button" tabindex="-1" aria-label="${title}"><div class="map-climb-dot${selected ? ' focused' : ''}${done ? ' done' : ''}" aria-hidden="true"></div></div>`;
@@ -7146,27 +7836,41 @@
                 if (kind === 'sector') {
                     return this.buildMapSectorBadgeHtml(entry, title, sub, selected);
                 }
-                const subHtml = sub ? ` <span>${this.escapeHtml(sub)}</span>` : '';
-                let icon = '';
                 if (kind === 'area') {
-                    icon = '<i class="fas fa-droplet map-kind-icon map-kind-icon--area" aria-hidden="true"></i>';
+                    return this.buildMapAreaBadgeHtml(title, sub, selected);
                 }
-                return `<div class="parent-label${selected ? ' selected' : ''}">${icon}${this.escapeHtml(title)}${subHtml}</div>`;
+                const subHtml = sub ? ` <span>${this.escapeHtml(sub)}</span>` : '';
+                return `<div class="parent-label${selected ? ' selected' : ''}">${this.escapeHtml(title)}${subHtml}</div>`;
             }
 
             createMapParentLabelMarker(entry, coord, html) {
-                const isSector = entry?.kind === 'sector';
+                const isPin = this.isMapPinLabelKind(entry?.kind);
                 const icon = L.divIcon({
-                    className: isSector ? 'parent-label-icon map-sector-marker' : 'parent-label-icon',
+                    className: isPin ? 'parent-label-icon map-sector-marker' : 'parent-label-icon',
                     html,
                     iconSize: [0, 0],
                     iconAnchor: [0, 0]
                 });
                 const marker = L.marker([coord.lat, coord.lng], { icon, zIndexOffset: 400 })
-                    .addTo(this.map)
-                    .bindPopup(this.buildMapPopupHtml(entry));
+                    .addTo(this.map);
+                const sectorCatalogJump = this.catalog?.view === 'sectors' && entry?.kind === 'sector';
+                if (!sectorCatalogJump) marker.bindPopup(this.buildMapPopupHtml(entry));
                 marker.on('click', (e) => {
                     L.DomEvent.stopPropagation(e);
+                    if (this.mapEditMode && this.isAdmin()) {
+                        if (this.mapDrawTool === 'delete' && (entry.kind === 'area' || entry.kind === 'sector')) {
+                            void this.deleteCatalogMapPin(entry);
+                            return;
+                        }
+                        if (this.mapDrawTool === 'edit' && (entry.kind === 'area' || entry.kind === 'sector')) {
+                            this.beginMoveCatalogMapPin(entry);
+                            return;
+                        }
+                    }
+                    if (sectorCatalogJump) {
+                        this.openCatalogFromMap('sector', entry.id);
+                        return;
+                    }
                     this.handleMapMarkerSelection(entry, { openNavigation: false, openPopup: true });
                 });
                 return marker;
@@ -7174,13 +7878,15 @@
 
             mapDeclutterPriority(entry) {
                 if (this.mapEntrySelected(entry)) return 1_000_000;
-                if (entry.kind === 'area') {
-                    return 1000 + Number(getSectors().filter((s) => Number(s.areaId) === Number(entry.id)).length || 0);
-                }
-                if (entry.kind === 'sector') {
-                    const routes = APP_BOULDER_ONLY ? 0 : getRoutes().filter((r) => Number(r.sectorId) === Number(entry.id)).length;
-                    const boulders = getBoulders().filter((b) => Number(b.sectorId) === Number(entry.id)).length;
-                    return 500 + routes + boulders;
+                if (entry.kind === 'area' || entry.kind === 'sector') {
+                    let weight = 0;
+                    if (entry.kind === 'area') {
+                        weight = getSectors().filter((s) => Number(s.areaId) === Number(entry.id)).length;
+                    } else {
+                        const routes = APP_BOULDER_ONLY ? 0 : getRoutes().filter((r) => Number(r.sectorId) === Number(entry.id)).length;
+                        weight = routes + getBoulders().filter((b) => Number(b.sectorId) === Number(entry.id)).length;
+                    }
+                    return 900 + weight;
                 }
                 return 100;
             }
@@ -7215,6 +7921,11 @@
                     if (!el) return;
                     el.classList.remove('declutter-hidden');
                     if (this.mapEntrySelected(entry)) return;
+                    if (this.catalogEmbeddedMapActive() && this.isMapPinLabelKind(entry.kind)) {
+                        const rect = el.getBoundingClientRect();
+                        if (rect.width && rect.height) kept.push(rect);
+                        return;
+                    }
                     const rect = el.getBoundingClientRect();
                     if (!rect.width || !rect.height) return;
                     const overlaps = kept.some((k) => !(
@@ -7242,6 +7953,12 @@
                 const guideButton = entry.kind === 'area' || entry.kind === 'sector'
                     ? `<button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('guide','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Guide</button>`
                     : '';
+                const adminPinActions = this.isAdmin() && (entry.kind === 'area' || entry.kind === 'sector')
+                    ? `
+                        <button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.beginMoveCatalogMapPinFromPopup?.('${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Переместить</button>
+                        <button type="button" class="btn btn-small btn-danger" onclick="event.preventDefault(); window.app?.deleteCatalogMapPinFromPopup?.('${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Удалить метку</button>
+                    `
+                    : '';
                 return `
                     <div class="map-popup">
                         <strong>${this.escapeHtml(entry.title)}</strong>
@@ -7252,6 +7969,7 @@
                             ${detailButton}
                             ${guideButton}
                             ${catalogButton}
+                            ${adminPinActions}
                             <button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('target','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">К точке</button>
                             <button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('external','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;"><i class="fas fa-diamond-turn-right"></i> Маршрут</button>
                         </div>
@@ -7261,17 +7979,17 @@
 
             refreshMapMarkerStyles() {
                 this.mapMarkerIndex.forEach((stored) => {
-                    const selected = this.mapEntrySelected(stored);
+                    const selected = this.mapEntryShowAsSelected(stored);
                     if (stored.kind === 'area' || stored.kind === 'sector') {
-                        const isSector = stored.kind === 'sector';
+                        const isPin = this.isMapPinLabelKind(stored.kind);
                         stored.marker?.setIcon(L.divIcon({
-                            className: isSector ? 'parent-label-icon map-sector-marker' : 'parent-label-icon',
-                            html: this.buildMapParentLabelHtml(stored.title, stored.labelSub || '', selected, stored.kind, stored),
+                            className: isPin ? 'parent-label-icon map-sector-marker' : 'parent-label-icon',
+                            html: this.buildMapParentLabelHtml(stored.title, this.mapPinLabelSub(stored), selected, stored.kind, stored),
                             iconSize: [0, 0],
                             iconAnchor: [0, 0]
                         }));
                         stored.labelEl = stored.marker?.getElement()?.querySelector(
-                            isSector ? '.map-sector-badge' : '.parent-label'
+                            isPin ? this.mapPinLabelSelector() : '.parent-label'
                         ) || null;
                     } else if (stored.marker) {
                         stored.marker.setIcon(L.divIcon({
@@ -7297,6 +8015,103 @@
                 return bounds.isValid() ? bounds : null;
             }
 
+            _pushMapCoordPoint(points, lat, lng) {
+                const c = this.validMapCoord(lat, lng);
+                if (c) points.push(c);
+            }
+
+            /** Все координаты текущего района/сектора (секторы, трассы, POI, тропы) — для авто-fit. */
+            collectPointsForCatalogScope() {
+                const scope = this.mapCatalogScope;
+                if (!scope?.areaId) return [];
+                const points = [];
+                const areaId = Number(scope.areaId);
+                const sectorId = scope.sectorId != null ? Number(scope.sectorId) : null;
+
+                const pinsOnly = this.catalogEmbeddedMapActive();
+                const pushSectorClimbs = (sid) => {
+                    if (pinsOnly) return;
+                    if (!APP_BOULDER_ONLY) {
+                        getRoutes().forEach((r) => {
+                            if (Number(r.sectorId) !== Number(sid)) return;
+                            this._pushMapCoordPoint(points, r.latitude, r.longitude);
+                        });
+                    }
+                    getBoulders().forEach((b) => {
+                        if (Number(b.sectorId) !== Number(sid)) return;
+                        this._pushMapCoordPoint(points, b.latitude, b.longitude);
+                    });
+                };
+
+                if (sectorId != null) {
+                    const sector = getSectors().find((s) => Number(s.id) === sectorId);
+                    if (sector) {
+                        this._pushMapCoordPoint(points, sector.latitude, sector.longitude);
+                        const centroid = this.sectorMapCoordinate(sectorId);
+                        if (centroid) points.push(centroid);
+                        pushSectorClimbs(sectorId);
+                    }
+                } else {
+                    const area = getAreas().find((a) => Number(a.id) === areaId);
+                    if (area) {
+                        this._pushMapCoordPoint(points, area.latitude, area.longitude);
+                        const areaCentroid = this.areaMapCoordinate(areaId);
+                        if (areaCentroid) points.push(areaCentroid);
+                    }
+                    getSectors()
+                        .filter((s) => Number(s.areaId) === areaId)
+                        .forEach((sector) => {
+                            this._pushMapCoordPoint(points, sector.latitude, sector.longitude);
+                            const c = this.sectorMapCoordinate(sector.id);
+                            if (c) points.push(c);
+                            pushSectorClimbs(sector.id);
+                        });
+                }
+
+                getMapFeatures().forEach((feature) => {
+                    if (!this.mapFeatureVisible(feature)) return;
+                    const geom = feature.geometry;
+                    if (!geom) return;
+                    if (geom.type === 'Point' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
+                        this._pushMapCoordPoint(points, geom.coordinates[1], geom.coordinates[0]);
+                    } else if (geom.type === 'LineString' && Array.isArray(geom.coordinates)) {
+                        geom.coordinates.forEach((c) => {
+                            if (Array.isArray(c) && c.length >= 2) {
+                                this._pushMapCoordPoint(points, c[1], c[0]);
+                            }
+                        });
+                    }
+                });
+
+                return points;
+            }
+
+            fitMapToCatalogScope(maxZoom = 15) {
+                if (!this.map) return;
+                const points = this.collectPointsForCatalogScope();
+                if (points.length === 1) {
+                    this._mapRestoringView = true;
+                    this.map.setView([points[0].lat, points[0].lng], Math.min(maxZoom, 14), { animate: true });
+                    requestAnimationFrame(() => {
+                        this._mapRestoringView = false;
+                    });
+                    return;
+                }
+                if (points.length > 1) {
+                    const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng]));
+                    if (bounds.isValid()) {
+                        this._mapRestoringView = true;
+                        const pad = this.catalogEmbeddedMapActive() ? 0.12 : 0.18;
+                        this.map.fitBounds(bounds.pad(pad), { maxZoom, animate: true });
+                        requestAnimationFrame(() => {
+                            this._mapRestoringView = false;
+                        });
+                        return;
+                    }
+                }
+                this.fitMapToVisibleMarkers(maxZoom);
+            }
+
             fitMapToVisibleMarkers(maxZoom = 15) {
                 if (!this.map || !this.mapMarkerIndex.size) return;
                 const bounds = this.mapVisibleBounds();
@@ -7304,12 +8119,18 @@
                 this.map.fitBounds(bounds.pad(0.22), { maxZoom, animate: true });
             }
 
+            catalogEmbeddedMapActive() {
+                return this._mapDomInCatalog
+                    && (this.catalog?.view === 'sectors' || this.catalog?.view === 'problems');
+            }
+
             mapEntryInScope(entry) {
                 if (!this.mapCatalogScope) return true;
                 const { areaId, sectorId } = this.mapCatalogScope;
                 if (sectorId != null) {
                     return Number(entry.sectorId) === Number(sectorId)
-                        || (entry.kind === 'sector' && Number(entry.id) === Number(sectorId));
+                        || (entry.kind === 'sector' && Number(entry.id) === Number(sectorId))
+                        || (entry.kind === 'area' && Number(entry.id) === Number(areaId));
                 }
                 if (areaId != null) {
                     return Number(entry.areaId) === Number(areaId)
@@ -7329,7 +8150,7 @@
                         id: area.id,
                         title: area.name,
                         meta: `${sectorsCount} секторов`,
-                        labelSub: String(sectorsCount),
+                        labelSub: '',
                         lat: c.lat,
                         lng: c.lng,
                         catalog: true,
@@ -7359,7 +8180,8 @@
                     });
                 });
 
-                if (!APP_BOULDER_ONLY) {
+                const skipClimbDots = this.catalogEmbeddedMapActive();
+                if (!skipClimbDots && !APP_BOULDER_ONLY) {
                     getRoutes().forEach((route) => {
                         const c = this.validMapCoord(route.latitude, route.longitude);
                         if (!c) return;
@@ -7379,7 +8201,7 @@
                     });
                 }
 
-                getBoulders().forEach((boulder) => {
+                if (!skipClimbDots) getBoulders().forEach((boulder) => {
                     const c = this.validMapCoord(boulder.latitude, boulder.longitude);
                     if (!c) return;
                     entries.push({
@@ -7404,7 +8226,7 @@
                 const coord = this.validMapCoord(entry.lat, entry.lng);
                 if (!coord) return;
 
-                const selected = this.mapEntrySelected(entry);
+                const selected = this.mapEntryShowAsSelected(entry);
                 const stored = {
                     ...entry,
                     lat: coord.lat,
@@ -7415,10 +8237,11 @@
                 };
 
                 if (entry.kind === 'area' || entry.kind === 'sector') {
-                    const labelHtml = this.buildMapParentLabelHtml(entry.title, stored.labelSub, selected, entry.kind, entry);
+                    const labelSub = this.mapPinLabelSub(entry);
+                    const labelHtml = this.buildMapParentLabelHtml(entry.title, labelSub, selected, entry.kind, entry);
                     stored.marker = this.createMapParentLabelMarker(stored, coord, labelHtml);
                     stored.labelEl = stored.marker.getElement()?.querySelector(
-                        entry.kind === 'sector' ? '.map-sector-badge' : '.parent-label'
+                        this.isMapPinLabelKind(entry.kind) ? this.mapPinLabelSelector() : '.parent-label'
                     ) || null;
                 } else {
                     const useCluster = this.mapClimbCluster && this.shouldClusterClimbMarkers();
@@ -7481,7 +8304,7 @@
                 this.renderMapCoordsBar();
                 this.updateMapStatus();
 
-                if (!this._mapFitDone && this.mapMarkerIndex.size) {
+                if (!this.catalogEmbeddedMapActive() && !this._mapFitDone && this.mapMarkerIndex.size) {
                     const bounds = this.mapVisibleBounds();
                     if (bounds) {
                         this.map.fitBounds(bounds.pad(0.2), { maxZoom: 14, animate: false });
@@ -7492,6 +8315,25 @@
                 this.scheduleMapDeclutter();
                 this.renderMapFeatureLayers();
                 this.renderMapNearestChip();
+                if (this.catalogEmbeddedMapActive() && this.mapCatalogScope?.areaId) {
+                    this.scheduleCatalogMapAutoFit();
+                }
+            }
+
+            scheduleCatalogMapAutoFit() {
+                if (!this.map) return;
+                if (this._catalogMapFitRaf != null) cancelAnimationFrame(this._catalogMapFitRaf);
+                this._catalogMapFitRaf = requestAnimationFrame(() => {
+                    this._catalogMapFitRaf = null;
+                    if (!this.catalogEmbeddedMapActive() || !this.mapCatalogScope?.areaId) return;
+                    const maxZoom = this.catalog.view === 'sectors' ? 15 : 17;
+                    const scopeKey = `${this.catalog.view}:${this.catalog.areaId}:${this.catalog.sectorId ?? ''}`;
+                    const markerCount = this.mapMarkerIndex.size;
+                    const fitKey = `${scopeKey}:${markerCount}`;
+                    if (fitKey === this._catalogMapFitKey) return;
+                    this._catalogMapFitKey = fitKey;
+                    this.fitMapToCatalogScope(maxZoom);
+                });
             }
 
             clearMapFeatureLayers() {
@@ -7506,12 +8348,31 @@
                 this.mapFeatureLayers = [];
             }
 
+            mapFeatureCoordsDuplicateEntity(feature) {
+                if (!feature) return false;
+                const aid = feature.areaId ?? feature.area_id;
+                const sid = feature.sectorId ?? feature.sector_id;
+                if (feature.featureType === 'area_sign' && aid != null) {
+                    const area = getAreas().find((a) => Number(a.id) === Number(aid));
+                    return !!this.validMapCoord(area?.latitude, area?.longitude);
+                }
+                if (feature.featureType === 'sector_sign' && sid != null) {
+                    const sector = getSectors().find((s) => Number(s.id) === Number(sid));
+                    return !!this.validMapCoord(sector?.latitude, sector?.longitude);
+                }
+                return false;
+            }
+
             mapFeatureVisible(feature) {
                 if (!feature) return false;
                 if (feature.featureType === 'trail' && !this.mapShowTrails) return false;
                 if (feature.featureType !== 'trail' && !this.mapShowPoi) return false;
+                if (this.mapFeatureCoordsDuplicateEntity(feature)) return false;
                 const scopeAreaId = this.mapCatalogScope?.areaId;
                 if (!scopeAreaId) return true;
+                if (this.mapEditMode && this.isAdmin()) {
+                    if (feature.areaId == null && feature.sectorId == null) return true;
+                }
                 if (feature.areaId != null && Number(feature.areaId) === Number(scopeAreaId)) return true;
                 if (feature.sectorId != null) {
                     const sector = getSectors().find((s) => Number(s.id) === Number(feature.sectorId));
@@ -7555,7 +8416,7 @@
                 const targetBtn = coordsPt
                     ? `<button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.setMapTarget?.({ kind: 'feature', id: ${Number(feature.id)}, title: '${this.escapeHtml(title).replace(/'/g, "\\'")}', lat: ${coordsPt.lat}, lng: ${coordsPt.lng} }); return false;">К точке</button>`
                     : '';
-                const adminActions = this.mapEditMode && this.isAdmin()
+                const adminActions = this.isAdmin()
                     ? `
                         <button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.editMapFeatureFromPopup?.(${Number(feature.id)}); return false;">Изменить</button>
                         <button type="button" class="btn btn-small btn-danger" onclick="event.preventDefault(); window.app?.deleteMapFeature?.(${Number(feature.id)}); return false;">Удалить</button>
@@ -7573,14 +8434,28 @@
 
             bindMapFeatureLayerAdminEvents(layer, feature) {
                 if (!layer || !feature) return;
-                layer.off('click');
-                layer.on('click', (e) => {
-                    if (!this.mapEditMode || !this.isAdmin()) return;
+                const handler = (e) => {
+                    if (!this.isAdmin()) return;
+                    if (this.mapEditMode && this.mapDrawTool === 'delete') {
+                        L.DomEvent.stopPropagation(e);
+                        void this.deleteMapFeature(feature.id);
+                        return;
+                    }
+                    if (!this.mapEditMode) return;
                     L.DomEvent.stopPropagation(e);
                     if (this.mapDrawTool === 'edit') {
                         this.selectMapFeature(feature.id);
                     }
-                });
+                };
+                if (typeof layer.eachLayer === 'function') {
+                    layer.eachLayer((child) => {
+                        child.off('click');
+                        child.on('click', handler);
+                    });
+                    return;
+                }
+                layer.off('click');
+                layer.on('click', handler);
             }
 
             getMapFeatureById(featureId) {
@@ -7690,8 +8565,16 @@
                     await this.patchMapFeature(feature.id, {
                         geometry: { type: 'Point', coordinates: [lng, lat] }
                     });
+                    await this.applyMapFeatureToEntityCoords(
+                        feature.featureType,
+                        lat,
+                        lng,
+                        feature.areaId ?? feature.area_id,
+                        feature.sectorId ?? feature.sector_id
+                    );
                     this.renderMapFeatureLayers();
                     this.syncMapFeatureEditBar();
+                    this.renderCatalog();
                     this.showToast('Метка перемещена');
                     this.updateMapStatus('Метка перемещена.');
                 } catch (err) {
@@ -7726,13 +8609,27 @@
             }
 
             buildMapFeaturePointIcon(featureType, label, meta = {}) {
+                if (featureType === 'area_sign') {
+                    return L.divIcon({
+                        className: 'map-feature-point-marker map-feature-point-marker--area',
+                        html: this.buildMapAreaDropletHtml('map-feature-area-droplet'),
+                        iconSize: [28, 36],
+                        iconAnchor: [14, 36]
+                    });
+                }
                 const sectorSignIcon = meta.boulderSector
                     ? this.buildMapBoulderSectorIconHtml('map-feature-boulder-sector-icon')
                     : this.buildMapRouteSectorIconHtml('map-feature-route-sector-icon');
+                if (featureType === 'camping') {
+                    return L.divIcon({
+                        className: 'map-feature-point-marker map-feature-point-marker--camping',
+                        html: this.buildMapCampingSignHtml('map-feature-camping-sign'),
+                        iconSize: [26, 26],
+                        iconAnchor: [13, 26]
+                    });
+                }
                 const icons = {
                     parking: '<span class="map-feature-parking-letter" aria-hidden="true">P</span>',
-                    camping: '<i class="fas fa-campground" aria-hidden="true"></i>',
-                    area_sign: '<i class="fas fa-droplet" aria-hidden="true"></i>',
                     sector_sign: sectorSignIcon
                 };
                 const cls = `map-feature-icon map-feature-icon--${featureType}`;
@@ -7820,6 +8717,275 @@
                 }
             }
 
+            finishMapPromptDialog(ok) {
+                const resolve = this._mapPromptResolver;
+                const required = !!this._mapPromptRequired;
+                this._mapPromptResolver = null;
+                this._mapPromptRequired = false;
+                let result = null;
+                if (ok && resolve) {
+                    const input = document.getElementById('mapPromptDialogInput');
+                    const select = document.getElementById('mapPromptDialogSelect');
+                    const selectVisible = select && !select.classList.contains('hidden');
+                    const text = input?.value?.trim() ?? '';
+                    const selectValue = selectVisible ? select.value : null;
+                    if (selectVisible && !selectValue) {
+                        this.showToast('Выберите объект из списка', true);
+                        this._mapPromptResolver = resolve;
+                        this._mapPromptRequired = required;
+                        return;
+                    }
+                    if (required && !text && !selectVisible) {
+                        this.showToast('Укажите значение', true);
+                        this._mapPromptResolver = resolve;
+                        this._mapPromptRequired = required;
+                        return;
+                    }
+                    result = { text, selectValue };
+                }
+                const dlg = document.getElementById('mapPromptDialog');
+                dlg?.classList.add('hidden');
+                this.syncBodyDialogScreenLock();
+                this.syncCatalogSectorFocusUi();
+                resolve?.(result);
+            }
+
+            promptMapTextInput({
+                title = 'Подпись',
+                inputLabel = 'Название',
+                defaultValue = '',
+                hint = '',
+                required = false,
+                selectOptions = null,
+                selectLabel = 'Объект',
+                defaultSelectValue = null
+            } = {}) {
+                return new Promise((resolve) => {
+                    const dlg = document.getElementById('mapPromptDialog');
+                    const input = document.getElementById('mapPromptDialogInput');
+                    const select = document.getElementById('mapPromptDialogSelect');
+                    const selectLabelEl = document.getElementById('mapPromptDialogSelectLabel');
+                    const titleEl = document.getElementById('mapPromptDialogTitle');
+                    const hintEl = document.getElementById('mapPromptDialogHint');
+                    const inputLabelEl = document.getElementById('mapPromptDialogInputLabel');
+                    if (!dlg || !input) {
+                        resolve(null);
+                        return;
+                    }
+                    this._mapPromptResolver = resolve;
+                    this._mapPromptRequired = required;
+                    if (titleEl) titleEl.textContent = title;
+                    if (inputLabelEl) inputLabelEl.textContent = inputLabel;
+                    input.value = defaultValue || '';
+                    if (hintEl) {
+                        hintEl.textContent = hint;
+                        hintEl.classList.toggle('hidden', !hint);
+                    }
+                    const hasSelect = Array.isArray(selectOptions) && selectOptions.length > 0;
+                    select?.classList.toggle('hidden', !hasSelect);
+                    selectLabelEl?.classList.toggle('hidden', !hasSelect);
+                    if (hasSelect && select) {
+                        select.innerHTML = selectOptions.map((opt) => (
+                            `<option value="${this.escapeHtml(String(opt.value))}">${this.escapeHtml(String(opt.label))}</option>`
+                        )).join('');
+                        const pick = defaultSelectValue ?? selectOptions[0]?.value;
+                        if (pick != null) select.value = String(pick);
+                    } else if (select) {
+                        select.innerHTML = '';
+                    }
+                    if (selectLabelEl && hasSelect) selectLabelEl.textContent = selectLabel;
+                    this.showDialog('mapPromptDialog');
+                    requestAnimationFrame(() => (hasSelect ? select : input)?.focus?.());
+                });
+            }
+
+            beginMapLocationPick(inputId) {
+                if (!inputId) return;
+                this._mapLocationPickTarget = inputId;
+                const catalogActive = this.catalogEmbeddedMapActive();
+                const onCatalogTab = document.getElementById('catalog')?.classList.contains('active');
+                if (!this.map && (catalogActive || onCatalogTab)) {
+                    void this.syncCatalogEmbeddedMap();
+                }
+                if (!this.map) {
+                    document.querySelector('.tab-btn[data-tab="map"]')?.click();
+                    void this.showMapTab();
+                }
+                this.showToast('Кликните на карте — координаты подставятся в форму');
+                this.updateMapStatus('Режим выбора координат: кликните по карте.');
+                this.map?.getContainer()?.classList.add('map-pick-location');
+            }
+
+            cancelMapLocationPick() {
+                this._mapLocationPickTarget = null;
+                this.map?.getContainer()?.classList.remove('map-pick-location');
+            }
+
+            applyMapLocationPick(lat, lng) {
+                const inputId = this._mapLocationPickTarget;
+                if (!inputId) return false;
+                const input = document.getElementById(inputId);
+                if (input) input.value = this.formatLocationInput(lat, lng);
+                this.cancelMapLocationPick();
+                this.showToast('Координаты подставлены');
+                this.updateMapStatus('Координаты выбраны на карте.');
+                return true;
+            }
+
+            async removeMapSignFeaturesForEntity(kind, entityId) {
+                const signType = kind === 'area' ? 'area_sign' : kind === 'sector' ? 'sector_sign' : null;
+                if (!signType || entityId == null) return;
+                const features = getMapFeatures().filter((f) => {
+                    if (f.featureType !== signType) return false;
+                    if (kind === 'area') return Number(f.areaId ?? f.area_id) === Number(entityId);
+                    return Number(f.sectorId ?? f.sector_id) === Number(entityId);
+                });
+                for (const feature of features) {
+                    try {
+                        await apiFetch(`/api/map-features/${Number(feature.id)}`, { method: 'DELETE' });
+                        removeMapFeatureFromLocalCache(feature.id);
+                    } catch (_) {
+                        /* ignore single failure */
+                    }
+                }
+            }
+
+            catalogMapPinEntry(kind, id) {
+                const stored = this.mapMarkerIndex.get(this.mapKey(kind, id));
+                if (stored) return stored;
+                if (kind === 'area') {
+                    const area = getAreas().find((a) => Number(a.id) === Number(id));
+                    const coord = area ? this.areaMapCoordinate(area.id) : null;
+                    if (!area || !coord) return null;
+                    return { kind: 'area', id: area.id, title: area.name, lat: coord.lat, lng: coord.lng };
+                }
+                if (kind === 'sector') {
+                    const sector = getSectors().find((s) => Number(s.id) === Number(id));
+                    const coord = sector ? this.sectorMapCoordinate(sector.id) : null;
+                    if (!sector || !coord) return null;
+                    return { kind: 'sector', id: sector.id, title: sector.name, lat: coord.lat, lng: coord.lng };
+                }
+                return null;
+            }
+
+            beginMoveCatalogMapPinFromPopup(kind, id) {
+                const entry = this.catalogMapPinEntry(kind, id);
+                if (!entry) return;
+                if (!this.mapEditMode) this.toggleMapEditMode(true);
+                this.setMapDrawTool('edit');
+                this.beginMoveCatalogMapPin(entry);
+            }
+
+            deleteCatalogMapPinFromPopup(kind, id) {
+                const entry = this.catalogMapPinEntry(kind, id);
+                if (!entry) return;
+                void this.deleteCatalogMapPin(entry);
+            }
+
+            beginMoveCatalogMapPin(entry) {
+                if (!entry || (entry.kind !== 'area' && entry.kind !== 'sector')) return;
+                this._mapCatalogPinMove = { kind: entry.kind, id: Number(entry.id) };
+                this.mapFeatureMovePending = false;
+                const label = entry.kind === 'area' ? 'района' : 'сектора';
+                this.updateMapStatus(`Кликните на карте — новое положение метки ${label}.`);
+                this.syncMapEditUi();
+            }
+
+            async moveCatalogMapPin(lat, lng) {
+                const move = this._mapCatalogPinMove;
+                this._mapCatalogPinMove = null;
+                if (!move?.kind || !move?.id) return;
+                if (!this.requireAdmin('Перемещение метки')) return;
+                try {
+                    if (move.kind === 'area') {
+                        const saved = await apiFetch(`/api/areas/${Number(move.id)}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: lat, longitude: lng })
+                        });
+                        mergeAreaFromApiResponse(saved);
+                        await this.removeMapSignFeaturesForEntity('area', move.id);
+                    } else {
+                        const saved = await apiFetch(`/api/sectors/${Number(move.id)}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: lat, longitude: lng })
+                        });
+                        mergeSectorFromApiResponse(saved);
+                        await this.removeMapSignFeaturesForEntity('sector', move.id);
+                    }
+                    this.data = getClimbingData();
+                    this.map?.closePopup();
+                    this.updateMapMarkers();
+                    this.renderCatalog();
+                    this.showToast('Метка перемещена');
+                    this.updateMapStatus('Метка перемещена.');
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось переместить метку', true);
+                }
+            }
+
+            async deleteCatalogMapPin(entry) {
+                if (!entry || (entry.kind !== 'area' && entry.kind !== 'sector')) return;
+                if (!this.requireAdmin('Удаление метки')) return;
+                const name = entry.title || (entry.kind === 'area' ? 'район' : 'сектор');
+                const msg = `Убрать метку «${name}» с карты? Координаты в каталоге будут очищены.`;
+                if (!(await confirmDestructive(msg))) return;
+                try {
+                    if (entry.kind === 'area') {
+                        const saved = await apiFetch(`/api/areas/${Number(entry.id)}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: null, longitude: null })
+                        });
+                        mergeAreaFromApiResponse(saved);
+                        await this.removeMapSignFeaturesForEntity('area', entry.id);
+                    } else {
+                        const saved = await apiFetch(`/api/sectors/${Number(entry.id)}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: null, longitude: null })
+                        });
+                        mergeSectorFromApiResponse(saved);
+                        await this.removeMapSignFeaturesForEntity('sector', entry.id);
+                    }
+                    this.data = getClimbingData();
+                    this.map?.closePopup();
+                    this.updateMapMarkers();
+                    this.renderCatalog();
+                    this.showToast('Метка удалена');
+                    this.updateMapStatus('Метка района/сектора удалена с карты.');
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось удалить метку', true);
+                }
+            }
+
+            async applyMapFeatureToEntityCoords(featureType, lat, lng, areaId, sectorId) {
+                try {
+                    if (featureType === 'area_sign' && areaId) {
+                        const saved = await apiFetch(`/api/areas/${Number(areaId)}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: lat, longitude: lng })
+                        });
+                        mergeAreaFromApiResponse(saved);
+                    } else if (featureType === 'sector_sign' && sectorId) {
+                        const saved = await apiFetch(`/api/sectors/${Number(sectorId)}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: lat, longitude: lng })
+                        });
+                        mergeSectorFromApiResponse(saved);
+                    } else {
+                        return;
+                    }
+                    this.data = getClimbingData();
+                    this.updateMapMarkers();
+                } catch (err) {
+                    this.showToast(err?.message || 'Метка на карте сохранена, но координаты в каталоге не обновились', true);
+                }
+            }
+
             syncMapEditUi() {
                 const panel = document.getElementById('mapEditPanel');
                 const tools = document.getElementById('mapEditTools');
@@ -7840,16 +9006,19 @@
                 }
                 if (hint && this.mapEditMode) {
                     const toolHints = {
-                        edit: 'Кликните по объекту на карте, чтобы изменить или удалить его.',
+                        edit: 'Кликните по объекту на карте, чтобы изменить подпись или переместить его.',
+                        delete: 'Кликните по объекту на карте, чтобы удалить только его.',
                         trail: 'Кликайте по карте, чтобы добавить точки тропы. «Завершить тропу» — сохранить.',
                         parking: 'Клик по карте — поставить парковку.',
                         camping: 'Клик по карте — поставить кемпинг.',
                         area_sign: 'Клик по карте — метка района.',
                         sector_sign: 'Клик по карте — метка сектора.'
                     };
-                    hint.textContent = this.mapFeatureMovePending
+                    hint.textContent = this._mapCatalogPinMove
+                        ? 'Кликните на карте — новое положение метки района/сектора.'
+                        : (this.mapFeatureMovePending
                         ? 'Кликните на карте — новое положение выбранной метки.'
-                        : (toolHints[this.mapDrawTool] || hint.textContent);
+                        : (toolHints[this.mapDrawTool] || hint.textContent));
                 }
                 const finishTrailBtn = document.getElementById('mapFinishTrailBtn');
                 if (finishTrailBtn) {
@@ -7865,10 +9034,13 @@
             }
 
             setMapDrawTool(tool) {
-                const allowed = ['edit', 'trail', 'parking', 'camping', 'area_sign', 'sector_sign'];
+                const allowed = ['edit', 'delete', 'trail', 'parking', 'camping', 'area_sign', 'sector_sign'];
                 this.mapDrawTool = allowed.includes(tool) ? tool : 'trail';
                 if (this.mapDrawTool !== 'edit') {
                     this.mapFeatureMovePending = false;
+                }
+                if (this.mapDrawTool === 'delete') {
+                    this.deselectMapFeature();
                 }
                 this.syncMapEditUi();
             }
@@ -7877,6 +9049,13 @@
                 if (!this.isAdmin()) return;
                 const next = typeof force === 'boolean' ? force : !this.mapEditMode;
                 this.mapEditMode = next;
+                if (next) {
+                    if (!this.mapShowPoi) this.toggleMapLayer('poi');
+                    if (!this.mapShowTrails) this.toggleMapLayer('trails');
+                } else {
+                    this.cancelMapLocationPick();
+                    this._mapCatalogPinMove = null;
+                }
                 if (!next) {
                     this.mapDraftTrail = null;
                     this.mapEditingTrailFeatureId = null;
@@ -7892,9 +9071,18 @@
             attachMapEditInteraction() {
                 if (!this.map || this._mapEditClickHandler) return;
                 this._mapEditClickHandler = (e) => {
+                    const { lat, lng } = e.latlng;
+                    if (this.applyMapLocationPick(lat, lng)) {
+                        L.DomEvent.stop(e);
+                        return;
+                    }
+                    if (this._mapCatalogPinMove) {
+                        L.DomEvent.stop(e);
+                        void this.moveCatalogMapPin(lat, lng);
+                        return;
+                    }
                     if (!this.mapEditMode || !this.isAdmin()) return;
                     L.DomEvent.stop(e);
-                    const { lat, lng } = e.latlng;
                     if (this.mapFeatureMovePending && this.mapSelectedFeatureId) {
                         void this.moveSelectedMapPoint(lat, lng);
                         return;
@@ -7902,6 +9090,10 @@
                     if (this.mapDrawTool === 'edit') {
                         this.deselectMapFeature();
                         this.updateMapStatus('Выбор снят. Кликните по объекту на карте.');
+                        return;
+                    }
+                    if (this.mapDrawTool === 'delete') {
+                        this.updateMapStatus('Кликните по объекту на карте, который нужно удалить.');
                         return;
                     }
                     if (this.mapDrawTool === 'trail') {
@@ -7936,9 +9128,14 @@
                 const defaultLabel = existing?.label || 'Тропа';
                 const labelInput = document.getElementById('mapFeatureEditLabelInput');
                 const labelFromBar = editingId && labelInput ? labelInput.value.trim() : '';
-                const label = labelFromBar
-                    || window.prompt('Название тропы (необязательно):', defaultLabel)?.trim()
-                    || defaultLabel;
+                const prompted = labelFromBar
+                    ? { text: labelFromBar }
+                    : await this.promptMapTextInput({
+                        title: 'Название тропы',
+                        defaultValue: defaultLabel,
+                        hint: 'Необязательно — можно оставить как есть.'
+                    });
+                const label = prompted?.text?.trim() || defaultLabel;
                 const geometry = {
                     type: 'LineString',
                     coordinates: latlngs.map(([lat, lng]) => [lng, lat])
@@ -7980,22 +9177,76 @@
                 let areaId = this.mapCatalogScope?.areaId ?? null;
                 let sectorId = this.mapCatalogScope?.sectorId ?? null;
                 if (featureType === 'area_sign') {
-                    if (areaId) {
+                    const areas = getAreas();
+                    if (!areaId && areas.length) {
+                        const pick = await this.promptMapTextInput({
+                            title: 'Метка района',
+                            selectLabel: 'Район',
+                            selectOptions: areas.map((a) => ({ value: a.id, label: a.name })),
+                            defaultSelectValue: areas[0]?.id,
+                            defaultValue: areas[0]?.name || '',
+                            hint: 'Выберите район и при необходимости измените подпись.'
+                        });
+                        if (!pick) return;
+                        areaId = Number(pick.selectValue);
+                        if (!Number.isFinite(areaId)) return;
+                        label = pick.text || areas.find((a) => Number(a.id) === areaId)?.name || '';
+                    } else {
                         label = getAreas().find((a) => Number(a.id) === Number(areaId))?.name || '';
+                        const pick = await this.promptMapTextInput({
+                            title: 'Метка района',
+                            defaultValue: label,
+                            required: !!label
+                        });
+                        if (!pick) return;
+                        label = pick.text || label;
+                        if (!label) return;
                     }
-                    if (!label) label = window.prompt('Подпись района:', '')?.trim() || '';
-                    if (!label) return;
                     sectorId = null;
                 } else if (featureType === 'sector_sign') {
-                    if (sectorId) {
+                    const sectors = getSectors().filter((s) => (
+                        !areaId || Number(s.areaId) === Number(areaId)
+                    ));
+                    if (!sectorId && sectors.length) {
+                        const pick = await this.promptMapTextInput({
+                            title: 'Метка сектора',
+                            selectLabel: 'Сектор',
+                            selectOptions: sectors.map((s) => ({ value: s.id, label: s.name })),
+                            defaultSelectValue: sectors[0]?.id,
+                            defaultValue: sectors[0]?.name || '',
+                            hint: 'Выберите сектор и при необходимости измените подпись.'
+                        });
+                        if (!pick) return;
+                        sectorId = Number(pick.selectValue);
+                        if (!Number.isFinite(sectorId)) return;
+                        const sector = sectors.find((s) => Number(s.id) === sectorId);
+                        if (sector && !areaId) areaId = Number(sector.areaId);
+                        label = pick.text || sector?.name || '';
+                    } else {
                         label = getSectors().find((s) => Number(s.id) === Number(sectorId))?.name || '';
+                        const pick = await this.promptMapTextInput({
+                            title: 'Метка сектора',
+                            defaultValue: label,
+                            required: !!label
+                        });
+                        if (!pick) return;
+                        label = pick.text || label;
+                        if (!label) return;
                     }
-                    if (!label) label = window.prompt('Подпись сектора:', '')?.trim() || '';
-                    if (!label) return;
                 } else if (featureType === 'parking') {
-                    label = window.prompt('Название парковки (необязательно):', 'Парковка')?.trim() || 'Парковка';
+                    const pick = await this.promptMapTextInput({
+                        title: 'Парковка',
+                        defaultValue: 'Парковка',
+                        hint: 'Название на карте (можно оставить по умолчанию).'
+                    });
+                    label = pick?.text?.trim() || 'Парковка';
                 } else if (featureType === 'camping') {
-                    label = window.prompt('Название кемпинга (необязательно):', 'Кемпинг')?.trim() || 'Кемпинг';
+                    const pick = await this.promptMapTextInput({
+                        title: 'Кемпинг',
+                        defaultValue: 'Кемпинг',
+                        hint: 'Название на карте (можно оставить по умолчанию).'
+                    });
+                    label = pick?.text?.trim() || 'Кемпинг';
                 }
                 const payload = {
                     area_id: areaId,
@@ -8012,8 +9263,21 @@
                         body: JSON.stringify(payload)
                     });
                     mergeMapFeatureFromApiResponse(created);
+                    await this.applyMapFeatureToEntityCoords(featureType, lat, lng, areaId, sectorId);
+                    if (featureType === 'area_sign' || featureType === 'sector_sign') {
+                        try {
+                            await apiFetch(`/api/map-features/${Number(created.id)}`, { method: 'DELETE' });
+                            removeMapFeatureFromLocalCache(created.id);
+                        } catch (_) {
+                            /* entity coords are source of truth */
+                        }
+                    }
                     this.renderMapFeatureLayers();
-                    this.showToast(`${this.mapFeatureTypeLabel(featureType)} добавлен`);
+                    this.renderCatalog();
+                    this.updateMapMarkers();
+                    this.showToast(featureType === 'area_sign' || featureType === 'sector_sign'
+                        ? 'Метка на карте обновлена'
+                        : `${this.mapFeatureTypeLabel(featureType)} добавлен`);
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось сохранить объект', true);
                 }
@@ -8021,15 +9285,23 @@
 
             async deleteMapFeature(featureId) {
                 if (!this.requireAdmin('Удаление с карты')) return;
-                if (!confirm('Удалить объект с карты?')) return;
+                const feature = this.getMapFeatureById(featureId);
+                const name = feature?.label || this.mapFeatureTypeLabel(feature?.featureType);
+                const msg = name
+                    ? `Удалить «${name}» с карты?`
+                    : 'Удалить этот объект с карты?';
+                if (!(await confirmDestructive(msg))) return;
                 try {
                     await apiFetch(`/api/map-features/${Number(featureId)}`, { method: 'DELETE' });
                     removeMapFeatureFromLocalCache(featureId);
                     if (Number(this.mapSelectedFeatureId) === Number(featureId)) {
                         this.deselectMapFeature();
                     }
+                    this.map?.closePopup();
                     this.renderMapFeatureLayers();
+                    this.renderCatalog();
                     this.showToast('Объект удалён');
+                    this.updateMapStatus('Объект удалён с карты.');
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось удалить объект', true);
                 }
@@ -8071,11 +9343,124 @@
                 this.updateMapMarkers();
             }
 
+            _reparentCatalogMapLegend(toCatalog) {
+                const legend = document.getElementById('mapLegend');
+                const mount = document.getElementById('catalogMapLegendMount');
+                const toolbar = document.getElementById('mapToolbar');
+                if (!legend) return;
+                if (toCatalog && mount) {
+                    if (legend.parentElement !== mount) mount.appendChild(legend);
+                    return;
+                }
+                if (!toolbar || legend.parentElement === toolbar) return;
+                const coords = document.getElementById('mapCoordsBar');
+                if (coords?.parentElement === toolbar) toolbar.insertBefore(legend, coords);
+                else toolbar.appendChild(legend);
+            }
+
+            _reparentCatalogMapEdit(toCatalog) {
+                const panel = document.getElementById('mapEditPanel');
+                const mount = document.getElementById('catalogMapEditMount');
+                const toolbar = document.getElementById('mapToolbar');
+                if (!panel) return;
+                if (toCatalog && mount && this.isAdmin()) {
+                    if (panel.parentElement !== mount) mount.appendChild(panel);
+                    return;
+                }
+                if (!toolbar || panel.parentElement === toolbar) return;
+                const guide = document.getElementById('mapGuideStrip');
+                if (guide?.parentElement === toolbar) toolbar.insertBefore(panel, guide);
+                else toolbar.appendChild(panel);
+            }
+
+            syncCatalogEmbeddedMapUi(embedded) {
+                const active = embedded !== undefined ? embedded : this.catalogEmbeddedMapActive();
+                const minimal = active && this.catalog?.view === 'sectors';
+                document.documentElement.classList.toggle('catalog-map-minimal', !!minimal);
+                document.documentElement.classList.toggle('catalog-admin', !!minimal && this.isAdmin());
+                document.documentElement.classList.toggle('catalog-map-edit-active', !!active && this.isAdmin());
+                const block = document.getElementById('catalogMapBlock');
+                block?.classList.toggle('catalog-map-block--minimal', !!minimal);
+                block?.classList.toggle('catalog-map-block--embedded', !!active);
+                this._reparentCatalogMapLegend(!!active);
+                this._reparentCatalogMapEdit(!!active);
+                this.fillMapLegendSectorIcons();
+                this.syncMapEditUi();
+            }
+
+            _reparentMapDom(toCatalog) {
+                const container = document.getElementById('mapContainer');
+                if (!container) return;
+                const mapCard = document.querySelector('#map .card');
+                const ctMount = document.getElementById('catalogMapContainerMount');
+                if (toCatalog && ctMount) {
+                    if (container.parentElement !== ctMount) ctMount.appendChild(container);
+                } else if (mapCard && container.parentElement !== mapCard) {
+                    mapCard.appendChild(container);
+                }
+                this._mapDomInCatalog = !!(toCatalog && ctMount);
+                if (this.map) this.syncMapAfterTabShow();
+            }
+
+            async syncCatalogEmbeddedMap() {
+                const block = document.getElementById('catalogMapBlock');
+                const titleEl = document.getElementById('catalogMapTitle');
+                const show = this.catalog?.view === 'sectors' || this.catalog?.view === 'problems';
+                if (!show) {
+                    block?.classList.add('hidden');
+                    if (this._mapDomInCatalog) this._reparentMapDom(false);
+                    this.syncCatalogEmbeddedMapUi(false);
+                    this._catalogMapFitKey = null;
+                    return;
+                }
+                block?.classList.remove('hidden');
+                const areaId = Number(this.catalog.areaId);
+                const sectorId = this.catalog.view === 'problems' ? Number(this.catalog.sectorId) : null;
+                this.mapCatalogScope = { areaId, sectorId: Number.isFinite(sectorId) ? sectorId : null };
+                if (titleEl) {
+                    const areas = getAreas();
+                    const sectors = getSectors();
+                    if (this.catalog.view === 'sectors') {
+                        const area = areas.find((a) => Number(a.id) === areaId);
+                        titleEl.textContent = area?.name ? `Карта: ${area.name}` : 'Карта района';
+                    } else {
+                        const sector = sectors.find((s) => Number(s.id) === Number(this.catalog.sectorId));
+                        titleEl.textContent = sector?.name ? `Карта: ${sector.name}` : 'Карта сектора';
+                    }
+                }
+                this._reparentMapDom(true);
+                this.syncCatalogEmbeddedMapUi(true);
+                await ensureMarkerClusterLoaded();
+                void this.loadAscentSummary?.();
+                if (!this.map) {
+                    this.initMap();
+                } else {
+                    this.syncMapAfterTabShow();
+                    this.applyCachedUserLocation();
+                }
+                this.updateMapMarkers();
+                this.refreshMapMarkerStyles();
+                const scopeKey = `${this.catalog.view}:${this.catalog.areaId}:${this.catalog.sectorId ?? ''}`;
+                if (!String(this._catalogMapFitKey || '').startsWith(`${scopeKey}:`)) {
+                    this._catalogMapFitKey = null;
+                }
+                this.scheduleCatalogMapAutoFit();
+                setTimeout(() => {
+                    if (this.catalogEmbeddedMapActive()) {
+                        this._catalogMapFitKey = null;
+                        this.scheduleCatalogMapAutoFit();
+                    }
+                }, 180);
+            }
+
             async showMapTab() {
                 document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
                 document.querySelector('.tab-btn[data-tab="map"]')?.classList.add('active');
                 document.getElementById('map')?.classList.add('active');
+                this._reparentMapDom(false);
+                this.syncCatalogEmbeddedMapUi(false);
+                this._reparentCatalogMapEdit(false);
                 await ensureMarkerClusterLoaded();
                 void this.loadAscentSummary?.();
                 if (!this.map) {
@@ -8092,8 +9477,62 @@
                 if (!this.mapLayerVisible(normalizedKind)) {
                     this.setMapFilter('all');
                 }
+                const numId = Number(id);
+                let catalogChanged = false;
+                if (normalizedKind === 'area') {
+                    const next = { view: 'sectors', areaId: numId, sectorId: null };
+                    if (this.catalog.view !== 'sectors' || Number(this.catalog.areaId) !== numId || this.catalog.sectorId != null) {
+                        this.catalog = next;
+                        catalogChanged = true;
+                    }
+                } else if (normalizedKind === 'sector') {
+                    const sector = getSectors().find((s) => Number(s.id) === numId);
+                    if (!sector) {
+                        this.showToast('Сектор не найден', true);
+                        return null;
+                    }
+                    const onAreaMap = this.catalog.view === 'sectors' && Number(this.catalog.areaId) === Number(sector.areaId);
+                    if (!onAreaMap) {
+                        const next = { view: 'problems', areaId: Number(sector.areaId), sectorId: numId };
+                        if (this.catalog.view !== 'problems'
+                            || Number(this.catalog.areaId) !== next.areaId
+                            || Number(this.catalog.sectorId) !== numId) {
+                            this.catalog = next;
+                            catalogChanged = true;
+                        }
+                    }
+                } else {
+                    const climb = normalizedKind === 'route'
+                        ? getRoutes().find((r) => Number(r.id) === numId)
+                        : getBoulders().find((b) => Number(b.id) === numId);
+                    if (!climb) {
+                        this.showToast('Объект не найден', true);
+                        return null;
+                    }
+                    const next = {
+                        view: 'problems',
+                        areaId: Number(climb.areaId),
+                        sectorId: Number(climb.sectorId)
+                    };
+                    if (this.catalog.view !== 'problems'
+                        || Number(this.catalog.areaId) !== next.areaId
+                        || Number(this.catalog.sectorId) !== next.sectorId) {
+                        this.catalog = next;
+                        catalogChanged = true;
+                    }
+                }
+                this.switchToTab('catalog');
+                await ensureMarkerClusterLoaded();
+                void this.loadAscentSummary?.();
+                if (catalogChanged) {
+                    this.renderCatalog();
+                } else {
+                    await this.syncCatalogEmbeddedMap();
+                }
                 this.setMapScopeForEntry(normalizedKind, id);
-                await this.showMapTab();
+                if (!this.map) {
+                    this.initMap();
+                }
                 this.updateMapMarkers();
                 const entry = this.mapMarkerIndex.get(this.mapKey(normalizedKind, id));
                 if (!entry) {
@@ -8102,14 +9541,18 @@
                     return null;
                 }
                 if (normalizedKind === 'area' || normalizedKind === 'sector') {
-                    this.fitMapToVisibleMarkers(normalizedKind === 'area' ? 13 : 16);
-                } else {
+                    this._catalogMapFitKey = null;
+                    this.fitMapToCatalogScope(normalizedKind === 'area' ? 15 : 17);
+                } else if (this.map) {
                     this.map.setView([entry.lat, entry.lng], Math.max(this.map.getZoom(), 17), { animate: true });
                 }
                 if (openPopup && entry.marker?.getPopup?.()) {
                     entry.marker.openPopup();
                 }
                 if (setTarget) this.setMapTarget(entry);
+                setTimeout(() => {
+                    document.getElementById('catalogMapBlock')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, catalogChanged ? 160 : 80);
                 return entry;
             }
 
@@ -8438,9 +9881,13 @@
                 if (!url) return;
                 if (window.Telegram?.WebApp?.openLink) {
                     window.Telegram.WebApp.openLink(url);
-                } else {
-                    window.open(url, '_blank', 'noopener');
+                    return;
                 }
+                if (isStandaloneShell()) {
+                    window.location.href = url;
+                    return;
+                }
+                window.open(url, '_blank', 'noopener');
             }
 
             openMapsChooser(entry = null, preferredMode = '') {
@@ -8730,8 +10177,120 @@
                 }
             }
 
-            startUserLocationWatch() {
+            canUseTelegramLocation() {
+                const tg = typeof window.getTelegramWebApp === 'function' ? window.getTelegramWebApp() : null;
+                return !!(typeof window.isTelegramMiniApp === 'function'
+                    && window.isTelegramMiniApp()
+                    && tg?.LocationManager);
+            }
+
+            formatGeolocationError(err) {
+                const code = Number(err?.code);
+                if (code === 1) return 'Доступ к геолокации запрещён. Разрешите в настройках браузера или Telegram.';
+                if (code === 2) return 'Не удалось определить местоположение. Проверьте GPS и выйдите на открытое место.';
+                if (code === 3) return 'Геолокация отвечает слишком долго. Попробуйте ещё раз.';
+                const msg = err?.message ? String(err.message).trim() : '';
+                return msg || 'Не удалось получить геолокацию.';
+            }
+
+            handleMapGeolocationError(err, { clearWatch = true } = {}) {
+                const text = this.formatGeolocationError(err);
+                this.showToast(text, true);
+                this.updateMapStatus(text);
+                if (clearWatch && this._geoWatchId != null && navigator.geolocation) {
+                    navigator.geolocation.clearWatch(this._geoWatchId);
+                    this._geoWatchId = null;
+                }
+            }
+
+            applyTelegramLocationData(data, { fromUserAction = false } = {}) {
+                if (!data || !Number.isFinite(Number(data.latitude)) || !Number.isFinite(Number(data.longitude))) {
+                    return false;
+                }
+                this.updateUserLocation({
+                    coords: {
+                        latitude: Number(data.latitude),
+                        longitude: Number(data.longitude),
+                        heading: Number.isFinite(Number(data.course)) ? Number(data.course) : undefined,
+                        accuracy: Number.isFinite(Number(data.horizontal_accuracy))
+                            ? Number(data.horizontal_accuracy)
+                            : undefined
+                    }
+                }, { fromUserAction });
+                return true;
+            }
+
+            requestTelegramLocation({ fromUserAction = false, onFail } = {}) {
+                const lm = typeof window.getTelegramWebApp === 'function'
+                    ? window.getTelegramWebApp()?.LocationManager
+                    : null;
+                if (!lm) {
+                    onFail?.(new Error('Telegram LocationManager недоступен'));
+                    return;
+                }
+                const deliver = (data) => {
+                    if (this.applyTelegramLocationData(data, { fromUserAction })) return;
+                    onFail?.(new Error('Telegram не вернул координаты'));
+                };
+                const ask = () => {
+                    try {
+                        lm.getLocation((data) => deliver(data));
+                    } catch (e) {
+                        onFail?.(e);
+                    }
+                };
+                try {
+                    if (lm.isInited) ask();
+                    else lm.init(() => ask());
+                } catch (e) {
+                    onFail?.(e);
+                }
+            }
+
+            browserGeolocationOptions(precise = true) {
+                return precise
+                    ? { enableHighAccuracy: true, maximumAge: 15000, timeout: 18000 }
+                    : { enableHighAccuracy: false, maximumAge: 120000, timeout: 28000 };
+            }
+
+            requestBrowserGeolocationPosition(fromUserAction, onFail) {
                 if (!navigator.geolocation) {
+                    onFail?.({ code: 0, message: 'Геолокация недоступна' });
+                    return;
+                }
+                const tryOnce = (precise, retried) => {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => this.updateUserLocation(pos, { fromUserAction }),
+                        (err) => {
+                            if (precise && Number(err?.code) === 3 && !retried) {
+                                tryOnce(false, true);
+                                return;
+                            }
+                            onFail?.(err);
+                        },
+                        this.browserGeolocationOptions(precise)
+                    );
+                };
+                tryOnce(true, false);
+            }
+
+            ensureBrowserGeolocationWatch() {
+                if (!navigator.geolocation || this._geoWatchId != null) return;
+                this._geoWatchId = navigator.geolocation.watchPosition(
+                    (pos) => this.updateUserLocation(pos, { fromUserAction: this._mapLocateRequested }),
+                    (err) => {
+                        if (Number(err?.code) === 1) {
+                            this.handleMapGeolocationError(err);
+                        }
+                    },
+                    this.browserGeolocationOptions(true)
+                );
+            }
+
+            startUserLocationWatch() {
+                const canBrowser = !!navigator.geolocation;
+                const canTelegram = this.canUseTelegramLocation();
+                if (!canBrowser && !canTelegram) {
                     this.showToast('Геолокация недоступна на этом устройстве', true);
                     this.updateMapStatus('Геолокация недоступна на этом устройстве.');
                     return;
@@ -8742,34 +10301,25 @@
                     const c = this.userLocation;
                     this.map.setView([c.lat, c.lng], Math.max(this.map.getZoom(), 15), { animate: true });
                     this.updateMapStatus('Показана последняя известная позиция, уточняю GPS…');
+                } else {
+                    this.updateMapStatus('Запрашиваю геолокацию…');
                 }
-                if (this._geoWatchId != null) {
-                    if (!hadCache) this.updateMapStatus('Геолокация уже включена.');
-                    navigator.geolocation.getCurrentPosition(
-                        (pos) => this.updateUserLocation(pos, { fromUserAction: true }),
-                        () => {},
-                        { enableHighAccuracy: true, maximumAge: 600000, timeout: 12000 }
-                    );
+                const onGeoFail = (err) => {
+                    if (canTelegram) {
+                        this.requestTelegramLocation({
+                            fromUserAction: true,
+                            onFail: (tgErr) => this.handleMapGeolocationError(err || tgErr, { clearWatch: Number(err?.code) === 1 })
+                        });
+                        return;
+                    }
+                    this.handleMapGeolocationError(err, { clearWatch: Number(err?.code) === 1 });
+                };
+                if (canBrowser) {
+                    this.requestBrowserGeolocationPosition(true, onGeoFail);
+                    this.ensureBrowserGeolocationWatch();
                     return;
                 }
-                this.updateMapStatus(hadCache ? 'Уточняю GPS…' : 'Запрашиваю геолокацию…');
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => this.updateUserLocation(pos, { fromUserAction: true }),
-                    () => {},
-                    { enableHighAccuracy: true, maximumAge: 600000, timeout: 12000 }
-                );
-                this._geoWatchId = navigator.geolocation.watchPosition(
-                    (pos) => this.updateUserLocation(pos, { fromUserAction: this._mapLocateRequested }),
-                    (err) => {
-                        this.showToast(err?.message || 'Не удалось получить геолокацию', true);
-                        this.updateMapStatus('Не удалось получить геолокацию.');
-                        if (this._geoWatchId != null) {
-                            navigator.geolocation.clearWatch(this._geoWatchId);
-                            this._geoWatchId = null;
-                        }
-                    },
-                    { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
-                );
+                this.requestTelegramLocation({ fromUserAction: true, onFail: onGeoFail });
             }
 
             updateUserLocation(pos, { fromUserAction = false } = {}) {
@@ -8905,10 +10455,41 @@
                 document.documentElement.classList.toggle('catalog-sector-focus', !!focus);
                 if (focus) {
                     document.getElementById('globalSearchResults')?.classList.add('hidden');
+                    document.getElementById('catalogSearchResults')?.classList.add('hidden');
                     if (!hadFocus) {
                         window.scrollTo(0, 0);
                     }
                 }
+            }
+
+            updateCatalogNavBack(areas, sectors) {
+                const bar = document.getElementById('catalogNavBack');
+                if (!bar) return;
+                const view = this.catalog?.view || 'areas';
+                if (view === 'areas') {
+                    bar.classList.add('hidden');
+                    bar.innerHTML = '';
+                    return;
+                }
+                let backAct = '';
+                let backId = '';
+                let label = 'Назад';
+                if (view === 'sectors') {
+                    backAct = 'nav-areas';
+                    label = 'Районы';
+                } else if (view === 'problems') {
+                    backAct = 'nav-area';
+                    const areaId = Number(this.catalog?.areaId);
+                    const area = (areas || getAreas()).find((a) => Number(a.id) === areaId);
+                    backId = Number.isFinite(areaId) ? String(areaId) : '';
+                    const sector = (sectors || getSectors()).find((s) => Number(s.id) === Number(this.catalog?.sectorId));
+                    label = area?.name || sector?.name || 'Секторы';
+                }
+                bar.classList.remove('hidden');
+                bar.innerHTML = `
+                    <button type="button" class="catalog-screen-back btn btn-ghost btn-small" data-catalog-act="${backAct}"${backId ? ` data-id="${backId}"` : ''} aria-label="Назад: ${this.escapeHtml(label)}">
+                        <i class="fas fa-arrow-left" aria-hidden="true"></i> ${this.escapeHtml(label)}
+                    </button>`;
             }
 
             renderCatalogGuideHero(kind, entity) {
@@ -8958,13 +10539,24 @@
                         : (APP_BOULDER_ONLY
                             ? `${boulders.length} боулдеров`
                             : `${routes.length} трасс · ${boulders.length} боулдеров`);
-                    const areaRouteBtn = areaFocus && entity?.id != null
-                        ? `<div class="catalog-guide-actions catalog-guide-actions--compact">
-                            <button type="button" class="btn btn-primary btn-small" data-catalog-act="nav-route" data-map-kind="area" data-id="${entity.id}">
-                                <i class="fas fa-diamond-turn-right"></i> Маршрут
+                    let compactActions = '';
+                    if (areaFocus && entity?.id != null) {
+                        compactActions = `<div class="catalog-guide-actions catalog-guide-actions--compact">
+                            ${this.isAdmin() ? `<button type="button" class="btn btn-primary btn-small" data-catalog-act="add-sector" data-id="${entity.id}">
+                                <i class="fas fa-plus"></i> Добавить сектор
+                            </button>` : ''}
+                            ${buildCatalogRouteNavButtonHtml('area', entity.id)}
+                           </div>`;
+                    } else if (sectorFocus && entity?.id != null && this.isAdmin()) {
+                        compactActions = `<div class="catalog-guide-actions catalog-guide-actions--compact">
+                            ${APP_BOULDER_ONLY ? '' : `<button type="button" class="btn btn-primary btn-small" data-catalog-act="add-route" data-id="${entity.id}">
+                                <i class="fas fa-plus"></i> Добавить трассу
+                            </button>`}
+                            <button type="button" class="btn btn-primary btn-small" data-catalog-act="add-boulder" data-id="${entity.id}">
+                                <i class="fas fa-plus"></i> Добавить боулдеринг
                             </button>
-                           </div>`
-                        : '';
+                           </div>`;
+                    }
                     hero.classList.remove('hidden');
                     hero.classList.add('catalog-guide-hero--sector-focus');
                     hero.innerHTML = `
@@ -8975,7 +10567,7 @@
                             <h2>${this.escapeHtml(entity.name || '—')}</h2>
                             ${!isArea && area ? `<p class="catalog-guide-parent">${this.escapeHtml(area.name)}</p>` : ''}
                         </div>
-                        ${areaRouteBtn}
+                        ${compactActions}
                     </div>`;
                     return;
                 }
@@ -8990,12 +10582,7 @@
                             ${!isArea && area ? `<p class="catalog-guide-parent">${this.escapeHtml(area.name)}</p>` : ''}
                         </div>
                         <div class="catalog-guide-actions">
-                            <button type="button" class="btn btn-secondary btn-small" data-catalog-act="show-map" data-map-kind="${scope}" data-id="${entity.id}">
-                                <i class="fas fa-map-location-dot"></i> На карте
-                            </button>
-                            ${isArea ? `<button type="button" class="btn btn-primary btn-small" data-catalog-act="nav-route" data-map-kind="area" data-id="${entity.id}">
-                                <i class="fas fa-diamond-turn-right"></i> Маршрут
-                            </button>
+                            ${isArea ? `${buildCatalogRouteNavButtonHtml('area', entity.id)}
                             <button type="button" class="btn btn-ghost btn-small" data-catalog-act="open-maps" data-map-kind="area" data-id="${entity.id}">
                                 <i class="fas fa-map"></i> Открыть карты
                             </button>
@@ -9011,7 +10598,71 @@
 
             switchToTab(tabId) {
                 const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-                if (btn) btn.click();
+                if (btn) {
+                    btn.click();
+                    return;
+                }
+                if (tabId === 'profile') {
+                    this.openProfileTab();
+                } else if (tabId === 'ranking') {
+                    this.openRankingTab();
+                }
+            }
+
+            getOpenOverlayTabId() {
+                const profile = document.getElementById('profile');
+                if (profile?.classList.contains('active')) return 'profile';
+                const ranking = document.getElementById('ranking');
+                if (ranking?.classList.contains('active')) return 'ranking';
+                return null;
+            }
+
+            rememberMainTabBeforeOverlay() {
+                const activeBtn = document.querySelector('.tab-btn.active');
+                const tab = activeBtn?.dataset?.tab;
+                if (tab) this._lastMainTabBeforeOverlay = tab;
+            }
+
+            closeOverlayTab() {
+                const overlay = this.getOpenOverlayTabId();
+                if (!overlay) return false;
+                const tabId = this._lastMainTabBeforeOverlay || 'catalog';
+                this._lastMainTabBeforeOverlay = 'catalog';
+                document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+                const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+                if (btn) {
+                    btn.click();
+                } else {
+                    document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+                    document.querySelector('.tab-btn[data-tab="catalog"]')?.classList.add('active');
+                    document.getElementById('catalog')?.classList.add('active');
+                    this.renderCatalog();
+                }
+                return true;
+            }
+
+            openProfileTab() {
+                if (!this.getOpenOverlayTabId()) this.rememberMainTabBeforeOverlay();
+                document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+                document.getElementById('profile')?.classList.add('active');
+                void this.renderProfileTab();
+                if (typeof window.syncMainTabChrome === 'function') window.syncMainTabChrome();
+                if (typeof window.syncTelegramMiniAppUi === 'function') {
+                    window.syncTelegramMiniAppUi();
+                }
+            }
+
+            openRankingTab() {
+                if (!this.getOpenOverlayTabId()) this.rememberMainTabBeforeOverlay();
+                document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+                document.getElementById('ranking')?.classList.add('active');
+                void this.renderRankingTab();
+                if (typeof window.syncMainTabChrome === 'function') window.syncMainTabChrome();
+                if (typeof window.syncTelegramMiniAppUi === 'function') {
+                    window.syncTelegramMiniAppUi();
+                }
             }
 
             buildGlobalSearchIndex() {
@@ -9073,29 +10724,98 @@
                 return items;
             }
 
-            clearGlobalSearchDropdown({ clearInput = false } = {}) {
-                const input = document.getElementById('globalSearch');
-                const box = document.getElementById('globalSearchResults');
+            getSearchInput(which = 'global') {
+                return which === 'catalog'
+                    ? document.getElementById('catalogSearch')
+                    : document.getElementById('globalSearch');
+            }
+
+            getSearchResultsBox(which = 'global') {
+                return which === 'catalog'
+                    ? document.getElementById('catalogSearchResults')
+                    : document.getElementById('globalSearchResults');
+            }
+
+            syncLinkedSearchInputs(sourceWhich = 'global') {
+                const global = this.getSearchInput('global');
+                const catalog = this.getSearchInput('catalog');
+                if (!global || !catalog) return;
+                const src = sourceWhich === 'catalog' ? catalog : global;
+                const dst = sourceWhich === 'catalog' ? global : catalog;
+                dst.value = src.value;
+                this.syncSearchClearButton('global');
+                this.syncSearchClearButton('catalog');
+            }
+
+            clearSearchDropdown({ clearInput = false, which = 'global' } = {}) {
+                const input = this.getSearchInput(which);
+                const box = this.getSearchResultsBox(which);
                 if (clearInput && input) input.value = '';
-                if (clearInput) this.syncGlobalSearchClearButton();
+                if (clearInput) this.syncSearchClearButton(which);
                 if (box) {
                     box.classList.add('hidden');
                     box.innerHTML = '';
                 }
             }
 
-            syncGlobalSearchClearButton() {
-                const input = document.getElementById('globalSearch');
-                const btn = document.getElementById('globalSearchClearBtn');
+            setCatalogAssistantSearchOpen(active) {
+                document.documentElement.classList.toggle('catalog-assistant-search-open', !!active);
+            }
+
+            clearAllSearchDropdowns({ clearInput = false, refreshCatalog = false } = {}) {
+                this.clearSearchDropdown({ clearInput, which: 'global' });
+                this.clearSearchDropdown({ clearInput, which: 'catalog' });
+                this.setCatalogAssistantSearchOpen(false);
+                if (clearInput) {
+                    this.syncLinkedSearchInputs('global');
+                }
+                if (refreshCatalog) {
+                    this.renderCatalog();
+                }
+            }
+
+            clearGlobalSearchDropdown(opts = {}) {
+                this.clearAllSearchDropdowns(opts);
+            }
+
+            syncSearchClearButton(which = 'global') {
+                const input = this.getSearchInput(which);
+                const btn = which === 'catalog'
+                    ? document.getElementById('catalogSearchClearBtn')
+                    : document.getElementById('globalSearchClearBtn');
                 if (!input || !btn) return;
                 const hasText = String(input.value || '').length > 0;
                 btn.classList.toggle('hidden', !hasText);
                 btn.setAttribute('aria-hidden', hasText ? 'false' : 'true');
             }
 
+            syncGlobalSearchClearButton() {
+                this.syncSearchClearButton('global');
+            }
+
             clearGlobalSearchInput() {
-                this.clearGlobalSearchDropdown({ clearInput: true });
-                document.getElementById('globalSearch')?.focus();
+                this.clearAllSearchDropdowns({ clearInput: true, refreshCatalog: true });
+                this.getSearchInput('global')?.focus();
+            }
+
+            clearCatalogSearchInput() {
+                this.clearAllSearchDropdowns({ clearInput: true, refreshCatalog: true });
+                this.getSearchInput('catalog')?.focus();
+            }
+
+            getCatalogLocalSearchTerm() {
+                if (document.documentElement.classList.contains('catalog-assistant-search-open')) {
+                    return '';
+                }
+                const catalog = String(this.getSearchInput('catalog')?.value || '').trim().toLowerCase();
+                if (catalog) return catalog;
+                return String(this.getSearchInput('global')?.value || '').trim().toLowerCase();
+            }
+
+            catalogTextMatches(term, ...parts) {
+                if (!term) return true;
+                const hay = parts.filter(Boolean).join(' ').toLowerCase();
+                return hay.includes(term);
             }
 
             focusGlobalSearch(message = '') {
@@ -9104,13 +10824,12 @@
                 input?.focus();
             }
 
-            renderGlobalSearchResults() {
-                const input = document.getElementById('globalSearch');
-                const box = document.getElementById('globalSearchResults');
+            renderSearchDropdown(input, box) {
                 if (!input || !box) return;
                 const query = String(input.value || '').trim();
                 if (query.length < 2) {
-                    this.clearGlobalSearchDropdown();
+                    box.classList.add('hidden');
+                    box.innerHTML = '';
                     return;
                 }
                 const intent = this.classifyAssistantIntent(query);
@@ -9135,7 +10854,7 @@
                     const canNav = !!(target && Number.isFinite(Number(target.lat)) && Number.isFinite(Number(target.lng)));
                     return `
                         <div class="global-search-item" data-global-kind="${item.kind}" data-id="${item.id}">
-                            <span class="global-search-kind">${kindLabels[item.kind] || 'Объект'}</span>
+                            <span class="global-search-kind">${item.kind === 'area' ? buildAreaDistrictIconHtml('area-district-icon area-district-icon--search') : ''}${kindLabels[item.kind] || 'Объект'}</span>
                             <strong>${this.escapeHtml(item.title)}</strong>
                             <span>${this.escapeHtml(item.subtitle || '')}</span>
                             <div class="global-search-item-actions">
@@ -9151,8 +10870,37 @@
                 }).join('');
             }
 
-            async submitGlobalSearch() {
-                const input = document.getElementById('globalSearch');
+            resolveActiveSearchWhich(preferredWhich = null) {
+                if (preferredWhich === 'global' || preferredWhich === 'catalog') return preferredWhich;
+                if (document.documentElement.classList.contains('catalog-sector-focus')) return 'catalog';
+                const activeId = document.activeElement?.id;
+                if (activeId === 'catalogSearch') return 'catalog';
+                if (activeId === 'globalSearch') return 'global';
+                if (this._activeSearchSource === 'global' || this._activeSearchSource === 'catalog') {
+                    return this._activeSearchSource;
+                }
+                return 'catalog';
+            }
+
+            renderGlobalSearchResults(preferredWhich = null) {
+                const which = this.resolveActiveSearchWhich(preferredWhich);
+                const query = String(this.getSearchInput(which)?.value || '').trim();
+                if (query.length < 2) {
+                    this.clearAllSearchDropdowns({ refreshCatalog: true });
+                    return;
+                }
+                this.setCatalogAssistantSearchOpen(true);
+                this.renderSearchDropdown(this.getSearchInput(which), this.getSearchResultsBox(which));
+                const other = which === 'catalog' ? 'global' : 'catalog';
+                const otherBox = this.getSearchResultsBox(other);
+                if (otherBox) {
+                    otherBox.classList.add('hidden');
+                    otherBox.innerHTML = '';
+                }
+            }
+
+            async submitSearch(which = 'global') {
+                const input = this.getSearchInput(which);
                 const prompt = String(input?.value || '').trim();
                 if (prompt.length < 2) return;
                 const intent = this.classifyAssistantIntent(prompt);
@@ -9187,8 +10935,12 @@
                 this.renderGlobalSearchResults();
             }
 
+            async submitGlobalSearch() {
+                await this.submitSearch('global');
+            }
+
             openGlobalSearchResult(kind, id) {
-                this.clearGlobalSearchDropdown({ clearInput: true });
+                this.clearAllSearchDropdowns({ clearInput: true });
                 if (kind === 'route' || kind === 'boulder') {
                     void this.showClimbDetailDialog(kind, id);
                     return;
@@ -9267,21 +11019,24 @@
                     return;
                 }
                 const icons = {
-                    area: 'fa-map',
                     sector: 'fa-layer-group',
                     route: 'fa-route',
                     boulder: 'fa-mountain'
                 };
-                feed.innerHTML = items.map((item) => `
+                feed.innerHTML = items.map((item) => {
+                    const iconHtml = item.kind === 'area'
+                        ? buildAreaDistrictIconHtml('area-district-icon area-district-icon--feed')
+                        : `<i class="fas ${icons[item.kind] || 'fa-circle'}"></i>`;
+                    return `
                     <button type="button" class="updates-feed-item updates-feed-item--${item.kind}" data-update-kind="${item.kind}" data-id="${item.id}">
-                        <span class="updates-feed-icon"><i class="fas ${icons[item.kind] || 'fa-circle'}"></i></span>
+                        <span class="updates-feed-icon">${iconHtml}</span>
                         <span class="updates-feed-main">
                             <strong>${this.escapeHtml(item.title)}</strong>
                             <span>${this.escapeHtml(item.subtitle || '')}</span>
                         </span>
                         <span class="updates-feed-meta">${this.escapeHtml(item.action)} · ${this.escapeHtml(this.formatFeedDate(item.at))}</span>
-                    </button>
-                `).join('');
+                    </button>`;
+                }).join('');
             }
 
             openUpdatesFeedTarget(kind, id) {
@@ -9397,6 +11152,97 @@
                 }
             }
 
+            catalogAreaCardMeta(area) {
+                const sectors = getSectors();
+                const sc = sectors.filter((s) => Number(s.areaId) === Number(area.id)).length;
+                const rc = getRoutes().filter((r) => Number(r.areaId) === Number(area.id)).length;
+                const bcnt = getBoulders().filter((b) => Number(b.areaId) === Number(area.id)).length;
+                return APP_BOULDER_ONLY
+                    ? `${sc} сект. · ${bcnt} боулд.`
+                    : `${sc} сект. · ${rc} трасс · ${bcnt} боулд.`;
+            }
+
+            catalogImageSrcMatches(img, url) {
+                if (!img || !url) return false;
+                try {
+                    const want = new URL(url, window.location.href).href;
+                    const have = new URL(img.currentSrc || img.src, window.location.href).href;
+                    return want === have;
+                } catch {
+                    return (img.getAttribute('src') || '') === url;
+                }
+            }
+
+            updateCatalogAreaCardThumb(openBtn, area) {
+                if (!openBtn) return;
+                const imageUrl = resolvePhotoDisplayUrl(area.imageData);
+                const name = String(area.name || '');
+                const img = openBtn.querySelector('img.catalog-area-card-image');
+                const ph = openBtn.querySelector('.catalog-area-card-image--placeholder');
+                if (imageUrl) {
+                    if (img) {
+                        if (!this.catalogImageSrcMatches(img, imageUrl)) {
+                            img.src = imageUrl;
+                        }
+                        img.alt = name;
+                        return;
+                    }
+                    if (ph) {
+                        const el = document.createElement('img');
+                        el.className = 'catalog-area-card-image';
+                        el.src = imageUrl;
+                        el.alt = name;
+                        el.loading = 'lazy';
+                        ph.replaceWith(el);
+                    }
+                    return;
+                }
+                if (img && !ph) {
+                    const el = document.createElement('div');
+                    el.className = 'catalog-area-card-image catalog-area-card-image--placeholder';
+                    el.innerHTML = buildAreaDistrictIconHtml('area-district-icon area-district-icon--card');
+                    img.replaceWith(el);
+                }
+            }
+
+            tryPatchCatalogAreaCards(list, visibleAreas) {
+                if (!list || !visibleAreas.length) return false;
+                const rows = list.querySelectorAll(':scope > .catalog-area-card');
+                if (rows.length !== visibleAreas.length) return false;
+                for (let i = 0; i < visibleAreas.length; i += 1) {
+                    const btn = rows[i].querySelector('[data-catalog-go="area"]');
+                    if (!btn || String(btn.dataset.id) !== String(visibleAreas[i].id)) return false;
+                }
+                list.classList.add('catalog-list--syncing');
+                visibleAreas.forEach((area, i) => {
+                    const row = rows[i];
+                    const openBtn = row.querySelector('.catalog-area-card-open');
+                    const titleEl = row.querySelector('.catalog-row-title');
+                    const metaEl = row.querySelector('.catalog-row-meta');
+                    let descEl = row.querySelector('.catalog-area-card-desc');
+                    const desc = String(area.description || '').trim();
+                    const name = String(area.name || '');
+                    if (titleEl) titleEl.textContent = name;
+                    if (metaEl) metaEl.textContent = this.catalogAreaCardMeta(area);
+                    if (desc) {
+                        if (!descEl && openBtn) {
+                            descEl = document.createElement('div');
+                            descEl.className = 'catalog-area-card-desc';
+                            openBtn.querySelector('.catalog-area-card-text')?.appendChild(descEl);
+                        }
+                        if (descEl) descEl.textContent = desc;
+                    } else if (descEl) {
+                        descEl.remove();
+                    }
+                    this.updateCatalogAreaCardThumb(openBtn, area);
+                    if (openBtn) {
+                        openBtn.setAttribute('aria-label', `Открыть район: ${name}`);
+                    }
+                });
+                requestAnimationFrame(() => list.classList.remove('catalog-list--syncing'));
+                return true;
+            }
+
             renderCatalog() {
                 const bc = document.getElementById('catalogBreadcrumb');
                 const tb = document.getElementById('catalogToolbar');
@@ -9406,6 +11252,8 @@
 
                 const areas = getAreas();
                 const sectors = getSectors();
+                const catalogTerm = this.getCatalogLocalSearchTerm();
+                this.updateCatalogNavBack(areas, sectors);
 
                 try {
                 if (this.catalog.view === 'areas') {
@@ -9418,17 +11266,22 @@
                         <button type="button" class="btn btn-primary" data-catalog-act="add-area">
                             <i class="fas fa-plus"></i> Добавить район
                         </button>` : '';
-                    list.innerHTML = areas.length ? areas.map(a => {
-                        const sc = sectors.filter(s => Number(s.areaId) === Number(a.id)).length;
-                        const rc = getRoutes().filter(r => Number(r.areaId) === Number(a.id)).length;
-                        const bcnt = getBoulders().filter(b => Number(b.areaId) === Number(a.id)).length;
-                        const meta = APP_BOULDER_ONLY
-                            ? `${sc} сект. · ${bcnt} боулд.`
-                            : `${sc} сект. · ${rc} трасс · ${bcnt} боулд.`;
+                    const visibleAreas = catalogTerm
+                        ? areas.filter((a) => this.catalogTextMatches(catalogTerm, a.name, a.description))
+                        : areas;
+                    if (visibleAreas.length && this.tryPatchCatalogAreaCards(list, visibleAreas)) {
+                        return;
+                    }
+                    const scrollParent = document.documentElement.classList.contains('tg-mini-app')
+                        ? document.body
+                        : (list.closest('.tab-content') || document.scrollingElement || document.documentElement);
+                    const scrollTop = scrollParent?.scrollTop ?? 0;
+                    list.innerHTML = visibleAreas.length ? visibleAreas.map(a => {
+                        const meta = this.catalogAreaCardMeta(a);
                         const imageUrl = resolvePhotoDisplayUrl(a.imageData);
                         const thumb = imageUrl
                             ? `<img class="catalog-area-card-image" src="${this.escapeHtml(imageUrl)}" alt="${this.escapeHtml(a.name)}" loading="lazy">`
-                            : `<div class="catalog-area-card-image catalog-area-card-image--placeholder"><i class="fas fa-mountain-sun"></i></div>`;
+                            : `<div class="catalog-area-card-image catalog-area-card-image--placeholder">${buildAreaDistrictIconHtml('area-district-icon area-district-icon--card')}</div>`;
                         const desc = String(a.description || '').trim();
                         return `
                             <div class="catalog-row catalog-area-card">
@@ -9440,27 +11293,40 @@
                                         ${desc ? `<div class="catalog-area-card-desc">${this.escapeHtml(desc)}</div>` : ''}
                                     </div>
                                 </button>
-                                <button type="button" class="catalog-map-btn btn btn-ghost btn-small" data-catalog-act="show-map" data-map-kind="area" data-id="${a.id}">
-                                    <i class="fas fa-map-location-dot"></i> На карте
-                                </button>
-                                <button type="button" class="catalog-map-btn btn btn-primary btn-small" data-catalog-act="nav-route" data-map-kind="area" data-id="${a.id}">
-                                    <i class="fas fa-diamond-turn-right"></i> Маршрут
-                                </button>
+                                ${buildCatalogRouteNavButtonHtml('area', a.id)}
                                 <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" style="align-self:center">
                                     ${this.renderRowActions(`data-catalog-act="edit-area" data-id="${a.id}"`, `data-catalog-act="delete-area" data-id="${a.id}"`)}
                                 </div>
                             </div>`;
-                    }).join('') : '<div class="empty-state"><p>Нет районов. Создайте первый.</p></div>';
+                    }).join('') : `<div class="empty-state"><p>${catalogTerm ? 'По запросу районы не найдены.' : 'Нет районов. Создайте первый.'}</p></div>`;
+                    if (visibleAreas.length && scrollParent) {
+                        requestAnimationFrame(() => {
+                            scrollParent.scrollTop = scrollTop;
+                        });
+                    }
                     return;
                 }
 
                 if (this.catalog.view === 'sectors') {
                     const area = areas.find(a => Number(a.id) === Number(this.catalog.areaId));
-                    this.renderCatalogGuideHero('area', area);
-                    bc.innerHTML = '';
-                    tb.innerHTML = '';
+                    if (area) {
+                        this.renderCatalogGuideHero('area', area);
+                    } else if (hero) {
+                        hero.classList.add('hidden');
+                        hero.innerHTML = '';
+                    }
+                    bc.innerHTML = area
+                        ? `<span><strong>${this.escapeHtml(area.name)}</strong></span>`
+                        : '';
+                    tb.innerHTML = this.isAdmin() ? `
+                        <button type="button" class="btn btn-primary" data-catalog-act="add-sector" data-id="${this.catalog.areaId}">
+                            <i class="fas fa-plus"></i> Добавить сектор
+                        </button>` : '';
                     const listSectors = sectors.filter(s => Number(s.areaId) === Number(this.catalog.areaId));
-                    list.innerHTML = listSectors.length ? listSectors.map(s => {
+                    const visibleSectors = catalogTerm
+                        ? listSectors.filter((s) => this.catalogTextMatches(catalogTerm, s.name, s.description))
+                        : listSectors;
+                    list.innerHTML = visibleSectors.length ? visibleSectors.map(s => {
                         const rc = getRoutes().filter(r => Number(r.sectorId) === Number(s.id)).length;
                         const bcnt = getBoulders().filter(b => Number(b.sectorId) === Number(s.id)).length;
                         const meta = APP_BOULDER_ONLY
@@ -9475,14 +11341,11 @@
                                     <div class="catalog-row-meta">${meta}</div>
                                     ${desc ? `<div class="catalog-area-card-desc">${this.escapeHtml(desc)}</div>` : ''}
                                 </button>
-                                <button type="button" class="catalog-map-btn btn btn-ghost btn-small" data-catalog-act="show-map" data-map-kind="sector" data-id="${s.id}">
-                                    <i class="fas fa-map-location-dot"></i> На карте
-                                </button>
                                 <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" style="align-self:center">
                                     ${this.renderRowActions(`data-catalog-act="edit-sector" data-id="${s.id}"`, `data-catalog-act="delete-sector" data-id="${s.id}"`)}
                                 </div>
                             </div>`;
-                    }).join('') : '<div class="empty-state"><p>В этом районе пока нет секторов.</p></div>';
+                    }).join('') : `<div class="empty-state"><p>${catalogTerm ? 'По запросу секторы не найдены.' : 'В этом районе пока нет секторов.'}</p></div>`;
                     return;
                 }
 
@@ -9490,11 +11353,36 @@
                     const area = areas.find(a => Number(a.id) === Number(this.catalog.areaId));
                     const sector = sectors.find(s => Number(s.id) === Number(this.catalog.sectorId));
                     this.renderCatalogGuideHero('sector', sector);
-                    bc.innerHTML = '';
-                    tb.innerHTML = '';
+                    bc.innerHTML = sector
+                        ? `<span><strong>${this.escapeHtml(sector.name)}</strong>${area ? ` · ${this.escapeHtml(area.name)}` : ''}</span>`
+                        : '';
+                    tb.innerHTML = this.isAdmin() ? `
+                        ${APP_BOULDER_ONLY ? '' : `<button type="button" class="btn btn-primary" data-catalog-act="add-route" data-id="${this.catalog.sectorId}">
+                            <i class="fas fa-plus"></i> Добавить трассу
+                        </button>`}
+                        <button type="button" class="btn btn-primary" data-catalog-act="add-boulder" data-id="${this.catalog.sectorId}">
+                            <i class="fas fa-plus"></i> Добавить боулдеринг
+                        </button>` : '';
 
-                    const rs = getRoutes().filter(r => Number(r.sectorId) === Number(this.catalog.sectorId));
-                    const bs = getBoulders().filter(b => Number(b.sectorId) === Number(this.catalog.sectorId));
+                    let rs = getRoutes().filter(r => Number(r.sectorId) === Number(this.catalog.sectorId));
+                    let bs = getBoulders().filter(b => Number(b.sectorId) === Number(this.catalog.sectorId));
+                    if (catalogTerm) {
+                        rs = rs.filter((r) => this.catalogTextMatches(
+                            catalogTerm,
+                            r.name,
+                            r.grade,
+                            r.category,
+                            r.description,
+                            r.sector
+                        ));
+                        bs = bs.filter((b) => this.catalogTextMatches(
+                            catalogTerm,
+                            b.name,
+                            b.grade,
+                            b.category,
+                            b.description
+                        ));
+                    }
                     const blocks = [];
                     const canReorderRoutes = this.isAdmin() && !APP_BOULDER_ONLY && rs.length > 1;
                     if (!APP_BOULDER_ONLY && rs.length) {
@@ -9513,7 +11401,7 @@
                                         <div class="item-info">
                                             <h3 style="font-size:16px">${sent.badge}${this.escapeHtml(r.name)}</h3>
                                             <div class="item-meta">
-                                                <span>Категория: <span class="${gradeBadgeClassName(r.grade)}">${this.escapeHtml(r.grade)}</span></span>
+                                                <span>Категория: <span class="${gradeBadgeClassName(r.grade)}">${this.escapeHtml(formatGradeLabel(r.grade))}</span></span>
                                                 ${r.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(r.category)}</span>` : ''}
                                                 ${r.rating != null && r.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(r.rating))}</span>` : ''}
                                                 ${r.length ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(r.length)}м</span>` : ''}
@@ -9522,7 +11410,7 @@
                                             ${routeDesc ? `<div class="catalog-climb-desc">${this.escapeHtml(routeDesc)}</div>` : ''}
                                         </div>
                                     </button>
-                                    ${this.renderClimbLogAddBtn('route', r.id)}
+                                    ${this.renderClimbLogStatusCell('route', r.id)}
                                     <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                                         ${this.renderRowActions(`data-action="edit-route" data-route-id="${r.id}"`, `data-action="delete-route" data-route-id="${r.id}"`)}
                                     </div>
@@ -9541,7 +11429,7 @@
                                         <div class="item-info">
                                             <h3 style="font-size:16px">${sent.badge}${this.escapeHtml(b.name)}</h3>
                                             <div class="item-meta">
-                                                <span>Категория: <span class="${gradeBadgeClassName(b.grade)}">${this.escapeHtml(b.grade)}</span></span>
+                                                <span>Категория: <span class="${gradeBadgeClassName(b.grade)}">${this.escapeHtml(formatGradeLabel(b.grade))}</span></span>
                                                 ${b.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(b.category)}</span>` : ''}
                                                 ${b.rating != null && b.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(b.rating))}</span>` : ''}
                                                 ${b.height ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(b.height)}м</span>` : ''}
@@ -9549,7 +11437,7 @@
                                             ${boulderDesc ? `<div class="catalog-climb-desc">${this.escapeHtml(boulderDesc)}</div>` : ''}
                                         </div>
                                     </button>
-                                    ${this.renderClimbLogAddBtn('boulder', b.id)}
+                                    ${this.renderClimbLogStatusCell('boulder', b.id)}
                                     <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                                         ${this.renderRowActions(`data-action="edit-boulder" data-boulder-id="${b.id}"`, `data-action="delete-boulder" data-boulder-id="${b.id}"`)}
                                     </div>
@@ -9567,6 +11455,7 @@
                 }
                 } finally {
                     this.syncCatalogSectorFocusUi();
+                    void this.syncCatalogEmbeddedMap();
                     if (typeof window.syncTelegramMiniAppUi === 'function') window.syncTelegramMiniAppUi();
                 }
             }
@@ -9624,10 +11513,12 @@
                         if (id != null) void this.downloadAreaGuidePdf(id);
                     }
                     if (action === 'nav-areas') {
+                        this.clearAllSearchDropdowns();
                         this.catalog = { view: 'areas', areaId: null, sectorId: null };
                         this.renderCatalog();
                     }
                     if (action === 'nav-area') {
+                        this.clearAllSearchDropdowns();
                         this.catalog = { view: 'sectors', areaId: id, sectorId: null };
                         this.renderCatalog();
                     }
@@ -9730,8 +11621,14 @@
                     .sort((a, b) => b.score - a.score || String(a.title).localeCompare(String(b.title), 'ru'))
                     .slice(0, 8);
                 const narrowed = kindHint ? rank(index.filter((item) => item.kind === kindHint)) : [];
-                if (narrowed.length) return narrowed;
-                return rank(index);
+                const ranked = narrowed.length ? narrowed : rank(index);
+                const seen = new Set();
+                return ranked.filter((item) => {
+                    const key = `${item.kind}:${item.id}`;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
             }
 
             matchCatalogByName(items, name) {
@@ -10425,7 +12322,7 @@
                                 <h3>${sent.badge}${this.escapeHtml(route.name)}</h3>
                                 <div class="item-meta">
                                     ${route.sectorId != null && this.getStructureLabel(route.sectorId) ? `<span><i class="fas fa-layer-group"></i> ${this.getStructureLabel(route.sectorId)}</span>` : ''}
-                                    <span>Категория: <span class="${gradeBadgeClassName(route.grade)}">${this.escapeHtml(route.grade)}</span></span>
+                                    <span>Категория: <span class="${gradeBadgeClassName(route.grade)}">${this.escapeHtml(formatGradeLabel(route.grade))}</span></span>
                                     ${route.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(route.category)}</span>` : ''}
                                     ${route.rating != null && route.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(route.rating))}</span>` : ''}
                                     ${route.length ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(route.length)}м</span>` : ''}
@@ -10435,7 +12332,7 @@
                                 ${route.description ? `<div class="catalog-climb-desc">${this.escapeHtml(route.description)}</div>` : ''}
                             </div>
                         </button>
-                        ${this.renderClimbLogAddBtn('route', route.id)}
+                        ${this.renderClimbLogStatusCell('route', route.id)}
                         <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                             ${this.renderRowActions(`data-action="edit-route" data-route-id="${route.id}"`, `data-action="delete-route" data-route-id="${route.id}"`)}
                         </div>
@@ -10599,7 +12496,7 @@
                                 <h3>${sent.badge}${this.escapeHtml(boulder.name)}</h3>
                                 <div class="item-meta">
                                     ${boulder.sectorId != null && this.getStructureLabel(boulder.sectorId) ? `<span><i class="fas fa-layer-group"></i> ${this.getStructureLabel(boulder.sectorId)}</span>` : ''}
-                                    <span>Категория: <span class="${gradeBadgeClassName(boulder.grade)}">${this.escapeHtml(boulder.grade)}</span></span>
+                                    <span>Категория: <span class="${gradeBadgeClassName(boulder.grade)}">${this.escapeHtml(formatGradeLabel(boulder.grade))}</span></span>
                                     ${boulder.category ? `<span><i class="fas fa-tag"></i> ${this.escapeHtml(boulder.category)}</span>` : ''}
                                     ${boulder.rating != null && boulder.rating !== '' ? `<span><i class="fas fa-star"></i> ${this.escapeHtml(formatStarAverage(boulder.rating))}</span>` : ''}
                                     ${boulder.height ? `<span><i class="fas fa-ruler-vertical"></i> ${this.escapeHtml(boulder.height)}м</span>` : ''}
@@ -10607,7 +12504,7 @@
                                 ${boulder.description ? `<div class="catalog-climb-desc">${this.escapeHtml(boulder.description)}</div>` : ''}
                             </div>
                         </button>
-                        ${this.renderClimbLogAddBtn('boulder', boulder.id)}
+                        ${this.renderClimbLogStatusCell('boulder', boulder.id)}
                         <div class="item-actions ${this.isAdmin() ? '' : 'hidden-by-role'}">
                             ${this.renderRowActions(`data-action="edit-boulder" data-boulder-id="${boulder.id}"`, `data-action="delete-boulder" data-boulder-id="${boulder.id}"`)}
                         </div>
@@ -10672,6 +12569,10 @@
 
             renderPhotoAlbum() {
                 const photoAlbum = document.getElementById('photoAlbum');
+                if (!photoAlbum) {
+                    this._photoAlbumNavList = [];
+                    return;
+                }
                 const photos = getPhotos();
                 const filterType = document.querySelector('#photos .filter-btn.active')?.dataset.type || 'all';
                 const searchTerm = (document.getElementById('photoAlbumSearch')?.value || '').trim().toLowerCase();
@@ -10779,7 +12680,9 @@
                             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
                             btn.classList.add('active');
-                            document.getElementById(tabId).classList.add('active');
+                            const panel = document.getElementById(tabId);
+                            if (!panel) return;
+                            panel.classList.add('active');
 
                             if (tabId === 'map') {
                                 void ensureLeafletLoaded()
@@ -10807,6 +12710,9 @@
                             } else if (tabId === 'ranking') {
                                 void this.renderRankingTab();
                             }
+                            if (typeof window.syncMainTabChrome === 'function') {
+                                window.syncMainTabChrome();
+                            }
                             if (typeof window.syncTelegramMiniAppUi === 'function') {
                                 window.syncTelegramMiniAppUi();
                             }
@@ -10818,7 +12724,7 @@
             setupEventListeners() {
                 this.setupAuthEventListeners();
                 document.getElementById('themeToggleBtn')?.addEventListener('click', () => {
-                    toggleAppTheme();
+                    const next = toggleAppTheme();
                     if (window.isTelegramMiniApp && window.isTelegramMiniApp()) {
                         try {
                             const tg = window.Telegram?.WebApp;
@@ -10960,6 +12866,18 @@
                 document.getElementById('mapEditToggleBtn')?.addEventListener('click', () => {
                     this.toggleMapEditMode();
                 });
+                document.getElementById('mapPromptDialogOk')?.addEventListener('click', () => {
+                    this.finishMapPromptDialog(true);
+                });
+                document.getElementById('mapPromptDialogCancel')?.addEventListener('click', () => {
+                    this.finishMapPromptDialog(false);
+                });
+                document.addEventListener('click', (e) => {
+                    const pickBtn = e.target.closest('[data-map-pick-location]');
+                    if (!pickBtn) return;
+                    e.preventDefault();
+                    this.beginMapLocationPick(pickBtn.getAttribute('data-map-pick-location'));
+                });
                 document.getElementById('mapFinishTrailBtn')?.addEventListener('click', () => {
                     void this.finishMapDraftTrail();
                 });
@@ -11046,45 +12964,75 @@
                     clearTimeout(this._boulderSearchDebounceTimer);
                     this._boulderSearchDebounceTimer = setTimeout(() => this.renderBoulders(), searchDebounceMs);
                 });
+                const bindSearchResultsClick = (box) => {
+                    box?.addEventListener('click', (e) => {
+                        const openBtn = e.target.closest('[data-global-open]');
+                        if (openBtn) {
+                            e.preventDefault();
+                            this.openGlobalSearchResult(openBtn.dataset.globalOpen, Number(openBtn.dataset.id));
+                            return;
+                        }
+                        const navBtn = e.target.closest('[data-global-nav]');
+                        if (navBtn) {
+                            e.preventDefault();
+                            const target = this.navTargetFromKindId(navBtn.dataset.globalNav, Number(navBtn.dataset.id));
+                            if (!target) {
+                                this.showToast('У объекта нет координат для карт', true);
+                                return;
+                            }
+                            this.clearAllSearchDropdowns({ clearInput: true });
+                            this.openMapsChooser(target, 'dir');
+                            return;
+                        }
+                        const item = e.target.closest('[data-global-kind]');
+                        if (!item || e.target.closest('button')) return;
+                        e.preventDefault();
+                        this.openGlobalSearchResult(item.dataset.globalKind, Number(item.dataset.id));
+                    });
+                };
                 document.getElementById('globalSearch')?.addEventListener('input', () => {
-                    this.syncGlobalSearchClearButton();
+                    this._activeSearchSource = 'global';
+                    this.syncLinkedSearchInputs('global');
                     clearTimeout(this._globalSearchDebounceTimer);
-                    this._globalSearchDebounceTimer = setTimeout(() => this.renderGlobalSearchResults(), searchDebounceMs);
+                    this._globalSearchDebounceTimer = setTimeout(() => this.renderGlobalSearchResults('global'), searchDebounceMs);
+                });
+                document.getElementById('catalogSearch')?.addEventListener('input', () => {
+                    this._activeSearchSource = 'catalog';
+                    this.syncLinkedSearchInputs('catalog');
+                    clearTimeout(this._catalogSearchDebounceTimer);
+                    this._catalogSearchDebounceTimer = setTimeout(() => this.renderGlobalSearchResults('catalog'), searchDebounceMs);
                 });
                 document.getElementById('globalSearchClearBtn')?.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     this.clearGlobalSearchInput();
                 });
-                this.syncGlobalSearchClearButton();
+                document.getElementById('catalogSearchClearBtn')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.clearCatalogSearchInput();
+                });
+                this.syncSearchClearButton('global');
+                this.syncSearchClearButton('catalog');
                 document.getElementById('globalSearch')?.addEventListener('keydown', (e) => {
                     if (e.key !== 'Enter') return;
                     e.preventDefault();
-                    void this.submitGlobalSearch();
+                    void this.submitSearch('global');
                 });
-                document.getElementById('globalSearchResults')?.addEventListener('click', (e) => {
-                    const openBtn = e.target.closest('[data-global-open]');
-                    if (openBtn) {
-                        e.preventDefault();
-                        this.openGlobalSearchResult(openBtn.dataset.globalOpen, Number(openBtn.dataset.id));
-                        return;
-                    }
-                    const navBtn = e.target.closest('[data-global-nav]');
-                    if (navBtn) {
-                        e.preventDefault();
-                        const target = this.navTargetFromKindId(navBtn.dataset.globalNav, Number(navBtn.dataset.id));
-                        if (!target) {
-                            this.showToast('У объекта нет координат для карт', true);
-                            return;
-                        }
-                        this.clearGlobalSearchDropdown({ clearInput: true });
-                        this.openMapsChooser(target, 'dir');
-                        return;
-                    }
-                    const item = e.target.closest('[data-global-kind]');
-                    if (!item || e.target.closest('button')) return;
+                document.getElementById('catalogSearch')?.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Enter') return;
                     e.preventDefault();
-                    this.openGlobalSearchResult(item.dataset.globalKind, Number(item.dataset.id));
+                    void this.submitSearch('catalog');
+                });
+                bindSearchResultsClick(document.getElementById('globalSearchResults'));
+                bindSearchResultsClick(document.getElementById('catalogSearchResults'));
+                document.getElementById('rankingSearch')?.addEventListener('input', () => {
+                    clearTimeout(this._rankingSearchDebounceTimer);
+                    this._rankingSearchDebounceTimer = setTimeout(() => {
+                        if (this._rankingLeaderboardData) {
+                            this.paintRankingLeaderboardTable(this._rankingLeaderboardData);
+                        }
+                    }, searchDebounceMs);
                 });
                 document.getElementById('updatesFilters')?.addEventListener('click', (e) => {
                     const btn = e.target.closest('[data-update-filter]');
@@ -11123,8 +13071,13 @@
                 document.addEventListener('click', (e) => {
                     if (e.target && e.target.closest && e.target.closest('.grade-picker')) return;
                     if (e.target && e.target.closest && e.target.closest('.global-search-wrap')) return;
-                    const box = document.getElementById('globalSearchResults');
-                    box?.classList.add('hidden');
+                    if (e.target && e.target.closest && e.target.closest('.catalog-card-search')) return;
+                    const dropdownVisible = !this.getSearchResultsBox('global')?.classList.contains('hidden')
+                        || !this.getSearchResultsBox('catalog')?.classList.contains('hidden')
+                        || document.documentElement.classList.contains('catalog-assistant-search-open');
+                    if (dropdownVisible) {
+                        this.clearAllSearchDropdowns({ refreshCatalog: true });
+                    }
                     this._closeAllGradePickers();
                 });
                 document.addEventListener('keydown', (e) => {
@@ -11133,7 +13086,12 @@
                             e.preventDefault();
                             return;
                         }
-                        document.getElementById('globalSearchResults')?.classList.add('hidden');
+                        const dropdownVisible = !this.getSearchResultsBox('global')?.classList.contains('hidden')
+                            || !this.getSearchResultsBox('catalog')?.classList.contains('hidden')
+                            || document.documentElement.classList.contains('catalog-assistant-search-open');
+                        if (dropdownVisible) {
+                            this.clearAllSearchDropdowns({ refreshCatalog: true });
+                        }
                         this._closeAllGradePickers();
                     }
                 });
@@ -11241,23 +13199,6 @@
                     }
                 });
 
-                document.getElementById('climbDetailMarkupBtn')?.addEventListener('click', () => {
-                    const ctx = this._climbDetailContext;
-                    if (!ctx) return;
-                    const t = ctx.climbType;
-                    const id = ctx.climbId;
-                    const pid = ctx.shownPhotoId || ctx.photoId;
-                    // Админ всегда открывает редактор разметки текущего фото.
-                    if (this.isAdmin() && pid) {
-                        this.editPhotoMarkup(pid);
-                        return;
-                    }
-                    if (pid) {
-                        this.openPhotoMarkupView(pid);
-                    } else {
-                        this.openClimbMarkupView(t, id);
-                    }
-                });
                 document.getElementById('climbDetailEditMarkupBtn')?.addEventListener('click', () => {
                     if (!this.requireAdmin('Изменение разметки')) return;
                     const ctx = this._climbDetailContext;
@@ -11415,7 +13356,20 @@
                 });
                 this.setupClimbPhotoViewerListeners();
 
-                document.getElementById('climbDetailOpenLogBtn')?.addEventListener('click', () => {
+                const climbDetailLogRow = document.getElementById('climbDetailLogRow');
+                climbDetailLogRow?.addEventListener('click', (e) => {
+                    if (e.target.closest('#climbDetailOpenLogBtn')) return;
+                    if (climbDetailLogRow.classList.contains('hidden')) return;
+                    const logBtn = document.getElementById('climbDetailOpenLogBtn');
+                    if (logBtn && !logBtn.classList.contains('hidden')) logBtn.click();
+                });
+                climbDetailLogRow?.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    e.preventDefault();
+                    climbDetailLogRow?.click();
+                });
+                document.getElementById('climbDetailOpenLogBtn')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     void this.openClimbLogDialog();
                 });
                 document.addEventListener('click', (e) => {
@@ -11518,6 +13472,10 @@
             }
 
             hideDialog(dialogId) {
+                if (dialogId === 'mapPromptDialog' && this._mapPromptResolver) {
+                    this.finishMapPromptDialog(false);
+                    return;
+                }
                 const el = document.getElementById(dialogId);
                 if (!el || el.classList.contains('hidden')) return;
                 el.classList.add('hidden');
@@ -11794,7 +13752,9 @@
                     const boulderLineColor = lineColor || topoLineColorFromGrade(gradeLabel);
                     appendTopoLineSvg(svg, NS, linePts, geom, 'arrow', boulderLineColor);
                     appendTopoGradeLabelOnLine(svg, NS, linePts, geom, gradeLabel, boulderLineColor);
-                    if (markup.startHold) appendTopoHoldSvg(svg, NS, markup.startHold, geom, { label: 'Старт' });
+                    (markup.startHolds || []).forEach((p) => {
+                        appendTopoHoldSvg(svg, NS, p, geom, { label: 'Старт' });
+                    });
                     if (markup.finishHold) appendTopoHoldSvg(svg, NS, markup.finishHold, geom, { label: 'Финиш' });
                 }
 
@@ -11913,11 +13873,11 @@
                                 : null
                         };
                     } else if (climbType === 'boulder' && normalized.coordSpace !== 'image') {
+                        const startHolds = (normalized.startHolds || []).map((p) => boulderStoredToImageNorm(p, geom, false));
                         markupForSvg = {
                             ...normalized,
-                            startHold: normalized.startHold
-                                ? boulderStoredToImageNorm(normalized.startHold, geom, false)
-                                : null,
+                            startHolds,
+                            startHold: startHolds[0] || null,
                             finishHold: normalized.finishHold
                                 ? boulderStoredToImageNorm(normalized.finishHold, geom, false)
                                 : null,
@@ -11990,6 +13950,7 @@
                 if (!dlg || dlg.classList.contains('hidden') || !ctx) return;
                 const mount = document.getElementById('climbDetailPhotoMount');
                 if (!mount) return;
+                resetPhotoStageInContainer(mount);
                 const g = this._photoGallery;
                 const fromGallery = g?.entries?.[g.index]?.photo;
                 let photo = fromGallery;
@@ -12227,15 +14188,13 @@
                             const viewer = document.getElementById('climbPhotoViewer');
                             if (viewer && !viewer.classList.contains('hidden')) {
                                 this.closeClimbPhotoViewer();
-                            } else {
-                                void this.openClimbPhotoViewer();
                             }
                         },
                         onSwipeLeft: () => this.navigatePhotoGallery(1),
                         onSwipeRight: () => this.navigatePhotoGallery(-1),
                         canSwipe: () => {
                             const wrap = findPhotoStageWrap(mount);
-                            return !wrap || !isPhotoStageZoomed(wrap);
+                            return !wrap || !photoWrapBlocksGalleryNav(wrap);
                         }
                     });
                 };
@@ -12396,7 +14355,7 @@
                     : '';
                 const grade =
                     climb.grade != null && climb.grade !== ''
-                        ? `<span class="${gradeBadgeClassName(climb.grade)}">${this.escapeHtml(String(climb.grade))}</span>`
+                        ? `<span class="${gradeBadgeClassName(climb.grade)}">${this.escapeHtml(formatGradeLabel(climb.grade))}</span>`
                         : '—';
                 const kindRu = climbType === 'route' ? 'Трасса' : 'Боулдеринг';
                 let extraBits = '';
@@ -12511,7 +14470,6 @@
                 const metaEl = document.getElementById('climbDetailMeta');
                 const wrap = document.getElementById('climbDetailImageWrap');
                 const noPh = document.getElementById('climbDetailNoPhoto');
-                const mkBtn = document.getElementById('climbDetailMarkupBtn');
 
                 if (titleEl) titleEl.textContent = climb.name || '—';
                 const structLabel =
@@ -12519,7 +14477,7 @@
                 const structHtml = structLabel ? `<br><span style="opacity:.92;font-size:13px">${this.escapeHtml(structLabel)}</span>` : '';
                 const grade =
                     climb.grade != null && climb.grade !== ''
-                        ? `<span class="${gradeBadgeClassName(climb.grade)}">${this.escapeHtml(String(climb.grade))}</span>`
+                        ? `<span class="${gradeBadgeClassName(climb.grade)}">${this.escapeHtml(formatGradeLabel(climb.grade))}</span>`
                         : '—';
                 const kindRu = climbType === 'route' ? 'Трасса' : 'Боулдеринг';
                 let extraBits = '';
@@ -12555,7 +14513,6 @@
                     wrap?.classList.remove('is-empty');
                     noPh?.classList.add('hidden');
                     this.showClimbDetailPhotoInMount('detail', photo, climb.name || '');
-                    if (mkBtn) mkBtn.style.display = '';
                 } else {
                     wrap?.classList.remove('hidden');
                     wrap?.classList.add('is-empty');
@@ -12570,7 +14527,6 @@
                         resetPhotoStageInContainer(mount);
                         this.applyPhotoPreviewMarkupOverlay(mount, null, climbType);
                     }
-                    if (mkBtn) mkBtn.style.display = 'none';
                 }
                 this.updateClimbDetailPhotoCounter();
 
@@ -12583,6 +14539,7 @@
                 });
                 void this.refreshClimbDetailVideos(climbType, idStr);
                 this.clearClimbCommentDraft();
+                this.syncClimbCommentComposerAuth();
                 void this.refreshClimbDetailComments(climbType, idStr);
                 } finally {
                     this._climbDetailOpenFlight = null;
@@ -12592,19 +14549,35 @@
 
             syncClimbDetailFooterActions() {
                 const logBtn = document.getElementById('climbDetailOpenLogBtn');
-                if (logBtn) {
-                    const ctx = this._climbDetailContext;
-                    const canLog = this.isLoggedIn() && this.isTelegramUser();
-                    const alreadySent = ctx
-                        && (this.hasUserSent(ctx.climbType, ctx.climbId)
-                            || this._climbCommunityStats?.my_status === 'send');
-                    logBtn.classList.toggle('hidden', !canLog || alreadySent);
+                const logRow = document.getElementById('climbDetailLogRow');
+                const sentMark = document.getElementById('climbDetailSentMark');
+                const logLabel = logRow?.querySelector('.climb-detail-log-row-label');
+                const ctx = this._climbDetailContext;
+                const canLog = this.canUseClimbLogbook();
+                const alreadySent = ctx
+                    && (this.hasUserSent(ctx.climbType, ctx.climbId)
+                        || this._climbCommunityStats?.my_status === 'send');
+                logRow?.classList.toggle('hidden', !canLog);
+                logBtn?.classList.toggle('hidden', !canLog || alreadySent);
+                sentMark?.classList.toggle('hidden', !canLog || !alreadySent);
+                if (logLabel) {
+                    logLabel.textContent = alreadySent ? 'Пролаз в логбуке' : 'Добавить в логбук';
+                }
+                if (logRow) {
+                    const logActionable = canLog && !alreadySent;
+                    logRow.classList.toggle('is-sent', canLog && alreadySent);
+                    if (logActionable) {
+                        logRow.setAttribute('role', 'button');
+                        logRow.setAttribute('tabindex', '0');
+                    } else {
+                        logRow.removeAttribute('role');
+                        logRow.removeAttribute('tabindex');
+                    }
                 }
                 this.syncClimbDetailMarkupActionUi();
             }
 
             syncClimbDetailMarkupActionUi() {
-                const mkBtn = document.getElementById('climbDetailMarkupBtn');
                 const editMkBtn = document.getElementById('climbDetailEditMarkupBtn');
                 const ctx = this._climbDetailContext;
                 const pid = ctx?.shownPhotoId || ctx?.photoId;
@@ -12615,16 +14588,6 @@
                 const isAdmin = this.isAdmin();
                 const hasMarkup = !!(photo?.markup);
 
-                if (mkBtn) {
-                    mkBtn.style.display = hasPhoto ? '' : 'none';
-                    if (isAdmin) {
-                        mkBtn.innerHTML = hasMarkup
-                            ? '<i class="fas fa-draw-polygon"></i> Изменить разметку'
-                            : '<i class="fas fa-draw-polygon"></i> Разметить фото';
-                    } else {
-                        mkBtn.innerHTML = '<i class="fas fa-draw-polygon"></i> Схема на фото';
-                    }
-                }
                 if (editMkBtn) {
                     const showEdit = isAdmin && hasPhoto;
                     editMkBtn.classList.toggle('hidden', !showEdit);
@@ -12792,6 +14755,7 @@
                 document.querySelectorAll('#routeLineMarkupDialog .route-markup-mode-btn').forEach(btn => {
                     btn.classList.toggle('active', btn.dataset.mode === this.routeMarkupMode);
                 });
+                this.syncMarkupDialogEraseCursor(document.getElementById('routeLineMarkupContainer'));
             }
 
             // Методы для разметки трасс (линии + стартовые кружки), координаты 0–1 по видимой области фото
@@ -12836,7 +14800,6 @@
 
                 const applyLoadedMarkup = () => {
                     const container = document.getElementById('routeLineMarkupContainer');
-                    const geom = getMarkupStageGeometry(container);
                     const m = normalizePhotoMarkup(photo.markup, 'route') || {
                         points: [],
                         startHolds: [],
@@ -12844,21 +14807,16 @@
                         coordSpace: 'image'
                     };
                     const imageCoords = m.coordSpace === 'image';
+                    const geom = getMarkupStageGeometry(container);
+                    const toPt = (p, idOffset) => {
+                        const n = markupPointToEditorNorm(p, geom, imageCoords);
+                        if (!n) return null;
+                        return { id: Date.now() + idOffset, x: n.x, y: n.y };
+                    };
                     this.currentRouteLineMarkup = {
-                        points: (m.points || []).map((p, i) => {
-                            const n = boulderStoredToImageNorm(p, geom, imageCoords);
-                            return { id: Date.now() + i, x: n.x, y: n.y };
-                        }),
-                        startHolds: (m.startHolds || []).map((p, i) => {
-                            const n = boulderStoredToImageNorm(p, geom, imageCoords);
-                            return { id: Date.now() + 10000 + i, x: n.x, y: n.y };
-                        }),
-                        finishHold: m.finishHold
-                            ? (() => {
-                                const n = boulderStoredToImageNorm(m.finishHold, geom, imageCoords);
-                                return { id: Date.now() + 20000, x: n.x, y: n.y };
-                            })()
-                            : null,
+                        points: (m.points || []).map((p, i) => toPt(p, i)).filter(Boolean),
+                        startHolds: (m.startHolds || []).map((p, i) => toPt(p, 10000 + i)).filter(Boolean),
+                        finishHold: toPt(m.finishHold, 20000),
                         photoId: photo.id,
                         climbId: climbId
                     };
@@ -12991,7 +14949,7 @@
 
                     const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
 
-                    if (e.ctrlKey || e.metaKey) {
+                    if (this.routeMarkupMode === 'erase' || e.ctrlKey || e.metaKey) {
                         this.deleteNearestRouteMarkupAt(x, y, geom);
                         return;
                     }
@@ -13000,7 +14958,7 @@
                         this.addRouteStartHold(x, y);
                     } else if (this.routeMarkupMode === 'top') {
                         this.addRouteFinishHold(x, y);
-                    } else {
+                    } else if (this.routeMarkupMode === 'line') {
                         this.addRouteLinePoint(x, y);
                     }
                 }, { signal });
@@ -13069,8 +15027,41 @@
                             marker.style.left = `${pos.x}px`;
                             marker.style.top = `${pos.y}px`;
                             marker.dataset.index = String(index);
+                            marker.dataset.kind = 'line';
+                            this.bindMarkupLineMarkerErase(marker, 'route', index);
+                            this.makeHoldDraggable(marker, 'route', 'points', index);
                             container.appendChild(marker);
                         });
+                        (this.currentRouteLineMarkup.startHolds || []).forEach((hold, index) => {
+                            const pos = markupPxFromNorm(hold.x, hold.y, geom);
+                            const hit = document.createElement('div');
+                            hit.className = 'markup-hold-hit';
+                            hit.style.left = `${pos.x}px`;
+                            hit.style.top = `${pos.y}px`;
+                            hit.dataset.role = 'startHolds';
+                            hit.dataset.index = String(index);
+                            this.bindMarkupHoldErase(hit, () => {
+                                this.currentRouteLineMarkup.startHolds.splice(index, 1);
+                                this.renderRouteLineMarkup();
+                            });
+                            this.makeHoldDraggable(hit, 'route', 'startHolds', index);
+                            container.appendChild(hit);
+                        });
+                        if (this.currentRouteLineMarkup.finishHold) {
+                            const hold = this.currentRouteLineMarkup.finishHold;
+                            const pos = markupPxFromNorm(hold.x, hold.y, geom);
+                            const hit = document.createElement('div');
+                            hit.className = 'markup-hold-hit';
+                            hit.style.left = `${pos.x}px`;
+                            hit.style.top = `${pos.y}px`;
+                            hit.dataset.role = 'finishHold';
+                            this.bindMarkupHoldErase(hit, () => {
+                                this.currentRouteLineMarkup.finishHold = null;
+                                this.renderRouteLineMarkup();
+                            });
+                            this.makeHoldDraggable(hit, 'route', 'finishHold');
+                            container.appendChild(hit);
+                        }
                     }
 
                     this.updateRouteLinePolyline();
@@ -13146,6 +15137,7 @@
                     const pid = String(photoId);
                     const prev = document.querySelector(`.photo-preview-with-markup[data-photo-id="${pid}"]`);
                     if (prev) {
+                        resetPhotoStageInContainer(prev);
                         this.applyPhotoPreviewMarkupOverlay(prev, newMarkup, prev.dataset.climbType || 'route');
                         this.syncMarkupButtonOnPreviewItem(prev, true);
                     }
@@ -13163,6 +15155,7 @@
                 document.querySelectorAll('#boulderHoldsMarkupDialog .boulder-markup-mode-btn').forEach(btn => {
                     btn.classList.toggle('active', btn.dataset.mode === this.boulderMarkupMode);
                 });
+                this.syncMarkupDialogEraseCursor(document.getElementById('boulderHoldsMarkupContainer'));
             }
 
             // Методы для разметки боулдеринга (кружки и линия раздельно)
@@ -13171,7 +15164,7 @@
                 this.resetBoulderMarkupDialogChrome();
                 this.boulderMarkupMode = 'start';
                 this.currentBoulderHoldsMarkup = {
-                    startHold: null,
+                    startHolds: [],
                     finishHold: null,
                     linePoints: [],
                     photoId: photoData.climbId,
@@ -13207,30 +15200,23 @@
 
                 const applyLoadedMarkup = () => {
                     const container = document.getElementById('boulderHoldsMarkupContainer');
-                    const geom = getMarkupStageGeometry(container);
                     const m = normalizePhotoMarkup(photo.markup, 'boulder') || {
-                        startHold: null,
+                        startHolds: [],
                         finishHold: null,
                         linePoints: [],
                         coordSpace: 'image'
                     };
                     const imageCoords = m.coordSpace === 'image';
+                    const geom = getMarkupStageGeometry(container);
                     const toEditorHold = (p, idOffset) => {
-                        if (!p) return null;
-                        const n = boulderStoredToImageNorm(p, geom, imageCoords);
+                        const n = markupPointToEditorNorm(p, geom, imageCoords);
+                        if (!n) return null;
                         return { id: Date.now() + idOffset, x: n.x, y: n.y };
                     };
                     this.currentBoulderHoldsMarkup = {
-                        startHold: toEditorHold(m.startHold, 10000),
+                        startHolds: (m.startHolds || []).map((p, i) => toEditorHold(p, 10000 + i)).filter(Boolean),
                         finishHold: toEditorHold(m.finishHold, 20000),
-                        linePoints: (m.linePoints || []).map((p, i) => {
-                            const n = boulderStoredToImageNorm(p, geom, imageCoords);
-                            return {
-                                id: Date.now() + 5000 + i,
-                                x: n.x,
-                                y: n.y
-                            };
-                        }),
+                        linePoints: (m.linePoints || []).map((p, i) => toEditorHold(p, 5000 + i)).filter(Boolean),
                         photoId: photo.id,
                         climbId: climbId
                     };
@@ -13252,10 +15238,10 @@
                 const hitNorm = TOPO_MARKUP.hitRadiusPx / (geom.iw || 400);
                 let best = { kind: null, index: -1, d: hitNorm };
 
-                if (this.currentBoulderHoldsMarkup.startHold) {
-                    const d = Math.hypot(this.currentBoulderHoldsMarkup.startHold.x - x, this.currentBoulderHoldsMarkup.startHold.y - y);
-                    if (d < best.d) best = { kind: 'start', index: 0, d };
-                }
+                (this.currentBoulderHoldsMarkup.startHolds || []).forEach((point, index) => {
+                    const d = Math.hypot(point.x - x, point.y - y);
+                    if (d < best.d) best = { kind: 'start', index, d };
+                });
                 if (this.currentBoulderHoldsMarkup.finishHold) {
                     const d = Math.hypot(this.currentBoulderHoldsMarkup.finishHold.x - x, this.currentBoulderHoldsMarkup.finishHold.y - y);
                     if (d < best.d) best = { kind: 'finish', index: 0, d };
@@ -13267,15 +15253,15 @@
                     }
                 });
 
-                if (best.kind === 'start') {
-                    this.currentBoulderHoldsMarkup.startHold = null;
+                if (best.kind === 'start' && best.index !== -1) {
+                    this.currentBoulderHoldsMarkup.startHolds.splice(best.index, 1);
                     this.renderBoulderHoldsMarkup();
                 } else if (best.kind === 'finish') {
                     this.currentBoulderHoldsMarkup.finishHold = null;
                     this.renderBoulderHoldsMarkup();
                 } else if (best.kind === 'line' && best.index !== -1) {
                     this.currentBoulderHoldsMarkup.linePoints.splice(best.index, 1);
-                    this.updateBoulderHoldsPolyline();
+                    this.renderBoulderHoldsMarkup();
                 }
             }
 
@@ -13295,11 +15281,11 @@
 
                 container.addEventListener('click', (e) => {
                     if (this._markupDialogViewOnly) return;
-                    if (e.target.closest('.markup-hold-hit')) return;
+                    if (e.target.closest('.markup-hold-hit') || e.target.closest('.line-marker')) return;
 
                     const { x, y, geom } = markupNormFromClient(container, e.clientX, e.clientY);
 
-                    if (e.ctrlKey || e.metaKey) {
+                    if (this.boulderMarkupMode === 'erase' || e.ctrlKey || e.metaKey) {
                         this.deleteNearestBoulderMarkupAt(x, y, geom);
                         return;
                     }
@@ -13307,11 +15293,53 @@
                     if (this.boulderMarkupMode === 'line') {
                         this.addBoulderLinePoint(x, y);
                     } else if (this.boulderMarkupMode === 'start') {
-                        this.setBoulderRoleHold('startHold', x, y);
+                        this.addBoulderStartHold(x, y);
                     } else if (this.boulderMarkupMode === 'finish') {
                         this.setBoulderRoleHold('finishHold', x, y);
                     }
                 }, { signal });
+            }
+
+            bindMarkupHoldErase(el, onErase) {
+                el.addEventListener('click', (e) => {
+                    if (this._markupDialogViewOnly) return;
+                    if (!this.markupEraseModeActive()) return;
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onErase();
+                });
+            }
+
+            bindMarkupLineMarkerErase(marker, target, index) {
+                marker.addEventListener('click', (e) => {
+                    if (this._markupDialogViewOnly) return;
+                    if (!this.markupEraseModeActive()) return;
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (target === 'route') {
+                        this.currentRouteLineMarkup.points.splice(index, 1);
+                        this.renderRouteLineMarkup();
+                        return;
+                    }
+                    this.currentBoulderHoldsMarkup.linePoints.splice(index, 1);
+                    this.renderBoulderHoldsMarkup();
+                });
+            }
+
+            addBoulderStartHold(x, y) {
+                if (!this.currentBoulderHoldsMarkup.startHolds) {
+                    this.currentBoulderHoldsMarkup.startHolds = [];
+                }
+                if (this.currentBoulderHoldsMarkup.startHolds.length >= 2) {
+                    this.showToast('Можно поставить не больше двух стартовых кружков', true);
+                    return;
+                }
+                this.currentBoulderHoldsMarkup.startHolds.push({
+                    id: Date.now(),
+                    x,
+                    y
+                });
+                this.renderBoulderHoldsMarkup();
             }
 
             setBoulderRoleHold(roleKey, x, y) {
@@ -13332,7 +15360,7 @@
                     x,
                     y
                 });
-                this.updateBoulderHoldsPolyline();
+                this.renderBoulderHoldsMarkup();
             }
 
             updateBoulderHoldsPolyline() {
@@ -13381,9 +15409,9 @@
                         : ''
                 );
                 appendTopoGradeLabelOnLine(svg, 'http://www.w3.org/2000/svg', pts, geom, gradeLabel, lineColor);
-                if (this.currentBoulderHoldsMarkup.startHold) {
-                    appendBoulderHoldSvg(svg, 'http://www.w3.org/2000/svg', this.currentBoulderHoldsMarkup.startHold, geom, { label: 'Старт' });
-                }
+                (this.currentBoulderHoldsMarkup.startHolds || []).forEach((p) => {
+                    appendBoulderHoldSvg(svg, 'http://www.w3.org/2000/svg', p, geom, { label: 'Старт' });
+                });
                 if (this.currentBoulderHoldsMarkup.finishHold) {
                     appendBoulderHoldSvg(svg, 'http://www.w3.org/2000/svg', this.currentBoulderHoldsMarkup.finishHold, geom, { label: 'Финиш' });
                 }
@@ -13398,7 +15426,7 @@
                 applyTopoPhotoFraming(container, {
                     type: 'boulder-holds',
                     coordSpace: 'image',
-                    startHold: this.currentBoulderHoldsMarkup.startHold || null,
+                    startHolds: this.currentBoulderHoldsMarkup.startHolds || [],
                     finishHold: this.currentBoulderHoldsMarkup.finishHold || null,
                     linePoints: this.currentBoulderHoldsMarkup.linePoints || []
                 }, 'boulder');
@@ -13408,21 +15436,38 @@
                     container.querySelectorAll('.markup-hold-hit').forEach((marker) => marker.remove());
 
                     if (!this._markupDialogViewOnly) {
-                        [
-                            { hold: this.currentBoulderHoldsMarkup.startHold, roleKey: 'startHold' },
-                            { hold: this.currentBoulderHoldsMarkup.finishHold, roleKey: 'finishHold' }
-                        ].forEach(({ hold, roleKey }) => {
-                            if (!hold) return;
+                        (this.currentBoulderHoldsMarkup.startHolds || []).forEach((hold, index) => {
                             const pos = markupPxFromNorm(hold.x, hold.y, geom);
                             const hit = document.createElement('div');
                             hit.className = 'markup-hold-hit';
                             hit.style.left = `${pos.x}px`;
                             hit.style.top = `${pos.y}px`;
-                            hit.dataset.role = roleKey;
+                            hit.dataset.role = 'startHolds';
+                            hit.dataset.index = String(index);
                             hit.setAttribute('aria-hidden', 'true');
-                            this.makeHoldDraggable(hit, roleKey);
+                            this.bindMarkupHoldErase(hit, () => {
+                                this.currentBoulderHoldsMarkup.startHolds.splice(index, 1);
+                                this.renderBoulderHoldsMarkup();
+                            });
+                            this.makeHoldDraggable(hit, 'boulder', 'startHolds', index);
                             container.appendChild(hit);
                         });
+                        if (this.currentBoulderHoldsMarkup.finishHold) {
+                            const hold = this.currentBoulderHoldsMarkup.finishHold;
+                            const pos = markupPxFromNorm(hold.x, hold.y, geom);
+                            const hit = document.createElement('div');
+                            hit.className = 'markup-hold-hit';
+                            hit.style.left = `${pos.x}px`;
+                            hit.style.top = `${pos.y}px`;
+                            hit.dataset.role = 'finishHold';
+                            hit.setAttribute('aria-hidden', 'true');
+                            this.bindMarkupHoldErase(hit, () => {
+                                this.currentBoulderHoldsMarkup.finishHold = null;
+                                this.renderBoulderHoldsMarkup();
+                            });
+                            this.makeHoldDraggable(hit, 'boulder', 'finishHold');
+                            container.appendChild(hit);
+                        }
                     }
 
                     if (!this._markupDialogViewOnly) {
@@ -13433,6 +15478,8 @@
                             marker.style.left = `${pos.x}px`;
                             marker.style.top = `${pos.y}px`;
                             marker.dataset.index = String(index);
+                            this.bindMarkupLineMarkerErase(marker, 'boulder', index);
+                            this.makeHoldDraggable(marker, 'boulder', 'linePoints', index);
                             container.appendChild(marker);
                         });
                     }
@@ -13447,8 +15494,10 @@
                 }
             }
 
-            makeHoldDraggable(marker, roleKey) {
+            makeHoldDraggable(marker, target, roleKey, index) {
                 marker.addEventListener('pointerdown', (e) => {
+                    if (this._markupDialogViewOnly) return;
+                    if (this.markupEraseModeActive()) return;
                     if (e.pointerType === 'mouse' && e.button !== 0) return;
                     e.preventDefault();
                     e.stopPropagation();
@@ -13458,13 +15507,19 @@
                     } catch (_) {
                         /* ignore */
                     }
-                    this._boulderHoldDrag = { roleKey, marker, pointerId: e.pointerId };
+                    this._markupHoldDrag = {
+                        target,
+                        roleKey,
+                        index: Number.isFinite(index) ? index : null,
+                        marker,
+                        pointerId: e.pointerId
+                    };
                 });
             }
 
             clearBoulderHoldsMarkup() {
                 if (!confirm('Очистить всю разметку (кружки и линию)?')) return;
-                this.currentBoulderHoldsMarkup.startHold = null;
+                this.currentBoulderHoldsMarkup.startHolds = [];
                 this.currentBoulderHoldsMarkup.finishHold = null;
                 this.currentBoulderHoldsMarkup.linePoints = [];
                 this.renderBoulderHoldsMarkup();
@@ -13473,7 +15528,10 @@
             async saveBoulderHoldsMarkup() {
                 if (!this.requireAdmin('Сохранение разметки')) return;
                 const linePts = this.currentBoulderHoldsMarkup.linePoints || [];
-                const hasStart = !!this.currentBoulderHoldsMarkup.startHold;
+                const normalizedStarts = (this.currentBoulderHoldsMarkup.startHolds || [])
+                    .slice(0, 2)
+                    .map((p) => ({ x: p.x, y: p.y }));
+                const hasStart = normalizedStarts.length > 0;
                 const hasFinish = !!this.currentBoulderHoldsMarkup.finishHold;
                 const hasLine = linePts.length >= 2;
                 if (!hasStart && !hasFinish && !hasLine) {
@@ -13481,9 +15539,6 @@
                     return;
                 }
 
-                const normalizedStart = this.currentBoulderHoldsMarkup.startHold
-                    ? { x: this.currentBoulderHoldsMarkup.startHold.x, y: this.currentBoulderHoldsMarkup.startHold.y }
-                    : null;
                 const normalizedFinish = this.currentBoulderHoldsMarkup.finishHold
                     ? { x: this.currentBoulderHoldsMarkup.finishHold.x, y: this.currentBoulderHoldsMarkup.finishHold.y }
                     : null;
@@ -13496,7 +15551,8 @@
                 const buildSavedMarkup = () => ({
                     type: 'boulder-holds',
                     coordSpace: 'image',
-                    startHold: normalizedStart,
+                    startHolds: normalizedStarts,
+                    startHold: normalizedStarts[0] || null,
                     finishHold: normalizedFinish,
                     linePoints: normalizedLine,
                     savedAt: new Date().toISOString()
@@ -13526,6 +15582,7 @@
                     const pid = String(photoId);
                     const prev = document.querySelector(`.photo-preview-with-markup[data-photo-id="${pid}"]`);
                     if (prev) {
+                        resetPhotoStageInContainer(prev);
                         this.applyPhotoPreviewMarkupOverlay(prev, newMarkup, prev.dataset.climbType || 'boulder');
                         this.syncMarkupButtonOnPreviewItem(prev, true);
                     }
@@ -13541,17 +15598,31 @@
 
             setupCommunityListeners() {
                 document.getElementById('openProfileBtn')?.addEventListener('click', () => {
-                    document.querySelector('.tab-btn[data-tab="profile"]')?.click();
-                    void this.renderProfileTab();
+                    this.openProfileTab();
+                });
+                document.getElementById('openRankingBtn')?.addEventListener('click', () => {
+                    this.openRankingTab();
+                });
+                document.getElementById('profileBackBtn')?.addEventListener('click', () => {
+                    this.closeOverlayTab();
+                    if (typeof window.syncTelegramMiniAppUi === 'function') {
+                        window.syncTelegramMiniAppUi();
+                    }
+                });
+                document.getElementById('rankingBackBtn')?.addEventListener('click', () => {
+                    this.closeOverlayTab();
+                    if (typeof window.syncTelegramMiniAppUi === 'function') {
+                        window.syncTelegramMiniAppUi();
+                    }
+                });
+                document.getElementById('profileTelegramLogoutBtn')?.addEventListener('click', () => {
+                    this.logoutTelegramSession();
+                });
+                document.getElementById('profileTelegramDeeplinkBtn')?.addEventListener('click', () => {
+                    void this.startStandaloneTelegramDeeplinkLogin();
                 });
                 document.getElementById('hideSentRoutes')?.addEventListener('change', () => this.renderRoutes());
                 document.getElementById('hideSentBoulders')?.addEventListener('change', () => this.renderBoulders());
-                document.querySelector('.tab-btn[data-tab="profile"]')?.addEventListener('click', () => {
-                    void this.renderProfileTab();
-                });
-                document.querySelector('.tab-btn[data-tab="ranking"]')?.addEventListener('click', () => {
-                    void this.renderRankingTab();
-                });
             }
 
             async logClimbAscentFromDetail(status) {
@@ -13560,7 +15631,7 @@
                     throw new Error('Откройте трассу из каталога');
                 }
                 if (!this.isLoggedIn() || !this.isTelegramUser()) {
-                    throw new Error('Войдите через Telegram Mini App');
+                    throw new Error(authTelegramGateMessage());
                 }
                 const climbType = ctx.climbType;
                 const climbId = ctx.climbId;
@@ -13599,6 +15670,9 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(body)
                     });
+                    if (status === 'send') {
+                        this.markAscentSentLocally(climbType, climbId);
+                    }
                     await this.loadAscentSummary();
                     this.hideDialog('climbLogDialog');
                     await this.refreshClimbDetailViewPanel(climbType, climbId);
@@ -13612,7 +15686,14 @@
                     }
                 } catch (err) {
                     if (err?.queued) {
+                        if (status === 'send') {
+                            this.markAscentSentLocally(climbType, climbId);
+                        }
                         this.hideDialog('climbLogDialog');
+                        if (!APP_BOULDER_ONLY) this.renderRoutes();
+                        this.renderBoulders();
+                        this.renderCatalog();
+                        this.syncClimbDetailFooterActions();
                         this.showToast('Пролаз сохранён локально — отправится при появлении сети', false);
                         return;
                     }
@@ -13816,14 +15897,12 @@
             async refreshProfileLogbookSection() {
                 if (!this.isLoggedIn()) return;
                 try {
-                    if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
-                        await refreshCatalogFromApi({ skipWake: true }).catch(() => {});
-                    }
-                    const [profile, ascents] = await Promise.all([
+                    const [profile, ascents, leaderboard] = await Promise.all([
                         apiFetch('/api/users/me/profile'),
-                        apiFetch('/api/me/ascents?status=send&limit=500')
+                        apiFetch('/api/me/ascents?status=send&limit=500'),
+                        apiFetch('/api/ranking/leaderboard?top=10&months=12').catch(() => null)
                     ]);
-                    this.renderProfileStatsGrid(profile, ascents);
+                    this.renderProfileStatsGrid(profile, ascents, leaderboard);
                     const sendsDialog = document.getElementById('profileSendsDialog');
                     if (sendsDialog && !sendsDialog.classList.contains('hidden')) {
                         const listEl = document.getElementById('profileSendsList');
@@ -14129,6 +16208,7 @@
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось отправить комментарий', true);
                 } finally {
+                    if (btn) btn.disabled = !this.isLoggedIn();
                     this.syncClimbCommentComposerAuth();
                 }
             }
@@ -14152,7 +16232,7 @@
                     return;
                 }
                 if (!this.isLoggedIn() || !this.isTelegramUser()) {
-                    this.showToast('Войдите через Telegram Mini App', true);
+                    this.showToast(authTelegramGateMessage(), true);
                     return;
                 }
                 const climbType = ctx.climbType;
@@ -14280,25 +16360,37 @@
             }
 
             async refreshTelegramProfile() {
-                if (!window.isTelegramMiniApp?.() || !window.__TG_INIT_DATA) return null;
-                try {
-                    const tokenData = await apiFetch('/api/auth/telegram', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ init_data: window.__TG_INIT_DATA })
-                    });
-                    const auth = getAuthData();
-                    auth.accessToken = tokenData.access_token || auth.accessToken;
-                    auth.currentUser = tokenData.user || auth.currentUser;
-                    if (!auth.currentUser && auth.accessToken) {
-                        auth.currentUser = await apiFetch('/api/auth/me');
+                if (window.isTelegramMiniApp?.() && window.__TG_INIT_DATA) {
+                    try {
+                        const tokenData = await apiFetch('/api/auth/telegram', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ init_data: window.__TG_INIT_DATA })
+                        });
+                        const auth = getAuthData();
+                        auth.accessToken = tokenData.access_token || auth.accessToken;
+                        auth.currentUser = tokenData.user || auth.currentUser;
+                        if (!auth.currentUser && auth.accessToken) {
+                            auth.currentUser = await apiFetch('/api/auth/me');
+                        }
+                        saveAuthData(auth);
+                        this.auth = auth;
+                        return auth.currentUser;
+                    } catch {
+                        return null;
                     }
-                    saveAuthData(auth);
-                    this.auth = auth;
-                    return auth.currentUser;
-                } catch {
-                    return null;
                 }
+                if (isStandaloneShell() && this.isTelegramUser() && getAuthData().accessToken) {
+                    try {
+                        const me = await apiFetch('/api/auth/me');
+                        saveAuthData({ ...getAuthData(), currentUser: me });
+                        this.auth = getAuthData();
+                        return me;
+                    } catch {
+                        return null;
+                    }
+                }
+                return null;
             }
 
             updateProfileAvatar(user, profile) {
@@ -14354,6 +16446,118 @@
                 return v.toLocaleString('ru-RU');
             }
 
+            getRankingSearchTerm() {
+                return String(document.getElementById('rankingSearch')?.value || '').trim().toLowerCase();
+            }
+
+            filterRankingLeaderboardRows(rows) {
+                const term = this.getRankingSearchTerm();
+                if (!term || !rows?.length) return rows || [];
+                return rows.filter((row) => {
+                    const hay = [
+                        row.display_name,
+                        row.telegram_username ? `@${row.telegram_username}` : ''
+                    ].join(' ').toLowerCase();
+                    return hay.includes(term);
+                });
+            }
+
+            formatRankingRank(rank) {
+                const n = Number(rank);
+                if (!Number.isFinite(n) || n <= 0) return '—';
+                return String(n);
+            }
+
+            buildRankingTableHeadHtml() {
+                return `
+                    <tr>
+                        <th class="ranking-num" scope="col" rowspan="2" title="Суммарное место">#</th>
+                        <th scope="col" rowspan="2">Скалолаз</th>
+                        <th class="ranking-col-head ranking-col-head--route" scope="colgroup" colspan="2">Трудность</th>
+                        <th class="ranking-col-head ranking-col-head--boulder" scope="colgroup" colspan="2">Боулдеринг</th>
+                    </tr>
+                    <tr>
+                        <th class="ranking-num ranking-col-head ranking-col-head--route" scope="col">#</th>
+                        <th class="ranking-points ranking-col-head ranking-col-head--route" scope="col">Баллы</th>
+                        <th class="ranking-num ranking-col-head ranking-col-head--boulder" scope="col">#</th>
+                        <th class="ranking-points ranking-col-head ranking-col-head--boulder" scope="col">Баллы</th>
+                    </tr>`;
+            }
+
+            buildRankingTableBodyRowHtml(row, currentId) {
+                const isMe = currentId && row.user_id === currentId;
+                const topClass = row.rank === 1 ? ' ranking-row--top1' : '';
+                const meClass = isMe ? ' ranking-row--me' : '';
+                const handle = row.telegram_username
+                    ? `<span class="ranking-user-handle">@${this.escapeHtml(row.telegram_username)}</span>`
+                    : '';
+                return `
+                    <tr class="ranking-row${topClass}${meClass}">
+                        <td class="ranking-num">${row.rank}</td>
+                        <td>
+                            <span class="ranking-user-name">${this.escapeHtml(row.display_name)}</span>
+                            ${handle}
+                        </td>
+                        <td class="ranking-num ranking-cell--route">${this.formatRankingRank(row.route_rank)}</td>
+                        <td class="ranking-points ranking-cell--route">${this.formatRankingPoints(row.route_points)}</td>
+                        <td class="ranking-num ranking-cell--boulder">${this.formatRankingRank(row.boulder_rank)}</td>
+                        <td class="ranking-points ranking-cell--boulder">${this.formatRankingPoints(row.boulder_points)}</td>
+                    </tr>`;
+            }
+
+            buildRankingMyPlaceHtml(data) {
+                if (!this.isLoggedIn() || !data?.my_row) return '';
+                const row = data.my_row;
+                const routeRank = this.formatRankingRank(data.my_route_rank ?? row.route_rank);
+                const boulderRank = this.formatRankingRank(data.my_boulder_rank ?? row.boulder_rank);
+                const routeRankLabel = routeRank === '—' ? '—' : `#${routeRank}`;
+                const boulderRankLabel = boulderRank === '—' ? '—' : `#${boulderRank}`;
+                const overall = data.my_rank != null ? `#${data.my_rank}` : '—';
+                return `
+                    <div class="ranking-my-place-grid">
+                        <div class="ranking-my-place-overall">Суммарно: <strong>${overall}</strong> (трудность + боулдеринг)</div>
+                        <div class="ranking-my-place-discipline ranking-my-place-discipline--route">
+                            <span class="ranking-discipline-tag ranking-discipline-tag--route">Трудность</span>
+                            место <strong>${routeRankLabel}</strong> · <strong>${this.formatRankingPoints(row.route_points)}</strong> баллов
+                        </div>
+                        <div class="ranking-my-place-discipline ranking-my-place-discipline--boulder">
+                            <span class="ranking-discipline-tag ranking-discipline-tag--boulder">Боулдеринг</span>
+                            место <strong>${boulderRankLabel}</strong> · <strong>${this.formatRankingPoints(row.boulder_points)}</strong> баллов
+                        </div>
+                    </div>`;
+            }
+
+            paintRankingLeaderboardTable(data) {
+                const wrap = document.getElementById('rankingTableWrap');
+                if (!wrap || !data) return;
+                if (!data.rows?.length) {
+                    wrap.innerHTML = `
+                        <div class="ranking-empty">
+                            <i class="fas fa-trophy" style="font-size:28px;opacity:0.35;margin-bottom:8px;"></i>
+                            <p>Пока никто не занёс пролазы в логбук.</p>
+                            <p style="font-size:13px;margin-top:6px;">Отметьте пролаз на трассе или боулдере — и появитесь в рейтинге.</p>
+                        </div>`;
+                    return;
+                }
+                const currentId = this.getCurrentUser()?.id || '';
+                const visibleRows = this.filterRankingLeaderboardRows(data.rows);
+                if (!visibleRows.length) {
+                    wrap.innerHTML = `
+                        <div class="ranking-empty">
+                            <p>По запросу никого не найдено.</p>
+                        </div>`;
+                    return;
+                }
+                const rowsHtml = visibleRows
+                    .map((row) => this.buildRankingTableBodyRowHtml(row, currentId))
+                    .join('');
+                wrap.innerHTML = `
+                    <table class="ranking-table ranking-table--split" aria-label="Рейтинг скалолазов по баллам">
+                        <thead>${this.buildRankingTableHeadHtml()}</thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>`;
+            }
+
             async renderRankingTab() {
                 const wrap = document.getElementById('rankingTableWrap');
                 const hint = document.getElementById('rankingHint');
@@ -14366,60 +16570,21 @@
                     </div>`;
                 try {
                     const data = await apiFetch('/api/ranking/leaderboard?top=10&months=12');
+                    this._rankingLeaderboardData = data;
                     if (hint) {
-                        hint.textContent = `Баллы по модели 8a.nu: сумма ${data.top_performances} лучших пролазов за ${data.months} мес. в каждой дисциплине. 8a = 1000, +50 за «+», бонусы: онсайт +147, флэш +53, второй заход +2.`;
+                        hint.textContent = `Баллы 8a.nu за ${data.months} мес.: до ${data.top_performances} лучших пролазов в каждой дисциплине. Место по трудности и по боулдерингу считаются отдельно (сумма баллов в столбце).`;
                     }
                     if (myPlace) {
-                        if (this.isLoggedIn() && data.my_row) {
+                        const placeHtml = this.buildRankingMyPlaceHtml(data);
+                        if (placeHtml) {
                             myPlace.classList.remove('hidden');
-                            myPlace.innerHTML = `Ваше место: <strong>#${data.my_rank}</strong> — трудность <strong>${this.formatRankingPoints(data.my_row.route_points)}</strong>, боулдеринг <strong>${this.formatRankingPoints(data.my_row.boulder_points)}</strong>, итого <strong>${this.formatRankingPoints(data.my_row.total_points)}</strong>`;
+                            myPlace.innerHTML = placeHtml;
                         } else {
                             myPlace.classList.add('hidden');
                             myPlace.innerHTML = '';
                         }
                     }
-                    if (!data.rows?.length) {
-                        wrap.innerHTML = `
-                            <div class="ranking-empty">
-                                <i class="fas fa-trophy" style="font-size:28px;opacity:0.35;margin-bottom:8px;"></i>
-                                <p>Пока никто не занёс пролазы в логбук.</p>
-                                <p style="font-size:13px;margin-top:6px;">Отметьте пролаз на трассе или боулдере — и появитесь в рейтинге.</p>
-                            </div>`;
-                        return;
-                    }
-                    const currentId = this.getCurrentUser()?.id || '';
-                    const rowsHtml = data.rows.map((row) => {
-                        const isMe = currentId && row.user_id === currentId;
-                        const topClass = row.rank === 1 ? ' ranking-row--top1' : '';
-                        const meClass = isMe ? ' ranking-row--me' : '';
-                        const handle = row.telegram_username
-                            ? `<span class="ranking-user-handle">@${this.escapeHtml(row.telegram_username)}</span>`
-                            : '';
-                        return `
-                            <tr class="ranking-row${topClass}${meClass}">
-                                <td class="ranking-num">${row.rank}</td>
-                                <td>
-                                    <span class="ranking-user-name">${this.escapeHtml(row.display_name)}</span>
-                                    ${handle}
-                                </td>
-                                <td class="ranking-points">${this.formatRankingPoints(row.route_points)}</td>
-                                <td class="ranking-points">${this.formatRankingPoints(row.boulder_points)}</td>
-                                <td class="ranking-points">${this.formatRankingPoints(row.total_points)}</td>
-                            </tr>`;
-                    }).join('');
-                    wrap.innerHTML = `
-                        <table class="ranking-table" aria-label="Рейтинг скалолазов по баллам">
-                            <thead>
-                                <tr>
-                                    <th class="ranking-num" scope="col">#</th>
-                                    <th scope="col">Скалолаз</th>
-                                    <th class="ranking-points" scope="col">Трудность</th>
-                                    <th class="ranking-points" scope="col">Боулдеринг</th>
-                                    <th class="ranking-points" scope="col">Итого</th>
-                                </tr>
-                            </thead>
-                            <tbody>${rowsHtml}</tbody>
-                        </table>`;
+                    this.paintRankingLeaderboardTable(data);
                 } catch (err) {
                     wrap.innerHTML = `<p style="color:var(--danger-color);padding:12px;">${this.escapeHtml(err.message || 'Не удалось загрузить рейтинг')}</p>`;
                 }
@@ -14428,14 +16593,26 @@
             async renderProfileTab() {
                 const guest = document.getElementById('profileGuestBlock');
                 const userBlock = document.getElementById('profileUserBlock');
+                const logoutBtn = document.getElementById('profileTelegramLogoutBtn');
                 if (!guest || !userBlock) return;
-                if (!this.isLoggedIn()) {
+                if (!this.isLoggedIn() || !this.isTelegramUser()) {
                     guest.classList.remove('hidden');
                     userBlock.classList.add('hidden');
+                    if (isStandaloneShell()) {
+                        this.prepareStandaloneTelegramLoginUi();
+                    } else {
+                        document.getElementById('profileGuestHintMiniApp')?.classList.remove('hidden');
+                        document.getElementById('profileGuestHintStandalone')?.classList.add('hidden');
+                        document.getElementById('telegramLoginWidgetMount')?.classList.add('hidden');
+                    }
                     return;
                 }
                 guest.classList.add('hidden');
                 userBlock.classList.remove('hidden');
+                if (logoutBtn) {
+                    const showLogout = isStandaloneShell() && this.isTelegramUser();
+                    logoutBtn.classList.toggle('hidden', !showLogout);
+                }
 
                 let user = this.getCurrentUser();
                 if (this.isTelegramUser()) {
@@ -14445,15 +16622,13 @@
                 this.renderProfileIdentity(user);
 
                 try {
-                    if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
-                        await refreshCatalogFromApi({ skipWake: true }).catch(() => {});
-                    }
-                    const [profile, ascents] = await Promise.all([
+                    const [profile, ascents, leaderboard] = await Promise.all([
                         apiFetch('/api/users/me/profile'),
-                        apiFetch('/api/me/ascents?status=send&limit=500')
+                        apiFetch('/api/me/ascents?status=send&limit=500'),
+                        apiFetch('/api/ranking/leaderboard?top=10&months=12').catch(() => null)
                     ]);
                     this.updateProfileAvatar(user, profile);
-                    this.renderProfileStatsGrid(profile, ascents);
+                    this.renderProfileStatsGrid(profile, ascents, leaderboard);
                 } catch (err) {
                     const grid = document.getElementById('profileStatsGrid');
                     if (grid) {
@@ -14497,12 +16672,6 @@
                 const existing = this.findClimbInCatalog(climbType, id);
                 if (existing) return existing;
 
-                if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
-                    await refreshCatalogFromApi({ skipWake: true }).catch(() => {});
-                    const refreshed = this.findClimbInCatalog(climbType, id);
-                    if (refreshed) return refreshed;
-                }
-
                 try {
                     if (climbType === 'route') {
                         const apiRoute = await apiFetch(`/api/routes/${encodeURIComponent(id)}`);
@@ -14515,6 +16684,11 @@
                     saveBoulders([...getBoulders().filter((b) => String(b.id) !== id), boulder]);
                     return boulder;
                 } catch (err) {
+                    if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
+                        await refreshCatalogFromApi({ skipWake: true, background: true }).catch(() => {});
+                        const refreshed = this.findClimbInCatalog(climbType, id);
+                        if (refreshed) return refreshed;
+                    }
                     console.warn('ensure climb in catalog', err);
                     return null;
                 }
@@ -14600,26 +16774,63 @@
                 });
             }
 
-            renderProfileStatsGrid(profile, ascents = []) {
+            buildProfileRankingStatCardHtml(leaderboard, user) {
+                const myRow = leaderboard?.my_row;
+                const routeRank = this.formatRankingRank(leaderboard?.my_route_rank ?? myRow?.route_rank);
+                const boulderRank = this.formatRankingRank(leaderboard?.my_boulder_rank ?? myRow?.boulder_rank);
+                const routeRankLabel = routeRank === '—' ? '—' : `#${routeRank}`;
+                const boulderRankLabel = boulderRank === '—' ? '—' : `#${boulderRank}`;
+                const hasRoute = myRow && Number(myRow.route_points) > 0;
+                const hasBoulder = myRow && Number(myRow.boulder_points) > 0;
+                if (!myRow || (!hasRoute && !hasBoulder)) {
+                    return `<div class="profile-stat-card profile-stat-card--ranking">
+                        <div class="profile-stat-card-head">
+                            <strong>—</strong>
+                            <span class="profile-stat-card-label">рейтинг 8a.nu</span>
+                        </div>
+                        <p class="profile-ranking-empty">Нет баллов за последние 12 мес. Запишите пролазы в логбук.</p>
+                    </div>`;
+                }
+                return `<button type="button" class="profile-stat-card profile-stat-card--ranking" data-profile-open-ranking aria-label="Открыть таблицу рейтинга">
+                    <div class="profile-stat-card-head">
+                        <span class="profile-stat-card-label">рейтинг 8a.nu</span>
+                    </div>
+                    <div class="profile-ranking-disciplines">
+                        <div class="profile-ranking-discipline profile-ranking-discipline--route">
+                            <span class="ranking-discipline-tag ranking-discipline-tag--route">Трудность</span>
+                            <div class="profile-ranking-discipline-meta">
+                                <strong>${routeRankLabel}</strong>
+                                <span>${this.formatRankingPoints(myRow.route_points)} баллов</span>
+                            </div>
+                        </div>
+                        <div class="profile-ranking-discipline profile-ranking-discipline--boulder">
+                            <span class="ranking-discipline-tag ranking-discipline-tag--boulder">Боулдеринг</span>
+                            <div class="profile-ranking-discipline-meta">
+                                <strong>${boulderRankLabel}</strong>
+                                <span>${this.formatRankingPoints(myRow.boulder_points)} баллов</span>
+                            </div>
+                        </div>
+                    </div>
+                </button>`;
+            }
+
+            bindProfileRankingStatCardClick(container) {
+                container?.querySelector('[data-profile-open-ranking]')?.addEventListener('click', () => {
+                    this.openRankingTab();
+                });
+            }
+
+            renderProfileStatsGrid(profile, ascents = [], leaderboard = null) {
                 const grid = document.getElementById('profileStatsGrid');
                 if (!grid) return;
-                const stylesCount = profile.styles_count ?? profile.attempts_count ?? 0;
+                const user = this.getCurrentUser();
                 grid.className = 'profile-stats-grid';
                 grid.innerHTML = `
                     ${this.buildProfileSendsStatCardHtml(profile.sends_count ?? 0, ascents)}
-                    <button type="button" class="profile-stat-card" data-profile-stat="styles" aria-label="Стили пролаза">
-                        <strong>${stylesCount}</strong>
-                        <span class="profile-stat-card-label">стилей</span>
-                    </button>
-                    <div class="profile-stat-card">
-                        <strong>${profile.ratings_count ?? 0}</strong>
-                        <span class="profile-stat-card-label">рейтинг</span>
-                    </div>
+                    ${this.buildProfileRankingStatCardHtml(leaderboard, user)}
                 `;
                 this.bindProfileSendsStatCardClicks(grid.querySelector('[data-profile-stat="sends"]'));
-                grid.querySelector('[data-profile-stat="styles"]')?.addEventListener('click', () => {
-                    void this.openProfileStylesDialog();
-                });
+                this.bindProfileRankingStatCardClick(grid);
             }
 
             isClimbInCatalog(climbType, climbId) {
@@ -14789,9 +17000,6 @@
                 listEl.innerHTML = '<p style="padding:12px;color:var(--light-text);margin:0;">Загрузка…</p>';
                 this.showDialog('profileSendsDialog');
                 try {
-                    if (!_offlineMode && typeof refreshCatalogFromApi === 'function') {
-                        await refreshCatalogFromApi({ skipWake: true }).catch(() => {});
-                    }
                     const ascents = await apiFetch('/api/me/ascents?status=send&limit=500');
                     listEl.innerHTML = this.renderProfileLogbookByDays(ascents);
                     this.bindProfileLogbookClicks(listEl);
@@ -14845,19 +17053,21 @@
                 let awake = false;
                 if (!online && hadLocalCatalog) {
                     enterOfflineMode('Офлайн — показаны сохранённые данные.');
+                    void hydrateAreaCoverImages();
                     void runTelegramAuthBootstrap();
                     return;
                 }
                 if (online) {
                     const standalone = isStandaloneShell();
                     awake = await wakeApiServer({
-                        attempts: hadLocalCatalog ? (standalone ? 2 : 1) : (standalone ? 6 : 2),
-                        timeoutMs: standalone ? 12000 : 3500,
-                        pauseMs: standalone ? 800 : 400
+                        attempts: hadLocalCatalog ? (standalone ? 2 : 1) : (standalone ? 3 : 2),
+                        timeoutMs: standalone ? 8000 : 3500,
+                        pauseMs: standalone ? 600 : 400
                     });
                 }
                 if (!awake && catalogHasContent(getClimbingData())) {
                     enterOfflineMode('Офлайн — показаны сохранённые данные. Подключите сеть для обновления.');
+                    void hydrateAreaCoverImages();
                     void runTelegramAuthBootstrap();
                     return;
                 }
@@ -14865,7 +17075,11 @@
                     throw new Error('Сервер не отвечает');
                 }
                 await warnIfApiStorageNotPersistent();
-                await refreshCatalogFromApi({ initial: true, skipWake: true });
+                await refreshCatalogFromApi({
+                    initial: true,
+                    skipWake: true,
+                    background: hadLocalCatalog
+                });
                 leaveOfflineMode();
                 void flushOfflineOutbox();
                 void runTelegramAuthBootstrap();
@@ -14892,6 +17106,29 @@
             }
         }
 
+        function bootTelegramShell() {
+            if (window.CLIMBING_STANDALONE) return;
+            if (window.Telegram?.WebApp && typeof window.initTelegramWebApp === 'function') {
+                window.initTelegramWebApp();
+            } else {
+                window.syncOpenProfileButtonVisibility?.({ telegramUser: false });
+            }
+        }
+
+        function scheduleTelegramShellRetry() {
+            if (window.CLIMBING_STANDALONE || window.isTelegramMiniApp?.()) return;
+            let attempts = 0;
+            const timer = setInterval(() => {
+                attempts += 1;
+                if (window.Telegram?.WebApp) {
+                    bootTelegramShell();
+                }
+                if (window.isTelegramMiniApp?.() || attempts >= 120) {
+                    clearInterval(timer);
+                }
+            }, 50);
+        }
+
         async function bootClimbingApp() {
             if (typeof window.signalTelegramAppReady === 'function') window.signalTelegramAppReady();
             if (window.GuidebookMapTiles?.ensureConfig) {
@@ -14899,16 +17136,19 @@
             }
             await clearServiceWorkers();
             const hadLocalCatalog = bootstrapCatalogFromStorage();
-            if (hadLocalCatalog) {
-                await hydrateCatalogPhotosFromIndexedDb();
-                await hydrateAreaCoverImages();
-            }
             bindPreventHorizontalPageShift();
+            bindBlurControlFocusAfterTap();
+            bootTelegramShell();
             window.app = new ClimbingApp();
-            if (!window.CLIMBING_STANDALONE && typeof window.initTelegramWebApp === 'function') {
-                window.initTelegramWebApp();
+            bootTelegramShell();
+            scheduleTelegramShellRetry();
+            if (hadLocalCatalog) {
+                void hydrateCatalogPhotosFromIndexedDb();
+                void hydrateAreaCoverImages();
             }
-            if (!window.CLIMBING_STANDALONE && typeof window.syncTelegramMiniAppUi === 'function') {
+            if (window.CLIMBING_STANDALONE) {
+                window.syncOpenProfileButtonVisibility?.({ telegramUser: false });
+            } else if (typeof window.syncTelegramMiniAppUi === 'function') {
                 window.syncTelegramMiniAppUi();
             }
             if (hadLocalCatalog && shouldUseOfflineQueue()) {
@@ -14917,6 +17157,12 @@
                 setAppDataStatus('loading', 'Загрузка каталога…');
             }
             void bootstrapRemoteCatalog(hadLocalCatalog);
+            if (typeof window.syncMainTabChrome === 'function') {
+                window.syncMainTabChrome();
+            }
+            if (navigator.onLine !== false) {
+                void ensureLeafletLoaded().catch(() => {});
+            }
         }
 
         if (document.readyState === 'loading') {

@@ -102,6 +102,23 @@
             touch-action: pan-y pinch-zoom;
         }
 
+        /* WebView/Android: после тапа не держим красный outline (--primary-color) на кнопках */
+        html.tg-mini-app button:focus:not(:focus-visible),
+        html.tg-mini-app [role="button"]:focus:not(:focus-visible),
+        html.standalone-app button:focus:not(:focus-visible),
+        html.standalone-app [role="button"]:focus:not(:focus-visible),
+        .climb-detail-photo-mount:focus:not(:focus-visible),
+        .climb-detail-log-row:focus:not(:focus-visible),
+        .photo-wrap:focus:not(:focus-visible) {
+            outline: none !important;
+            box-shadow: none;
+        }
+
+        .photo-wrap.is-photo-gesturing,
+        .photo-wrap.is-photo-gesturing * {
+            -webkit-tap-highlight-color: transparent !important;
+        }
+
         /* Базовые стили */
         * {
             margin: 0;
@@ -187,10 +204,83 @@
         }
 
         .header-top {
+            position: relative;
             display: flex;
             flex-direction: column;
             align-items: stretch;
             gap: 10px;
+            padding-top: 2px;
+        }
+
+        .header-corner-actions {
+            position: absolute;
+            top: 0;
+            right: 0;
+            z-index: 3;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-corner-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 42px;
+            height: 42px;
+            padding: 0;
+            margin: 0;
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            background: color-mix(in srgb, var(--surface-elevated) 88%, transparent);
+            color: var(--text-color);
+            cursor: pointer;
+            touch-action: manipulation;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+            transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+        }
+
+        .header-corner-icon {
+            display: block;
+            width: 22px;
+            height: 22px;
+            color: var(--primary-color);
+        }
+
+        .header-corner-btn:hover,
+        .header-corner-btn:focus-visible {
+            border-color: color-mix(in srgb, var(--primary-color) 55%, var(--border-color));
+            background: color-mix(in srgb, var(--primary-color) 10%, var(--surface-elevated));
+            outline: none;
+        }
+
+        .header-corner-btn:active {
+            transform: scale(0.96);
+        }
+
+        #openProfileBtn {
+            display: none;
+        }
+
+        html.tg-mini-app #openProfileBtn {
+            display: inline-flex;
+        }
+
+        html.standalone-app #openProfileBtn {
+            display: inline-flex;
+        }
+
+        .profile-telegram-deeplink-btn {
+            margin-top: 14px;
+        }
+
+        /* На вкладке «Районы» — один поиск (в карточке), без дубля в шапке и заголовка карточки */
+        html.catalog-tab-active header .global-search-wrap {
+            display: none !important;
+        }
+
+        html.catalog-tab-active:not(.catalog-sector-focus):not(.catalog-assistant-search-open) #catalog > .card > .card-header {
+            display: none !important;
         }
 
         .header-search-auth {
@@ -198,6 +288,16 @@
             flex-direction: column;
             align-items: stretch;
             gap: 6px;
+            width: 100%;
+            min-width: 0;
+        }
+
+        .header-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
             width: 100%;
             min-width: 0;
         }
@@ -210,6 +310,8 @@
             flex: none;
             width: 100%;
             min-width: 0;
+            padding-inline: 96px;
+            box-sizing: border-box;
         }
 
         .header-brand h1.site-logo {
@@ -222,7 +324,8 @@
             gap: 8px;
             flex-wrap: wrap;
             justify-content: center;
-            width: 100%;
+            flex: 1 1 auto;
+            min-width: 0;
         }
 
         .auth-panel.auth-panel--visible {
@@ -382,10 +485,15 @@
         .global-search-kind {
             grid-row: span 2;
             align-self: center;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
             padding: 4px 8px;
             border-radius: 999px;
             background: var(--accent-soft);
-            color: var(--primary-color);
+            color: var(--text-color);
             font-size: 11px;
             font-weight: 700;
             letter-spacing: 0.02em;
@@ -672,6 +780,74 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+        }
+
+        .card-header--with-back {
+            flex-wrap: wrap;
+            gap: 10px 12px;
+        }
+
+        .card-header--with-back .overlay-screen-back {
+            flex: 0 0 auto;
+            margin-right: auto;
+        }
+
+        .card-header--with-back .card-title {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .overlay-screen-back,
+        .catalog-screen-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .catalog-guide-back-row {
+            margin-bottom: 10px;
+        }
+
+        html.catalog-sector-focus #catalog .catalog-guide-back-row {
+            padding: 0 12px;
+            margin-top: 4px;
+        }
+
+        .catalog-nav-back {
+            margin: 0 0 10px;
+        }
+
+        html.catalog-sector-focus #catalog .catalog-nav-back {
+            padding: 0 12px;
+            margin-top: 4px;
+        }
+
+        html.catalog-assistant-search-open #catalog .catalog-nav-back {
+            display: block !important;
+            padding: 0 4px;
+            margin-bottom: 8px;
+        }
+
+        .dialog-header--with-back {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 8px 10px;
+        }
+
+        .dialog-header--with-back .overlay-screen-back {
+            flex: 0 0 auto;
+        }
+
+        .dialog-header--with-back .dialog-header-text {
+            flex: 1 1 12rem;
+            min-width: 0;
+        }
+
+        .dialog-header--with-back .dialog-header-actions {
+            flex: 0 0 auto;
+            margin-left: auto;
         }
 
         .card-title {
@@ -1024,6 +1200,14 @@
             box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
         }
 
+        @media (hover: none) {
+            .list-item:hover,
+            .catalog-area-card:hover,
+            .catalog-row:hover {
+                transform: none;
+            }
+        }
+
         .list-item.is-route-draggable {
             gap: 8px;
             cursor: default;
@@ -1094,6 +1278,7 @@
         .catalog-climb-row {
             touch-action: manipulation;
             cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .climb-row-open {
@@ -1111,11 +1296,15 @@
             text-align: left;
             cursor: pointer;
             touch-action: manipulation;
-            -webkit-tap-highlight-color: rgba(93, 156, 255, 0.15);
+            -webkit-tap-highlight-color: transparent;
         }
 
         .climb-row-open:focus {
-            outline: 2px solid var(--primary-color);
+            outline: none;
+        }
+
+        .climb-row-open:focus-visible {
+            outline: 2px solid color-mix(in srgb, var(--tg-blue) 75%, transparent);
             outline-offset: 2px;
         }
 
@@ -1171,6 +1360,12 @@
             color: #f5f5f7;
             border: 1px solid rgba(255, 255, 255, 0.42);
             box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+        }
+
+        .grade-badge--project {
+            background-color: #9e9e9e;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.28);
         }
 
         html.theme-light .grade-badge--black {
@@ -1302,9 +1497,11 @@
 
         .photo-preview-item img {
             width: 100%;
-            height: 150px;
-            object-fit: cover;
+            height: auto;
+            max-height: min(280px, 52vh);
+            object-fit: contain;
             display: block;
+            background: var(--media-tile-bg, #0d0d0d);
         }
 
         .photo-preview-actions {
@@ -1586,6 +1783,16 @@
             cursor: grab;
         }
 
+        .markup-dialog-stage.markup-erase-mode {
+            cursor: cell;
+        }
+
+        .markup-dialog-stage.markup-erase-mode .markup-hold-hit,
+        .markup-dialog-stage.markup-erase-mode .line-marker {
+            cursor: pointer;
+            box-shadow: 0 0 0 2px rgba(255, 82, 82, 0.85);
+        }
+
         .markup-editor-toolbar {
             display: flex;
             gap: 5px;
@@ -1858,6 +2065,55 @@
             display: none !important;
         }
 
+        html.catalog-sector-focus #catalog .catalog-card-search {
+            display: block !important;
+            margin: 0 0 12px;
+        }
+
+        .catalog-card-search {
+            position: relative;
+            z-index: 20;
+        }
+
+        .catalog-card-search .global-search-results {
+            position: relative;
+            left: auto;
+            right: auto;
+            top: auto;
+            margin-top: 8px;
+            max-height: min(62vh, 520px);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            background: var(--card-bg);
+            isolation: isolate;
+        }
+
+        /* Умный поиск (≥2 символа): только dropdown, без параллельного списка каталога под ним */
+        html.catalog-assistant-search-open #catalogList,
+        html.catalog-assistant-search-open #catalog .catalog-breadcrumb,
+        html.catalog-assistant-search-open #catalog .catalog-toolbar,
+        html.catalog-assistant-search-open #catalog .catalog-guide-hero,
+        html.catalog-assistant-search-open #catalog .catalog-map-block,
+        html.catalog-assistant-search-open #catalog > .card > .card-header {
+            display: none !important;
+        }
+
+        html.catalog-assistant-search-open #catalog .catalog-card-search {
+            margin-bottom: 0;
+        }
+
+        .ranking-card-search {
+            margin: 0 0 12px;
+        }
+
+        html.catalog-map-minimal.catalog-admin.catalog-sector-focus #catalog .catalog-toolbar {
+            display: flex !important;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 0 0 10px;
+            padding: 0;
+        }
+
         html.catalog-sector-focus #catalog > .card {
             border: 0;
             box-shadow: none;
@@ -1895,10 +2151,219 @@
         .catalog-guide-actions--compact {
             flex-shrink: 0;
             margin-top: 2px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
         }
 
         html.catalog-sector-focus #catalogList {
             padding-top: 0;
+        }
+
+        .catalog-map-block {
+            margin: 12px 0 16px;
+        }
+
+        .catalog-map-block-head {
+            margin-bottom: 8px;
+        }
+
+        .catalog-map-block-title {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .catalog-map-block #catalogMapContainerMount #mapContainer {
+            height: min(42vh, calc(100vh - 220px));
+            height: min(42dvh, calc(100dvh - 220px));
+            min-height: 240px;
+            margin-top: 8px;
+        }
+
+        .catalog-map-block--minimal {
+            margin: 0 0 12px;
+        }
+
+        .catalog-map-block--minimal .catalog-map-block-head {
+            display: none;
+        }
+
+        .catalog-map-block--minimal #catalogMapContainerMount #mapContainer {
+            height: min(52vh, calc(100dvh - 200px));
+            min-height: 280px;
+            margin-top: 0;
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .catalog-map-legend-mount {
+            margin-top: 10px;
+        }
+
+        .catalog-map-edit-mount {
+            margin-top: 10px;
+        }
+
+        .catalog-map-edit-mount .map-edit-panel {
+            margin: 0;
+        }
+
+        html.catalog-map-minimal.catalog-admin .catalog-map-edit-mount {
+            display: block;
+        }
+
+        .form-input-row {
+            display: flex;
+            gap: 8px;
+            align-items: stretch;
+        }
+
+        .form-input-row .form-input {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .catalog-map-legend-mount .map-legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px 14px;
+            padding: 8px 4px 4px;
+            font-size: 12px;
+            color: var(--light-text);
+        }
+
+        .catalog-map-block--embedded .catalog-map-legend-mount:empty {
+            display: none;
+        }
+
+        .catalog-map-block #mapToolbar {
+            margin-top: 0;
+            padding: 8px 10px;
+            gap: 6px;
+        }
+
+        .catalog-map-block .map-filter-row {
+            gap: 6px;
+        }
+
+        .catalog-map-block .map-nav-row,
+        .catalog-map-block .map-filter-group {
+            gap: 6px;
+        }
+
+        .catalog-map-block .map-legend {
+            gap: 6px 10px;
+        }
+
+        .catalog-map-block .map-coords-bar {
+            padding: 4px 0;
+        }
+
+        .catalog-map-block .map-pin-label--plain {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: #fff !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 10px rgba(0, 0, 0, 0.65);
+            padding: 2px 4px;
+        }
+
+        .catalog-map-block .map-pin-label--plain span {
+            color: #fff !important;
+            opacity: 0.88;
+        }
+
+        .catalog-map-block .map-sector-badge.selected .map-sector-badge-label,
+        .catalog-map-block .map-sector-badge.selected .map-pin-label--plain {
+            background: transparent !important;
+            border: none !important;
+            color: #fff !important;
+        }
+
+        .catalog-map-block .map-sector-badge.selected .map-sector-badge-glyph {
+            background: var(--card-bg, #151b24) !important;
+        }
+
+        .catalog-map-block .map-sector-badge--route.selected .map-sector-badge-glyph {
+            border-color: var(--route-color, #22b8a8) !important;
+            color: var(--route-color, #22b8a8) !important;
+        }
+
+        .catalog-map-block .map-sector-badge--boulder.selected .map-sector-badge-glyph {
+            border-color: var(--boulder-color, #f04d23) !important;
+            color: var(--boulder-color, #f04d23) !important;
+        }
+
+        .catalog-map-block .map-sector-badge.selected .map-sector-badge-pointer {
+            border-top-color: color-mix(in srgb, var(--route-color, #22b8a8) 70%, #fff) !important;
+        }
+
+        .catalog-map-block .map-sector-badge--boulder.selected .map-sector-badge-pointer {
+            border-top-color: color-mix(in srgb, var(--boulder-color, #f04d23) 70%, #fff) !important;
+        }
+
+        .catalog-map-block .map-sector-badge.selected .map-sector-badge-dot {
+            background: var(--route-color, #22b8a8) !important;
+        }
+
+        .catalog-map-block .map-sector-badge--boulder.selected .map-sector-badge-dot {
+            background: var(--boulder-color, #f04d23) !important;
+        }
+
+        .catalog-map-block .map-area-badge--catalog .map-area-droplet-pin {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 44px;
+            margin-bottom: 2px;
+            color: #fff;
+            filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.75));
+        }
+
+        .catalog-map-block .map-sector-badge--route .map-sector-badge-glyph,
+        .catalog-map-block .map-sector-badge--boulder .map-sector-badge-glyph {
+            width: 22px;
+            height: 22px;
+            border-width: 2px;
+        }
+
+        .catalog-map-block .map-sector-badge--route .map-sector-badge-glyph svg,
+        .catalog-map-block .map-sector-badge--boulder .map-sector-badge-glyph svg {
+            width: 14px;
+        }
+
+        .catalog-map-block .map-area-badge--catalog .map-area-droplet-pin svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .catalog-map-block .map-area-droplet-shell {
+            fill: #fff;
+        }
+
+        .catalog-map-block .map-area-droplet-inner {
+            stroke: var(--map-accent, #e8472a);
+            stroke-width: 2.8px;
+        }
+
+        .catalog-map-block .map-area-badge--catalog.selected .map-area-droplet-inner {
+            stroke: #ff5c45;
+            stroke-width: 3px;
+        }
+
+        .catalog-map-block .map-sector-badge.selected {
+            z-index: 2;
+        }
+
+        .catalog-map-block .map-status {
+            font-size: 12px;
+            line-height: 1.35;
         }
 
         html.catalog-sector-focus #climbDetailDialog .dialog-header {
@@ -2070,6 +2535,14 @@
                 linear-gradient(180deg, var(--surface-elevated), var(--card-bg));
         }
 
+        #catalogList.catalog-list--syncing .catalog-area-card {
+            transition: none;
+        }
+
+        html.tg-mini-app #catalogList.catalog-list--syncing .catalog-area-card-image {
+            opacity: 1;
+        }
+
         .catalog-area-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
@@ -2092,8 +2565,47 @@
             background:
                 linear-gradient(135deg, var(--accent-soft), rgba(34, 184, 168, 0.08)),
                 var(--card-bg);
-            color: color-mix(in srgb, var(--primary-color) 72%, var(--text-color));
-            font-size: 38px;
+            color: var(--text-color);
+        }
+
+        .area-district-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 0;
+            color: var(--text-color);
+        }
+
+        .area-district-icon svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .area-district-icon-hole {
+            fill: var(--card-bg);
+        }
+
+        .catalog-area-card-image--placeholder .area-district-icon--card {
+            width: 72px;
+            height: 80px;
+            opacity: 0.94;
+        }
+
+        .global-search-kind .area-district-icon--search {
+            width: 22px;
+            height: 24px;
+            margin-right: 4px;
+            vertical-align: -5px;
+        }
+
+        .updates-feed-icon .area-district-icon--feed {
+            width: 28px;
+            height: 32px;
+        }
+
+        .map-area-droplet .area-district-icon-hole {
+            fill: #fff;
         }
 
         .catalog-area-card .catalog-row-open.catalog-area-card-open {
@@ -2164,7 +2676,11 @@
         }
 
         .catalog-row-open:focus {
-            outline: 2px solid var(--primary-color);
+            outline: none;
+        }
+
+        .catalog-row-open:focus-visible {
+            outline: 2px solid color-mix(in srgb, var(--tg-blue) 75%, transparent);
             outline-offset: -2px;
         }
 
@@ -2200,6 +2716,26 @@
 
         .catalog-map-btn {
             flex-shrink: 0;
+        }
+
+        .catalog-route-nav-btn {
+            align-self: center;
+            padding: 10px 12px;
+            line-height: 0;
+            min-width: 48px;
+            min-height: 48px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .catalog-route-nav-icon {
+            display: block;
+            width: 34px;
+            height: auto;
+            max-height: 20px;
+            object-fit: contain;
+            pointer-events: none;
         }
 
         .area-photo-preview {
@@ -2318,8 +2854,16 @@
         .photo-wrap .stage {
             position: absolute;
             inset: 0;
-            transform-origin: 0 0;
+            transform-origin: center center;
             will-change: transform;
+        }
+
+        .photo-wrap.is-photo-gesturing .stage {
+            transition: none;
+        }
+
+        .photo-wrap.is-photo-snap .stage {
+            transition: transform 0.22s ease-out;
         }
 
         .photo-wrap img {
@@ -2354,9 +2898,14 @@
             line-height: 1;
             cursor: pointer;
             touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
             display: inline-flex;
             align-items: center;
             justify-content: center;
+        }
+
+        .zoom-controls button:focus:not(:focus-visible) {
+            outline: none;
         }
 
         .zoom-controls button .btn-glyph {
@@ -2569,7 +3118,7 @@
             max-height: none !important;
             width: 100% !important;
             height: 100% !important;
-            object-fit: cover;
+            object-fit: contain;
             object-position: center center;
             border-radius: 0;
         }
@@ -2880,7 +3429,7 @@
             height: 100% !important;
             max-height: none !important;
             margin: 0;
-            object-fit: cover;
+            object-fit: contain;
             object-position: center center;
             background: transparent;
             border-radius: 0;
@@ -3068,7 +3617,7 @@
             height: 100% !important;
             max-width: none !important;
             max-height: none !important;
-            object-fit: cover !important;
+            object-fit: contain !important;
             object-position: center center;
         }
 
@@ -3182,9 +3731,10 @@
         .photo-album-open-btn img {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
             display: block;
             pointer-events: none;
+            background: #0d0d0d;
         }
 
         .photo-album-open-btn .markup-badge {
@@ -3339,21 +3889,36 @@
             height: 36px;
             padding: 0;
             margin: 0;
-            border: none;
+            border: 2px solid color-mix(in srgb, var(--primary-color) 78%, var(--border-color));
             border-radius: 50%;
-            background: var(--primary-color);
-            color: #fff;
+            background: transparent;
+            color: var(--primary-color);
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
             font-size: 15px;
+            font-weight: 700;
             line-height: 1;
             cursor: pointer;
             touch-action: manipulation;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
-            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+            box-shadow: none;
+            transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+        }
+
+        .climb-log-add-btn .fas {
+            display: none !important;
+        }
+
+        .climb-log-add-btn::before {
+            content: '✓';
+            font-size: 18px;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--primary-color);
         }
 
         .climb-log-add-btn:hover {
             transform: scale(1.06);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+            background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+            border-color: var(--primary-color);
         }
 
         .climb-log-add-btn:active {
@@ -3363,6 +3928,94 @@
         .climb-log-add-btn:focus-visible {
             outline: 2px solid var(--primary-color);
             outline-offset: 2px;
+        }
+
+        .climb-log-add-btn.hidden {
+            display: none;
+        }
+
+        .climb-log-sent-mark {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid #2e7d32;
+            background: color-mix(in srgb, #2e7d32 14%, transparent);
+            color: #2e7d32;
+            font-size: 18px;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .climb-log-sent-mark.hidden {
+            display: none;
+        }
+
+        .climb-sent-check {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.15em;
+            height: 1.15em;
+            margin-right: 6px;
+            border-radius: 50%;
+            border: 1px solid #2e7d32;
+            color: #2e7d32;
+            font-size: 0.85em;
+            font-weight: 800;
+            vertical-align: middle;
+        }
+
+        .climb-log-add-btn--submit {
+            width: 44px;
+            height: 44px;
+            font-size: 17px;
+        }
+
+        .climb-log-add-btn--submit::before {
+            font-size: 22px;
+        }
+
+        #climbDetailDialog .dialog-footer--climb-detail {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+        }
+
+        .climb-detail-log-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 0;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            background: var(--surface-elevated);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .climb-detail-log-row:not(.hidden):not(.is-sent) {
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .climb-detail-log-row:not(.hidden):not(.is-sent):active {
+            opacity: 0.92;
+        }
+
+        .climb-detail-log-row.hidden {
+            display: none;
+        }
+
+        .climb-detail-log-row-label {
+            flex: 1;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-color);
         }
 
         .catalog-climb-row .climb-log-add-btn {
@@ -3422,17 +4075,6 @@
             line-height: 1;
         }
 
-        #openProfileBtn .fas {
-            display: none !important;
-        }
-
-        #openProfileBtn::before {
-            content: '☺';
-            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-            font-size: 18px;
-            line-height: 1;
-        }
-
         @media (max-width: 720px) {
             .theme-toggle-btn .theme-toggle-text,
             .theme-toggle-btn #themeToggleIcon {
@@ -3479,6 +4121,29 @@
 
             .dialog-footer .btn {
                 width: 100%;
+                justify-content: center;
+            }
+        }
+
+        #climbLogDialog .dialog-footer.dialog-footer--log-submit {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            padding-top: 10px;
+        }
+
+        #climbLogDialog .dialog-footer.dialog-footer--log-submit .climb-log-add-btn--submit {
+            flex: 0 0 auto;
+            margin: 0;
+        }
+
+        @media (max-width: 400px) {
+            #climbLogDialog .dialog-footer.dialog-footer--log-submit {
+                flex-direction: row;
+                align-items: center;
                 justify-content: center;
             }
         }
@@ -3712,7 +4377,41 @@
         }
 
         .map-legend-poi--parking { background: #2563eb; }
-        .map-legend-poi--camping { background: #16a34a; font-size: 9px; }
+
+        .map-legend-camping-sign,
+        .map-camping-sign {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 0;
+            flex-shrink: 0;
+        }
+
+        .map-legend-camping-sign svg {
+            width: 18px;
+            height: 18px;
+            display: block;
+            border-radius: 3px;
+            box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.45);
+        }
+
+        .map-camping-sign--tool svg {
+            height: 16px;
+            width: auto;
+            display: block;
+        }
+
+        .map-draw-tool-btn--camping {
+            gap: 6px;
+        }
+
+        .map-feature-camping-sign svg {
+            width: 26px;
+            height: 26px;
+            display: block;
+            border-radius: 4px;
+            filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.38));
+        }
 
         .map-coords-bar {
             display: flex;
@@ -3881,8 +4580,6 @@
         }
 
         .map-feature-icon--parking { background: #2563eb; font-family: inherit; }
-        .map-feature-icon--camping { background: #16a34a; font-size: 13px; }
-        .map-feature-icon--area_sign { background: #e8472a; color: #fff; }
         .map-feature-icon--sector_sign {
             background: transparent;
             border: none;
@@ -3997,13 +4694,17 @@
         }
 
         .map-sector-badge-glyph {
-            width: 44px;
-            height: 44px;
             margin-right: 0;
             margin-bottom: 3px;
-            border-width: 2.5px;
             flex-shrink: 0;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+        }
+
+        .map-sector-badge--route .map-sector-badge-glyph,
+        .map-sector-badge--boulder .map-sector-badge-glyph {
+            width: 26px;
+            height: 26px;
+            border-width: 2px;
         }
 
         .map-sector-badge--route .map-sector-badge-glyph {
@@ -4016,12 +4717,49 @@
             color: var(--boulder-color, #f04d23);
         }
 
-        .map-sector-badge-glyph svg {
-            width: 24px;
+        .map-sector-badge--area .map-sector-badge-glyph.map-area-badge-glyph {
+            width: 50px;
+            height: 50px;
+            border-color: #22c55e;
+            color: #22c55e;
+            background: var(--card-bg, #151b24);
         }
 
-        .map-sector-badge--route .map-sector-badge-glyph svg {
-            width: 22px;
+        .map-sector-badge--area .map-area-badge-glyph .map-area-droplet {
+            width: 24px;
+            height: 30px;
+            filter: none;
+        }
+
+        .map-sector-badge--area .map-sector-badge-label {
+            border-color: color-mix(in srgb, #22c55e 55%, var(--map-accent));
+        }
+
+        .map-sector-badge--area .map-sector-badge-pointer {
+            border-top-color: color-mix(in srgb, #22c55e 70%, var(--map-accent));
+        }
+
+        .map-sector-badge--area .map-sector-badge-dot {
+            background: #22c55e;
+        }
+
+        .map-sector-badge--area.selected .map-sector-badge-glyph {
+            border-color: #fff;
+            color: #fff;
+            background: var(--map-accent);
+        }
+
+        .map-sector-badge--area.selected .map-sector-badge-pointer {
+            border-top-color: var(--map-accent);
+        }
+
+        .map-sector-badge--area.selected .map-sector-badge-dot {
+            background: var(--map-accent);
+        }
+
+        .map-sector-badge--route .map-sector-badge-glyph svg,
+        .map-sector-badge--boulder .map-sector-badge-glyph svg {
+            width: 14px;
         }
 
         .map-sector-badge-label {
@@ -4169,10 +4907,81 @@
             width: 8px;
         }
 
+        .map-area-droplet {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #22c55e;
+            vertical-align: middle;
+            flex-shrink: 0;
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+        }
+
+        .map-area-droplet svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
         .parent-label .map-kind-icon--area {
-            color: #e8472a;
+            width: 15px;
+            height: 19px;
+            margin-right: 5px;
             opacity: 1;
-            font-size: 12px;
+        }
+
+        .map-feature-area-droplet {
+            width: 28px;
+            height: 36px;
+        }
+
+        .map-legend-area-droplet {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 18px;
+            color: #22c55e;
+            flex-shrink: 0;
+        }
+
+        .map-legend-area-droplet svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .map-legend-area-droplet--catalog {
+            width: 18px;
+            height: 22px;
+            color: #fff;
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+        }
+
+        .map-legend-area-droplet--catalog .map-area-droplet-shell {
+            fill: #fff;
+        }
+
+        .map-legend-area-droplet--catalog .map-area-droplet-inner {
+            stroke: var(--map-accent, #e8472a);
+            stroke-width: 2.8px;
+        }
+
+        .map-tool-area-droplet {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 20px;
+            margin-right: 4px;
+            color: #22c55e;
+            vertical-align: middle;
+        }
+
+        .map-tool-area-droplet svg {
+            display: block;
+            width: 100%;
+            height: 100%;
         }
 
         .map-tool-glyph--p {
@@ -4186,11 +4995,6 @@
             color: #fff;
             font-size: 11px;
             font-weight: 800;
-            margin-right: 4px;
-        }
-
-        .map-tool-droplet {
-            color: #e8472a;
             margin-right: 4px;
         }
 
@@ -4263,6 +5067,10 @@
             margin-right: 5px;
             opacity: 0.88;
             font-size: 11px;
+        }
+
+        #mapContainer.map-pick-location {
+            cursor: crosshair;
         }
 
         #mapContainer.map-edit-mode {
@@ -4343,6 +5151,53 @@
         }
 
         .map-fs-btn:hover {
+            background: rgba(0, 0, 0, 0.85);
+        }
+
+        .map-locate-pin-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 0;
+        }
+
+        .map-locate-pin-icon svg {
+            width: 20px;
+            height: 20px;
+            display: block;
+        }
+
+        #mapLocateBtn .map-locate-pin-icon svg {
+            width: 1.05em;
+            height: 1.05em;
+            margin-right: 0.35em;
+            vertical-align: -0.15em;
+        }
+
+        .map-locate-btn {
+            width: 34px;
+            height: 34px;
+            border: none;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            border-radius: 4px;
+            font-size: 15px;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+            pointer-events: auto;
+            touch-action: manipulation;
+        }
+
+        .leaflet-bottom.leaflet-right .leaflet-control {
+            margin-bottom: 12px;
+            margin-right: 10px;
+        }
+
+        .map-locate-btn:hover {
             background: rgba(0, 0, 0, 0.85);
         }
 
@@ -4546,39 +5401,31 @@
         }
 
         /* Zoom-уровни карты (как V8ROCK / AllClimb) */
-        .leaflet-container.z-low .parent-label-icon:not(.map-sector-marker) {
-            display: none !important;
-        }
-
         .leaflet-container.z-low .map-sector-badge-label,
         .leaflet-container.z-low .map-sector-badge-pointer {
             display: none;
         }
 
-        .leaflet-container.z-low .map-sector-badge-glyph {
-            width: 32px;
-            height: 32px;
+        .leaflet-container.z-low .map-sector-badge--route .map-sector-badge-glyph,
+        .leaflet-container.z-low .map-sector-badge--boulder .map-sector-badge-glyph {
+            width: 24px;
+            height: 24px;
         }
 
-        .leaflet-container.z-low .map-sector-badge-glyph svg {
-            width: 17px;
+        .leaflet-container.z-low .map-sector-badge--route .map-sector-badge-glyph svg,
+        .leaflet-container.z-low .map-sector-badge--boulder .map-sector-badge-glyph svg {
+            width: 13px;
         }
 
-        .leaflet-container.z-low .map-sector-badge--route .map-sector-badge-glyph svg {
-            width: 16px;
+        .leaflet-container.z-mid .map-sector-badge--route .map-sector-badge-glyph,
+        .leaflet-container.z-mid .map-sector-badge--boulder .map-sector-badge-glyph {
+            width: 26px;
+            height: 26px;
         }
 
-        .leaflet-container.z-mid .map-sector-badge-glyph {
-            width: 38px;
-            height: 38px;
-        }
-
-        .leaflet-container.z-mid .map-sector-badge-glyph svg {
-            width: 20px;
-        }
-
-        .leaflet-container.z-mid .map-sector-badge--route .map-sector-badge-glyph svg {
-            width: 19px;
+        .leaflet-container.z-mid .map-sector-badge--route .map-sector-badge-glyph svg,
+        .leaflet-container.z-mid .map-sector-badge--boulder .map-sector-badge-glyph svg {
+            width: 14px;
         }
 
         .leaflet-container.z-mid .map-sector-badge-label {
@@ -4606,17 +5453,15 @@
             height: 31px;
         }
 
-        .leaflet-container.z-hi .map-sector-badge-glyph {
-            width: 46px;
-            height: 46px;
+        .leaflet-container.z-hi .map-sector-badge--route .map-sector-badge-glyph,
+        .leaflet-container.z-hi .map-sector-badge--boulder .map-sector-badge-glyph {
+            width: 28px;
+            height: 28px;
         }
 
-        .leaflet-container.z-hi .map-sector-badge-glyph svg {
-            width: 25px;
-        }
-
-        .leaflet-container.z-hi .map-sector-badge--route .map-sector-badge-glyph svg {
-            width: 23px;
+        .leaflet-container.z-hi .map-sector-badge--route .map-sector-badge-glyph svg,
+        .leaflet-container.z-hi .map-sector-badge--boulder .map-sector-badge-glyph svg {
+            width: 14px;
         }
 
         .map-climb-dot-marker {
@@ -4691,6 +5536,11 @@
             align-self: center;
             margin-right: 8px;
             white-space: nowrap;
+        }
+
+        .catalog-area-card > .catalog-route-nav-btn {
+            margin: 0 12px 0 0;
+            align-self: center;
         }
 
         .catalog-map-climb-btn {
@@ -5261,6 +6111,12 @@
             color: #d8d8de;
         }
 
+        .grade-picker-toggle--project {
+            border-color: color-mix(in srgb, #9e9e9e 55%, var(--tg-btn-border));
+            background: color-mix(in srgb, #9e9e9e 22%, var(--tg-btn-bg));
+            color: #bdbdbd;
+        }
+
         .grade-picker-toggle--all {
             color: var(--light-text);
             font-weight: 600;
@@ -5284,6 +6140,10 @@
 
         .grade-visual-strip .grade-chip--black:not(.active) {
             background: color-mix(in srgb, var(--map-grade-black) 55%, var(--card-bg));
+        }
+
+        .grade-visual-strip .grade-chip--project:not(.active) {
+            background: color-mix(in srgb, #9e9e9e 35%, var(--card-bg));
         }
 
         .grade-visual-strip {
@@ -5356,6 +6216,11 @@
         .grade-chip--black.active {
             background-color: var(--map-grade-black);
             border-color: rgba(255, 255, 255, 0.28);
+        }
+
+        .grade-chip--project.active {
+            background-color: #9e9e9e;
+            color: #fff;
         }
 
         .grade-chip--yellow {
@@ -5899,6 +6764,125 @@
             line-height: 1.4;
         }
 
+        .ranking-my-place-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .ranking-my-place-overall {
+            font-size: 13px;
+            color: var(--light-text);
+        }
+
+        .ranking-my-place-discipline {
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+        .ranking-discipline-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            margin-right: 6px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            vertical-align: middle;
+        }
+
+        .ranking-discipline-tag--route {
+            background: color-mix(in srgb, var(--route-color) 22%, transparent);
+            color: var(--route-color);
+            border: 1px solid color-mix(in srgb, var(--route-color) 45%, transparent);
+        }
+
+        .ranking-discipline-tag--boulder {
+            background: color-mix(in srgb, var(--boulder-color) 22%, transparent);
+            color: var(--boulder-color);
+            border: 1px solid color-mix(in srgb, var(--boulder-color) 45%, transparent);
+        }
+
+        .ranking-col-head--route {
+            color: var(--route-color) !important;
+            background: color-mix(in srgb, var(--route-color) 10%, transparent);
+        }
+
+        .ranking-col-head--boulder {
+            color: var(--boulder-color) !important;
+            background: color-mix(in srgb, var(--boulder-color) 10%, transparent);
+        }
+
+        .ranking-table--split td.ranking-cell--route {
+            background: color-mix(in srgb, var(--route-color) 6%, transparent);
+        }
+
+        .ranking-table--split td.ranking-cell--route.ranking-points {
+            color: var(--route-color);
+            font-weight: 700;
+        }
+
+        .ranking-table--split td.ranking-cell--boulder {
+            background: color-mix(in srgb, var(--boulder-color) 6%, transparent);
+        }
+
+        .ranking-table--split td.ranking-cell--boulder.ranking-points {
+            color: var(--boulder-color);
+            font-weight: 700;
+        }
+
+        .profile-ranking-disciplines {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .profile-ranking-discipline {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+            padding: 8px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .profile-ranking-discipline--route {
+            background: color-mix(in srgb, var(--route-color) 10%, var(--surface-elevated));
+            border-color: color-mix(in srgb, var(--route-color) 35%, var(--border-color));
+        }
+
+        .profile-ranking-discipline--boulder {
+            background: color-mix(in srgb, var(--boulder-color) 10%, var(--surface-elevated));
+            border-color: color-mix(in srgb, var(--boulder-color) 35%, var(--border-color));
+        }
+
+        .profile-ranking-discipline-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-size: 12px;
+            line-height: 1.35;
+            color: var(--light-text);
+        }
+
+        .profile-ranking-discipline-meta strong {
+            font-size: 20px;
+            line-height: 1.1;
+            color: var(--text-color);
+        }
+
+        .profile-ranking-discipline--route .profile-ranking-discipline-meta strong {
+            color: var(--route-color);
+        }
+
+        .profile-ranking-discipline--boulder .profile-ranking-discipline-meta strong {
+            color: var(--boulder-color);
+        }
+
         .ranking-table-wrap {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
@@ -5980,6 +6964,24 @@
             margin-bottom: 8px;
         }
 
+        .profile-telegram-login {
+            display: flex;
+            justify-content: center;
+            margin-top: 16px;
+            min-height: 48px;
+        }
+
+        .profile-login-hint {
+            margin: 12px 0 0;
+            font-size: 14px;
+            color: var(--light-text);
+            text-align: center;
+        }
+
+        #profileTelegramLogoutBtn {
+            margin-top: 4px;
+        }
+
         .profile-avatar-wrap {
             position: relative;
             width: 60px;
@@ -6056,6 +7058,54 @@
             align-items: baseline;
             gap: 8px;
             margin-bottom: 8px;
+        }
+
+        .profile-stat-card--ranking {
+            grid-column: span 1;
+            text-align: left;
+            align-items: stretch;
+        }
+
+        .profile-stat-card--ranking .profile-stat-card-head {
+            margin-bottom: 8px;
+        }
+
+        .profile-ranking-empty {
+            margin: 0;
+            font-size: 12px;
+            line-height: 1.4;
+            color: var(--light-text);
+        }
+
+        .profile-ranking-row-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin: 0 -2px;
+        }
+
+        .profile-ranking-row {
+            width: 100%;
+            min-width: 0;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .profile-ranking-row th,
+        .profile-ranking-row td {
+            padding: 6px 4px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .profile-ranking-row th {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            color: var(--light-text);
+        }
+
+        .profile-stat-card--ranking.profile-stat-card {
+            cursor: pointer;
         }
 
         .profile-stat-card--sends {
@@ -6593,6 +7643,14 @@
 
         html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] {
             --tg-chrome-bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+        }
+
+        html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] #climbDetailDialog .dialog-body {
+            padding-bottom: calc(20px + var(--tg-chrome-bottom, 0px));
+        }
+
+        html.tg-mini-app.tg-webapp-buttons[data-tg-main-visible="true"] #climbDetailCommentComposer {
+            margin-bottom: calc(8px + var(--tg-chrome-bottom, 0px));
         }
 
         html.tg-mini-app.tg-webapp-buttons[data-tg-secondary-visible="true"] {

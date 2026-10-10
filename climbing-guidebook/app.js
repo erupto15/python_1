@@ -660,6 +660,11 @@
         function buildAreaDistrictIconHtml(extraClass = 'area-district-icon') {
             return `<span class="${extraClass}" aria-hidden="true">${AREA_DISTRICT_ICON_SVG}</span>`;
         }
+
+        function buildCatalogRouteNavButtonHtml(mapKind, entityId) {
+            const id = String(entityId);
+            return `<button type="button" class="catalog-map-btn catalog-route-nav-btn btn btn-primary btn-small" data-catalog-act="nav-route" data-map-kind="${mapKind}" data-id="${id}" aria-label="Маршрут" title="Маршрут"><img class="catalog-route-nav-icon" src="icons/route-nav.png" alt="" width="32" height="17" decoding="async"></button>`;
+        }
         /** Кнопка «Моё местоположение»: классическая метка-pin с точкой внутри. */
         const MAP_LOCATE_PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>';
         /** Кемпинг: палатка на белом фоне. */
@@ -10540,9 +10545,7 @@
                             ${this.isAdmin() ? `<button type="button" class="btn btn-primary btn-small" data-catalog-act="add-sector" data-id="${entity.id}">
                                 <i class="fas fa-plus"></i> Добавить сектор
                             </button>` : ''}
-                            <button type="button" class="btn btn-secondary btn-small" data-catalog-act="nav-route" data-map-kind="area" data-id="${entity.id}">
-                                <i class="fas fa-diamond-turn-right"></i> Маршрут
-                            </button>
+                            ${buildCatalogRouteNavButtonHtml('area', entity.id)}
                            </div>`;
                     } else if (sectorFocus && entity?.id != null && this.isAdmin()) {
                         compactActions = `<div class="catalog-guide-actions catalog-guide-actions--compact">
@@ -10579,12 +10582,7 @@
                             ${!isArea && area ? `<p class="catalog-guide-parent">${this.escapeHtml(area.name)}</p>` : ''}
                         </div>
                         <div class="catalog-guide-actions">
-                            <button type="button" class="btn btn-secondary btn-small" data-catalog-act="show-map" data-map-kind="${scope}" data-id="${entity.id}">
-                                <i class="fas fa-map-location-dot"></i> На карте
-                            </button>
-                            ${isArea ? `<button type="button" class="btn btn-primary btn-small" data-catalog-act="nav-route" data-map-kind="area" data-id="${entity.id}">
-                                <i class="fas fa-diamond-turn-right"></i> Маршрут
-                            </button>
+                            ${isArea ? `${buildCatalogRouteNavButtonHtml('area', entity.id)}
                             <button type="button" class="btn btn-ghost btn-small" data-catalog-act="open-maps" data-map-kind="area" data-id="${entity.id}">
                                 <i class="fas fa-map"></i> Открыть карты
                             </button>
@@ -11295,12 +11293,7 @@
                                         ${desc ? `<div class="catalog-area-card-desc">${this.escapeHtml(desc)}</div>` : ''}
                                     </div>
                                 </button>
-                                <button type="button" class="catalog-map-btn btn btn-ghost btn-small" data-catalog-act="show-map" data-map-kind="area" data-id="${a.id}">
-                                    <i class="fas fa-map-location-dot"></i> На карте
-                                </button>
-                                <button type="button" class="catalog-map-btn btn btn-primary btn-small" data-catalog-act="nav-route" data-map-kind="area" data-id="${a.id}">
-                                    <i class="fas fa-diamond-turn-right"></i> Маршрут
-                                </button>
+                                ${buildCatalogRouteNavButtonHtml('area', a.id)}
                                 <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" style="align-self:center">
                                     ${this.renderRowActions(`data-catalog-act="edit-area" data-id="${a.id}"`, `data-catalog-act="delete-area" data-id="${a.id}"`)}
                                 </div>
@@ -11347,9 +11340,6 @@
                                     <div class="catalog-row-title catalog-row-title--with-kind-icon">${sectorIcon}<span>${this.escapeHtml(s.name)}</span></div>
                                     <div class="catalog-row-meta">${meta}</div>
                                     ${desc ? `<div class="catalog-area-card-desc">${this.escapeHtml(desc)}</div>` : ''}
-                                </button>
-                                <button type="button" class="catalog-map-btn btn btn-ghost btn-small" data-catalog-act="show-map" data-map-kind="sector" data-id="${s.id}">
-                                    <i class="fas fa-map-location-dot"></i> На карте
                                 </button>
                                 <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" style="align-self:center">
                                     ${this.renderRowActions(`data-catalog-act="edit-sector" data-id="${s.id}"`, `data-catalog-act="delete-sector" data-id="${s.id}"`)}

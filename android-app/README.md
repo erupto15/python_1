@@ -29,6 +29,7 @@ cd android-app && ./gradlew assembleDebug
 | **Фото** | IndexedDB (`hydrateCatalogPhotosFromIndexedDb`) — превью топо после первого онлайн-просмотра. |
 | **Исходящие действия** | `climbingApp_sync_outbox_v1` — очередь POST/PATCH при «офлайне»; `flushOfflineOutbox()` при `online` и возврате в приложение. |
 | **Android-режим** | `?app=android` → `CLIMBING_STANDALONE`: без Telegram SDK; `shouldTrustOfflineHint()` не доверяет ложному `navigator.onLine` в WebView. |
+| **Вход Telegram** | В «Профиль» — **deep link** `t.me/бот?start=login_…` (без oauth.telegram.org / VPN). APK опрашивает `GET /api/auth/telegram-deeplink`. WebView открывает `t.me` во внешнем Telegram. |
 
 ### Рекомендуемый сценарий для пользователя
 

@@ -10,8 +10,8 @@ android {
         applicationId 'io.sixa9a.guide'
         minSdk 24
         targetSdk 34
-        versionCode 14
-        versionName '1.0.13'
+        versionCode 18
+        versionName '1.0.17'
         buildConfigField 'String', 'GUIDE_URL', '"https://92.246.76.142.sslip.io/"'
     }
 

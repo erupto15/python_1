@@ -11,6 +11,9 @@
             if (q.get('app') === 'android' || q.get('standalone') === '1') {
                 window.CLIMBING_STANDALONE = true;
             }
+            if (window.CLIMBING_STANDALONE) {
+                document.documentElement.classList.add('standalone-app');
+            }
             var ua = navigator.userAgent || '';
             if (!window.CLIMBING_STANDALONE && /; wv\)/i.test(ua) && !/Telegram/i.test(ua)) {
                 window.CLIMBING_STANDALONE = true;
@@ -253,6 +256,18 @@
         <!-- Шапка -->
         <header>
             <div class="header-top">
+                <div class="header-corner-actions">
+                    <button type="button" class="header-corner-btn" id="openRankingBtn" title="Рейтинг" aria-label="Рейтинг скалолазов">
+                        <svg class="header-corner-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path fill="currentColor" d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/>
+                        </svg>
+                    </button>
+                    <button type="button" class="header-corner-btn" id="openProfileBtn" title="Мой профиль" aria-label="Мой профиль">
+                        <svg class="header-corner-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                        </svg>
+                    </button>
+                </div>
                 <div class="header-brand">
                     <h1 class="site-logo" title="6А9А">
                         <span class="site-logo-mark">
@@ -272,11 +287,12 @@
                         </div>
                         <div class="global-search-results hidden" id="globalSearchResults" role="listbox" aria-label="Результаты поиска"></div>
                     </div>
-                    <div class="auth-panel" id="authPanel">
+                    <div class="header-toolbar">
                         <button type="button" class="btn btn-ghost theme-toggle-btn" id="themeToggleBtn" title="Светлая / тёмная тема" aria-label="Сменить тему" aria-pressed="false">
                             <i class="fas fa-moon" id="themeToggleIcon" aria-hidden="true"></i>
                             <span class="theme-toggle-text" id="themeToggleText">Тема</span>
                         </button>
+                        <div class="auth-panel" id="authPanel">
                         <div id="adminPasswordLoginBlock" class="admin-password-login-block" aria-hidden="true">
                             <div class="auth-field">
                                 <label class="auth-label" for="loginUsername">Логин</label>
@@ -289,8 +305,8 @@
                             <button type="button" class="btn btn-primary" id="loginBtn">Войти</button>
                         </div>
                         <div id="authStatus" style="display:none;"></div>
-                        <button type="button" class="btn btn-ghost" id="openProfileBtn" style="display:none;" title="Мой профиль"><i class="fas fa-user"></i></button>
                         <button type="button" class="btn btn-ghost" id="logoutBtn" style="display:none;"><i class="fas fa-sign-out-alt"></i> Выйти</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -307,20 +323,8 @@
             <button class="tab-btn admin-only" data-tab="boulders">
                 <i class="fas fa-mountain"></i> Боулдеринг
             </button>
-            <button class="tab-btn" data-tab="map">
+            <button class="tab-btn hidden" data-tab="map">
                 <i class="fas fa-map-marked-alt"></i> Карта
-            </button>
-            <button class="tab-btn" data-tab="photos">
-                <i class="fas fa-images"></i> Фотоальбом
-            </button>
-            <button class="tab-btn" data-tab="updates">
-                <i class="fas fa-newspaper"></i> Лента
-            </button>
-            <button class="tab-btn" data-tab="ranking" id="rankingTabBtn">
-                <i class="fas fa-trophy"></i> Рейтинг
-            </button>
-            <button class="tab-btn" data-tab="profile" id="profileTabBtn">
-                <i class="fas fa-user-circle"></i> Профиль
             </button>
         </div>
 
@@ -332,10 +336,28 @@
                         <i class="fas fa-sitemap"></i> Районы и секторы
                     </div>
                 </div>
+                <div class="search-bar search-bar--compound catalog-card-search">
+                    <div class="global-search-field">
+                        <input type="search" class="search-input" id="catalogSearch" placeholder="Найди трассу, район или «как доехать до…»" autocomplete="off" enterkeyhint="search" aria-label="Поиск по гайду">
+                        <button type="button" class="global-search-clear dismiss-icon-btn hidden" id="catalogSearchClearBtn" aria-label="Очистить поиск" title="Очистить">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div class="global-search-results hidden" id="catalogSearchResults" role="listbox" aria-label="Результаты поиска"></div>
+                </div>
+                <div id="catalogNavBack" class="catalog-nav-back hidden" role="navigation" aria-label="Назад по каталогу"></div>
                 <div id="appDataStatus" class="app-data-status hidden" role="status" aria-live="polite"></div>
                 <div class="catalog-breadcrumb" id="catalogBreadcrumb"></div>
                 <div class="catalog-toolbar" id="catalogToolbar"></div>
                 <div class="catalog-guide-hero hidden" id="catalogGuideHero"></div>
+                <div class="catalog-map-block hidden" id="catalogMapBlock">
+                    <div class="catalog-map-block-head">
+                        <h3 class="catalog-map-block-title" id="catalogMapTitle">Карта</h3>
+                    </div>
+                    <div id="catalogMapContainerMount" class="catalog-map-container-mount"></div>
+                    <div id="catalogMapLegendMount" class="catalog-map-legend-mount"></div>
+                    <div id="catalogMapEditMount" class="catalog-map-edit-mount admin-only hidden-by-role"></div>
+                </div>
                 <div id="catalogList"></div>
             </div>
         </div>
@@ -362,7 +384,9 @@
                         <option value="4">4</option>
                         <option value="4+">4+</option>
                         <option value="5">5</option>
-                        <option value="5+">5+</option>
+                        <option value="5a">5a</option>
+                        <option value="5b">5b</option>
+                        <option value="5c">5c</option>
                         <option value="6a">6a</option>
                         <option value="6a+">6a+</option>
                         <option value="6b">6b</option>
@@ -386,6 +410,7 @@
                         <option value="9b">9b</option>
                         <option value="9b+">9b+</option>
                         <option value="9c">9c</option>
+                        <option value="проект">Проект</option>
                     </select>
                     <label class="filter-toggle-label" id="hideSentRoutesWrap" style="display:none;">
                         <input type="checkbox" id="hideSentRoutes"> Скрыть пролазанные
@@ -448,6 +473,7 @@
                         <option value="8C+">8C+</option>
                         <option value="9A">9A</option>
                         <option value="9A+">9A+</option>
+                        <option value="проект">Проект</option>
                     </select>
                     <div class="grade-picker" id="boulderGradePicker">
                         <button type="button" class="grade-picker-toggle" id="boulderGradeToggleBtn" aria-expanded="false" aria-controls="boulderGradeDropdown">Категория</button>
@@ -499,7 +525,8 @@
                         <span class="map-legend-item"><span class="map-legend-sector map-legend-sector--boulder" id="mapLegendSectorBoulder" aria-hidden="true"></span> Сектор (боулдер)</span>
                         <span class="map-legend-item"><span class="map-legend-trail"></span> Тропа</span>
                         <span class="map-legend-item"><span class="map-legend-poi map-legend-poi--parking">P</span> Парковка</span>
-                        <span class="map-legend-item"><span class="map-legend-poi map-legend-poi--camping"><i class="fas fa-campground"></i></span> Кемпинг</span>
+                        <span class="map-legend-item"><span class="map-legend-camping-sign" id="mapLegendCamping" aria-hidden="true"></span> Кемпинг</span>
+                        <span class="map-legend-item"><span class="map-legend-area-droplet" id="mapLegendAreaDroplet" aria-hidden="true"></span> Район</span>
                     </div>
                     <div class="map-coords-bar" id="mapCoordsBar">
                         <span class="map-coords-value" id="mapCoordsText">—</span>
@@ -526,16 +553,17 @@
                         <div class="map-edit-tools hidden" id="mapEditTools">
                             <div class="map-filter-group">
                                 <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="edit"><i class="fas fa-edit"></i> Изменить</button>
+                                <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="delete"><i class="fas fa-trash"></i> Удалить</button>
                                 <button type="button" class="btn btn-small map-draw-tool-btn active" data-map-tool="trail"><i class="fas fa-route"></i> Тропа</button>
                                 <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="parking"><span class="map-tool-glyph map-tool-glyph--p" aria-hidden="true">P</span> Парковка</button>
-                                <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="camping"><i class="fas fa-campground"></i> Кемпинг</button>
-                                <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="area_sign"><i class="fas fa-droplet map-tool-droplet" aria-hidden="true"></i> Район</button>
+                                <button type="button" class="btn btn-small map-draw-tool-btn map-draw-tool-btn--camping" data-map-tool="camping"><span class="map-camping-sign map-camping-sign--tool" id="mapEditCampingIcon" aria-hidden="true"></span> Кемпинг</button>
+                                <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="area_sign"><span class="map-tool-area-droplet" id="mapToolAreaDroplet" aria-hidden="true"></span> Район</button>
                                 <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="sector_sign"><span class="map-route-sector-icon map-route-sector-icon--tool" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26.27 41"><path fill="currentColor" d="M12.41,9.72A3.86,3.86,0,1,0,8.55,5.85,3.87,3.87,0,0,0,12.41,9.72Z"/><path fill="currentColor" d="M23.19,0a1.52,1.52,0,0,0-1.52,1.52,9.38,9.38,0,0,1-9,9.36c0,1-.08,2-.13,3A12.42,12.42,0,0,0,24.71,1.52,1.52,1.52,0,0,0,23.19,0Z"/><rect fill="currentColor" x="8.77" y="12" width="7.29" height="6.23"/><path fill="currentColor" d="M3.11,40.08A1.82,1.82,0,0,1,1.5,37.41l7.26-13.9A1.82,1.82,0,0,1,12,25.2L4.72,39.1A1.82,1.82,0,0,1,3.11,40.08Z"/><path fill="currentColor" d="M19,30.5a1.82,1.82,0,0,1-1.77-2.27l1.27-4.94L14.9,24.77a1.82,1.82,0,0,1-1.38-3.37l7-2.86a1.82,1.82,0,0,1,2.46,2.14l-2.17,8.45A1.82,1.82,0,0,1,19,30.5Z"/><path fill="currentColor" d="M15.44,18.25a.61.61,0,0,1,0-1.22,9.89,9.89,0,0,0,8.25-4.51c1.34-2.15,2.37-5.86-.33-11.36A.61.61,0,0,1,24.45.63c2.94,6,1.77,10.13.27,12.54A11.13,11.13,0,0,1,15.44,18.25Z"/><path fill="currentColor" d="M8.76,20.37v3a2,2,0,0,0,2,2H13c1.13,0,3-1.08,3-2.16V20.37Z"/><rect fill="currentColor" x="12.54" y="26.75" width="1.22" height="14.26"/><path fill="currentColor" d="M12.7,10.88l-.29,0A12.43,12.43,0,0,0,0,23.27a1.52,1.52,0,1,0,3,0,9.39,9.39,0,0,1,9.38-9.37h.29Z"/></svg></span> Сектор</button>
                             </div>
                             <div class="map-filter-group">
                                 <button type="button" class="btn btn-small btn-secondary" id="mapFinishTrailBtn"><i class="fas fa-check"></i> Завершить тропу</button>
                                 <button type="button" class="btn btn-small btn-ghost" id="mapCancelTrailBtn"><i class="fas fa-undo"></i> Отменить черновик</button>
-                                <button type="button" class="btn btn-small btn-danger" id="mapClearFeaturesBtn"><i class="fas fa-eraser"></i> Очистить карту</button>
+                                <button type="button" class="btn btn-small btn-danger" id="mapClearFeaturesBtn"><i class="fas fa-eraser"></i> Удалить все на виду</button>
                             </div>
                             <div class="map-feature-edit-bar hidden" id="mapFeatureEditBar">
                                 <div class="map-feature-edit-head">
@@ -564,12 +592,17 @@
         <!-- Контент вкладки "Фотоальбом" -->
         <div class="tab-content" id="profile">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header card-header--with-back">
+                    <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="profileBackBtn" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                     <div class="card-title"><i class="fas fa-user-circle"></i> Профиль</div>
                 </div>
                 <div id="profileGuestBlock" class="empty-state">
                     <h3>Войдите через Telegram</h3>
-                    <p>Откройте гайдбук как Mini App в Telegram — тогда можно логировать пролазы и ставить оценки.</p>
+                    <p id="profileGuestHintMiniApp">Откройте гайдбук как Mini App в Telegram — тогда можно логировать пролазы и ставить оценки.</p>
+                    <p id="profileGuestHintStandalone" class="hidden">Вход через приложение Telegram (без VPN). Каталог можно смотреть офлайн; для синхронизации пролазов нужен доступ к серверу гайда <strong>без VPN</strong>.</p>
+                    <button type="button" class="btn btn-primary profile-telegram-deeplink-btn hidden" id="profileTelegramDeeplinkBtn">Войти через Telegram</button>
+                    <p id="profileTelegramDeeplinkStatus" class="profile-login-hint hidden" aria-live="polite"></p>
+                    <div id="telegramLoginWidgetMount" class="profile-telegram-login hidden" aria-live="polite"></div>
                 </div>
                 <div id="profileUserBlock" class="hidden">
                     <div class="profile-header">
@@ -581,6 +614,7 @@
                             <h2 id="profileDisplayName">—</h2>
                             <p id="profileUsername"></p>
                         </div>
+                        <button type="button" class="btn btn-ghost btn-small hidden" id="profileTelegramLogoutBtn">Выйти</button>
                     </div>
                     <div class="profile-stats-grid" id="profileStatsGrid"></div>
                 </div>
@@ -622,84 +656,21 @@
         </div>
     </div>
 
-        <div class="tab-content" id="photos">
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">
-                        <i class="fas fa-images"></i> Фотоальбом
-                    </div>
-                    <div class="card-header-actions">
-                        <button type="button" class="btn btn-ghost card-header-icon-btn" data-action="load-photos" title="Загрузить фото с сервера" aria-label="Загрузить фото с сервера">
-                            <i class="fas fa-cloud-download-alt" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="search-bar search-bar--compound">
-                    <input
-                        type="search"
-                        class="search-input"
-                        id="photoAlbumSearch"
-                        placeholder="Поиск по названию трассы или боулдера…"
-                        autocomplete="off"
-                        enterkeyhint="search"
-                        title="Поиск по названию трассы или боулдера"
-                    >
-                </div>
-
-                <div class="filters">
-                    <button class="filter-btn active" data-type="all">Все фото</button>
-                    <button class="filter-btn photo-filter-routes" data-type="route">Трудность</button>
-                    <button class="filter-btn" data-type="boulder">Боулдеринг</button>
-                    <button class="filter-btn" data-type="marked">С разметкой</button>
-                </div>
-
-                <div class="photo-preview" id="photoAlbum">
-                    <!-- Фотографии будут загружены JavaScript -->
-                    <div class="empty-state">
-                        <i class="fas fa-images"></i>
-                        <h3>Фото не загружены</h3>
-                        <p>Нажмите <i class="fas fa-cloud-download-alt" aria-hidden="true"></i> в шапке вкладки, чтобы подтянуть снимки трасс и боулдеров с сервера.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="tab-content" id="updates">
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">
-                        <i class="fas fa-newspaper"></i> Лента обновлений
-                    </div>
-                </div>
-                <div class="filters" id="updatesFilters">
-                    <button class="filter-btn active" data-update-filter="all">Все</button>
-                    <button class="filter-btn" data-update-filter="places">Районы и секторы</button>
-                    <button class="filter-btn photo-filter-routes" data-update-filter="routes">Трассы</button>
-                    <button class="filter-btn" data-update-filter="boulders">Боулдеры</button>
-                </div>
-                <div class="updates-feed" id="updatesFeed">
-                    <div class="empty-state">
-                        <i class="fas fa-newspaper"></i>
-                        <h3>Лента пока пустая</h3>
-                        <p>Обновления появятся после загрузки каталога.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Контент вкладки «Рейтинг» (баллы 8a.nu) -->
         <div class="tab-content" id="ranking">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header card-header--with-back">
+                    <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="rankingBackBtn" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                     <div class="card-title">
                         <i class="fas fa-trophy"></i> Рейтинг скалолазов
                     </div>
                 </div>
                 <p class="ranking-hint" id="rankingHint">
-                    Баллы по модели 8a.nu: сумма лучших пролазов за 12 месяцев (до 10 в каждой дисциплине).
-                    8a = 1000, +50 за «+», бонусы: онсайт +147, флэш +53, второй заход +2.
+                    Баллы 8a.nu за 12 месяцев: до 10 лучших пролазов в каждой дисциплине. Место по трудности и по боулдерингу считаются отдельно.
                 </p>
+                <div class="search-bar search-bar--compound ranking-card-search">
+                    <input type="search" class="search-input" id="rankingSearch" placeholder="Поиск по имени скалолаза…" autocomplete="off" enterkeyhint="search" aria-label="Поиск в рейтинге">
+                </div>
                 <div id="rankingMyPlace" class="ranking-my-place hidden" aria-live="polite"></div>
                 <div id="rankingTableWrap" class="ranking-table-wrap">
                     <div class="loading">
@@ -724,9 +695,8 @@
             <div class="dialog-body">
                 <div class="markup-instructions">
                     <i class="fas fa-info-circle"></i>
-                    <strong>Инструкция:</strong> «Линия хода» — клики по порядку (на конце стрелка). «Стартовые кружки» — до двух прозрачных кружков с подписью «Старт». «Топ» — один финишный кружок.
-                    Категория трассы показывается на линии автоматически. Удаление: Ctrl / ⌘ + клик.
-                    <span class="markup-touch-note">На телефоне без клавиатуры — «Очистить все».</span>
+                    <strong>Инструкция:</strong> «Линия хода» — клики по порядку (на конце стрелка). «Стартовые кружки» — до двух кружков «Старт». «Топ» — один финишный кружок.
+                    Режим «Удалить» — клик по маркеру или рядом с ним (на компьютере также Ctrl / ⌘ + клик). Кружки можно перетаскивать.
                 </div>
 
                 <div class="markup-mode-toolbar">
@@ -734,6 +704,7 @@
                     <button type="button" class="btn btn-small route-markup-mode-btn" id="routeMarkupModeStarts" data-mode="starts">Стартовые кружки</button>
                     <button type="button" class="btn btn-small route-markup-mode-btn active" id="routeMarkupModeLine" data-mode="line">Линия хода</button>
                     <button type="button" class="btn btn-small route-markup-mode-btn" id="routeMarkupModeTop" data-mode="top">Топ</button>
+                    <button type="button" class="btn btn-small route-markup-mode-btn" id="routeMarkupModeErase" data-mode="erase">Удалить</button>
                 </div>
 
                 <div id="routeLineMarkupContainer" class="markup-dialog-stage">
@@ -778,9 +749,8 @@
             <div class="dialog-body">
                 <div class="markup-instructions">
                     <i class="fas fa-info-circle"></i>
-                    <strong>Инструкция:</strong> «Старт» / «Финиш» — клик по фото (подписи у кружков, можно перетащить). «Линия» — кликами по порядку; на конце стрелка.
-                    Удаление: Ctrl / ⌘ + клик рядом с маркером.
-                    <span class="markup-touch-note">На телефоне — «Очистить все».</span>
+                    <strong>Инструкция:</strong> «Старт» — до двух кружков (клик по фото, перетаскивание). «Финиш» — один кружок. «Линия» — кликами по порядку; на конце стрелка.
+                    Режим «Удалить» — клик по маркеру или рядом (Ctrl / ⌘ + клик на компьютере).
                 </div>
 
                 <div class="markup-mode-toolbar">
@@ -788,6 +758,7 @@
                     <button type="button" class="btn btn-small boulder-markup-mode-btn active" id="boulderMarkupModeStart" data-mode="start">Старт</button>
                     <button type="button" class="btn btn-small boulder-markup-mode-btn" id="boulderMarkupModeFinish" data-mode="finish">Финиш</button>
                     <button type="button" class="btn btn-small boulder-markup-mode-btn" id="boulderMarkupModeLine" data-mode="line">Линия</button>
+                    <button type="button" class="btn btn-small boulder-markup-mode-btn" id="boulderMarkupModeErase" data-mode="erase">Удалить</button>
                 </div>
 
                 <div id="boulderHoldsMarkupContainer" class="markup-dialog-stage">
@@ -838,8 +809,11 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="areaLocation">Местоположение</label>
-                        <input type="text" class="form-input" id="areaLocation" placeholder="61.110053, 29.165610" autocomplete="off">
-                        <p class="form-hint">Координаты для карты: широта, долгота</p>
+                        <div class="form-input-row">
+                            <input type="text" class="form-input" id="areaLocation" placeholder="61.110053, 29.165610" autocomplete="off">
+                            <button type="button" class="btn btn-ghost btn-small" data-map-pick-location="areaLocation" title="Указать на карте"><i class="fas fa-map-pin"></i></button>
+                        </div>
+                        <p class="form-hint">Координаты для карты: широта, долгота или кнопка «метка на карте»</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="areaPhoto">Картинка района</label>
@@ -884,8 +858,11 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="sectorLocation">Местоположение</label>
-                        <input type="text" class="form-input" id="sectorLocation" placeholder="61.110053, 29.165610" autocomplete="off">
-                        <p class="form-hint">Координаты для карты: широта, долгота</p>
+                        <div class="form-input-row">
+                            <input type="text" class="form-input" id="sectorLocation" placeholder="61.110053, 29.165610" autocomplete="off">
+                            <button type="button" class="btn btn-ghost btn-small" data-map-pick-location="sectorLocation" title="Указать на карте"><i class="fas fa-map-pin"></i></button>
+                        </div>
+                        <p class="form-hint">Координаты для карты: широта, долгота или кнопка «метка на карте»</p>
                     </div>
                 </form>
             </div>
@@ -1048,13 +1025,13 @@
     <!-- Просмотр трассы / боулдеринга: фото и описание -->
     <div class="dialog-overlay hidden" id="climbDetailDialog" style="z-index: 998;">
         <div class="dialog-content">
-            <div class="dialog-header">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="climbDetailBackBtn" data-close-dialog="climbDetailDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                 <div class="dialog-header-text">
                     <div class="dialog-title" id="climbDetailTitle">—</div>
                     <div class="dialog-subtitle" id="climbDetailMeta"></div>
                 </div>
                 <div class="dialog-header-actions">
-                    <button type="button" class="climb-log-add-btn hidden" id="climbDetailOpenLogBtn" aria-label="Добавить в логбук" title="Записать пролаз"><i class="fas fa-plus" aria-hidden="true"></i></button>
                     <button type="button" class="dialog-close-btn" id="closeClimbDetailDialogBtn" data-close-dialog="climbDetailDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
                 </div>
             </div>
@@ -1069,7 +1046,7 @@
                             </div>
                             <div class="climb-detail-photo-panel" aria-label="Фото трассы или боулдера">
                                 <div id="climbDetailPhotoCounter" class="climb-detail-photo-counter hidden" aria-hidden="true"></div>
-                                <div id="climbDetailPhotoMount" class="photo-preview-with-markup climb-detail-photo-mount climb-detail-photo-swipe" role="button" tabindex="0" aria-label="Фото: свайп для переключения, нажатие для полного экрана">
+                                <div id="climbDetailPhotoMount" class="photo-preview-with-markup climb-detail-photo-mount climb-detail-photo-swipe" role="button" tabindex="-1" aria-label="Фото: свайп для переключения, нажатие для полного экрана">
                                     <img id="climbDetailImage" src="" alt="">
                                 </div>
                                 <p id="climbDetailPhotoSwipeHint" class="climb-detail-photo-swipe-hint hidden">Свайп · полный экран</p>
@@ -1135,8 +1112,12 @@
                     <div id="climbDetailDescription" class="guide-desc-text">—</div>
                 </div>
             </div>
-            <div class="dialog-footer dialog-footer--tg-native">
-                <button type="button" class="btn btn-primary" id="climbDetailMarkupBtn"><i class="fas fa-draw-polygon"></i> Схема на фото</button>
+            <div class="dialog-footer dialog-footer--tg-native dialog-footer--climb-detail">
+                <div class="climb-detail-log-row hidden" id="climbDetailLogRow" role="button" tabindex="0" aria-label="Добавить в логбук">
+                    <button type="button" class="climb-log-add-btn" id="climbDetailOpenLogBtn" aria-label="Добавить в логбук" title="Записать пролаз"><i class="fas fa-plus" aria-hidden="true"></i></button>
+                    <span class="climb-log-sent-mark hidden" id="climbDetailSentMark" title="Пролазано" aria-label="Пролазано">✓</span>
+                    <span class="climb-detail-log-row-label">Добавить в логбук</span>
+                </div>
                 <button type="button" class="btn btn-secondary hidden" id="climbDetailSavePhotoBtn"><i class="fas fa-download"></i> Скачать фото</button>
             </div>
         </div>
@@ -1150,7 +1131,7 @@
             <button type="button" class="climb-photo-viewer-close dismiss-icon-btn" id="closeClimbPhotoViewerBtn" aria-label="Закрыть просмотр"><i class="fas fa-times" aria-hidden="true"></i></button>
         </div>
         <div class="climb-photo-viewer-stage" id="climbPhotoViewerStage">
-            <div id="climbPhotoViewerMount" class="photo-preview-with-markup climb-detail-photo-mount climb-photo-viewer-mount climb-detail-photo-swipe" role="button" tabindex="0" aria-label="Фото: свайп для переключения">
+            <div id="climbPhotoViewerMount" class="photo-preview-with-markup climb-detail-photo-mount climb-photo-viewer-mount climb-detail-photo-swipe" role="button" tabindex="-1" aria-label="Фото: свайп для переключения">
                 <img id="climbPhotoViewerImage" src="" alt="">
             </div>
         </div>
@@ -1171,9 +1152,30 @@
                 <p style="font-size:14px;color:var(--light-text);margin:0 0 14px;">Запишите пролаз в логбук: тип, попытки и оценку качества.</p>
                 <div id="climbLogForm" class="climb-log-form"></div>
             </div>
+            <div class="dialog-footer dialog-footer--tg-native dialog-footer--log-submit">
+                <button type="button" class="climb-log-add-btn climb-log-add-btn--submit" id="climbLogConfirmBtn" aria-label="Записать пролаз" title="Записать пролаз"><i class="fas fa-plus" aria-hidden="true"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="dialog-overlay hidden" id="mapPromptDialog" style="z-index: 1105;">
+        <div class="dialog-content dialog-content--compact">
+            <div class="dialog-header">
+                <div class="dialog-header-text">
+                    <div class="dialog-title" id="mapPromptDialogTitle">Подпись</div>
+                </div>
+                <button type="button" class="dialog-close-btn" data-close-dialog="mapPromptDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i></button>
+            </div>
+            <div class="dialog-body">
+                <label class="form-label hidden" id="mapPromptDialogSelectLabel" for="mapPromptDialogSelect">Объект</label>
+                <select class="form-input hidden" id="mapPromptDialogSelect"></select>
+                <label class="form-label" id="mapPromptDialogInputLabel" for="mapPromptDialogInput">Название</label>
+                <input type="text" class="form-input" id="mapPromptDialogInput" maxlength="255" autocomplete="off">
+                <p class="form-hint hidden" id="mapPromptDialogHint"></p>
+            </div>
             <div class="dialog-footer dialog-footer--tg-native">
-                <button type="button" class="climb-tg-log-proxy" id="climbTgLogConfirmBtn" tabindex="-1" aria-hidden="true">Записать пролаз</button>
-                <button type="button" class="btn btn-primary" id="climbLogConfirmBtn"><i class="fas fa-check"></i> Записать пролаз</button>
+                <button type="button" class="btn btn-ghost" id="mapPromptDialogCancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="mapPromptDialogOk">OK</button>
             </div>
         </div>
     </div>

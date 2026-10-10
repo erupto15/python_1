@@ -2,6 +2,7 @@ package io.sixa9a.guide;
 
 import android.annotation.SuppressLint;
 import android.graphics.Color;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -85,6 +86,20 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                if (request == null || request.getUrl() == null) {
+                    return false;
+                }
+                Uri uri = request.getUrl();
+                if (shouldOpenOutsideWebView(uri)) {
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        Log.w(TAG, "Failed to open external uri: " + uri, e);
+                    }
+                    return true;
+                }
                 return false;
             }
 
@@ -105,7 +120,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.e(TAG, "WebView error: " + error.getDescription()
                         + " mainFrame=" + (request != null && request.isForMainFrame())
                         + " url=" + (request != null ? request.getUrl() : "null"));
-                if (request != null && request.isForMainFrame()) {
+                if (request != null && request.isForMainFrame() && isGuideAppUrl(request.getUrl())) {
                     view.post(() -> view.loadUrl("file:///android_asset/guidebook/offline_fallback.html"));
                 }
             }
@@ -367,6 +382,54 @@ public class MainActivity extends AppCompatActivity {
                         + "}catch(e){return JSON.stringify({err:String(e)});}})();",
                 value -> Log.i(TAG, "Catalog @" + afterMs + "ms: " + value)
         );
+    }
+
+    /** Внешние приложения: Telegram, карты (2ГИС и др.) — не грузить внутри WebView. */
+    private static boolean shouldOpenOutsideWebView(Uri uri) {
+        if (uri == null) return false;
+        String scheme = uri.getScheme();
+        if (scheme != null) {
+            String s = scheme.toLowerCase(Locale.ROOT);
+            if (s.equals("tg") || s.equals("dgis")) {
+                return true;
+            }
+        }
+        String host = uri.getHost();
+        if (host == null) return false;
+        String h = host.toLowerCase(Locale.ROOT);
+        if (h.equals("t.me") || h.endsWith(".t.me") || h.equals("telegram.me") || h.equals("oauth.telegram.org")) {
+            return true;
+        }
+        if (h.contains("2gis") || h.equals("dublgis.ru")) {
+            return true;
+        }
+        if (h.contains("yandex.") && (uri.getPath() != null && uri.getPath().contains("maps"))) {
+            return true;
+        }
+        if (h.contains("google.") && uri.getPath() != null && uri.getPath().contains("maps")) {
+            return true;
+        }
+        if (h.equals("maps.apple.com")) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isGuideAppUrl(Uri uri) {
+        if (uri == null) return false;
+        String scheme = uri.getScheme();
+        if (scheme != null && scheme.equalsIgnoreCase("file")) {
+            String path = uri.getPath();
+            return path != null && path.contains("/guidebook/");
+        }
+        if (scheme == null || (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https"))) {
+            return false;
+        }
+        String host = uri.getHost();
+        if (host == null) return false;
+        String gh = guideHost == null ? "" : guideHost.toLowerCase(Locale.ROOT);
+        String h = host.toLowerCase(Locale.ROOT);
+        return h.equals(gh) || h.endsWith("." + gh);
     }
 
 }
