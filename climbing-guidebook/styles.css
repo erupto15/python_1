@@ -2362,6 +2362,16 @@
             z-index: 2;
         }
 
+        .catalog-map-block #mapContainer .leaflet-top.leaflet-left {
+            top: auto;
+            bottom: 14px;
+            left: 10px;
+        }
+
+        .catalog-map-block #mapContainer .leaflet-top.leaflet-left .leaflet-control {
+            margin-top: 0;
+        }
+
         .catalog-map-block .map-status {
             font-size: 12px;
             line-height: 1.35;
@@ -5240,6 +5250,24 @@
             min-width: 180px;
             color: #111827;
             line-height: 1.35;
+        }
+
+        .map-popup-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .map-popup-title {
+            flex: 1 1 auto;
+            min-width: 0;
+            font-weight: 700;
+        }
+
+        .map-popup-head .map-popup-route-btn {
+            flex: 0 0 auto;
+            margin-top: 1px;
         }
 
         .map-popup-meta {

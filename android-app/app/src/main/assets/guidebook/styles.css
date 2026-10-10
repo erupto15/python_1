@@ -2362,6 +2362,16 @@
             z-index: 2;
         }
 
+        .catalog-map-block #mapContainer .leaflet-top.leaflet-left {
+            top: auto;
+            bottom: 14px;
+            left: 10px;
+        }
+
+        .catalog-map-block #mapContainer .leaflet-top.leaflet-left .leaflet-control {
+            margin-top: 0;
+        }
+
         .catalog-map-block .map-status {
             font-size: 12px;
             line-height: 1.35;

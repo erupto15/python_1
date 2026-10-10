@@ -7952,27 +7952,30 @@
                 const catalogButton = entry.catalog && entry.kind !== 'area' && entry.kind !== 'sector'
                     ? `<button type="button" class="btn btn-small btn-ghost" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('catalog','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">В каталог</button>`
                     : '';
-                const routeButton = entry.kind === 'area' || entry.kind === 'sector'
+                const isAreaOrSector = entry.kind === 'area' || entry.kind === 'sector';
+                const routeButton = isAreaOrSector
                     ? buildMapPopupRouteButtonHtml(entry.kind, entry.id)
                     : '';
-                const adminPinActions = this.isAdmin() && (entry.kind === 'area' || entry.kind === 'sector')
+                const titleBlock = isAreaOrSector && routeButton
+                    ? `<div class="map-popup-head"><strong class="map-popup-title">${this.escapeHtml(entry.title)}</strong>${routeButton}</div>`
+                    : `<strong>${this.escapeHtml(entry.title)}</strong>`;
+                const adminPinActions = this.isAdmin() && isAreaOrSector
                     ? `
                         <button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.beginMoveCatalogMapPinFromPopup?.('${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Переместить</button>
                         <button type="button" class="btn btn-small btn-danger" onclick="event.preventDefault(); window.app?.deleteCatalogMapPinFromPopup?.('${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Удалить метку</button>
                     `
                     : '';
+                const actionButtons = [detailButton, catalogButton, adminPinActions].filter(Boolean).join('');
+                const actionsBlock = actionButtons
+                    ? `<div class="map-popup-actions">${actionButtons}</div>`
+                    : '';
                 return `
                     <div class="map-popup">
-                        <strong>${this.escapeHtml(entry.title)}</strong>
+                        ${titleBlock}
                         ${meta}
                         ${coords}
                         ${guideBlock}
-                        <div class="map-popup-actions">
-                            ${detailButton}
-                            ${routeButton}
-                            ${catalogButton}
-                            ${adminPinActions}
-                        </div>
+                        ${actionsBlock}
                     </div>
                 `;
             }
