@@ -6742,6 +6742,13 @@
             gap: 8px;
         }
 
+        .climb-log-boulder-style {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
         .climb-community-actions .form-input {
             max-width: 88px;
         }

@@ -15638,11 +15638,20 @@
                 }
                 const climbType = ctx.climbType;
                 const climbId = ctx.climbId;
-                const ascentStyle = status === 'send' ? (this.getSelectedAscentStyle() || null) : null;
-                const fixedTriesStyle = ascentStyle === 'onsight' || ascentStyle === 'flash';
-                const tries = fixedTriesStyle
-                    ? 1
-                    : Math.max(1, parseInt(document.getElementById('climbLogTries')?.value || '1', 10) || 1);
+                let ascentStyle = null;
+                let tries = 1;
+                if (status === 'send') {
+                    if (climbType === 'boulder') {
+                        tries = Math.max(1, parseInt(document.getElementById('climbLogTries')?.value || '1', 10) || 1);
+                        ascentStyle = this.resolveBoulderAscentStyle(tries);
+                    } else {
+                        ascentStyle = this.getSelectedAscentStyle() || null;
+                        const fixedTriesStyle = ascentStyle === 'onsight' || ascentStyle === 'flash';
+                        tries = fixedTriesStyle
+                            ? 1
+                            : Math.max(1, parseInt(document.getElementById('climbLogTries')?.value || '1', 10) || 1);
+                    }
+                }
                 const body = {
                     climb_type: climbType,
                     status,
@@ -15713,6 +15722,38 @@
                     ? `climb_type=route&route_id=${encodeURIComponent(climbId)}`
                     : `climb_type=boulder&boulder_id=${encodeURIComponent(climbId)}`;
                 return apiFetch(`/api/climbs/stats?${q}`);
+            }
+
+            resolveBoulderAscentStyle(tries) {
+                const n = Math.max(1, parseInt(String(tries), 10) || 1);
+                return n >= 2 ? 'redpoint' : 'flash';
+            }
+
+            updateClimbLogBoulderStyleHint(tries, style) {
+                const hint = document.getElementById('climbLogBoulderStyleHint');
+                if (!hint) return;
+                const label = style === 'flash' ? 'Флэш' : 'Редпоинт';
+                hint.textContent = tries <= 1
+                    ? `${label} (1 попытка)`
+                    : `${label} (с 2-й попытки, всего ${tries})`;
+            }
+
+            bindBoulderAscentStyleFromTries() {
+                const input = document.getElementById('climbLogTries');
+                const hidden = document.getElementById('climbLogSendStyle');
+                if (!input) return;
+                const sync = () => {
+                    let tries = parseInt(input.value, 10);
+                    if (!Number.isFinite(tries) || tries < 1) tries = 1;
+                    if (tries > 99) tries = 99;
+                    input.value = String(tries);
+                    const style = this.resolveBoulderAscentStyle(tries);
+                    if (hidden) hidden.value = style;
+                    this.updateClimbLogBoulderStyleHint(tries, style);
+                };
+                input.addEventListener('input', sync);
+                input.addEventListener('change', sync);
+                sync();
             }
 
             getSelectedAscentStyle() {
@@ -16259,8 +16300,20 @@
                     const stats = this._climbCommunityStats
                         || await this.fetchClimbCommunityStats(climbType, climbId);
                     this._climbCommunityStats = stats;
-                    const triesVal = stats.my_tries || 1;
-                    formEl.innerHTML = `
+                    const triesVal = Math.max(1, Number(stats.my_tries) || 1);
+                    const boulderLogStyleFields = climbType === 'boulder' ? `
+                        <div class="climb-log-field">
+                            <span class="form-label">Тип пролаза</span>
+                            <p class="form-hint climb-log-boulder-style" id="climbLogBoulderStyleHint"></p>
+                            <input type="hidden" id="climbLogSendStyle" value="${this.resolveBoulderAscentStyle(triesVal)}">
+                        </div>
+                        <div class="climb-log-field" id="climbLogTriesField">
+                            <span class="form-label">Попыток</span>
+                            <div class="climb-log-field-row">
+                                <input type="number" class="form-input" id="climbLogTries" min="1" max="99" value="${triesVal}">
+                            </div>
+                        </div>
+                    ` : `
                         <div class="climb-log-field">
                             <span class="form-label">Тип пролаза</span>
                             <div class="climb-log-field-row">
@@ -16278,6 +16331,9 @@
                                 <input type="number" class="form-input" id="climbLogTries" min="1" max="99" value="${triesVal}">
                             </div>
                         </div>
+                    `;
+                    formEl.innerHTML = `
+                        ${boulderLogStyleFields}
                         <div class="climb-log-field">
                             <span class="form-label">Ваша категория</span>
                             <input type="hidden" id="climbLogFeltGrade" value="${this.escapeHtml(stats.my_felt_grade || '')}">
@@ -16294,7 +16350,11 @@
                         </div>
                     `;
 
-                    this.bindAscentStylePicker('redpoint');
+                    if (climbType === 'boulder') {
+                        this.bindBoulderAscentStyleFromTries();
+                    } else {
+                        this.bindAscentStylePicker('redpoint');
+                    }
 
                     const feltNormalize = climbType === 'route' ? normalizeRouteGrade : normalizeBoulderGrade;
                     const feltOptions = climbType === 'route' ? ROUTE_GRADE_OPTIONS : BOULDER_GRADE_OPTIONS;
