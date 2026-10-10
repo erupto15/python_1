@@ -5252,6 +5252,24 @@
             line-height: 1.35;
         }
 
+        .map-popup-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .map-popup-title {
+            flex: 1 1 auto;
+            min-width: 0;
+            font-weight: 700;
+        }
+
+        .map-popup-head .map-popup-route-btn {
+            flex: 0 0 auto;
+            margin-top: 1px;
+        }
+
         .map-popup-meta {
             margin-top: 4px;
             font-size: 12px;

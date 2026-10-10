@@ -365,7 +365,8 @@
         <!-- Контент вкладки "Трассы" (скрыт при APP_BOULDER_ONLY) -->
         <div class="tab-content" id="routes">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header card-header--with-back">
+                    <button type="button" class="overlay-screen-back btn btn-ghost btn-small" data-guide-back="catalog-tab" aria-label="Назад в каталог"><i class="fas fa-arrow-left" aria-hidden="true"></i> Каталог</button>
                     <div class="card-title">
                         Скалолазные трассы
                     </div>
@@ -437,7 +438,8 @@
         <!-- Контент вкладки "Боулдеринг" -->
         <div class="tab-content" id="boulders">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header card-header--with-back">
+                    <button type="button" class="overlay-screen-back btn btn-ghost btn-small" data-guide-back="catalog-tab" aria-label="Назад в каталог"><i class="fas fa-arrow-left" aria-hidden="true"></i> Каталог</button>
                     <div class="card-title">
                         Боулдеринг
                     </div>
@@ -497,7 +499,8 @@
         <!-- Контент вкладки "Карта" -->
         <div class="tab-content" id="map">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header card-header--with-back">
+                    <button type="button" class="overlay-screen-back btn btn-ghost btn-small" data-guide-back="catalog-tab" aria-label="Назад в каталог"><i class="fas fa-arrow-left" aria-hidden="true"></i> Каталог</button>
                     <div class="card-title">
                         <i class="fas fa-map-marked-alt"></i> Карта скалолазных мест
                     </div>
@@ -616,12 +619,12 @@
 
     <div class="dialog-overlay hidden" id="profileSendsDialog" style="z-index: 997;">
         <div class="dialog-content">
-            <div class="dialog-header">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="profileSendsDialogCloseBtn" data-close-dialog="profileSendsDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                 <div class="dialog-header-text">
                     <div class="dialog-title">Пролазы</div>
                     <div class="dialog-subtitle">Логбук по дням</div>
                 </div>
-                <button type="button" class="dialog-close-btn dialog-close-btn--icon-only" id="profileSendsDialogCloseBtn" data-close-dialog="profileSendsDialog" aria-label="Закрыть"><i class="fas fa-times"></i></button>
             </div>
             <div class="dialog-body">
                 <div id="profileSendsList" class="profile-sends-logbook"></div>
@@ -631,12 +634,12 @@
 
     <div class="dialog-overlay hidden" id="profileStylesDialog" style="z-index: 997;">
         <div class="dialog-content">
-            <div class="dialog-header">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="profileStylesDialogCloseBtn" data-close-dialog="profileStylesDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                 <div class="dialog-header-text">
                     <div class="dialog-title">Стили пролаза</div>
                     <div class="dialog-subtitle">Онсайт · флэш · редпоинт</div>
                 </div>
-                <button type="button" class="dialog-close-btn dialog-close-btn--icon-only" id="profileStylesDialogCloseBtn" data-close-dialog="profileStylesDialog" aria-label="Закрыть"><i class="fas fa-times"></i></button>
             </div>
             <div class="dialog-body">
                 <p style="font-size:13px;color:var(--light-text);margin:0 0 10px;">
@@ -678,12 +681,12 @@
     <!-- Диалог разметки линии (заголовок: «Трудность») -->
     <div class="dialog-overlay hidden" id="routeLineMarkupDialog" style="z-index: 1002;">
         <div class="dialog-content">
-            <div class="dialog-header">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="closeRouteLineMarkupDialogBtn" data-close-dialog="routeLineMarkupDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                 <div class="dialog-header-text">
                     <div class="dialog-title">Трудность</div>
                     <div class="dialog-subtitle">Разметка на фото: линия хода</div>
                 </div>
-                <button type="button" class="dialog-close-btn" id="closeRouteLineMarkupDialogBtn" data-close-dialog="routeLineMarkupDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <div class="markup-instructions">
@@ -732,12 +735,12 @@
     <!-- Диалог разметки боулдеринга (стартовых зацепок) -->
     <div class="dialog-overlay hidden" id="boulderHoldsMarkupDialog" style="z-index: 1002;">
         <div class="dialog-content">
-            <div class="dialog-header">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="closeBoulderHoldsMarkupDialogBtn" data-close-dialog="boulderHoldsMarkupDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                 <div class="dialog-header-text">
                     <div class="dialog-title">Разметка боулдеринга на фотографии</div>
                     <div class="dialog-subtitle">Старт, финиш и линия хода</div>
                 </div>
-                <button type="button" class="dialog-close-btn" id="closeBoulderHoldsMarkupDialogBtn" data-close-dialog="boulderHoldsMarkupDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <div class="markup-instructions">
@@ -782,12 +785,12 @@
     <!-- Диалог района -->
     <div class="dialog-overlay hidden" id="areaDialog">
         <div class="dialog-content">
-            <div class="dialog-header">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="closeAreaDialogBtn" data-close-dialog="areaDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                 <div class="dialog-header-text">
                     <div class="dialog-title" id="areaDialogTitle">Район</div>
                     <div class="dialog-subtitle">Скалолазный район (как в гайдбуках)</div>
                 </div>
-                <button type="button" class="dialog-close-btn" id="closeAreaDialogBtn" data-close-dialog="areaDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <form id="areaForm">
@@ -830,12 +833,12 @@
     <!-- Диалог сектора -->
     <div class="dialog-overlay hidden" id="sectorDialog">
         <div class="dialog-content">
-            <div class="dialog-header">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="closeSectorDialogBtn" data-close-dialog="sectorDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                 <div class="dialog-header-text">
                     <div class="dialog-title" id="sectorDialogTitle">Сектор</div>
                     <div class="dialog-subtitle">Сектор внутри района (блок / стена)</div>
                 </div>
-                <button type="button" class="dialog-close-btn" id="closeSectorDialogBtn" data-close-dialog="sectorDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <form id="sectorForm">
@@ -868,12 +871,12 @@
     <!-- Диалог добавления трассы в сектор -->
     <div class="dialog-overlay hidden" id="quickRouteDialog">
         <div class="dialog-content">
-            <div class="dialog-header">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="closeQuickRouteDialogBtn" data-close-dialog="quickRouteDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                 <div class="dialog-header-text">
                     <div class="dialog-title" id="quickRouteDialogTitle">Добавить трассу</div>
                     <div class="dialog-subtitle" id="quickRouteDialogSubtitle">Новая трасса в выбранном секторе</div>
                 </div>
-                <button type="button" class="dialog-close-btn" id="closeQuickRouteDialogBtn" data-close-dialog="quickRouteDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <form id="quickRouteForm">
@@ -945,12 +948,12 @@
     <!-- Диалог добавления боулдеринга в сектор -->
     <div class="dialog-overlay hidden" id="quickBoulderDialog">
         <div class="dialog-content">
-            <div class="dialog-header">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="closeQuickBoulderDialogBtn" data-close-dialog="quickBoulderDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                 <div class="dialog-header-text">
                     <div class="dialog-title" id="quickBoulderDialogTitle">Добавить боулдеринг</div>
                     <div class="dialog-subtitle" id="quickBoulderDialogSubtitle">Новый боулдеринг в выбранном секторе</div>
                 </div>
-                <button type="button" class="dialog-close-btn" id="closeQuickBoulderDialogBtn" data-close-dialog="quickBoulderDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <form id="quickBoulderForm">
@@ -1153,11 +1156,11 @@
 
     <div class="dialog-overlay hidden" id="mapPromptDialog" style="z-index: 1105;">
         <div class="dialog-content dialog-content--compact">
-            <div class="dialog-header">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" data-close-dialog="mapPromptDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                 <div class="dialog-header-text">
                     <div class="dialog-title" id="mapPromptDialogTitle">Подпись</div>
                 </div>
-                <button type="button" class="dialog-close-btn" data-close-dialog="mapPromptDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i></button>
             </div>
             <div class="dialog-body">
                 <label class="form-label hidden" id="mapPromptDialogSelectLabel" for="mapPromptDialogSelect">Объект</label>
@@ -1175,12 +1178,12 @@
 
     <div class="dialog-overlay hidden" id="mapsChooserDialog" style="z-index: 1100;">
         <div class="dialog-content maps-chooser-dialog">
-            <div class="dialog-header">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" data-close-dialog="mapsChooserDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                 <div class="dialog-header-text">
                     <div class="dialog-title" id="mapsChooserTitle">Проложить маршрут</div>
                     <div class="dialog-subtitle" id="mapsChooserSubtitle">Выберите навигатор</div>
                 </div>
-                <button type="button" class="dialog-close-btn" data-close-dialog="mapsChooserDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
                 <div class="maps-chooser-grid" id="mapsChooserDir">

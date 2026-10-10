@@ -445,6 +445,15 @@
                 return true;
             }
 
+            const adminTabActive = ['routes', 'boulders', 'map'].some((id) => document.getElementById(id)?.classList.contains('active'));
+            if (adminTabActive) {
+                document.querySelector('.tab-btn[data-tab="catalog"]')?.click();
+                if (typeof window.syncTelegramMiniAppUi === 'function') {
+                    window.syncTelegramMiniAppUi();
+                }
+                return true;
+            }
+
             if (app && app.catalog) {
                 if (app.catalog.view === 'problems') {
                     app.catalog = { view: 'sectors', areaId: app.catalog.areaId, sectorId: null };
@@ -616,6 +625,10 @@
             } else if (document.documentElement.classList.contains('catalog-assistant-search-open')) {
                 tg.BackButton.show();
             } else if (app && app.catalog && app.catalog.view !== 'areas') {
+                tg.BackButton.show();
+            } else if (app && typeof app.isCatalogSearchUiOpen === 'function' && app.isCatalogSearchUiOpen()) {
+                tg.BackButton.show();
+            } else if (['routes', 'boulders', 'map'].some((id) => document.getElementById(id)?.classList.contains('active'))) {
                 tg.BackButton.show();
             } else {
                 tg.BackButton.hide();
@@ -10413,11 +10426,28 @@
                 }
             }
 
+            isCatalogSearchUiOpen() {
+                if (document.documentElement.classList.contains('catalog-assistant-search-open')) return true;
+                if (!document.getElementById('catalog')?.classList.contains('active')) return false;
+                return ['catalogSearchResults', 'globalSearchResults'].some((id) => {
+                    const el = document.getElementById(id);
+                    return el && !el.classList.contains('hidden') && el.innerHTML.trim() !== '';
+                });
+            }
+
             updateCatalogNavBack(areas, sectors) {
                 const bar = document.getElementById('catalogNavBack');
                 if (!bar) return;
                 const view = this.catalog?.view || 'areas';
                 if (view === 'areas') {
+                    if (this.isCatalogSearchUiOpen()) {
+                        bar.classList.remove('hidden');
+                        bar.innerHTML = `
+                            <button type="button" class="catalog-screen-back btn btn-ghost btn-small" data-guide-back="clear-search" aria-label="Назад из поиска">
+                                <i class="fas fa-arrow-left" aria-hidden="true"></i> Назад
+                            </button>`;
+                        return;
+                    }
                     bar.classList.add('hidden');
                     bar.innerHTML = '';
                     return;
@@ -10719,6 +10749,11 @@
                 }
                 if (refreshCatalog) {
                     this.renderCatalog();
+                } else {
+                    this.updateCatalogNavBack(getAreas(), getSectors());
+                }
+                if (typeof window.syncTelegramMiniAppUi === 'function') {
+                    window.syncTelegramMiniAppUi();
                 }
             }
 
@@ -10845,6 +10880,14 @@
                     otherBox.classList.add('hidden');
                     otherBox.innerHTML = '';
                 }
+                this.updateCatalogNavBack(getAreas(), getSectors());
+                if (typeof window.syncTelegramMiniAppUi === 'function') {
+                    window.syncTelegramMiniAppUi();
+                }
+            }
+
+            goToCatalogTab() {
+                document.querySelector('.tab-btn[data-tab="catalog"]')?.click();
             }
 
             async submitSearch(which = 'global') {
@@ -12671,6 +12714,23 @@
 
             setupEventListeners() {
                 this.setupAuthEventListeners();
+                document.addEventListener('click', (e) => {
+                    const backBtn = e.target.closest('[data-guide-back]');
+                    if (!backBtn) return;
+                    e.preventDefault();
+                    const mode = backBtn.getAttribute('data-guide-back') || '';
+                    if (mode === 'clear-search') {
+                        this.clearAllSearchDropdowns({ clearInput: false, refreshCatalog: true });
+                        return;
+                    }
+                    if (mode === 'catalog-tab') {
+                        this.goToCatalogTab();
+                        return;
+                    }
+                    if (mode === 'system' && typeof window.handleGuidebookSystemBack === 'function') {
+                        window.handleGuidebookSystemBack();
+                    }
+                });
                 document.getElementById('themeToggleBtn')?.addEventListener('click', () => {
                     const next = toggleAppTheme();
                     if (window.isTelegramMiniApp && window.isTelegramMiniApp()) {
