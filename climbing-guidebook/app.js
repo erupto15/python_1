@@ -423,10 +423,15 @@
                 return true;
             }
 
-            const searchResults = document.getElementById('globalSearchResults');
-            if (searchResults && !searchResults.classList.contains('hidden')) {
-                searchResults.classList.add('hidden');
+            const globalResults = document.getElementById('globalSearchResults');
+            const catalogResults = document.getElementById('catalogSearchResults');
+            const searchOpen = (globalResults && !globalResults.classList.contains('hidden'))
+                || (catalogResults && !catalogResults.classList.contains('hidden'));
+            if (searchOpen) {
+                globalResults?.classList.add('hidden');
+                catalogResults?.classList.add('hidden');
                 document.getElementById('globalSearch')?.blur();
+                document.getElementById('catalogSearch')?.blur();
                 return true;
             }
 
@@ -5658,6 +5663,7 @@
                 this._boulderSearchDebounceTimer = null;
                 this._globalSearchDebounceTimer = null;
                 this._catalogSearchDebounceTimer = null;
+                this._activeSearchSource = 'catalog';
                 this._rankingSearchDebounceTimer = null;
                 this.updatesFilter = 'all';
                 this._markupHoldDrag = null;
@@ -10814,15 +10820,33 @@
                 }).join('');
             }
 
-            renderGlobalSearchResults() {
-                const query = String(this.getSearchInput('global')?.value || this.getSearchInput('catalog')?.value || '').trim();
+            resolveActiveSearchWhich(preferredWhich = null) {
+                if (preferredWhich === 'global' || preferredWhich === 'catalog') return preferredWhich;
+                if (document.documentElement.classList.contains('catalog-sector-focus')) return 'catalog';
+                const activeId = document.activeElement?.id;
+                if (activeId === 'catalogSearch') return 'catalog';
+                if (activeId === 'globalSearch') return 'global';
+                if (this._activeSearchSource === 'global' || this._activeSearchSource === 'catalog') {
+                    return this._activeSearchSource;
+                }
+                return 'catalog';
+            }
+
+            renderGlobalSearchResults(preferredWhich = null) {
+                const which = this.resolveActiveSearchWhich(preferredWhich);
+                const query = String(this.getSearchInput(which)?.value || '').trim();
                 if (query.length < 2) {
                     this.clearAllSearchDropdowns();
                     this.renderCatalog();
                     return;
                 }
-                this.renderSearchDropdown(this.getSearchInput('global'), this.getSearchResultsBox('global'));
-                this.renderSearchDropdown(this.getSearchInput('catalog'), this.getSearchResultsBox('catalog'));
+                this.renderSearchDropdown(this.getSearchInput(which), this.getSearchResultsBox(which));
+                const other = which === 'catalog' ? 'global' : 'catalog';
+                const otherBox = this.getSearchResultsBox(other);
+                if (otherBox) {
+                    otherBox.classList.add('hidden');
+                    otherBox.innerHTML = '';
+                }
                 this.renderCatalog();
             }
 
@@ -11548,8 +11572,14 @@
                     .sort((a, b) => b.score - a.score || String(a.title).localeCompare(String(b.title), 'ru'))
                     .slice(0, 8);
                 const narrowed = kindHint ? rank(index.filter((item) => item.kind === kindHint)) : [];
-                if (narrowed.length) return narrowed;
-                return rank(index);
+                const ranked = narrowed.length ? narrowed : rank(index);
+                const seen = new Set();
+                return ranked.filter((item) => {
+                    const key = `${item.kind}:${item.id}`;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
             }
 
             matchCatalogByName(items, name) {
@@ -12909,14 +12939,16 @@
                     });
                 };
                 document.getElementById('globalSearch')?.addEventListener('input', () => {
+                    this._activeSearchSource = 'global';
                     this.syncLinkedSearchInputs('global');
                     clearTimeout(this._globalSearchDebounceTimer);
-                    this._globalSearchDebounceTimer = setTimeout(() => this.renderGlobalSearchResults(), searchDebounceMs);
+                    this._globalSearchDebounceTimer = setTimeout(() => this.renderGlobalSearchResults('global'), searchDebounceMs);
                 });
                 document.getElementById('catalogSearch')?.addEventListener('input', () => {
+                    this._activeSearchSource = 'catalog';
                     this.syncLinkedSearchInputs('catalog');
                     clearTimeout(this._catalogSearchDebounceTimer);
-                    this._catalogSearchDebounceTimer = setTimeout(() => this.renderGlobalSearchResults(), searchDebounceMs);
+                    this._catalogSearchDebounceTimer = setTimeout(() => this.renderGlobalSearchResults('catalog'), searchDebounceMs);
                 });
                 document.getElementById('globalSearchClearBtn')?.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -12987,8 +13019,9 @@
                 document.addEventListener('click', (e) => {
                     if (e.target && e.target.closest && e.target.closest('.grade-picker')) return;
                     if (e.target && e.target.closest && e.target.closest('.global-search-wrap')) return;
-                    const box = document.getElementById('globalSearchResults');
-                    box?.classList.add('hidden');
+                    if (e.target && e.target.closest && e.target.closest('.catalog-card-search')) return;
+                    this.getSearchResultsBox('global')?.classList.add('hidden');
+                    this.getSearchResultsBox('catalog')?.classList.add('hidden');
                     this._closeAllGradePickers();
                 });
                 document.addEventListener('keydown', (e) => {
@@ -12997,7 +13030,8 @@
                             e.preventDefault();
                             return;
                         }
-                        document.getElementById('globalSearchResults')?.classList.add('hidden');
+                        this.getSearchResultsBox('global')?.classList.add('hidden');
+                        this.getSearchResultsBox('catalog')?.classList.add('hidden');
                         this._closeAllGradePickers();
                     }
                 });
