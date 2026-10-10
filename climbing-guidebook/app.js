@@ -10435,6 +10435,7 @@
                 document.documentElement.classList.toggle('catalog-sector-focus', !!focus);
                 if (focus) {
                     document.getElementById('globalSearchResults')?.classList.add('hidden');
+                    document.getElementById('catalogSearchResults')?.classList.add('hidden');
                     if (!hadFocus) {
                         window.scrollTo(0, 0);
                     }
