@@ -16789,14 +16789,14 @@
                     return `<div class="profile-stat-card profile-stat-card--ranking">
                         <div class="profile-stat-card-head">
                             <strong>—</strong>
-                            <span class="profile-stat-card-label">рейтинг 8a.nu</span>
+                            <span class="profile-stat-card-label">рейтинг</span>
                         </div>
                         <p class="profile-ranking-empty">Нет баллов за последние 12 мес. Запишите пролазы в логбук.</p>
                     </div>`;
                 }
                 return `<button type="button" class="profile-stat-card profile-stat-card--ranking" data-profile-open-ranking aria-label="Открыть таблицу рейтинга">
                     <div class="profile-stat-card-head">
-                        <span class="profile-stat-card-label">рейтинг 8a.nu</span>
+                        <span class="profile-stat-card-label">рейтинг</span>
                     </div>
                     <div class="profile-ranking-disciplines">
                         <div class="profile-ranking-discipline profile-ranking-discipline--route">

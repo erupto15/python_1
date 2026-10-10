@@ -16789,7 +16789,7 @@
                     return `<div class="profile-stat-card profile-stat-card--ranking">
                         <div class="profile-stat-card-head">
                             <strong>—</strong>
-                            <span class="profile-stat-card-label">рейтинг 8a.nu</span>
+                            <span class="profile-stat-card-label">рейтинг</span>
                         </div>
                         <p class="profile-ranking-empty">Нет баллов за последние 12 мес. Запишите пролазы в логбук.</p>
                     </div>`;

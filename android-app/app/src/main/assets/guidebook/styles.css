@@ -6900,8 +6900,8 @@
 
         .profile-ranking-disciplines {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
             width: 100%;
         }
 
@@ -6910,9 +6910,15 @@
             flex-direction: column;
             align-items: flex-start;
             gap: 6px;
-            padding: 8px;
+            min-width: 0;
+            padding: 10px;
             border-radius: 10px;
             border: 1px solid var(--border-color);
+        }
+
+        .profile-ranking-discipline .ranking-discipline-tag {
+            margin-right: 0;
+            max-width: 100%;
         }
 
         .profile-ranking-discipline--route {
