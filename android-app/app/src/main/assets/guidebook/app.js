@@ -663,7 +663,7 @@
 
         function buildCatalogRouteNavButtonHtml(mapKind, entityId) {
             const id = String(entityId);
-            return `<button type="button" class="catalog-map-btn catalog-route-nav-btn btn btn-primary btn-small" data-catalog-act="nav-route" data-map-kind="${mapKind}" data-id="${id}" aria-label="Маршрут" title="Маршрут"><img class="catalog-route-nav-icon" src="icons/route-nav.png" alt="" width="32" height="17" decoding="async"></button>`;
+            return `<button type="button" class="catalog-map-btn catalog-route-nav-btn btn btn-small" data-catalog-act="nav-route" data-map-kind="${mapKind}" data-id="${id}" aria-label="Маршрут" title="Маршрут"><img class="catalog-route-nav-icon" src="icons/route-nav.png" alt="" decoding="async"></button>`;
         }
         /** Кнопка «Моё местоположение»: классическая метка-pin с точкой внутри. */
         const MAP_LOCATE_PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>';
@@ -6756,11 +6756,8 @@
                 return `${Math.abs(la).toFixed(4)}°${latHem} · ${Math.abs(ln).toFixed(4)}°${lngHem}`;
             }
 
-            mapPopupCoordsHtml(lat, lng) {
-                if (lat == null || lng == null) return '';
-                const main = this.formatMapCoordinates(lat, lng);
-                const hint = this.formatMapCoordinatesHint(lat, lng);
-                return `<div class="map-popup-coords">${this.escapeHtml(main)}<small>${this.escapeHtml(hint)}</small></div>`;
+            mapPopupCoordsHtml() {
+                return '';
             }
 
             _setQuickSaveLoading(kind, busy) {
@@ -7970,8 +7967,6 @@
                             ${guideButton}
                             ${catalogButton}
                             ${adminPinActions}
-                            <button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('target','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">К точке</button>
-                            <button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('external','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;"><i class="fas fa-diamond-turn-right"></i> Маршрут</button>
                         </div>
                     </div>
                 `;
@@ -8408,14 +8403,6 @@
             buildMapFeaturePopupHtml(feature) {
                 const title = feature.label || this.mapFeatureTypeLabel(feature.featureType);
                 const meta = this.mapFeatureTypeLabel(feature.featureType);
-                const coordsPt = this.mapFeatureCoords(feature);
-                const coords = coordsPt ? this.mapPopupCoordsHtml(coordsPt.lat, coordsPt.lng) : '';
-                const navBtn = coordsPt
-                    ? `<button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.openExternalNavigation?.({ lat: ${coordsPt.lat}, lng: ${coordsPt.lng}, title: '${this.escapeHtml(title).replace(/'/g, "\\'")}' }); return false;"><i class="fas fa-diamond-turn-right"></i> Маршрут</button>`
-                    : '';
-                const targetBtn = coordsPt
-                    ? `<button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.setMapTarget?.({ kind: 'feature', id: ${Number(feature.id)}, title: '${this.escapeHtml(title).replace(/'/g, "\\'")}', lat: ${coordsPt.lat}, lng: ${coordsPt.lng} }); return false;">К точке</button>`
-                    : '';
                 const adminActions = this.isAdmin()
                     ? `
                         <button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.editMapFeatureFromPopup?.(${Number(feature.id)}); return false;">Изменить</button>
@@ -8426,8 +8413,7 @@
                     <div class="map-feature-popup">
                         <strong>${this.escapeHtml(title)}</strong>
                         <div class="map-feature-popup-meta">${this.escapeHtml(meta)}</div>
-                        ${coords}
-                        <div class="map-popup-actions">${targetBtn}${navBtn}${adminActions}</div>
+                        <div class="map-popup-actions">${adminActions}</div>
                     </div>
                 `;
             }
@@ -9633,8 +9619,6 @@
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fas fa-crosshairs"></i> Показать цель';
                 }
-                const navBtn = document.getElementById('mapExternalNavBtn');
-                if (navBtn) navBtn.disabled = false;
                 this.refreshMapMarkerStyles();
                 this.renderMapGuideStrip();
                 this.renderMapCoordsBar();
@@ -9890,12 +9874,12 @@
                 window.open(url, '_blank', 'noopener');
             }
 
-            openMapsChooser(entry = null, preferredMode = '') {
+            openMapsChooser(entry = null) {
                 if (this.isUiActionLocked()) return;
                 this.lockUiActions(480);
                 const target = entry || this.mapTarget;
                 if (!target || !Number.isFinite(Number(target.lat)) || !Number.isFinite(Number(target.lng))) {
-                    this.showToast('У объекта нет координат для карт', true);
+                    this.showToast('У объекта нет координат для маршрута', true);
                     return;
                 }
                 this._mapsChooserTarget = {
@@ -9903,25 +9887,16 @@
                     lng: Number(target.lng),
                     title: target.title || 'точка'
                 };
-                const titleEl = document.getElementById('mapsChooserTitle');
-                const subEl = document.getElementById('mapsChooserSubtitle');
-                if (titleEl) titleEl.textContent = this._mapsChooserTarget.title;
-                if (subEl) {
-                    subEl.textContent = preferredMode === 'view'
-                        ? 'Открыть точку во внешнем приложении карт'
-                        : 'Проложить маршрут или открыть точку';
-                }
                 this.showDialog('mapsChooserDialog');
             }
 
             openExternalNavigation(entry = null) {
                 const target = entry || this.mapTarget;
                 if (!target) {
-                    this.showToast('Сначала выберите точку на карте', true);
+                    this.showToast('Сначала выберите объект на карте', true);
                     return;
                 }
-                this.openMapsChooser(target, 'dir');
-                this.updateMapStatus(`Выберите карты для маршрута к «${target.title || 'цели'}»`);
+                this.openMapsChooser(target);
             }
 
             updateMapStatus(message = '') {
@@ -9931,18 +9906,8 @@
                     el.textContent = message;
                     return;
                 }
-                if (this.mapTarget && this.userLocation) {
-                    const dist = this.distanceMeters(this.userLocation, this.mapTarget);
-                    const bearing = this.formatBearing(this.bearingDegrees(this.userLocation, this.mapTarget));
-                    const trailHint = this._activeTrailRouteName
-                        ? ` Маршрут по тропе «${this._activeTrailRouteName}» на карте.`
-                        : ' Пунктир — прямая линия; для ходьбы по тропам откройте навигатор.';
-                    el.textContent = `${this.mapTarget.title}: ${this.formatDistanceMeters(dist)}${bearing ? ` · ${bearing}` : ''}.${trailHint}`;
-                    return;
-                }
                 if (this.mapTarget) {
-                    const coords = this.formatMapCoordinates(this.mapTarget.lat, this.mapTarget.lng);
-                    el.textContent = `Цель: ${this.mapTarget.title} (${coords}). Нажмите «Моё место» или «Маршрут в навигаторе».`;
+                    el.textContent = 'Объект выбран на карте.';
                     return;
                 }
                 const count = this.mapMarkerIndex?.size || 0;
@@ -9951,7 +9916,7 @@
                     return;
                 }
                 const word = count === 1 ? 'объект' : count < 5 ? 'объекта' : 'объектов';
-                el.textContent = `На карте ${count} ${word}. Выберите маркер — откроется карточка с координатами.`;
+                el.textContent = `На карте ${count} ${word}. Выберите маркер для подробностей.`;
             }
 
             distanceMeters(a, b) {
@@ -10092,29 +10057,7 @@
                 }
             }
 
-            renderMapCoordsBar() {
-                const valueEl = document.getElementById('mapCoordsText');
-                const hintEl = document.getElementById('mapCoordsHint');
-                if (!valueEl || !hintEl) return;
-                if (this.mapTarget) {
-                    valueEl.textContent = this.formatMapCoordinates(this.mapTarget.lat, this.mapTarget.lng);
-                    const extra = this.formatMapCoordinatesHint(this.mapTarget.lat, this.mapTarget.lng);
-                    hintEl.textContent = extra ? `Цель: ${this.mapTarget.title || 'точка'} · ${extra}` : `Цель: ${this.mapTarget.title || 'точка'}`;
-                    return;
-                }
-                if (this._mapPointerCoords) {
-                    valueEl.textContent = this.formatMapCoordinates(this._mapPointerCoords.lat, this._mapPointerCoords.lng);
-                    hintEl.textContent = this.formatMapCoordinatesHint(this._mapPointerCoords.lat, this._mapPointerCoords.lng);
-                    return;
-                }
-                if (this.userLocation) {
-                    valueEl.textContent = this.formatMapCoordinates(this.userLocation.lat, this.userLocation.lng);
-                    hintEl.textContent = 'Ваше местоположение';
-                    return;
-                }
-                valueEl.textContent = '—';
-                hintEl.textContent = 'Наведите на карту или выберите объект';
-            }
+            renderMapCoordsBar() {}
 
             attachMapPointerTracking() {
                 if (!this.map || this._mapPointerTrackingBound) return;
@@ -10583,9 +10526,6 @@
                         </div>
                         <div class="catalog-guide-actions">
                             ${isArea ? `${buildCatalogRouteNavButtonHtml('area', entity.id)}
-                            <button type="button" class="btn btn-ghost btn-small" data-catalog-act="open-maps" data-map-kind="area" data-id="${entity.id}">
-                                <i class="fas fa-map"></i> Открыть карты
-                            </button>
                             <button type="button" class="btn btn-secondary btn-small" data-catalog-act="download-area-pdf" data-id="${entity.id}">
                                 <span class="btn-glyph-inline" aria-hidden="true">PDF</span> Скачать гайд
                             </button>` : ''}
@@ -10928,7 +10868,7 @@
                     const target = best ? this.navTargetFromKindId(best.kind, best.id) : null;
                     if (best && target) {
                         this.clearGlobalSearchDropdown({ clearInput: true });
-                        this.openMapsChooser(target, 'dir');
+                        this.openMapsChooser(target);
                         return;
                     }
                 }
@@ -11502,11 +11442,11 @@
                         const kind = act.dataset.mapKind || '';
                         if (kind && id != null) void this.focusMapTarget(kind, id);
                     }
-                    if (action === 'nav-route' || action === 'open-maps') {
+                    if (action === 'nav-route') {
                         const kind = act.dataset.mapKind || '';
                         if (kind && id != null) {
                             const target = this.navTargetFromKindId(kind, id);
-                            this.openMapsChooser(target, action === 'open-maps' ? 'view' : 'dir');
+                            this.openMapsChooser(target);
                         }
                     }
                     if (action === 'download-area-pdf') {
@@ -12860,9 +12800,6 @@
                 document.getElementById('mapTargetBtn')?.addEventListener('click', () => {
                     this.focusCurrentMapTarget();
                 });
-                document.getElementById('mapExternalNavBtn')?.addEventListener('click', () => {
-                    this.openExternalNavigation();
-                });
                 document.getElementById('mapEditToggleBtn')?.addEventListener('click', () => {
                     this.toggleMapEditMode();
                 });
@@ -12981,7 +12918,7 @@
                                 return;
                             }
                             this.clearAllSearchDropdowns({ clearInput: true });
-                            this.openMapsChooser(target, 'dir');
+                            this.openMapsChooser(target);
                             return;
                         }
                         const item = e.target.closest('[data-global-kind]');
@@ -13225,8 +13162,6 @@
                     }
                     this.hideDialog('mapsChooserDialog');
                     this.openMapsLink(url);
-                    const modeLabel = btn.dataset.mapsMode === 'view' ? 'Открываю точку' : 'Прокладываю маршрут';
-                    this.updateMapStatus(`${modeLabel} к «${target?.title || 'цели'}»`);
                 });
                 document.getElementById('climbDetailEditBtn')?.addEventListener('click', () => {
                     const ctx = this._climbDetailContext;

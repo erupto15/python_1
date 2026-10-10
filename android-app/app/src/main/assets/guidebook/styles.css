@@ -2528,6 +2528,7 @@
         }
 
         .catalog-area-card {
+            position: relative;
             align-items: stretch;
             min-height: 168px;
             background:
@@ -2736,6 +2737,10 @@
             max-height: 20px;
             object-fit: contain;
             pointer-events: none;
+            background: #fff;
+            border-radius: 6px;
+            padding: 4px 6px;
+            box-sizing: content-box;
         }
 
         .area-photo-preview {

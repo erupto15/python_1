@@ -528,19 +528,12 @@
                         <span class="map-legend-item"><span class="map-legend-camping-sign" id="mapLegendCamping" aria-hidden="true"></span> Кемпинг</span>
                         <span class="map-legend-item"><span class="map-legend-area-droplet" id="mapLegendAreaDroplet" aria-hidden="true"></span> Район</span>
                     </div>
-                    <div class="map-coords-bar" id="mapCoordsBar">
-                        <span class="map-coords-value" id="mapCoordsText">—</span>
-                        <span class="map-coords-hint" id="mapCoordsHint">Наведите на карту или выберите объект</span>
-                    </div>
                     <div class="map-nav-row">
                         <button type="button" class="btn btn-secondary btn-small" id="mapLocateBtn">
                             <i class="fas fa-location-crosshairs"></i> Моё место
                         </button>
                         <button type="button" class="btn btn-ghost btn-small" id="mapTargetBtn" disabled>
                             <i class="fas fa-crosshairs"></i> Показать цель
-                        </button>
-                        <button type="button" class="btn btn-ghost btn-small" id="mapExternalNavBtn" disabled>
-                            <i class="fas fa-diamond-turn-right"></i> Маршрут в навигаторе
                         </button>
                     </div>
                     <div class="map-edit-panel admin-only hidden-by-role" id="mapEditPanel">
@@ -1184,25 +1177,17 @@
         <div class="dialog-content maps-chooser-dialog">
             <div class="dialog-header">
                 <div class="dialog-header-text">
-                    <div class="dialog-title" id="mapsChooserTitle">Карты</div>
-                    <div class="dialog-subtitle" id="mapsChooserSubtitle">Выберите приложение</div>
+                    <div class="dialog-title" id="mapsChooserTitle">Проложить маршрут</div>
+                    <div class="dialog-subtitle" id="mapsChooserSubtitle">Выберите навигатор</div>
                 </div>
                 <button type="button" class="dialog-close-btn" data-close-dialog="mapsChooserDialog" aria-label="Закрыть"><i class="fas fa-times" aria-hidden="true"></i> Закрыть</button>
             </div>
             <div class="dialog-body">
-                <p class="form-label">Проложить маршрут</p>
                 <div class="maps-chooser-grid" id="mapsChooserDir">
                     <button type="button" class="btn btn-primary" data-maps-provider="yandex" data-maps-mode="dir">Яндекс</button>
                     <button type="button" class="btn btn-secondary" data-maps-provider="google" data-maps-mode="dir">Google</button>
                     <button type="button" class="btn btn-secondary" data-maps-provider="apple" data-maps-mode="dir">Apple</button>
                     <button type="button" class="btn btn-secondary" data-maps-provider="gis" data-maps-mode="dir">2ГИС</button>
-                </div>
-                <p class="form-label" style="margin-top:14px;">Открыть точку</p>
-                <div class="maps-chooser-grid" id="mapsChooserView">
-                    <button type="button" class="btn btn-ghost" data-maps-provider="yandex" data-maps-mode="view">Яндекс</button>
-                    <button type="button" class="btn btn-ghost" data-maps-provider="google" data-maps-mode="view">Google</button>
-                    <button type="button" class="btn btn-ghost" data-maps-provider="apple" data-maps-mode="view">Apple</button>
-                    <button type="button" class="btn btn-ghost" data-maps-provider="gis" data-maps-mode="view">2ГИС</button>
                 </div>
             </div>
         </div>
