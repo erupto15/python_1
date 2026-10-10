@@ -665,6 +665,11 @@
             const id = String(entityId);
             return `<button type="button" class="catalog-map-btn catalog-route-nav-btn btn btn-small" data-catalog-act="nav-route" data-map-kind="${mapKind}" data-id="${id}" aria-label="Маршрут" title="Маршрут"><img class="catalog-route-nav-icon" src="icons/route-nav.png" alt="" decoding="async"></button>`;
         }
+
+        function buildMapPopupRouteButtonHtml(kind, entityId) {
+            const id = String(entityId);
+            return `<button type="button" class="catalog-route-nav-btn btn btn-small map-popup-route-btn" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('external','${kind}', '${id}'); return false;" aria-label="Маршрут" title="Маршрут"><img class="catalog-route-nav-icon" src="icons/route-nav.png" alt="" decoding="async"></button>`;
+        }
         /** Кнопка «Моё местоположение»: классическая метка-pin с точкой внутри. */
         const MAP_LOCATE_PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>';
         /** Кемпинг: палатка на белом фоне. */

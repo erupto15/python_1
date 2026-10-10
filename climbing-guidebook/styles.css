@@ -5271,6 +5271,17 @@
             min-height: 34px;
         }
 
+        .map-popup-route-btn {
+            width: 34px;
+            height: 26px;
+            min-height: 0;
+            padding: 2px 3px;
+        }
+
+        .map-popup-route-btn .catalog-route-nav-icon {
+            height: 20px;
+        }
+
         /* Leaflet: V8ROCK-style маркеры и полигоны */
         .leaflet-div-icon.parent-label-icon,
         .leaflet-div-icon.sector-badge {
