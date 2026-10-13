@@ -7481,6 +7481,30 @@
                 return `${kind}:${String(id)}`;
             }
 
+            mapPinCoordKey(lat, lng) {
+                const la = Number(lat);
+                const ln = Number(lng);
+                if (!Number.isFinite(la) || !Number.isFinite(ln)) return '';
+                return `${la.toFixed(6)}:${ln.toFixed(6)}`;
+            }
+
+            mapEntryHasBoulderId(entry, boulderId) {
+                if (!entry || entry.kind !== 'boulder') return false;
+                if (String(entry.id) === String(boulderId)) return true;
+                return (entry.boulderAtPin || []).some((b) => String(b.id) === String(boulderId));
+            }
+
+            registerMapMarkerIndex(stored) {
+                this.mapMarkerIndex.set(this.mapKey(stored.kind, stored.id), stored);
+                if (stored.kind === 'boulder' && stored.boulderAtPin?.length > 1) {
+                    stored.boulderAtPin.forEach((b) => {
+                        if (String(b.id) !== String(stored.id)) {
+                            this.mapMarkerIndex.set(this.mapKey('boulder', b.id), stored);
+                        }
+                    });
+                }
+            }
+
             clearMapDisplayLayers() {
                 if (!this.map) return;
                 (this.mapLayers || []).forEach((layer) => {
@@ -7763,9 +7787,22 @@
             }
 
             mapEntrySelected(entry) {
-                return this.mapTarget
-                    && this.mapTarget.kind === entry.kind
-                    && String(this.mapTarget.id) === String(entry.id);
+                if (!this.mapTarget || this.mapTarget.kind !== entry.kind) return false;
+                if (String(this.mapTarget.id) === String(entry.id)) return true;
+                if (entry.kind === 'boulder') {
+                    return this.mapEntryHasBoulderId(entry, this.mapTarget.id);
+                }
+                return false;
+            }
+
+            mapBoulderPinFocusId(entry) {
+                if (
+                    this.mapTarget?.kind === 'boulder'
+                    && this.mapEntryHasBoulderId(entry, this.mapTarget.id)
+                ) {
+                    return this.mapTarget.id;
+                }
+                return entry.id;
             }
 
             isBoulderSector(sectorId) {
@@ -7911,8 +7948,12 @@
 
             buildMapBoulderPinHtml(entry) {
                 const selected = this.mapEntryShowAsSelected(entry);
-                const done = entry.climbType && this.hasUserSent(entry.climbType, entry.id);
-                const title = this.escapeHtml(entry.title || 'Боулдеринг');
+                const focusId = this.mapBoulderPinFocusId(entry);
+                const done = entry.climbType && this.hasUserSent(entry.climbType, focusId);
+                const stackN = entry.boulderAtPin?.length || 0;
+                const title = this.escapeHtml(
+                    stackN > 1 ? `${stackN} боулдеров` : (entry.title || 'Боулдеринг')
+                );
                 const extra = [
                     'map-boulder-pin-icon',
                     selected ? 'map-boulder-pin-icon--focused' : '',
@@ -8089,7 +8130,41 @@
                 });
             }
 
+            buildMapBoulderStackPopupHtml(entry) {
+                const stack = entry.boulderAtPin || [];
+                const meta = entry.meta ? `<div class="map-popup-meta">${this.escapeHtml(entry.meta)}</div>` : '';
+                const coords = this.mapPopupCoordsHtml(entry.lat, entry.lng);
+                const items = stack.map((b) => {
+                    const grade = b.grade ? `<span class="map-popup-boulder-grade">${this.escapeHtml(b.grade)}</span>` : '';
+                    const sent = this.hasUserSent('boulder', b.id)
+                        ? '<span class="map-popup-boulder-sent" aria-hidden="true">✓</span>'
+                        : '';
+                    return `<button type="button" class="map-popup-boulder-item" onclick="event.preventDefault(); window.app?.handleMapPopupBoulderPick?.('${this.escapeHtml(b.id)}'); return false;">
+                        <span class="map-popup-boulder-name">${this.escapeHtml(b.title || 'Боулдер')}</span>
+                        ${grade}${sent}
+                    </button>`;
+                }).join('');
+                const catalogButton = entry.catalog
+                    ? `<button type="button" class="btn btn-small btn-ghost" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('catalog','boulder', '${this.escapeHtml(entry.id)}'); return false;">В каталог</button>`
+                    : '';
+                const actionsBlock = catalogButton
+                    ? `<div class="map-popup-actions">${catalogButton}</div>`
+                    : '';
+                return `
+                    <div class="map-popup map-popup--boulder-stack">
+                        <strong>${this.escapeHtml(entry.title || 'Боулдеры')}</strong>
+                        ${meta}
+                        ${coords}
+                        <div class="map-popup-boulder-list" role="list">${items}</div>
+                        ${actionsBlock}
+                    </div>
+                `;
+            }
+
             buildMapPopupHtml(entry) {
+                if (entry.kind === 'boulder' && entry.boulderAtPin?.length > 1) {
+                    return this.buildMapBoulderStackPopupHtml(entry);
+                }
                 const meta = entry.meta ? `<div class="map-popup-meta">${this.escapeHtml(entry.meta)}</div>` : '';
                 const coords = this.mapPopupCoordsHtml(entry.lat, entry.lng);
                 const guide = this.guideSnippetForMapEntry(entry);
@@ -8151,6 +8226,9 @@
                             iconAnchor: isBoulder ? [18, 18] : [22, 22]
                         }));
                         this.bindMapClimbDotMarkerClick(stored.marker, stored);
+                        if (stored.marker?.getPopup?.()) {
+                            stored.marker.setPopupContent(this.buildMapPopupHtml(stored));
+                        }
                         stored.labelEl = stored.marker.getElement()?.querySelector(
                             isBoulder ? '.map-boulder-pin-hit' : '.map-climb-dot-hit'
                         ) || null;
@@ -8358,21 +8436,41 @@
                     });
                 }
 
+                const bouldersByPin = new Map();
                 getBoulders().forEach((boulder) => {
                     const c = this.validMapCoord(boulder.latitude, boulder.longitude);
                     if (!c) return;
+                    const pinKey = this.mapPinCoordKey(c.lat, c.lng);
+                    if (!bouldersByPin.has(pinKey)) bouldersByPin.set(pinKey, []);
+                    bouldersByPin.get(pinKey).push({ boulder, coord: c });
+                });
+                bouldersByPin.forEach((group) => {
+                    group.sort((a, b) => String(a.boulder.name || '').localeCompare(String(b.boulder.name || ''), 'ru'));
+                    const primary = group[0].boulder;
+                    const coord = group[0].coord;
+                    const boulderAtPin = group.map(({ boulder }) => ({
+                        id: boulder.id,
+                        title: boulder.name,
+                        grade: boulder.grade || '',
+                        meta: `${this.getStructureLabel(boulder.sectorId) || 'Каталог'} · ${boulder.grade || '—'}`,
+                        areaId: boulder.areaId,
+                        sectorId: boulder.sectorId
+                    }));
+                    const multi = boulderAtPin.length > 1;
+                    const sectorLabel = this.getStructureLabel(primary.sectorId) || 'Каталог';
                     entries.push({
                         kind: 'boulder',
                         climbType: 'boulder',
-                        id: boulder.id,
-                        title: boulder.name,
-                        meta: `${this.getStructureLabel(boulder.sectorId) || 'Каталог'} · ${boulder.grade || '—'}`,
-                        grade: boulder.grade || '',
-                        lat: c.lat,
-                        lng: c.lng,
+                        id: primary.id,
+                        title: multi ? `${boulderAtPin.length} боулдеров` : primary.name,
+                        meta: multi ? sectorLabel : `${sectorLabel} · ${primary.grade || '—'}`,
+                        grade: primary.grade || '',
+                        lat: coord.lat,
+                        lng: coord.lng,
                         catalog: true,
-                        areaId: boulder.areaId,
-                        sectorId: boulder.sectorId
+                        areaId: primary.areaId,
+                        sectorId: primary.sectorId,
+                        boulderAtPin: multi ? boulderAtPin : undefined
                     });
                 });
                 return entries.filter((entry) => this.mapEntryInScope(entry));
@@ -8420,7 +8518,7 @@
                 if (entry.kind === 'area' || entry.kind === 'sector') {
                     this.mapLayers.push(stored.marker);
                 }
-                this.mapMarkerIndex.set(this.mapKey(entry.kind, entry.id), stored);
+                this.registerMapMarkerIndex(stored);
             }
 
             clearMapMarkerLayers() {
@@ -9709,6 +9807,31 @@
                     document.getElementById('catalogMapBlock')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }, catalogChanged ? 160 : 80);
                 return entry;
+            }
+
+            handleMapPopupBoulderPick(boulderId) {
+                const boulder = getBoulders().find((b) => String(b.id) === String(boulderId));
+                if (!boulder) {
+                    this.showToast('Боулдер не найден', true);
+                    return;
+                }
+                const coord = this.validMapCoord(boulder.latitude, boulder.longitude);
+                if (coord) {
+                    this.setMapTarget({
+                        kind: 'boulder',
+                        id: boulder.id,
+                        title: boulder.name,
+                        lat: coord.lat,
+                        lng: coord.lng
+                    });
+                    this.refreshMapMarkerStyles();
+                }
+                try {
+                    this.map?.closePopup?.();
+                } catch (_) {
+                    /* ignore */
+                }
+                void this.showClimbDetailDialog('boulder', boulderId);
             }
 
             handleMapPopupAction(action, kind, id) {

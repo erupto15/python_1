@@ -5440,6 +5440,58 @@
             min-height: 34px;
         }
 
+        .map-popup-boulder-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 8px;
+            max-height: min(240px, 42vh);
+            overflow-y: auto;
+        }
+
+        .map-popup-boulder-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            width: 100%;
+            margin: 0;
+            padding: 8px 10px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #f9fafb;
+            color: #111827;
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .map-popup-boulder-item:active {
+            background: #f3f4f6;
+        }
+
+        .map-popup-boulder-name {
+            flex: 1 1 auto;
+            min-width: 0;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+
+        .map-popup-boulder-grade {
+            flex: 0 0 auto;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--boulder-color, #f04d23);
+        }
+
+        .map-popup-boulder-sent {
+            flex: 0 0 auto;
+            font-size: 12px;
+            color: var(--map-tick-done, #22c55e);
+            font-weight: 700;
+        }
+
         .map-popup-route-btn {
             width: 34px;
             height: 26px;
