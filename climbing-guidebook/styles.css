@@ -4764,8 +4764,11 @@
         }
 
         .map-boulder-sector-icon {
-            border: 2px solid var(--boulder-color, #f04d23);
+            border: none;
+            border-radius: 4px;
+            background: transparent;
             color: var(--boulder-color, #f04d23);
+            overflow: hidden;
         }
 
         .map-route-sector-icon {
@@ -4775,8 +4778,8 @@
 
         .map-boulder-sector-icon svg {
             display: block;
-            width: 12px;
-            height: auto;
+            width: 100%;
+            height: 100%;
         }
 
         .map-route-sector-icon svg {
@@ -4795,7 +4798,8 @@
         }
 
         .map-feature-boulder-sector-icon svg {
-            width: 17px;
+            width: 100%;
+            height: 100%;
         }
 
         .map-feature-route-sector-icon svg {
@@ -4834,8 +4838,10 @@
         }
 
         .map-sector-badge--boulder .map-sector-badge-glyph {
-            border-color: var(--boulder-color, #f04d23);
+            border: none;
+            border-radius: 4px;
             color: var(--boulder-color, #f04d23);
+            background: transparent;
         }
 
         .map-sector-badge--area .map-sector-badge-glyph.map-area-badge-glyph {
@@ -4981,8 +4987,13 @@
         }
 
         .map-legend-sector--boulder {
-            border-color: var(--boulder-color);
+            border: none;
+            border-radius: 4px;
+            width: 20px;
+            height: 20px;
             color: var(--boulder-color);
+            background: transparent;
+            box-shadow: none;
         }
 
         .map-legend-sector svg {
@@ -4992,7 +5003,8 @@
         }
 
         .map-legend-sector--boulder svg {
-            width: 10px;
+            width: 20px;
+            height: 20px;
         }
 
         .catalog-sector-kind-icon {
@@ -5021,7 +5033,8 @@
         }
 
         .map-boulder-sector-icon--tool svg {
-            width: 9px;
+            width: 100%;
+            height: 100%;
         }
 
         .map-route-sector-icon--tool svg {

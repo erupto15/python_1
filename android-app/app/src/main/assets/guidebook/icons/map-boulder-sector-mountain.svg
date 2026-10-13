@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" aria-hidden="true">
+  <rect width="20" height="20" rx="3.5" fill="#fff"/>
+  <rect x="1" y="1" width="18" height="18" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.75"/>
+  <path fill="currentColor" d="M2 14.25h16v1.75H2z"/>
+  <path fill="currentColor" d="M3.25 14 7.85 5.15 10.35 9.85 12.95 6.35 16.75 14z"/>
+  <path fill="#fff" opacity="0.95" d="M7.85 5.15 8.65 7.35 7.05 9.55 5.95 8.35z"/>
+  <path fill="#fff" opacity="0.95" d="M12.95 6.35 13.55 7.75 12.15 9.55 10.35 9.85z"/>
+</svg>

@@ -326,6 +326,7 @@ public class MainActivity extends AppCompatActivity {
                     "/styles.css",
                     "/map-tiles.js",
                     "/icons/map-route-sector-climber.svg",
+                    "/icons/map-boulder-sector-mountain.svg",
                     "/icons/map-boulder-sector-climber.svg",
                     "/api/catalog/manifest",
                     "/api/catalog/bundle"

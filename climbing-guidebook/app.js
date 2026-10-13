@@ -665,7 +665,7 @@
         const APP_BOULDER_ONLY = false;
         /** Трассы / боулдер: icons/map-*-sector-climber.svg (AllClimb-style) */
         let MAP_ROUTE_SECTOR_CLIMBER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26.27 41" aria-hidden="true"><path fill="currentColor" d="M12.41,9.72A3.86,3.86,0,1,0,8.55,5.85,3.87,3.87,0,0,0,12.41,9.72Z"/><path fill="currentColor" d="M23.19,0a1.52,1.52,0,0,0-1.52,1.52,9.38,9.38,0,0,1-9,9.36c0,1-.08,2-.13,3A12.42,12.42,0,0,0,24.71,1.52,1.52,1.52,0,0,0,23.19,0Z"/><rect fill="currentColor" x="8.77" y="12" width="7.29" height="6.23"/><path fill="currentColor" d="M3.11,40.08A1.82,1.82,0,0,1,1.5,37.41l7.26-13.9A1.82,1.82,0,0,1,12,25.2L4.72,39.1A1.82,1.82,0,0,1,3.11,40.08Z"/><path fill="currentColor" d="M19,30.5a1.82,1.82,0,0,1-1.77-2.27l1.27-4.94L14.9,24.77a1.82,1.82,0,0,1-1.38-3.37l7-2.86a1.82,1.82,0,0,1,2.46,2.14l-2.17,8.45A1.82,1.82,0,0,1,19,30.5Z"/><path fill="currentColor" d="M15.44,18.25a.61.61,0,0,1,0-1.22,9.89,9.89,0,0,0,8.25-4.51c1.34-2.15,2.37-5.86-.33-11.36A.61.61,0,0,1,24.45.63c2.94,6,1.77,10.13.27,12.54A11.13,11.13,0,0,1,15.44,18.25Z"/><path fill="currentColor" d="M8.76,20.37v3a2,2,0,0,0,2,2H13c1.13,0,3-1.08,3-2.16V20.37Z"/><rect fill="currentColor" x="12.54" y="26.75" width="1.22" height="14.26"/><path fill="currentColor" d="M12.7,10.88l-.29,0A12.43,12.43,0,0,0,0,23.27a1.52,1.52,0,1,0,3,0,9.39,9.39,0,0,1,9.38-9.37h.29Z"/></svg>';
-        let MAP_BOULDER_SECTOR_CLIMBER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" aria-hidden="true"><circle fill="currentColor" cx="11.5" cy="5.2" r="3.35"/><rect fill="currentColor" x="8.6" y="8.8" width="5.8" height="5.6" rx="0.4"/><path fill="currentColor" d="M14.2 9.2 19.2 3.6 20.6 4.9 15.8 10.4z"/><path fill="currentColor" d="M8.4 10.1 3.8 12.4 4.9 14.1 9.2 11.5z"/><path fill="currentColor" d="M9.2 14.6 3.4 29.8 5.6 30.6 10.4 16.2z"/><path fill="currentColor" d="M12.8 14.5 17.6 27.2 19.6 26.2 14.9 15.8z"/><path fill="currentColor" d="M9.8 14.2h3.4v2.4H9.8z"/></svg>';
+        let MAP_BOULDER_SECTOR_CLIMBER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" aria-hidden="true"><rect width="20" height="20" rx="3.5" fill="#fff"/><rect x="1" y="1" width="18" height="18" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.75"/><path fill="currentColor" d="M2 14.25h16v1.75H2z"/><path fill="currentColor" d="M3.25 14 7.85 5.15 10.35 9.85 12.95 6.35 16.75 14z"/><path fill="#fff" opacity="0.95" d="M7.85 5.15 8.65 7.35 7.05 9.55 5.95 8.35z"/><path fill="#fff" opacity="0.95" d="M12.95 6.35 13.55 7.75 12.15 9.55 10.35 9.85z"/></svg>';
         /** Район: метка на сложенной карте (как в UI-кит). */
         const AREA_DISTRICT_ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 56" aria-hidden="true"><path fill="currentColor" d="M32 7C23.16 7 16 14.04 16 22.67 16 32.23 32 47 32 47S48 32.23 48 22.67C48 14.04 40.84 7 32 7z"/><circle cx="32" cy="20.5" r="6" class="area-district-icon-hole"/></svg>';
         const MAP_AREA_DROPLET_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 36" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M3 30h22M3 30l4-2.5 4 1.5 4-1.5 4 2.5"/><path fill="currentColor" d="M14 3.5c-3.2 0-5.8 2.5-5.8 5.6 0 3.3 5.8 10.9 5.8 10.9s5.8-7.6 5.8-10.9c0-3.1-2.6-5.6-5.8-5.6zm0 3.6a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/><circle cx="14" cy="8.6" r="1.55" class="area-district-icon-hole"/></svg>';
@@ -697,7 +697,7 @@
             if (typeof fetch !== 'function') return;
             Promise.all([
                 fetch('/icons/map-route-sector-climber.svg').then((r) => (r.ok ? r.text() : '')).catch(() => ''),
-                fetch('/icons/map-boulder-sector-climber.svg').then((r) => (r.ok ? r.text() : '')).catch(() => '')
+                fetch('/icons/map-boulder-sector-mountain.svg').then((r) => (r.ok ? r.text() : '')).catch(() => '')
             ]).then(([routeSvg, boulderSvg]) => {
                 const route = normalizeInlineMapSectorSvg(routeSvg);
                 const boulder = normalizeInlineMapSectorSvg(boulderSvg);
@@ -7765,6 +7765,29 @@
                 return boulders > 0 && routes === 0;
             }
 
+            resolveMapSectorSignIsBoulder(sectorId = null) {
+                if (sectorId != null && Number.isFinite(Number(sectorId))) {
+                    return this.isBoulderSector(sectorId);
+                }
+                if (this._mapCatalogPinMove?.kind === 'sector') {
+                    return this.isBoulderSector(this._mapCatalogPinMove.id);
+                }
+                if (this.catalog?.view === 'problems' && this.catalog?.sectorId != null) {
+                    return this.isBoulderSector(this.catalog.sectorId);
+                }
+                return !!APP_BOULDER_ONLY;
+            }
+
+            fillMapSectorSignToolIcon(sectorId = null) {
+                const el = document.getElementById('mapToolSectorSignIcon');
+                if (!el) return;
+                const boulder = this.resolveMapSectorSignIsBoulder(sectorId);
+                el.className = boulder
+                    ? 'map-boulder-sector-icon map-boulder-sector-icon--tool'
+                    : 'map-route-sector-icon map-route-sector-icon--tool';
+                el.innerHTML = boulder ? MAP_BOULDER_SECTOR_CLIMBER_SVG : MAP_ROUTE_SECTOR_CLIMBER_SVG;
+            }
+
             fillMapLegendSectorIcons() {
                 const routeEl = document.getElementById('mapLegendSectorRoute');
                 const boulderEl = document.getElementById('mapLegendSectorBoulder');
@@ -7772,9 +7795,10 @@
                 if (routeEl && !routeEl.querySelector('svg')) {
                     routeEl.innerHTML = MAP_ROUTE_SECTOR_CLIMBER_SVG;
                 }
-                if (boulderEl && !boulderEl.querySelector('svg')) {
+                if (boulderEl) {
                     boulderEl.innerHTML = MAP_BOULDER_SECTOR_CLIMBER_SVG;
                 }
+                this.fillMapSectorSignToolIcon();
                 if (areaEl) {
                     const inCatalog = Boolean(areaEl.closest('#catalogMapLegendMount'));
                     const styleKey = inCatalog ? 'catalog' : 'default';
@@ -9096,6 +9120,7 @@
                 document.querySelectorAll('.map-draw-tool-btn').forEach((btn) => {
                     btn.classList.toggle('active', btn.dataset.mapTool === this.mapDrawTool);
                 });
+                this.fillMapSectorSignToolIcon();
                 this.syncMapFeatureEditBar();
                 this.map?.getContainer()?.classList.toggle('map-edit-mode', !!this.mapEditMode);
             }
@@ -9289,6 +9314,7 @@
                         const sector = sectors.find((s) => Number(s.id) === sectorId);
                         if (sector && !areaId) areaId = Number(sector.areaId);
                         label = pick.text || sector?.name || '';
+                        this.fillMapSectorSignToolIcon(sectorId);
                     } else {
                         label = getSectors().find((s) => Number(s.id) === Number(sectorId))?.name || '';
                         const pick = await this.promptMapTextInput({
