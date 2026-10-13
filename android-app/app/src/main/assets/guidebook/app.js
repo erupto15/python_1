@@ -7987,6 +7987,64 @@
                 });
             }
 
+            mapLeafletPopupAutoPanPadding() {
+                const root = document.documentElement;
+                const safeTop = parseFloat(getComputedStyle(root).getPropertyValue('env(safe-area-inset-top)')) || 0;
+                const safeBottom = parseFloat(getComputedStyle(root).getPropertyValue('env(safe-area-inset-bottom)')) || 0;
+                const safeLeft = parseFloat(getComputedStyle(root).getPropertyValue('env(safe-area-inset-left)')) || 0;
+                const safeRight = parseFloat(getComputedStyle(root).getPropertyValue('env(safe-area-inset-right)')) || 0;
+                const pad = 14;
+                return [
+                    [pad + safeTop, pad + safeLeft],
+                    [pad + safeBottom, pad + safeRight]
+                ];
+            }
+
+            mapBoulderStackPopupMaxWidth() {
+                const mapEl = this.map?.getContainer?.();
+                const rect = mapEl?.getBoundingClientRect?.();
+                const mapW = rect?.width > 0 ? rect.width : (window.innerWidth || 360);
+                const horizontalPad = 24;
+                return Math.min(360, Math.max(220, Math.floor(mapW - horizontalPad)));
+            }
+
+            mapMarkerPopupOptions(entry) {
+                const isBoulderStack = entry?.kind === 'boulder' && entry.boulderAtPin?.length > 1;
+                const [topLeft, bottomRight] = this.mapLeafletPopupAutoPanPadding();
+                if (isBoulderStack) {
+                    return {
+                        className: 'map-leaflet-popup map-leaflet-popup--boulder-stack',
+                        maxWidth: this.mapBoulderStackPopupMaxWidth(),
+                        minWidth: 220,
+                        autoPan: true,
+                        autoPanPaddingTopLeft: L.point(topLeft[0], topLeft[1]),
+                        autoPanPaddingBottomRight: L.point(bottomRight[0], bottomRight[1])
+                    };
+                }
+                return {
+                    className: 'map-leaflet-popup',
+                    maxWidth: Math.min(320, this.mapBoulderStackPopupMaxWidth()),
+                    autoPan: true,
+                    autoPanPaddingTopLeft: L.point(topLeft[0], topLeft[1]),
+                    autoPanPaddingBottomRight: L.point(bottomRight[0], bottomRight[1])
+                };
+            }
+
+            bindMapMarkerPopup(marker, entry) {
+                if (!marker) return;
+                marker.bindPopup(this.buildMapPopupHtml(entry), this.mapMarkerPopupOptions(entry));
+            }
+
+            syncMapMarkerPopupLayout(entry) {
+                const marker = entry?.marker;
+                const popup = marker?.getPopup?.();
+                if (!popup) return;
+                const opts = this.mapMarkerPopupOptions(entry);
+                popup.options.maxWidth = opts.maxWidth;
+                if (opts.className) popup.options.className = opts.className;
+                marker.setPopupContent(this.buildMapPopupHtml(entry));
+            }
+
             createMapDotMarker(entry, coord, { addToMap = true } = {}) {
                 const icon = L.divIcon({
                     className: 'map-climb-dot-marker',
@@ -8000,7 +8058,7 @@
                     zIndexOffset: 500
                 });
                 if (addToMap) marker.addTo(this.map);
-                marker.bindPopup(this.buildMapPopupHtml(entry));
+                this.bindMapMarkerPopup(marker, entry);
                 this.bindMapClimbDotMarkerClick(marker, entry);
                 return marker;
             }
@@ -8018,7 +8076,7 @@
                     zIndexOffset: 600
                 });
                 if (addToMap) marker.addTo(this.map);
-                marker.bindPopup(this.buildMapPopupHtml(entry));
+                this.bindMapMarkerPopup(marker, entry);
                 this.bindMapClimbDotMarkerClick(marker, entry);
                 return marker;
             }
@@ -8225,7 +8283,7 @@
                         }));
                         this.bindMapClimbDotMarkerClick(stored.marker, stored);
                         if (stored.marker?.getPopup?.()) {
-                            stored.marker.setPopupContent(this.buildMapPopupHtml(stored));
+                            this.syncMapMarkerPopupLayout(stored);
                         }
                         stored.labelEl = stored.marker.getElement()?.querySelector(
                             isBoulder ? '.map-boulder-pin-hit' : '.map-climb-dot-hit'

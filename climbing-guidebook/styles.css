@@ -61,6 +61,11 @@
             --map-grade-red: #e53935;
             --map-grade-black: #2a2a2e;
             --map-tick-done: #4caf50;
+            --map-popup-float-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+            --map-popup-float-close-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+            --map-popup-boulder-item-bg: color-mix(in srgb, var(--card-bg) 88%, transparent);
+            --map-popup-boulder-item-bg-active: color-mix(in srgb, var(--surface-elevated) 92%, transparent);
+            --map-popup-boulder-item-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
             /* Media tiles */
             --media-tile-bg: #12151c;
             --media-video-bg: #10131a;
@@ -178,6 +183,11 @@
             --tabs-inactive-bg: #ffffff;
             --action-btn-bg: #ffffff;
             --map-panel: rgba(255, 255, 255, 0.92);
+            --map-popup-float-shadow: 0 1px 2px rgba(255, 255, 255, 0.92), 0 0 1px rgba(255, 255, 255, 0.95);
+            --map-popup-float-close-shadow: 0 1px 2px rgba(255, 255, 255, 0.95), 0 0 1px rgba(255, 255, 255, 1);
+            --map-popup-boulder-item-bg: color-mix(in srgb, var(--card-bg) 96%, transparent);
+            --map-popup-boulder-item-bg-active: color-mix(in srgb, var(--surface-elevated) 98%, rgba(0, 0, 0, 0.04));
+            --map-popup-boulder-item-shadow: 0 2px 10px rgba(24, 32, 48, 0.14);
             --media-tile-bg: #edf1f6;
             --media-video-bg: #e4e9f0;
             --media-empty-fg: rgba(26, 31, 44, 0.42);
@@ -5459,37 +5469,66 @@
             min-height: 34px;
         }
 
+        .leaflet-popup.map-leaflet-popup--boulder-stack,
+        .leaflet-popup:has(.map-popup--boulder-stack) {
+            width: min(100%, calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 20px)) !important;
+            max-width: min(22.5rem, calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 20px));
+            box-sizing: border-box;
+        }
+
+        .catalog-map-block .leaflet-popup.map-leaflet-popup--boulder-stack,
+        .catalog-map-block .leaflet-popup:has(.map-popup--boulder-stack) {
+            width: min(100%, calc(100% - 12px)) !important;
+            max-width: calc(100% - 12px);
+        }
+
         .leaflet-popup:has(.map-popup--boulder-stack) .leaflet-popup-content-wrapper,
         .leaflet-popup:has(.map-popup--boulder-stack) .leaflet-popup-tip {
             background: transparent !important;
             box-shadow: none !important;
             border: none;
+            width: 100% !important;
+            max-width: 100%;
         }
 
         .leaflet-popup:has(.map-popup--boulder-stack) .leaflet-popup-content {
             margin: 10px 22px 8px 8px;
             background: transparent;
+            width: auto !important;
+            max-width: 100%;
+            box-sizing: border-box;
         }
 
         .leaflet-popup:has(.map-popup--boulder-stack) a.leaflet-popup-close-button {
             color: var(--text-color);
-            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+            text-shadow: var(--map-popup-float-close-shadow);
         }
 
         .map-popup--boulder-stack {
             background: transparent;
             color: var(--text-color);
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            max-height: min(68dvh, calc(var(--app-height, 100dvh) * 0.68));
         }
 
         .map-popup--boulder-stack strong {
             display: block;
-            font-size: 15px;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+            font-size: clamp(14px, 3.6vw, 16px);
+            color: var(--text-color);
+            text-shadow: var(--map-popup-float-shadow);
+            line-height: 1.25;
         }
 
         .map-popup--boulder-stack .map-popup-meta {
             color: var(--light-text);
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+            text-shadow: var(--map-popup-float-shadow);
+            font-size: clamp(11px, 3.1vw, 12px);
+            line-height: 1.35;
+            overflow-wrap: anywhere;
         }
 
         .map-popup--boulder-stack .map-popup-actions {
@@ -5497,7 +5536,8 @@
         }
 
         .map-popup--boulder-stack .map-popup-actions .btn-ghost {
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+            color: var(--text-color);
+            text-shadow: var(--map-popup-float-shadow);
         }
 
         .map-popup-boulder-list {
@@ -5505,8 +5545,12 @@
             flex-direction: column;
             gap: 4px;
             margin-top: 8px;
-            max-height: min(240px, 42vh);
+            flex: 1 1 auto;
+            min-height: 0;
+            max-height: min(52dvh, calc(var(--app-height, 100dvh) - 11rem));
             overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
         }
 
         .map-popup-boulder-item {
@@ -5515,11 +5559,13 @@
             justify-content: space-between;
             gap: 8px;
             width: 100%;
+            max-width: 100%;
             margin: 0;
-            padding: 8px 10px;
+            padding: clamp(7px, 2vw, 10px) clamp(8px, 2.4vw, 12px);
+            box-sizing: border-box;
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            background: color-mix(in srgb, var(--card-bg) 88%, transparent);
+            background: var(--map-popup-boulder-item-bg);
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
             color: var(--text-color);
@@ -5527,11 +5573,15 @@
             text-align: left;
             cursor: pointer;
             touch-action: manipulation;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+            box-shadow: var(--map-popup-boulder-item-shadow);
         }
 
         .map-popup-boulder-item:active {
-            background: color-mix(in srgb, var(--surface-elevated) 92%, transparent);
+            background: var(--map-popup-boulder-item-bg-active);
+        }
+
+        .map-popup-boulder-item .map-popup-boulder-name {
+            text-shadow: none;
         }
 
         .map-popup-boulder-name {
@@ -5539,6 +5589,14 @@
             min-width: 0;
             font-weight: 600;
             line-height: 1.25;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .map-popup-boulder-grade,
+        .map-popup-boulder-sent {
+            flex-shrink: 0;
         }
 
         .map-popup-boulder-grade {

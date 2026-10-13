@@ -61,6 +61,11 @@
             --map-grade-red: #e53935;
             --map-grade-black: #2a2a2e;
             --map-tick-done: #4caf50;
+            --map-popup-float-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+            --map-popup-float-close-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+            --map-popup-boulder-item-bg: color-mix(in srgb, var(--card-bg) 88%, transparent);
+            --map-popup-boulder-item-bg-active: color-mix(in srgb, var(--surface-elevated) 92%, transparent);
+            --map-popup-boulder-item-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
             /* Media tiles */
             --media-tile-bg: #12151c;
             --media-video-bg: #10131a;
@@ -178,6 +183,11 @@
             --tabs-inactive-bg: #ffffff;
             --action-btn-bg: #ffffff;
             --map-panel: rgba(255, 255, 255, 0.92);
+            --map-popup-float-shadow: 0 1px 2px rgba(255, 255, 255, 0.92), 0 0 1px rgba(255, 255, 255, 0.95);
+            --map-popup-float-close-shadow: 0 1px 2px rgba(255, 255, 255, 0.95), 0 0 1px rgba(255, 255, 255, 1);
+            --map-popup-boulder-item-bg: color-mix(in srgb, var(--card-bg) 96%, transparent);
+            --map-popup-boulder-item-bg-active: color-mix(in srgb, var(--surface-elevated) 98%, rgba(0, 0, 0, 0.04));
+            --map-popup-boulder-item-shadow: 0 2px 10px rgba(24, 32, 48, 0.14);
             --media-tile-bg: #edf1f6;
             --media-video-bg: #e4e9f0;
             --media-empty-fg: rgba(26, 31, 44, 0.42);
@@ -5473,7 +5483,7 @@
 
         .leaflet-popup:has(.map-popup--boulder-stack) a.leaflet-popup-close-button {
             color: var(--text-color);
-            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+            text-shadow: var(--map-popup-float-close-shadow);
         }
 
         .map-popup--boulder-stack {
@@ -5484,12 +5494,13 @@
         .map-popup--boulder-stack strong {
             display: block;
             font-size: 15px;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+            color: var(--text-color);
+            text-shadow: var(--map-popup-float-shadow);
         }
 
         .map-popup--boulder-stack .map-popup-meta {
             color: var(--light-text);
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+            text-shadow: var(--map-popup-float-shadow);
         }
 
         .map-popup--boulder-stack .map-popup-actions {
@@ -5497,7 +5508,8 @@
         }
 
         .map-popup--boulder-stack .map-popup-actions .btn-ghost {
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+            color: var(--text-color);
+            text-shadow: var(--map-popup-float-shadow);
         }
 
         .map-popup-boulder-list {
@@ -5519,7 +5531,7 @@
             padding: 8px 10px;
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            background: color-mix(in srgb, var(--card-bg) 88%, transparent);
+            background: var(--map-popup-boulder-item-bg);
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
             color: var(--text-color);
@@ -5527,11 +5539,15 @@
             text-align: left;
             cursor: pointer;
             touch-action: manipulation;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+            box-shadow: var(--map-popup-boulder-item-shadow);
         }
 
         .map-popup-boulder-item:active {
-            background: color-mix(in srgb, var(--surface-elevated) 92%, transparent);
+            background: var(--map-popup-boulder-item-bg-active);
+        }
+
+        .map-popup-boulder-item .map-popup-boulder-name {
+            text-shadow: none;
         }
 
         .map-popup-boulder-name {

@@ -7987,6 +7987,59 @@
                 });
             }
 
+            mapLeafletPopupAutoPanPadding() {
+                const pad = 18;
+                return {
+                    topLeft: L.point(pad, pad + 6),
+                    bottomRight: L.point(pad, pad)
+                };
+            }
+
+            mapBoulderStackPopupMaxWidth() {
+                const mapEl = this.map?.getContainer?.();
+                const rect = mapEl?.getBoundingClientRect?.();
+                const mapW = rect?.width > 0 ? rect.width : (window.innerWidth || 360);
+                const horizontalPad = 24;
+                return Math.min(360, Math.max(220, Math.floor(mapW - horizontalPad)));
+            }
+
+            mapMarkerPopupOptions(entry) {
+                const isBoulderStack = entry?.kind === 'boulder' && entry.boulderAtPin?.length > 1;
+                const panPad = this.mapLeafletPopupAutoPanPadding();
+                if (isBoulderStack) {
+                    return {
+                        className: 'map-leaflet-popup map-leaflet-popup--boulder-stack',
+                        maxWidth: this.mapBoulderStackPopupMaxWidth(),
+                        minWidth: 220,
+                        autoPan: true,
+                        autoPanPaddingTopLeft: panPad.topLeft,
+                        autoPanPaddingBottomRight: panPad.bottomRight
+                    };
+                }
+                return {
+                    className: 'map-leaflet-popup',
+                    maxWidth: Math.min(320, this.mapBoulderStackPopupMaxWidth()),
+                    autoPan: true,
+                    autoPanPaddingTopLeft: panPad.topLeft,
+                    autoPanPaddingBottomRight: panPad.bottomRight
+                };
+            }
+
+            bindMapMarkerPopup(marker, entry) {
+                if (!marker) return;
+                marker.bindPopup(this.buildMapPopupHtml(entry), this.mapMarkerPopupOptions(entry));
+            }
+
+            syncMapMarkerPopupLayout(entry) {
+                const marker = entry?.marker;
+                const popup = marker?.getPopup?.();
+                if (!popup) return;
+                const opts = this.mapMarkerPopupOptions(entry);
+                popup.options.maxWidth = opts.maxWidth;
+                if (opts.className) popup.options.className = opts.className;
+                marker.setPopupContent(this.buildMapPopupHtml(entry));
+            }
+
             createMapDotMarker(entry, coord, { addToMap = true } = {}) {
                 const icon = L.divIcon({
                     className: 'map-climb-dot-marker',
@@ -8000,7 +8053,7 @@
                     zIndexOffset: 500
                 });
                 if (addToMap) marker.addTo(this.map);
-                marker.bindPopup(this.buildMapPopupHtml(entry));
+                this.bindMapMarkerPopup(marker, entry);
                 this.bindMapClimbDotMarkerClick(marker, entry);
                 return marker;
             }
@@ -8018,7 +8071,7 @@
                     zIndexOffset: 600
                 });
                 if (addToMap) marker.addTo(this.map);
-                marker.bindPopup(this.buildMapPopupHtml(entry));
+                this.bindMapMarkerPopup(marker, entry);
                 this.bindMapClimbDotMarkerClick(marker, entry);
                 return marker;
             }
@@ -8225,7 +8278,7 @@
                         }));
                         this.bindMapClimbDotMarkerClick(stored.marker, stored);
                         if (stored.marker?.getPopup?.()) {
-                            stored.marker.setPopupContent(this.buildMapPopupHtml(stored));
+                            this.syncMapMarkerPopupLayout(stored);
                         }
                         stored.labelEl = stored.marker.getElement()?.querySelector(
                             isBoulder ? '.map-boulder-pin-hit' : '.map-climb-dot-hit'
