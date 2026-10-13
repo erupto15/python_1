@@ -2039,8 +2039,14 @@
         .catalog-toolbar {
             display: flex;
             flex-wrap: wrap;
+            align-items: stretch;
             gap: 10px;
             margin-bottom: 16px;
+        }
+
+        .catalog-toolbar .btn {
+            flex: 1 1 12rem;
+            justify-content: center;
         }
 
         .catalog-guide-hero {
@@ -2114,10 +2120,17 @@
 
         html.catalog-map-minimal.catalog-admin.catalog-sector-focus #catalog .catalog-toolbar {
             display: flex !important;
-            flex-wrap: wrap;
+            flex-direction: column;
+            flex-wrap: nowrap;
+            align-items: stretch;
             gap: 8px;
             margin: 0 0 10px;
             padding: 0;
+        }
+
+        html.catalog-map-minimal.catalog-admin.catalog-sector-focus #catalog .catalog-toolbar .btn {
+            flex: 1 1 auto;
+            width: 100%;
         }
 
         html.catalog-sector-focus #catalog > .card {
@@ -2159,8 +2172,14 @@
             margin-top: 2px;
             display: flex;
             flex-direction: column;
-            align-items: flex-end;
+            align-items: stretch;
             gap: 6px;
+            min-width: min(100%, 13.5rem);
+        }
+
+        .catalog-guide-actions--compact .btn {
+            width: 100%;
+            justify-content: center;
         }
 
         html.catalog-sector-focus #catalogList {
