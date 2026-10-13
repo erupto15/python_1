@@ -7988,16 +7988,11 @@
             }
 
             mapLeafletPopupAutoPanPadding() {
-                const root = document.documentElement;
-                const safeTop = parseFloat(getComputedStyle(root).getPropertyValue('env(safe-area-inset-top)')) || 0;
-                const safeBottom = parseFloat(getComputedStyle(root).getPropertyValue('env(safe-area-inset-bottom)')) || 0;
-                const safeLeft = parseFloat(getComputedStyle(root).getPropertyValue('env(safe-area-inset-left)')) || 0;
-                const safeRight = parseFloat(getComputedStyle(root).getPropertyValue('env(safe-area-inset-right)')) || 0;
-                const pad = 14;
-                return [
-                    [pad + safeTop, pad + safeLeft],
-                    [pad + safeBottom, pad + safeRight]
-                ];
+                const pad = 18;
+                return {
+                    topLeft: L.point(pad, pad + 6),
+                    bottomRight: L.point(pad, pad)
+                };
             }
 
             mapBoulderStackPopupMaxWidth() {
@@ -8010,23 +8005,23 @@
 
             mapMarkerPopupOptions(entry) {
                 const isBoulderStack = entry?.kind === 'boulder' && entry.boulderAtPin?.length > 1;
-                const [topLeft, bottomRight] = this.mapLeafletPopupAutoPanPadding();
+                const panPad = this.mapLeafletPopupAutoPanPadding();
                 if (isBoulderStack) {
                     return {
                         className: 'map-leaflet-popup map-leaflet-popup--boulder-stack',
                         maxWidth: this.mapBoulderStackPopupMaxWidth(),
                         minWidth: 220,
                         autoPan: true,
-                        autoPanPaddingTopLeft: L.point(topLeft[0], topLeft[1]),
-                        autoPanPaddingBottomRight: L.point(bottomRight[0], bottomRight[1])
+                        autoPanPaddingTopLeft: panPad.topLeft,
+                        autoPanPaddingBottomRight: panPad.bottomRight
                     };
                 }
                 return {
                     className: 'map-leaflet-popup',
                     maxWidth: Math.min(320, this.mapBoulderStackPopupMaxWidth()),
                     autoPan: true,
-                    autoPanPaddingTopLeft: L.point(topLeft[0], topLeft[1]),
-                    autoPanPaddingBottomRight: L.point(bottomRight[0], bottomRight[1])
+                    autoPanPaddingTopLeft: panPad.topLeft,
+                    autoPanPaddingBottomRight: panPad.bottomRight
                 };
             }
 
@@ -12311,7 +12306,7 @@
                         body: JSON.stringify(routePayload)
                     });
                     let createdRoutePhoto = null;
-                    if (!editId && routePhotoData?.data) {
+                    if (routePhotoData?.data) {
                         createdRoutePhoto = await apiFetch('/api/photos', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -12388,7 +12383,7 @@
                         body: JSON.stringify(boulderPayload)
                     });
                     let createdBoulderPhoto = null;
-                    if (!editId && boulderPhotoData?.data) {
+                    if (boulderPhotoData?.data) {
                         createdBoulderPhoto = await apiFetch('/api/photos', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },

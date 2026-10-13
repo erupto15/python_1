@@ -12306,7 +12306,7 @@
                         body: JSON.stringify(routePayload)
                     });
                     let createdRoutePhoto = null;
-                    if (!editId && routePhotoData?.data) {
+                    if (routePhotoData?.data) {
                         createdRoutePhoto = await apiFetch('/api/photos', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -12383,7 +12383,7 @@
                         body: JSON.stringify(boulderPayload)
                     });
                     let createdBoulderPhoto = null;
-                    if (!editId && boulderPhotoData?.data) {
+                    if (boulderPhotoData?.data) {
                         createdBoulderPhoto = await apiFetch('/api/photos', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },

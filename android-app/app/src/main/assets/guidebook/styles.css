@@ -5469,16 +5469,34 @@
             min-height: 34px;
         }
 
+        .leaflet-popup.map-leaflet-popup--boulder-stack,
+        .leaflet-popup:has(.map-popup--boulder-stack) {
+            width: min(100%, calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 20px)) !important;
+            max-width: min(22.5rem, calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 20px));
+            box-sizing: border-box;
+        }
+
+        .catalog-map-block .leaflet-popup.map-leaflet-popup--boulder-stack,
+        .catalog-map-block .leaflet-popup:has(.map-popup--boulder-stack) {
+            width: min(100%, calc(100% - 12px)) !important;
+            max-width: calc(100% - 12px);
+        }
+
         .leaflet-popup:has(.map-popup--boulder-stack) .leaflet-popup-content-wrapper,
         .leaflet-popup:has(.map-popup--boulder-stack) .leaflet-popup-tip {
             background: transparent !important;
             box-shadow: none !important;
             border: none;
+            width: 100% !important;
+            max-width: 100%;
         }
 
         .leaflet-popup:has(.map-popup--boulder-stack) .leaflet-popup-content {
             margin: 10px 22px 8px 8px;
             background: transparent;
+            width: auto !important;
+            max-width: 100%;
+            box-sizing: border-box;
         }
 
         .leaflet-popup:has(.map-popup--boulder-stack) a.leaflet-popup-close-button {
@@ -5489,18 +5507,28 @@
         .map-popup--boulder-stack {
             background: transparent;
             color: var(--text-color);
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            max-height: min(68dvh, calc(var(--app-height, 100dvh) * 0.68));
         }
 
         .map-popup--boulder-stack strong {
             display: block;
-            font-size: 15px;
+            font-size: clamp(14px, 3.6vw, 16px);
             color: var(--text-color);
             text-shadow: var(--map-popup-float-shadow);
+            line-height: 1.25;
         }
 
         .map-popup--boulder-stack .map-popup-meta {
             color: var(--light-text);
             text-shadow: var(--map-popup-float-shadow);
+            font-size: clamp(11px, 3.1vw, 12px);
+            line-height: 1.35;
+            overflow-wrap: anywhere;
         }
 
         .map-popup--boulder-stack .map-popup-actions {
@@ -5517,8 +5545,12 @@
             flex-direction: column;
             gap: 4px;
             margin-top: 8px;
-            max-height: min(240px, 42vh);
+            flex: 1 1 auto;
+            min-height: 0;
+            max-height: min(52dvh, calc(var(--app-height, 100dvh) - 11rem));
             overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
         }
 
         .map-popup-boulder-item {
@@ -5527,8 +5559,10 @@
             justify-content: space-between;
             gap: 8px;
             width: 100%;
+            max-width: 100%;
             margin: 0;
-            padding: 8px 10px;
+            padding: clamp(7px, 2vw, 10px) clamp(8px, 2.4vw, 12px);
+            box-sizing: border-box;
             border: 1px solid var(--border-color);
             border-radius: 8px;
             background: var(--map-popup-boulder-item-bg);
@@ -5555,6 +5589,14 @@
             min-width: 0;
             font-weight: 600;
             line-height: 1.25;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .map-popup-boulder-grade,
+        .map-popup-boulder-sent {
+            flex-shrink: 0;
         }
 
         .map-popup-boulder-grade {
