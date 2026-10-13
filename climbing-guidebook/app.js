@@ -8133,7 +8133,6 @@
             buildMapBoulderStackPopupHtml(entry) {
                 const stack = entry.boulderAtPin || [];
                 const meta = entry.meta ? `<div class="map-popup-meta">${this.escapeHtml(entry.meta)}</div>` : '';
-                const coords = this.mapPopupCoordsHtml(entry.lat, entry.lng);
                 const items = stack.map((b) => {
                     const grade = b.grade ? `<span class="map-popup-boulder-grade">${this.escapeHtml(b.grade)}</span>` : '';
                     const sent = this.hasUserSent('boulder', b.id)
@@ -8154,7 +8153,6 @@
                     <div class="map-popup map-popup--boulder-stack">
                         <strong>${this.escapeHtml(entry.title || 'Боулдеры')}</strong>
                         ${meta}
-                        ${coords}
                         <div class="map-popup-boulder-list" role="list">${items}</div>
                         ${actionsBlock}
                     </div>
