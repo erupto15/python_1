@@ -8285,3 +8285,226 @@
                 filter: none;
             }
         }
+
+        /* ===== App shell: TG Mini App, APK, узкий viewport ===== */
+        .app-shell-only {
+            display: none !important;
+        }
+
+        html.app-shell .app-shell-only {
+            display: inline-flex !important;
+        }
+
+        html.app-shell:not(.tg-mini-app) {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            max-height: var(--app-height, 100dvh);
+            overflow: hidden;
+        }
+
+        html.app-shell:not(.tg-mini-app) body {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            max-width: none;
+            height: 100%;
+            max-height: var(--app-height, 100dvh);
+            min-height: 0;
+            margin: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior-y: contain;
+            -webkit-overflow-scrolling: touch;
+            padding:
+                calc(8px + env(safe-area-inset-top, 0px))
+                calc(10px + env(safe-area-inset-right, 0px))
+                calc(68px + env(safe-area-inset-bottom, 0px))
+                calc(10px + env(safe-area-inset-left, 0px));
+        }
+
+        html.app-shell.tg-mini-app body {
+            max-width: none;
+            margin: 0;
+            padding:
+                calc(8px + env(safe-area-inset-top, 0px))
+                calc(10px + env(safe-area-inset-right, 0px))
+                calc(68px + env(safe-area-inset-bottom, 0px))
+                calc(10px + env(safe-area-inset-left, 0px));
+        }
+
+        html.app-shell .container {
+            gap: 10px;
+            min-height: 0;
+        }
+
+        html.app-shell .tabs {
+            display: none !important;
+        }
+
+        html.app-shell header {
+            text-align: left;
+            padding: 4px 0 8px;
+            margin-bottom: 0;
+            border-radius: 0;
+            background: transparent;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        html.app-shell .header-top {
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px 8px;
+        }
+
+        html.app-shell .header-brand {
+            flex: 1 1 auto;
+            min-width: 0;
+            align-items: flex-start;
+            text-align: left;
+        }
+
+        html.app-shell .site-tagline {
+            display: none;
+        }
+
+        html.app-shell .header-brand h1.site-logo {
+            margin: 0;
+        }
+
+        html.app-shell .site-logo-mark {
+            transform: scale(0.82);
+            transform-origin: left center;
+        }
+
+        html.app-shell .header-corner-actions {
+            order: 2;
+            margin-left: auto;
+        }
+
+        html.app-shell .header-search-auth {
+            flex: 1 1 100%;
+            order: 3;
+            display: none;
+        }
+
+        html.app-shell.app-shell-global-search-open .header-search-auth {
+            display: flex;
+        }
+
+        html.app-shell .header-toolbar {
+            display: none;
+        }
+
+        html.app-shell.catalog-tab-active header .global-search-wrap {
+            display: none !important;
+        }
+
+        html.app-shell.app-shell-global-search-open header .global-search-wrap {
+            display: block !important;
+        }
+
+        html.app-shell #catalog > .card,
+        html.app-shell #map > .card,
+        html.app-shell #profile > .card,
+        html.app-shell #ranking > .card {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            border-radius: 0;
+            padding: 0;
+            margin-bottom: 0;
+            animation: none;
+        }
+
+        html.app-shell #catalog > .card > .card-header,
+        html.app-shell #map > .card > .card-header,
+        html.app-shell.app-shell-catalog-tab:not(.catalog-sector-focus):not(.catalog-assistant-search-open) #catalog > .card > .card-header {
+            display: none !important;
+        }
+
+        html.app-shell .catalog-card-search {
+            margin-top: 0;
+        }
+
+        html.app-shell.app-shell-map-tab #map .map-toolbar {
+            margin-top: 0;
+        }
+
+        html.app-shell.app-shell-map-tab #mapContainer {
+            height: min(62dvh, calc(var(--app-height, 100dvh) - 12.5rem));
+            min-height: 240px;
+        }
+
+        html.app-shell.app-shell-map-tab #map .card-title,
+        html.app-shell.app-shell-map-tab #map .overlay-screen-back {
+            display: none;
+        }
+
+        html.app-shell.catalog-sector-focus body {
+            padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        }
+
+        html.app-shell.catalog-sector-focus .app-bottom-nav {
+            display: none !important;
+        }
+
+        .app-bottom-nav {
+            display: none;
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 860;
+            padding: 6px calc(8px + env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) calc(8px + env(safe-area-inset-left, 0px));
+            background: color-mix(in srgb, var(--background-color) 92%, transparent);
+            border-top: 1px solid var(--border-color);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            gap: 4px;
+            justify-content: space-around;
+            align-items: stretch;
+        }
+
+        html.app-shell .app-bottom-nav {
+            display: flex;
+        }
+
+        .app-bottom-nav-btn {
+            flex: 1 1 0;
+            min-width: 0;
+            min-height: 48px;
+            margin: 0;
+            padding: 4px 6px 2px;
+            border: none;
+            border-radius: 12px;
+            background: transparent;
+            color: var(--light-text);
+            font: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .app-bottom-nav-btn i {
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        .app-bottom-nav-btn.active {
+            color: var(--primary-color);
+            background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+        }
+
+        .app-bottom-nav-btn:active {
+            transform: scale(0.97);
+        }

@@ -193,6 +193,7 @@
             window.__TG_WEB_APP_INITIALIZED = true;
 
             document.documentElement.classList.add('tg-mini-app');
+            if (typeof window.syncAppShellClass === 'function') window.syncAppShellClass();
             bindPreventHorizontalPageShift();
             window.__TG_INIT_DATA = tg.initData || '';
 
@@ -608,6 +609,31 @@
         window.syncMainTabChrome = function syncMainTabChrome() {
             const catalogActive = !!document.getElementById('catalog')?.classList.contains('active');
             document.documentElement.classList.toggle('catalog-tab-active', catalogActive);
+            if (typeof window.syncAppShellChrome === 'function') {
+                window.syncAppShellChrome();
+            }
+        };
+
+        window.syncAppShellChrome = function syncAppShellChrome() {
+            const root = document.documentElement;
+            if (!root.classList.contains('app-shell')) return;
+            const app = window.app;
+            const overlay = app && typeof app.getOpenOverlayTabId === 'function'
+                ? app.getOpenOverlayTabId()
+                : null;
+            const catalogActive = !!document.getElementById('catalog')?.classList.contains('active');
+            const mapActive = !!document.getElementById('map')?.classList.contains('active');
+            root.classList.toggle('app-shell-map-tab', !!mapActive && !overlay);
+            root.classList.toggle('app-shell-catalog-tab', !!catalogActive && !overlay);
+            document.querySelectorAll('.app-bottom-nav-btn').forEach((btn) => {
+                const nav = btn.dataset.appNav;
+                let active = false;
+                if (overlay === 'profile' && nav === 'profile') active = true;
+                else if (!overlay && catalogActive && nav === 'catalog') active = true;
+                else if (!overlay && mapActive && nav === 'map') active = true;
+                btn.classList.toggle('active', active);
+                btn.setAttribute('aria-current', active ? 'page' : 'false');
+            });
         };
 
         window.syncTelegramMiniAppUi = function syncTelegramMiniAppUi() {
@@ -5826,6 +5852,9 @@
                 this.setupEventListeners();
                 this.setupCommunityListeners();
                 this.setupTabSwitching();
+                this.setupAppShellNav();
+                if (typeof window.syncAppShellClass === 'function') window.syncAppShellClass();
+                if (typeof window.syncAppShellChrome === 'function') window.syncAppShellChrome();
                 this.applyRoleUI();
                 this.syncLoadPhotosButtonsUi();
             }
@@ -10946,6 +10975,7 @@
                 document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
                 document.getElementById('profile')?.classList.add('active');
+                document.documentElement.classList.remove('app-shell-global-search-open');
                 void this.renderProfileTab();
                 if (typeof window.syncMainTabChrome === 'function') window.syncMainTabChrome();
                 if (typeof window.syncTelegramMiniAppUi === 'function') {
@@ -12983,53 +13013,84 @@
                     }));
             }
 
+            async activateMainTab(tabId, { clickedBtn = null } = {}) {
+                if (!tabId) return;
+                document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+                const tabBtn = clickedBtn || document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+                if (tabBtn) tabBtn.classList.add('active');
+                const panel = document.getElementById(tabId);
+                if (!panel) return;
+                panel.classList.add('active');
+
+                if (tabId === 'map') {
+                    await ensureLeafletLoaded()
+                        .then(() => {
+                            if (!this.map) {
+                                this.initMap();
+                            } else {
+                                this.syncMapAfterTabShow();
+                            }
+                        })
+                        .catch((err) => {
+                            console.warn('leaflet', err);
+                            this.showToast('Карта недоступна без сети', true);
+                        });
+                } else if (tabId === 'photos') {
+                    this.renderPhotoAlbum();
+                } else if (tabId === 'catalog') {
+                    this.renderCatalog();
+                } else if (tabId === 'routes') {
+                    this.renderRoutes();
+                } else if (tabId === 'boulders') {
+                    this.renderBoulders();
+                } else if (tabId === 'updates') {
+                    this.renderUpdatesTab();
+                } else if (tabId === 'ranking') {
+                    void this.renderRankingTab();
+                }
+                if (typeof window.syncMainTabChrome === 'function') {
+                    window.syncMainTabChrome();
+                }
+                if (typeof window.syncTelegramMiniAppUi === 'function') {
+                    window.syncTelegramMiniAppUi();
+                }
+            }
+
+            navigateAppShellTab(navId) {
+                if (navId === 'profile') {
+                    this.openProfileTab();
+                    return;
+                }
+                if (this.getOpenOverlayTabId()) {
+                    this._lastMainTabBeforeOverlay = navId;
+                }
+                document.getElementById('profile')?.classList.remove('active');
+                document.getElementById('ranking')?.classList.remove('active');
+                void this.activateMainTab(navId);
+            }
+
+            setupAppShellNav() {
+                document.getElementById('appBottomNav')?.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-app-nav]');
+                    if (!btn) return;
+                    this.navigateAppShellTab(btn.dataset.appNav);
+                });
+                document.getElementById('headerSearchToggleBtn')?.addEventListener('click', () => {
+                    const root = document.documentElement;
+                    const open = !root.classList.contains('app-shell-global-search-open');
+                    root.classList.toggle('app-shell-global-search-open', open);
+                    document.getElementById('headerSearchToggleBtn')?.setAttribute('aria-expanded', open ? 'true' : 'false');
+                    if (open) {
+                        requestAnimationFrame(() => document.getElementById('globalSearch')?.focus());
+                    }
+                });
+            }
+
             setupTabSwitching() {
                 document.querySelectorAll('.tab-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
-                        void (async () => {
-                            const tabId = btn.dataset.tab;
-
-                            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-
-                            btn.classList.add('active');
-                            const panel = document.getElementById(tabId);
-                            if (!panel) return;
-                            panel.classList.add('active');
-
-                            if (tabId === 'map') {
-                                void ensureLeafletLoaded()
-                                    .then(() => {
-                                        if (!this.map) {
-                                            this.initMap();
-                                        } else {
-                                            this.syncMapAfterTabShow();
-                                        }
-                                    })
-                                    .catch((err) => {
-                                        console.warn('leaflet', err);
-                                        this.showToast('Карта недоступна без сети', true);
-                                    });
-                            } else if (tabId === 'photos') {
-                                this.renderPhotoAlbum();
-                            } else if (tabId === 'catalog') {
-                                this.renderCatalog();
-                            } else if (tabId === 'routes') {
-                                this.renderRoutes();
-                            } else if (tabId === 'boulders') {
-                                this.renderBoulders();
-                            } else if (tabId === 'updates') {
-                                this.renderUpdatesTab();
-                            } else if (tabId === 'ranking') {
-                                void this.renderRankingTab();
-                            }
-                            if (typeof window.syncMainTabChrome === 'function') {
-                                window.syncMainTabChrome();
-                            }
-                            if (typeof window.syncTelegramMiniAppUi === 'function') {
-                                window.syncTelegramMiniAppUi();
-                            }
-                        })();
+                        void this.activateMainTab(btn.dataset.tab, { clickedBtn: btn });
                     });
                 });
             }
