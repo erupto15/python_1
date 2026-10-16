@@ -2128,7 +2128,7 @@
             margin: 0 0 12px;
         }
 
-        html.catalog-map-minimal.catalog-admin.catalog-sector-focus #catalog .catalog-toolbar {
+        html.catalog-admin.catalog-sector-focus #catalog .catalog-toolbar {
             display: flex !important;
             flex-direction: column;
             flex-wrap: nowrap;
@@ -2138,9 +2138,10 @@
             padding: 0;
         }
 
-        html.catalog-map-minimal.catalog-admin.catalog-sector-focus #catalog .catalog-toolbar .btn {
+        html.catalog-admin.catalog-sector-focus #catalog .catalog-toolbar .btn {
             flex: 1 1 auto;
             width: 100%;
+            justify-content: center;
         }
 
         html.catalog-sector-focus #catalog > .card {
@@ -8396,6 +8397,23 @@
 
         html.app-shell .header-toolbar {
             display: none;
+        }
+
+        html.app-shell .header-search-auth:has(.auth-panel--visible),
+        html.app-shell .header-search-auth:has(#adminPasswordLoginBlock.is-visible) {
+            display: flex !important;
+        }
+
+        html.app-shell .header-search-auth:has(.auth-panel--visible) .header-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+        }
+
+        html.app-shell .profile-admin-entry {
+            margin-top: 14px;
         }
 
         html.app-shell.catalog-tab-active header .global-search-wrap {

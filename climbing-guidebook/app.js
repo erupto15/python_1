@@ -6580,6 +6580,7 @@
             applyRoleUI() {
                 const adminMode = this.isAdmin();
                 const loggedIn = this.isLoggedIn();
+                document.documentElement.classList.toggle('catalog-admin', adminMode);
                 document.querySelectorAll('.admin-only').forEach(el => {
                     if (adminMode) el.classList.remove('hidden-by-role');
                     else el.classList.add('hidden-by-role');
@@ -9710,7 +9711,6 @@
                 const active = embedded !== undefined ? embedded : this.catalogEmbeddedMapActive();
                 const minimal = active && this.catalog?.view === 'sectors';
                 document.documentElement.classList.toggle('catalog-map-minimal', !!minimal);
-                document.documentElement.classList.toggle('catalog-admin', !!minimal && this.isAdmin());
                 document.documentElement.classList.toggle('catalog-map-edit-active', !!active && this.isAdmin());
                 const block = document.getElementById('catalogMapBlock');
                 block?.classList.toggle('catalog-map-block--minimal', !!minimal);
@@ -15988,6 +15988,14 @@
                 });
                 document.getElementById('openRankingBtn')?.addEventListener('click', () => {
                     this.openRankingTab();
+                });
+                document.getElementById('profileAdminLoginBtn')?.addEventListener('click', () => {
+                    this.openAdminPasswordForm();
+                    if (document.documentElement.classList.contains('app-shell')) {
+                        document.documentElement.classList.add('app-shell-global-search-open');
+                        document.getElementById('headerSearchToggleBtn')?.setAttribute('aria-expanded', 'true');
+                        requestAnimationFrame(() => document.getElementById('loginPassword')?.focus());
+                    }
                 });
                 document.getElementById('profileBackBtn')?.addEventListener('click', () => {
                     this.closeOverlayTab();
