@@ -11505,6 +11505,59 @@
                     : `${sc} сект. · ${rc} трасс · ${bcnt} боулд.`;
             }
 
+            /** Подпись на карточке района у иконки маршрута: по фактическим трассам/боулдерам в районе. */
+            areaCatalogDisciplineLabel(area) {
+                const areaId = Number(area?.id);
+                if (!Number.isFinite(areaId)) return '';
+                const routes = getRoutes().filter((r) => Number(r.areaId) === areaId).length;
+                const boulders = getBoulders().filter((b) => Number(b.areaId) === areaId).length;
+                if (APP_BOULDER_ONLY) {
+                    return boulders > 0 ? 'БОЛДЕРИНГ' : '';
+                }
+                if (routes > 0 && boulders === 0) return 'ТРУДНОСТЬ';
+                if (boulders > 0 && routes === 0) return 'БОЛДЕРИНГ';
+                if (routes > 0 && boulders > 0) {
+                    return routes >= boulders ? 'ТРУДНОСТЬ' : 'БОЛДЕРИНГ';
+                }
+                return '';
+            }
+
+            catalogAreaDisciplineLabelClass(label) {
+                if (label === 'БОЛДЕРИНГ') {
+                    return 'catalog-area-discipline-label catalog-area-discipline-label--boulder';
+                }
+                if (label === 'ТРУДНОСТЬ') {
+                    return 'catalog-area-discipline-label catalog-area-discipline-label--route';
+                }
+                return 'catalog-area-discipline-label';
+            }
+
+            buildCatalogAreaNavBlockHtml(area) {
+                const label = this.areaCatalogDisciplineLabel(area);
+                const labelHtml = label
+                    ? `<span class="${this.catalogAreaDisciplineLabelClass(label)}">${this.escapeHtml(label)}</span>`
+                    : '';
+                return `<div class="catalog-area-card-nav">${labelHtml}${buildCatalogRouteNavButtonHtml('area', area.id)}</div>`;
+            }
+
+            syncCatalogAreaDisciplineLabel(row, area) {
+                if (!row) return;
+                const nav = row.querySelector('.catalog-area-card-nav');
+                if (!nav) return;
+                const label = this.areaCatalogDisciplineLabel(area);
+                let labelEl = nav.querySelector('.catalog-area-discipline-label');
+                if (!label) {
+                    labelEl?.remove();
+                    return;
+                }
+                if (!labelEl) {
+                    labelEl = document.createElement('span');
+                    nav.insertBefore(labelEl, nav.firstChild);
+                }
+                labelEl.className = this.catalogAreaDisciplineLabelClass(label);
+                labelEl.textContent = label;
+            }
+
             catalogImageSrcMatches(img, url) {
                 if (!img || !url) return false;
                 try {
@@ -11578,6 +11631,7 @@
                         descEl.remove();
                     }
                     this.updateCatalogAreaCardThumb(openBtn, area);
+                    this.syncCatalogAreaDisciplineLabel(row, area);
                     if (openBtn) {
                         openBtn.setAttribute('aria-label', `Открыть район: ${name}`);
                     }
@@ -11636,7 +11690,7 @@
                                         ${desc ? `<div class="catalog-area-card-desc">${this.escapeHtml(desc)}</div>` : ''}
                                     </div>
                                 </button>
-                                ${buildCatalogRouteNavButtonHtml('area', a.id)}
+                                ${this.buildCatalogAreaNavBlockHtml(a)}
                                 <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" style="align-self:center">
                                     ${this.renderRowActions(`data-catalog-act="edit-area" data-id="${a.id}"`, `data-catalog-act="delete-area" data-id="${a.id}"`)}
                                 </div>
