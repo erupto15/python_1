@@ -15881,7 +15881,7 @@
                 const paint = () => {
                     const geom = getMarkupStageGeometry(container);
 
-                    container.querySelectorAll('.markup-hold-hit').forEach((marker) => marker.remove());
+                    container.querySelectorAll('.markup-hold-hit, .line-marker').forEach((marker) => marker.remove());
 
                     if (!this._markupDialogViewOnly) {
                         (this.currentBoulderHoldsMarkup.startHolds || []).forEach((hold, index) => {
