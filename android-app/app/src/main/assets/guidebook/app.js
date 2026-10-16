@@ -711,7 +711,7 @@
 
         function buildCatalogRouteNavButtonHtml(mapKind, entityId) {
             const id = String(entityId);
-            return `<button type="button" class="catalog-map-btn catalog-route-nav-btn btn btn-small" data-catalog-act="nav-route" data-map-kind="${mapKind}" data-id="${id}" aria-label="Маршрут" title="Маршрут"><img class="catalog-route-nav-icon" src="icons/route-nav.png" alt="" decoding="async"></button>`;
+            return `<button type="button" class="catalog-map-btn catalog-route-nav-btn btn btn-small" data-catalog-act="nav-route" data-map-kind="${mapKind}" data-id="${id}" aria-label="Проложить маршрут" title="Проложить маршрут"><span class="map-navigate-icon" aria-hidden="true">${MAP_NAVIGATE_SVG}</span></button>`;
         }
 
         /** Кнопка «Моё местоположение»: классическая метка-pin с точкой внутри. */
