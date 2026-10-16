@@ -14162,7 +14162,9 @@
                     this.hideDialog('mapsChooserDialog');
                     this.openMapsLink(url);
                 });
-                document.getElementById('climbDetailNavigateBtn')?.addEventListener('click', () => {
+                document.getElementById('climbDetailNavigateBtn')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     const ctx = this._climbDetailContext;
                     if (!ctx) return;
                     const target = this.navTargetFromKindId(ctx.climbType, ctx.climbId);
