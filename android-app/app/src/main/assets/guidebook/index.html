@@ -656,6 +656,24 @@
         </section>
     </div>
 
+    <div class="map-climb-info-sheet hidden" id="mapClimbInfoSheet" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="mapClimbInfoTitle">
+        <section class="map-climb-info-sheet-panel">
+            <div class="map-boulder-sheet-handle" aria-hidden="true"></div>
+            <header class="map-boulder-sheet-header">
+                <div class="map-boulder-sheet-heading">
+                    <strong id="mapClimbInfoTitle">Трасса</strong>
+                    <span id="mapClimbInfoMeta"></span>
+                </div>
+                <button type="button" class="map-boulder-sheet-close" data-map-climb-info-action="close" aria-label="Закрыть">×</button>
+            </header>
+            <p class="map-climb-info-description hidden" id="mapClimbInfoDescription"></p>
+            <div class="map-climb-info-actions">
+                <button type="button" class="btn btn-primary" data-map-climb-info-action="open">Открыть</button>
+                <button type="button" class="btn btn-secondary" data-map-climb-info-action="navigate">Маршрут</button>
+            </div>
+        </section>
+    </div>
+
     <div class="dialog-overlay hidden" id="profileSendsDialog" style="z-index: 997;">
         <div class="dialog-content">
             <div class="dialog-header dialog-header--with-back">

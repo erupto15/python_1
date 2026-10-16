@@ -5849,7 +5849,12 @@
             display: none;
         }
 
-        html.app-shell .map-boulder-sheet:not(.hidden) {
+        .map-climb-info-sheet {
+            display: none;
+        }
+
+        html.app-shell .map-boulder-sheet:not(.hidden),
+        html.app-shell .map-climb-info-sheet:not(.hidden) {
             position: fixed;
             inset: 0;
             z-index: 1300;
@@ -5867,11 +5872,13 @@
             overscroll-behavior: contain;
         }
 
-        body.map-boulder-sheet-open {
+        body.map-boulder-sheet-open,
+        body.map-climb-info-sheet-open {
             overflow: hidden;
         }
 
-        .map-boulder-sheet-panel {
+        .map-boulder-sheet-panel,
+        .map-climb-info-sheet-panel {
             display: flex;
             flex-direction: column;
             width: min(100%, 38rem);
@@ -5899,6 +5906,10 @@
             display: flex;
             align-items: flex-start;
             gap: 12px;
+        }
+
+        html.catalog-sector-focus .map-boulder-sheet-header {
+            display: flex !important;
         }
 
         .map-boulder-sheet-heading {
@@ -5984,6 +5995,28 @@
             padding: 10px 12px;
             background: var(--map-popup-boulder-item-bg);
             box-shadow: none;
+        }
+
+        .map-climb-info-description {
+            margin: 14px 0 0;
+            color: var(--text-color);
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .map-climb-info-actions {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .map-climb-info-actions .btn {
+            width: 100%;
+            min-height: 46px;
+            justify-content: center;
         }
 
         .map-popup-route-btn {
@@ -8897,6 +8930,66 @@
 
         html.app-shell.catalog-sector-focus .app-bottom-nav {
             display: none !important;
+        }
+
+        html.catalog-map-shell #catalog .catalog-card-search,
+        html.catalog-map-shell #catalog .catalog-nav-back,
+        html.catalog-map-shell #catalog #appDataStatus,
+        html.catalog-map-shell #catalog .catalog-breadcrumb,
+        html.catalog-map-shell #catalog .catalog-toolbar,
+        html.catalog-map-shell #catalog .catalog-guide-hero,
+        html.catalog-map-shell #catalog #catalogList,
+        html.catalog-map-shell #catalog .catalog-map-block-head,
+        html.catalog-map-shell #catalog .catalog-map-legend-mount,
+        html.catalog-map-shell #catalog .catalog-map-edit-mount {
+            display: none !important;
+        }
+
+        html.app-shell.catalog-map-shell #mapLegend,
+        html.app-shell.catalog-map-shell #mapEditPanel,
+        html.app-shell.catalog-map-shell #catalogMapLegendMount,
+        html.app-shell.catalog-map-shell #catalogMapEditMount {
+            display: none !important;
+        }
+
+        html.catalog-map-shell #catalogMapBlock {
+            width: 100vw;
+            margin: 0 0 0 calc(50% - 50vw);
+        }
+
+        html.catalog-map-shell #catalogMapContainerMount #mapContainer {
+            width: 100%;
+            height: calc(var(--app-height, 100dvh) - 9.25rem);
+            min-height: 360px;
+            margin: 0;
+            border: 0;
+            border-radius: 0;
+        }
+
+        html.catalog-map-shell #mapContainer .leaflet-top.leaflet-left,
+        html.catalog-map-shell #mapContainer .leaflet-top.leaflet-right,
+        html.catalog-map-shell #mapContainer .map-navigate-btn {
+            display: none !important;
+        }
+
+        html.catalog-map-shell #mapContainer .leaflet-bottom.leaflet-right {
+            bottom: max(12px, env(safe-area-inset-bottom, 0px));
+        }
+
+        html.catalog-map-shell .catalog-map-block .map-sector-badge--route .map-sector-badge-glyph,
+        html.catalog-map-shell .catalog-map-block .map-sector-badge--boulder .map-sector-badge-glyph {
+            width: 34px;
+            height: 34px;
+            border-width: 3px;
+        }
+
+        html.catalog-map-shell .catalog-map-block .map-sector-badge--route .map-sector-badge-glyph svg {
+            width: 22px;
+        }
+
+        html.catalog-map-shell .catalog-map-block .map-area-badge--catalog .map-area-droplet-pin {
+            width: 60px;
+            height: 60px;
         }
 
         .app-bottom-nav {

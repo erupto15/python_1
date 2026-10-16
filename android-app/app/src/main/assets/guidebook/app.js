@@ -420,6 +420,10 @@
             if (now < _guidebookSystemBackLockUntil) return true;
             _guidebookSystemBackLockUntil = now + 280;
 
+            if (window.app?.closeMapClimbInfoSheet?.()) {
+                return true;
+            }
+
             if (window.app?.closeMapBoulderSheet?.()) {
                 return true;
             }
@@ -5716,6 +5720,7 @@
                 this._mapBoulderSheetEntry = null;
                 this._mapBoulderSheetGrade = '';
                 this._mapBoulderSheetGrades = [];
+                this._mapClimbInfoTarget = null;
                 this.areaPhotoData = null;
                 this.areaPhotoRemove = false;
                 this.currentPhotoPreview = null;
@@ -8087,6 +8092,14 @@
 
             openMapClimbFromMarker(entry) {
                 if (!entry?.climbType) return;
+                if (this.catalogEmbeddedMapActive() && document.documentElement.classList.contains('app-shell')) {
+                    if (entry.kind === 'boulder') {
+                        this.openMapBoulderSheet(entry);
+                    } else {
+                        this.openMapClimbInfoSheet(entry.climbType, entry.id);
+                    }
+                    return;
+                }
                 if (entry.kind === 'boulder' && document.documentElement.classList.contains('app-shell')) {
                     this.openMapBoulderSheet(entry);
                     return;
@@ -8389,6 +8402,72 @@
                 return true;
             }
 
+            mapClimbInfoTarget(kind, id) {
+                const climbType = kind === 'boulder' ? 'boulder' : 'route';
+                const climb = climbType === 'boulder'
+                    ? getBoulders().find((item) => String(item.id) === String(id))
+                    : getRoutes().find((item) => String(item.id) === String(id));
+                if (!climb) return null;
+                const sector = getSectors().find((item) => Number(item.id) === Number(climb.sectorId));
+                const area = getAreas().find((item) => Number(item.id) === Number(climb.areaId ?? sector?.areaId));
+                const coord = this.validMapCoord(climb.latitude, climb.longitude);
+                return {
+                    kind: climbType,
+                    id: climb.id,
+                    title: climb.name || (climbType === 'boulder' ? 'Боулдер' : 'Трасса'),
+                    meta: [
+                        climb.grade || '',
+                        sector?.name || '',
+                        area?.name || ''
+                    ].filter(Boolean).join(' · '),
+                    description: String(climb.description || '').trim(),
+                    lat: coord?.lat,
+                    lng: coord?.lng
+                };
+            }
+
+            openMapClimbInfoSheet(kind, id) {
+                const target = this.mapClimbInfoTarget(kind, id);
+                const sheet = document.getElementById('mapClimbInfoSheet');
+                if (!target || !sheet) {
+                    this.showToast(kind === 'boulder' ? 'Боулдер не найден' : 'Трасса не найдена', true);
+                    return;
+                }
+                this.closeMapBoulderSheet();
+                this.map?.closePopup?.();
+                this._mapClimbInfoTarget = target;
+                const title = document.getElementById('mapClimbInfoTitle');
+                const meta = document.getElementById('mapClimbInfoMeta');
+                const description = document.getElementById('mapClimbInfoDescription');
+                if (title) title.textContent = target.title;
+                if (meta) {
+                    meta.textContent = target.meta;
+                    meta.classList.toggle('hidden', !target.meta);
+                }
+                if (description) {
+                    description.textContent = target.description;
+                    description.classList.toggle('hidden', !target.description);
+                }
+                const navigate = sheet.querySelector('[data-map-climb-info-action="navigate"]');
+                if (navigate) navigate.disabled = !Number.isFinite(target.lat) || !Number.isFinite(target.lng);
+                sheet.classList.remove('hidden');
+                sheet.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('map-climb-info-sheet-open');
+                requestAnimationFrame(() => {
+                    sheet.querySelector('[data-map-climb-info-action="open"]')?.focus({ preventScroll: true });
+                });
+            }
+
+            closeMapClimbInfoSheet() {
+                const sheet = document.getElementById('mapClimbInfoSheet');
+                if (!sheet || sheet.classList.contains('hidden')) return false;
+                sheet.classList.add('hidden');
+                sheet.setAttribute('aria-hidden', 'true');
+                document.body.classList.remove('map-climb-info-sheet-open');
+                this._mapClimbInfoTarget = null;
+                return true;
+            }
+
             renderMapBoulderSheet() {
                 const entry = this._mapBoulderSheetEntry;
                 const stack = this.mapBouldersAtPin(entry);
@@ -8660,6 +8739,11 @@
                     && (this.catalog?.view === 'sectors' || this.catalog?.view === 'problems');
             }
 
+            appShellEmbeddedMapActive() {
+                return this.catalogEmbeddedMapActive()
+                    && document.documentElement.classList.contains('app-shell');
+            }
+
             mapEntryInScope(entry) {
                 if (!this.mapCatalogScope) return true;
                 const { areaId, sectorId } = this.mapCatalogScope;
@@ -8677,6 +8761,8 @@
 
             buildMapEntries() {
                 const entries = [];
+                const appShellEmbedded = this.appShellEmbeddedMapActive();
+                const appShellOverview = appShellEmbedded && this.catalog?.view === 'sectors';
                 getAreas().forEach((area) => {
                     const c = this.areaMapCoordinate(area.id);
                     if (!c) return;
@@ -8696,7 +8782,8 @@
                 });
 
                 getSectors().forEach((sector) => {
-                    const c = this.sectorMapPinCoordinate(sector.id);
+                    const c = this.sectorMapPinCoordinate(sector.id)
+                        || (appShellOverview ? this.sectorMapCentroid(sector.id) : null);
                     if (!c) return;
                     const area = getAreas().find((a) => Number(a.id) === Number(sector.areaId));
                     const routesCount = APP_BOULDER_ONLY ? 0 : getRoutes().filter((r) => Number(r.sectorId) === Number(sector.id)).length;
@@ -8716,7 +8803,8 @@
                     });
                 });
 
-                const skipRouteDots = this.catalogEmbeddedMapActive();
+                const skipRouteDots = this.catalogEmbeddedMapActive()
+                    && (!appShellEmbedded || this.catalog?.view === 'sectors');
                 if (!skipRouteDots && !APP_BOULDER_ONLY) {
                     getRoutes().forEach((route) => {
                         const c = this.validMapCoord(route.latitude, route.longitude);
@@ -8738,7 +8826,7 @@
                 }
 
                 const bouldersByPin = new Map();
-                getBoulders().forEach((boulder) => {
+                if (!appShellOverview) getBoulders().forEach((boulder) => {
                     const c = this.validMapCoord(boulder.latitude, boulder.longitude);
                     if (!c) return;
                     const pinKey = this.mapPinCoordKey(c.lat, c.lng);
@@ -8774,7 +8862,13 @@
                         boulderAtPin
                     });
                 });
-                return entries.filter((entry) => this.mapEntryInScope(entry));
+                return entries.filter((entry) => {
+                    if (!this.mapEntryInScope(entry)) return false;
+                    if (this.appShellEmbeddedMapActive() && this.catalog?.view === 'problems') {
+                        return entry.kind === 'route' || entry.kind === 'boulder';
+                    }
+                    return true;
+                });
             }
 
             addMapEntry(entry) {
@@ -9246,6 +9340,7 @@
             renderMapFeatureLayers() {
                 if (!this.map) return;
                 this.clearMapFeatureLayers();
+                if (this.appShellEmbeddedMapActive()) return;
                 getMapFeatures().forEach((feature) => {
                     if (!this.mapFeatureVisible(feature)) return;
                     const layer = this.createMapFeatureLayer(feature);
@@ -9930,8 +10025,10 @@
             syncCatalogEmbeddedMapUi(embedded) {
                 const active = embedded !== undefined ? embedded : this.catalogEmbeddedMapActive();
                 const minimal = active && this.catalog?.view === 'sectors';
+                const shellMap = active && document.documentElement.classList.contains('app-shell');
                 document.documentElement.classList.toggle('catalog-map-minimal', !!minimal);
                 document.documentElement.classList.toggle('catalog-map-edit-active', !!active && this.isAdmin());
+                document.documentElement.classList.toggle('catalog-map-shell', !!shellMap);
                 const block = document.getElementById('catalogMapBlock');
                 block?.classList.toggle('catalog-map-block--minimal', !!minimal);
                 block?.classList.toggle('catalog-map-block--embedded', !!active);
@@ -10142,6 +10239,10 @@
                     this.map?.closePopup?.();
                 } catch (_) {
                     /* ignore */
+                }
+                if (this.appShellEmbeddedMapActive()) {
+                    this.openMapClimbInfoSheet('boulder', boulderId);
+                    return;
                 }
                 void this.showClimbDetailDialog('boulder', boulderId);
             }
@@ -13454,6 +13555,33 @@
 
             setupEventListeners() {
                 this.setupAuthEventListeners();
+                const mapClimbInfoSheet = document.getElementById('mapClimbInfoSheet');
+                mapClimbInfoSheet?.addEventListener('click', (e) => {
+                    const actionEl = e.target.closest('[data-map-climb-info-action]');
+                    if (e.target === mapClimbInfoSheet) {
+                        e.preventDefault();
+                        this.closeMapClimbInfoSheet();
+                        return;
+                    }
+                    if (!actionEl) return;
+                    e.preventDefault();
+                    const action = actionEl.dataset.mapClimbInfoAction;
+                    const target = this._mapClimbInfoTarget;
+                    if (action === 'close') {
+                        this.closeMapClimbInfoSheet();
+                        return;
+                    }
+                    if (!target) return;
+                    if (action === 'open') {
+                        this.closeMapClimbInfoSheet();
+                        void this.showClimbDetailDialog(target.kind, target.id);
+                        return;
+                    }
+                    if (action === 'navigate' && Number.isFinite(target.lat) && Number.isFinite(target.lng)) {
+                        this.closeMapClimbInfoSheet();
+                        this.openMapsChooser(target);
+                    }
+                });
                 const mapBoulderSheet = document.getElementById('mapBoulderSheet');
                 mapBoulderSheet?.addEventListener('click', (e) => {
                     if (e.target === mapBoulderSheet || e.target.closest('[data-map-boulder-sheet-close]')) {
@@ -13478,7 +13606,18 @@
                     if (boulder) this.handleMapPopupBoulderPick(boulder.id);
                 });
                 document.addEventListener('keydown', (e) => {
-                    if (e.key !== 'Escape' || !this.closeMapBoulderSheet()) return;
+                    if (e.key !== 'Escape') return;
+                    const closed = this.closeMapClimbInfoSheet() || this.closeMapBoulderSheet();
+                    if (!closed) {
+                        const dialogOpen = typeof window.findOpenTelegramDialogId === 'function'
+                            && window.findOpenTelegramDialogId();
+                        if (!dialogOpen && this.appShellEmbeddedMapActive()) {
+                            window.handleGuidebookSystemBack?.();
+                            e.preventDefault();
+                            e.stopImmediatePropagation();
+                        }
+                        return;
+                    }
                     e.preventDefault();
                     e.stopImmediatePropagation();
                 });
