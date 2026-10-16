@@ -855,10 +855,14 @@
                         <input type="file" class="form-input" id="areaPhoto" accept="image/*,.heic,.heif,.arw,image/heic,image/heif,image/x-sony-arw">
                         <p class="form-hint">Можно выбрать JPEG, PNG, HEIC, ARW и др. (до 256 МБ) — перед сохранением фото автоматически сожмётся до формата обложки.</p>
                         <div class="area-photo-preview hidden" id="areaPhotoPreview"></div>
-                        <div class="markup-actions" id="areaPhotoActions" style="display:none; margin-top:8px;">
-                            <button type="button" class="btn btn-secondary btn-small" id="areaPhotoRotateLeftBtn" title="Повернуть влево"><i class="fas fa-undo"></i> 90°</button>
-                            <button type="button" class="btn btn-secondary btn-small" id="areaPhotoRotateRightBtn" title="Повернуть вправо"><i class="fas fa-redo"></i> 90°</button>
-                            <button type="button" class="btn btn-danger btn-small" id="areaPhotoClearBtn"><i class="fas fa-trash"></i> Удалить картинку</button>
+                        <div class="markup-actions markup-actions--photo" id="areaPhotoActions" style="display:none; margin-top:8px;">
+                            <div class="photo-rotate-group" role="group" aria-label="Поворот фото">
+                                <button type="button" class="photo-rotate-btn" id="areaPhotoRotateLeftBtn" title="Повернуть на 90° влево" aria-label="Повернуть на 90° влево"><i class="fas fa-rotate-left" aria-hidden="true"></i></button>
+                                <button type="button" class="photo-rotate-btn" id="areaPhotoRotateRightBtn" title="Повернуть на 90° вправо" aria-label="Повернуть на 90° вправо"><i class="fas fa-rotate-right" aria-hidden="true"></i></button>
+                            </div>
+                            <div class="markup-actions-photo-rest">
+                                <button type="button" class="btn btn-danger btn-small" id="areaPhotoClearBtn"><i class="fas fa-trash"></i> Удалить картинку</button>
+                            </div>
                         </div>
                     </div>
                 </form>
@@ -969,11 +973,15 @@
                         <input type="file" class="form-input" id="quickRoutePhoto" accept="image/*,.heic,.heif,.arw,image/heic,image/heif,image/x-sony-arw">
                         <p class="form-hint">Можно выбрать JPEG, PNG, HEIC, ARW и др. (до 256 МБ) — перед сохранением фото автоматически сожмётся для разметки и загрузки.</p>
                         <div class="photo-preview" id="quickRoutePhotoPreview" style="margin-top:10px;"></div>
-                        <div class="markup-actions" id="quickRoutePhotoActions" style="display:none; margin-top:8px;">
-                            <button type="button" class="btn btn-secondary btn-small" id="quickRoutePhotoRotateLeftBtn" title="Повернуть влево"><i class="fas fa-undo"></i> 90°</button>
-                            <button type="button" class="btn btn-secondary btn-small" id="quickRoutePhotoRotateRightBtn" title="Повернуть вправо"><i class="fas fa-redo"></i> 90°</button>
-                            <button type="button" class="btn btn-secondary btn-small" id="quickRouteMarkupBtn"><i class="fas fa-draw-polygon"></i> Разметить</button>
-                            <button type="button" class="btn btn-danger btn-small" id="quickRoutePhotoClearBtn"><i class="fas fa-trash"></i> Убрать фото</button>
+                        <div class="markup-actions markup-actions--photo" id="quickRoutePhotoActions" style="display:none; margin-top:8px;">
+                            <div class="photo-rotate-group" role="group" aria-label="Поворот фото">
+                                <button type="button" class="photo-rotate-btn" id="quickRoutePhotoRotateLeftBtn" title="Повернуть на 90° влево" aria-label="Повернуть на 90° влево"><i class="fas fa-rotate-left" aria-hidden="true"></i></button>
+                                <button type="button" class="photo-rotate-btn" id="quickRoutePhotoRotateRightBtn" title="Повернуть на 90° вправо" aria-label="Повернуть на 90° вправо"><i class="fas fa-rotate-right" aria-hidden="true"></i></button>
+                            </div>
+                            <div class="markup-actions-photo-rest">
+                                <button type="button" class="btn btn-secondary btn-small" id="quickRouteMarkupBtn"><i class="fas fa-draw-polygon"></i> Разметить</button>
+                                <button type="button" class="btn btn-danger btn-small" id="quickRoutePhotoClearBtn"><i class="fas fa-trash"></i> Убрать фото</button>
+                            </div>
                         </div>
                     </div>
                 </form>
@@ -1042,11 +1050,15 @@
                         <input type="file" class="form-input" id="quickBoulderPhoto" accept="image/*,.heic,.heif,.arw,image/heic,image/heif,image/x-sony-arw">
                         <p class="form-hint">Можно выбрать JPEG, PNG, HEIC, ARW и др. (до 256 МБ) — перед сохранением фото автоматически сожмётся для разметки и загрузки.</p>
                         <div class="photo-preview" id="quickBoulderPhotoPreview" style="margin-top:10px;"></div>
-                        <div class="markup-actions" id="quickBoulderPhotoActions" style="display:none; margin-top:8px;">
-                            <button type="button" class="btn btn-secondary btn-small" id="quickBoulderPhotoRotateLeftBtn" title="Повернуть влево"><i class="fas fa-undo"></i> 90°</button>
-                            <button type="button" class="btn btn-secondary btn-small" id="quickBoulderPhotoRotateRightBtn" title="Повернуть вправо"><i class="fas fa-redo"></i> 90°</button>
-                            <button type="button" class="btn btn-secondary btn-small" id="quickBoulderMarkupBtn"><i class="fas fa-draw-polygon"></i> Разметить</button>
-                            <button type="button" class="btn btn-danger btn-small" id="quickBoulderPhotoClearBtn"><i class="fas fa-trash"></i> Убрать фото</button>
+                        <div class="markup-actions markup-actions--photo" id="quickBoulderPhotoActions" style="display:none; margin-top:8px;">
+                            <div class="photo-rotate-group" role="group" aria-label="Поворот фото">
+                                <button type="button" class="photo-rotate-btn" id="quickBoulderPhotoRotateLeftBtn" title="Повернуть на 90° влево" aria-label="Повернуть на 90° влево"><i class="fas fa-rotate-left" aria-hidden="true"></i></button>
+                                <button type="button" class="photo-rotate-btn" id="quickBoulderPhotoRotateRightBtn" title="Повернуть на 90° вправо" aria-label="Повернуть на 90° вправо"><i class="fas fa-rotate-right" aria-hidden="true"></i></button>
+                            </div>
+                            <div class="markup-actions-photo-rest">
+                                <button type="button" class="btn btn-secondary btn-small" id="quickBoulderMarkupBtn"><i class="fas fa-draw-polygon"></i> Разметить</button>
+                                <button type="button" class="btn btn-danger btn-small" id="quickBoulderPhotoClearBtn"><i class="fas fa-trash"></i> Убрать фото</button>
+                            </div>
                         </div>
                     </div>
                 </form>

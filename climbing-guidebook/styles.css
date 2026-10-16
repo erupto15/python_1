@@ -4409,15 +4409,100 @@
             padding-bottom: 10px;
         }
 
+        .markup-actions--photo {
+            border-top: none;
+            padding-top: 0;
+            margin-top: 8px;
+            justify-content: flex-start;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .photo-rotate-group {
+            display: inline-flex;
+            flex-shrink: 0;
+            gap: 8px;
+            padding: 4px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+        }
+
+        .photo-rotate-btn {
+            width: 44px;
+            height: 44px;
+            margin: 0;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-color, #f2f2f2);
+            cursor: pointer;
+            font-size: 17px;
+            line-height: 1;
+            touch-action: manipulation;
+            transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+        }
+
+        .photo-rotate-btn:hover {
+            background: rgba(255, 255, 255, 0.14);
+            border-color: rgba(255, 255, 255, 0.22);
+        }
+
+        .photo-rotate-btn:active {
+            transform: scale(0.96);
+        }
+
+        .photo-rotate-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .markup-actions-photo-rest {
+            display: flex;
+            flex: 1;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-end;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .photo-preview-actions .photo-rotate-group {
+            background: transparent;
+            border: none;
+            padding: 0;
+            gap: 6px;
+        }
+
+        .photo-preview-actions .photo-rotate-btn {
+            width: 36px;
+            height: 36px;
+            font-size: 15px;
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
         @media (max-width: 400px) {
-            #quickRoutePhotoActions,
-            #quickBoulderPhotoActions {
+            .markup-actions--photo {
                 flex-direction: column;
                 align-items: stretch;
             }
 
-            #quickRoutePhotoActions .btn,
-            #quickBoulderPhotoActions .btn {
+            .markup-actions--photo .photo-rotate-group {
+                align-self: flex-start;
+            }
+
+            .markup-actions--photo .markup-actions-photo-rest {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .markup-actions--photo .markup-actions-photo-rest .btn {
                 width: 100%;
                 justify-content: center;
             }

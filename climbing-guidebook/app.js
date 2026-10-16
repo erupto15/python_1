@@ -14063,11 +14063,17 @@
                         const actionsDiv = document.createElement('div');
                         actionsDiv.className = 'photo-preview-actions';
 
+                        const rotateGroup = document.createElement('div');
+                        rotateGroup.className = `photo-rotate-group ${this.isAdmin() ? '' : 'hidden-by-role'}`.trim();
+                        rotateGroup.setAttribute('role', 'group');
+                        rotateGroup.setAttribute('aria-label', 'Поворот фото');
+
                         const rotateLeftBtn = document.createElement('button');
                         rotateLeftBtn.type = 'button';
-                        rotateLeftBtn.className = `markup-btn small ${this.isAdmin() ? '' : 'hidden-by-role'}`.trim();
-                        rotateLeftBtn.innerHTML = '<i class="fas fa-undo"></i> 90°';
-                        rotateLeftBtn.title = 'Повернуть влево';
+                        rotateLeftBtn.className = 'photo-rotate-btn';
+                        rotateLeftBtn.innerHTML = '<i class="fas fa-rotate-left" aria-hidden="true"></i>';
+                        rotateLeftBtn.title = 'Повернуть на 90° влево';
+                        rotateLeftBtn.setAttribute('aria-label', 'Повернуть на 90° влево');
                         rotateLeftBtn.addEventListener('click', (rotateEvent) => {
                             rotateEvent.preventDefault();
                             rotateEvent.stopPropagation();
@@ -14076,17 +14082,19 @@
 
                         const rotateRightBtn = document.createElement('button');
                         rotateRightBtn.type = 'button';
-                        rotateRightBtn.className = `markup-btn small ${this.isAdmin() ? '' : 'hidden-by-role'}`.trim();
-                        rotateRightBtn.innerHTML = '<i class="fas fa-redo"></i> 90°';
-                        rotateRightBtn.title = 'Повернуть вправо';
+                        rotateRightBtn.className = 'photo-rotate-btn';
+                        rotateRightBtn.innerHTML = '<i class="fas fa-rotate-right" aria-hidden="true"></i>';
+                        rotateRightBtn.title = 'Повернуть на 90° вправо';
+                        rotateRightBtn.setAttribute('aria-label', 'Повернуть на 90° вправо');
                         rotateRightBtn.addEventListener('click', (rotateEvent) => {
                             rotateEvent.preventDefault();
                             rotateEvent.stopPropagation();
                             void this.rotatePendingPhotoPreview(1);
                         });
 
-                        actionsDiv.appendChild(rotateLeftBtn);
-                        actionsDiv.appendChild(rotateRightBtn);
+                        rotateGroup.appendChild(rotateLeftBtn);
+                        rotateGroup.appendChild(rotateRightBtn);
+                        actionsDiv.appendChild(rotateGroup);
 
                         const removeBtn = document.createElement('button');
                         removeBtn.type = 'button';
