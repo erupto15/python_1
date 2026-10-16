@@ -8255,6 +8255,10 @@
                             return;
                         }
                     }
+                    if (entry?.kind === 'sector' && document.documentElement.classList.contains('app-shell')) {
+                        this.openMapSectorClimbSheet(entry);
+                        return;
+                    }
                     if (sectorCatalogJump) {
                         this.openCatalogFromMap('sector', entry.id);
                         return;
@@ -8369,6 +8373,55 @@
                 }];
             }
 
+            mapClimbsForSheet(entry) {
+                if (!entry) return [];
+                if (entry.kind === 'boulder') {
+                    return this.mapBouldersAtPin(entry).map((item) => ({
+                        ...item,
+                        climbType: 'boulder'
+                    }));
+                }
+                if (entry.kind !== 'sector') return [];
+                const sectorId = Number(entry.id);
+                const toItem = (climb, climbType) => ({
+                    id: climb.id,
+                    title: climb.name,
+                    grade: climb.grade || '',
+                    meta: climb.grade || '',
+                    areaId: climb.areaId,
+                    sectorId: climb.sectorId,
+                    climbType
+                });
+                if (this.isBoulderSector(sectorId)) {
+                    return getBoulders()
+                        .filter((boulder) => Number(boulder.sectorId) === sectorId)
+                        .map((boulder) => toItem(boulder, 'boulder'));
+                }
+                return getRoutes()
+                    .filter((route) => Number(route.sectorId) === sectorId)
+                    .map((route) => toItem(route, 'route'));
+            }
+
+            openMapSectorClimbSheet(entry) {
+                const climbs = this.mapClimbsForSheet(entry);
+                if (!climbs.length) {
+                    this.handleMapMarkerSelection(entry, { openNavigation: false, openPopup: true });
+                    return;
+                }
+                this.map?.closePopup?.();
+                this.setMapScopeForEntry('sector', entry.id);
+                if (this.appShellEmbeddedMapActive() && this.catalog) {
+                    this.catalog = {
+                        view: 'problems',
+                        areaId: Number(entry.areaId),
+                        sectorId: Number(entry.id)
+                    };
+                    this.syncCatalogEmbeddedMapUi(true);
+                }
+                this.updateMapMarkers();
+                this.openMapBoulderSheet(entry);
+            }
+
             mapGradeSortKey(value) {
                 const grade = String(value || '').trim().toUpperCase();
                 const match = grade.match(/^(\d+)\s*([ABC])?(\+)?/);
@@ -8474,15 +8527,23 @@
 
             renderMapBoulderSheet() {
                 const entry = this._mapBoulderSheetEntry;
-                const stack = this.mapBouldersAtPin(entry);
+                const stack = this.mapClimbsForSheet(entry);
                 const title = document.getElementById('mapBoulderSheetTitle');
                 const meta = document.getElementById('mapBoulderSheetMeta');
                 const chips = document.getElementById('mapBoulderSheetGrades');
                 const list = document.getElementById('mapBoulderSheetList');
                 if (!entry || !title || !meta || !chips || !list) return;
 
-                title.textContent = stack.length > 1 ? `${stack.length} боулдеров` : (stack[0]?.title || 'Боулдер');
-                meta.textContent = entry.meta || stack[0]?.meta || '';
+                const isRoutes = stack.some((item) => item.climbType === 'route');
+                if (entry.kind === 'sector') {
+                    title.textContent = entry.title || (isRoutes ? 'Трассы' : 'Боулдеры');
+                    meta.textContent = isRoutes
+                        ? `${stack.length} трасс`
+                        : `${stack.length} боулдеров`;
+                } else {
+                    title.textContent = stack.length > 1 ? `${stack.length} боулдеров` : (stack[0]?.title || 'Боулдер');
+                    meta.textContent = entry.meta || stack[0]?.meta || '';
+                }
                 meta.classList.toggle('hidden', !meta.textContent);
 
                 const grades = [...new Set(stack.map((b) => String(b.grade || '').trim()).filter(Boolean))]
@@ -8517,24 +8578,24 @@
                     .sort((a, b) => this.mapGradeSortKey(a.grade) - this.mapGradeSortKey(b.grade)
                         || String(a.title || '').localeCompare(String(b.title || ''), 'ru'));
                 list.replaceChildren();
-                visible.forEach((boulder) => {
-                    const sourceIndex = stack.indexOf(boulder);
+                visible.forEach((climb) => {
+                    const sourceIndex = stack.indexOf(climb);
                     const item = document.createElement('button');
                     item.type = 'button';
                     item.className = 'map-popup-boulder-item map-boulder-sheet-item';
-                    item.dataset.boulderIndex = String(sourceIndex);
+                    item.dataset.climbIndex = String(sourceIndex);
 
                     const name = document.createElement('span');
                     name.className = 'map-popup-boulder-name';
-                    name.textContent = boulder.title || 'Боулдер';
+                    name.textContent = climb.title || (climb.climbType === 'route' ? 'Трасса' : 'Боулдер');
                     item.appendChild(name);
-                    if (boulder.grade) {
+                    if (climb.grade) {
                         const grade = document.createElement('span');
                         grade.className = 'map-popup-boulder-grade';
-                        grade.textContent = boulder.grade;
+                        grade.textContent = climb.grade;
                         item.appendChild(grade);
                     }
-                    if (this.hasUserSent('boulder', boulder.id)) {
+                    if (this.hasUserSent(climb.climbType || 'boulder', climb.id)) {
                         const sent = document.createElement('span');
                         sent.className = 'map-popup-boulder-sent';
                         sent.textContent = '✓';
@@ -13617,11 +13678,18 @@
                         this.renderMapBoulderSheet();
                         return;
                     }
-                    const item = e.target.closest('[data-boulder-index]');
+                    const item = e.target.closest('[data-climb-index], [data-boulder-index]');
                     if (!item) return;
                     e.preventDefault();
-                    const boulder = this.mapBouldersAtPin(this._mapBoulderSheetEntry)[Number(item.dataset.boulderIndex)];
-                    if (boulder) this.handleMapPopupBoulderPick(boulder.id);
+                    const climbs = this.mapClimbsForSheet(this._mapBoulderSheetEntry);
+                    const climb = climbs[Number(item.dataset.climbIndex ?? item.dataset.boulderIndex)];
+                    if (!climb) return;
+                    this.closeMapBoulderSheet();
+                    if (climb.climbType === 'route') {
+                        void this.showClimbDetailDialog('route', climb.id);
+                        return;
+                    }
+                    this.handleMapPopupBoulderPick(climb.id);
                 });
                 document.addEventListener('keydown', (e) => {
                     if (e.key !== 'Escape') return;
