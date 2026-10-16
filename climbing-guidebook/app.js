@@ -8100,7 +8100,7 @@
                     if (entry.kind === 'boulder') {
                         this.openMapBoulderSheet(entry);
                     } else {
-                        this.openMapClimbInfoSheet(entry.climbType, entry.id);
+                        void this.showClimbDetailDialog(entry.climbType, entry.id);
                     }
                     return;
                 }
@@ -10245,7 +10245,7 @@
                     /* ignore */
                 }
                 if (this.appShellEmbeddedMapActive()) {
-                    this.openMapClimbInfoSheet('boulder', boulderId);
+                    void this.showClimbDetailDialog('boulder', boulderId);
                     return;
                 }
                 void this.showClimbDetailDialog('boulder', boulderId);
@@ -14162,6 +14162,16 @@
                     this.hideDialog('mapsChooserDialog');
                     this.openMapsLink(url);
                 });
+                document.getElementById('climbDetailNavigateBtn')?.addEventListener('click', () => {
+                    const ctx = this._climbDetailContext;
+                    if (!ctx) return;
+                    const target = this.navTargetFromKindId(ctx.climbType, ctx.climbId);
+                    if (!target) {
+                        this.showToast('У объекта нет координат на карте', true);
+                        return;
+                    }
+                    this.openMapsChooser(target);
+                });
                 document.getElementById('climbDetailEditBtn')?.addEventListener('click', () => {
                     const ctx = this._climbDetailContext;
                     if (!ctx) return;
@@ -15398,6 +15408,12 @@
                     climbName: climb.name || '',
                     climbGrade: climb.grade || ''
                 };
+                const navigateBtn = document.getElementById('climbDetailNavigateBtn');
+                const navigationTarget = this.navTargetFromKindId(climbType, climbId);
+                if (navigateBtn) {
+                    navigateBtn.classList.toggle('hidden', !navigationTarget);
+                    navigateBtn.disabled = !navigationTarget;
+                }
 
                 const galleryEntries = this.buildPhotoGalleryEntries(climbType, idStr, photos, {
                     albumNav: !!opts.albumNav

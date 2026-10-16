@@ -4273,6 +4273,36 @@
             flex-shrink: 0;
         }
 
+        .climb-detail-navigate-btn {
+            flex-shrink: 0;
+            width: 42px;
+            height: 42px;
+            margin-left: auto;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #315be8;
+            border-radius: 50%;
+            background: #315be8;
+            color: #fff;
+            cursor: pointer;
+            box-shadow: 0 5px 16px rgba(37, 75, 210, 0.4);
+            touch-action: manipulation;
+        }
+
+        .climb-detail-navigate-btn svg {
+            width: 22px;
+            height: 22px;
+            display: block;
+        }
+
+        .climb-detail-navigate-btn:hover,
+        .climb-detail-navigate-btn:focus-visible {
+            background: #244dd7;
+            border-color: #244dd7;
+        }
+
         @media (max-width: 720px) {
             .theme-toggle-btn .theme-toggle-text,
             .theme-toggle-btn #themeToggleIcon {
