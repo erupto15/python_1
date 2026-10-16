@@ -5507,30 +5507,141 @@
         }
 
         .map-locate-btn {
-            width: 34px;
-            height: 34px;
-            border: none;
-            background: rgba(0, 0, 0, 0.6);
-            color: #fff;
-            border-radius: 4px;
-            font-size: 15px;
+            width: 54px;
+            height: 54px;
+            border: 1px solid rgba(17, 24, 39, 0.12);
+            background: #fff;
+            color: #111827;
+            border-radius: 50%;
+            font-size: 20px;
             line-height: 1;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 5px 18px rgba(0, 0, 0, 0.28);
             pointer-events: auto;
             touch-action: manipulation;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
         }
 
         .leaflet-bottom.leaflet-right .leaflet-control {
-            margin-bottom: 12px;
-            margin-right: 10px;
+            margin-bottom: 10px;
+            margin-right: 14px;
+        }
+
+        #mapContainer .leaflet-bottom.leaflet-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        #mapContainer .leaflet-bottom.leaflet-right .map-locate-btn {
+            order: 1;
+            float: none;
+            clear: none;
+        }
+
+        #mapContainer .leaflet-bottom.leaflet-right .map-navigate-btn {
+            order: 2;
+            float: none;
+            clear: none;
         }
 
         .map-locate-btn:hover {
-            background: rgba(0, 0, 0, 0.85);
+            background: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 7px 22px rgba(0, 0, 0, 0.34);
+        }
+
+        .map-locate-btn.is-active {
+            color: #2563eb;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.16), 0 5px 18px rgba(0, 0, 0, 0.28);
+        }
+
+        .map-locate-btn.is-error {
+            color: #dc2626;
+            border-color: rgba(220, 38, 38, 0.35);
+        }
+
+        .map-locate-btn:disabled {
+            cursor: wait;
+            opacity: 0.82;
+        }
+
+        .map-locate-btn.is-loading .map-locate-pin-icon {
+            animation: map-control-spin 0.9s linear infinite;
+        }
+
+        #mapLocateBtn.is-active {
+            color: #2563eb;
+            border-color: color-mix(in srgb, #2563eb 45%, var(--border-color));
+        }
+
+        #mapLocateBtn.is-error {
+            color: #dc2626;
+            border-color: color-mix(in srgb, #dc2626 45%, var(--border-color));
+        }
+
+        .map-navigate-btn {
+            width: 54px;
+            height: 54px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            border-radius: 50%;
+            background: #315be8;
+            color: #fff;
+            font-size: 23px;
+            line-height: 1;
+            cursor: pointer;
+            pointer-events: auto;
+            touch-action: manipulation;
+            box-shadow: 0 5px 18px rgba(37, 75, 210, 0.42);
+            transition: transform 0.15s ease, background 0.15s ease;
+        }
+
+        .map-navigate-btn:hover {
+            background: #244dd7;
+            transform: translateY(-1px);
+        }
+
+        .map-navigate-btn.is-active {
+            background: #244dd7;
+            box-shadow: 0 0 0 4px rgba(49, 91, 232, 0.2), 0 5px 18px rgba(37, 75, 210, 0.46);
+        }
+
+        .map-navigate-btn.is-loading .map-navigate-icon {
+            animation: map-control-pulse 0.9s ease-in-out infinite alternate;
+        }
+
+        .map-navigate-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 0;
+        }
+
+        .map-navigate-icon svg {
+            width: 25px;
+            height: 25px;
+            display: block;
+        }
+
+        .map-guide-nav-btn .map-navigate-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        @keyframes map-control-spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes map-control-pulse {
+            to { transform: scale(0.78); opacity: 0.62; }
         }
 
         #mapContainer.map-fs .leaflet-top {
@@ -5732,6 +5843,147 @@
             font-size: 12px;
             color: var(--map-tick-done, #22c55e);
             font-weight: 700;
+        }
+
+        .map-boulder-sheet {
+            display: none;
+        }
+
+        html.app-shell .map-boulder-sheet:not(.hidden) {
+            position: fixed;
+            inset: 0;
+            z-index: 1300;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding:
+                0
+                env(safe-area-inset-right, 0px)
+                0
+                env(safe-area-inset-left, 0px);
+            box-sizing: border-box;
+            background: rgba(0, 0, 0, 0.42);
+            animation: fadeIn 0.16s ease;
+            overscroll-behavior: contain;
+        }
+
+        body.map-boulder-sheet-open {
+            overflow: hidden;
+        }
+
+        .map-boulder-sheet-panel {
+            display: flex;
+            flex-direction: column;
+            width: min(100%, 38rem);
+            max-height: min(72dvh, calc(var(--app-height, 100dvh) * 0.72));
+            padding: 7px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+            box-sizing: border-box;
+            border: 1px solid var(--border-color);
+            border-bottom: 0;
+            border-radius: 18px 18px 0 0;
+            background: var(--card-bg);
+            color: var(--text-color);
+            box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.28);
+        }
+
+        .map-boulder-sheet-handle {
+            align-self: center;
+            width: 38px;
+            height: 4px;
+            margin-bottom: 8px;
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--light-text) 48%, transparent);
+        }
+
+        .map-boulder-sheet-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .map-boulder-sheet-heading {
+            display: flex;
+            flex: 1 1 auto;
+            min-width: 0;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .map-boulder-sheet-heading strong {
+            font-size: 17px;
+            line-height: 1.3;
+        }
+
+        .map-boulder-sheet-heading span {
+            color: var(--light-text);
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .map-boulder-sheet-close {
+            flex: 0 0 auto;
+            width: 34px;
+            height: 34px;
+            padding: 0;
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            background: var(--surface-elevated);
+            color: var(--text-color);
+            font: 24px/30px system-ui, sans-serif;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .map-boulder-sheet-grades {
+            display: flex;
+            flex: 0 0 auto;
+            gap: 7px;
+            margin: 12px -14px 9px;
+            padding: 0 14px 3px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            overscroll-behavior-x: contain;
+        }
+
+        .map-boulder-sheet-grades::-webkit-scrollbar {
+            display: none;
+        }
+
+        .map-boulder-sheet-chip {
+            flex: 0 0 auto;
+            min-height: 34px;
+            padding: 6px 13px;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            background: var(--surface-elevated);
+            color: var(--text-color);
+            font: 600 13px/1 system-ui, sans-serif;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .map-boulder-sheet-chip.active {
+            border-color: var(--primary-color);
+            background: var(--primary-color);
+            color: #fff;
+        }
+
+        .map-boulder-sheet-list {
+            display: flex;
+            min-height: 0;
+            flex: 1 1 auto;
+            flex-direction: column;
+            gap: 6px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .map-boulder-sheet-item {
+            min-height: 44px;
+            padding: 10px 12px;
+            background: var(--map-popup-boulder-item-bg);
+            box-shadow: none;
         }
 
         .map-popup-route-btn {
@@ -8569,16 +8821,74 @@
 
         html.app-shell.app-shell-map-tab #map .map-toolbar {
             margin-top: 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
         }
 
         html.app-shell.app-shell-map-tab #mapContainer {
-            height: min(62dvh, calc(var(--app-height, 100dvh) - 12.5rem));
-            min-height: 240px;
+            height: calc(var(--app-height, 100dvh) - 9.25rem);
+            min-height: 360px;
+            width: 100vw;
+            margin-left: calc(50% - 50vw);
+            margin-top: 0;
+            border: 0;
+            border-radius: 0;
         }
 
         html.app-shell.app-shell-map-tab #map .card-title,
         html.app-shell.app-shell-map-tab #map .overlay-screen-back {
             display: none;
+        }
+
+        html.app-shell.app-shell-map-tab #mapToolbar > .map-filter-row,
+        html.app-shell.app-shell-map-tab #mapToolbar > .map-legend,
+        html.app-shell.app-shell-map-tab #mapToolbar > .map-nav-row,
+        html.app-shell.app-shell-map-tab #mapToolbar > .map-status,
+        html.app-shell.app-shell-map-tab #mapToolbar > .map-context-bar,
+        html.app-shell.app-shell-map-tab #mapToolbar > .map-nearest-chip {
+            display: none !important;
+        }
+
+        html.app-shell.app-shell-map-tab #mapGuideStrip:not(.hidden) {
+            position: fixed;
+            left: max(10px, env(safe-area-inset-left, 0px));
+            right: max(10px, env(safe-area-inset-right, 0px));
+            bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+            z-index: 850;
+            max-height: min(30dvh, 220px);
+            overflow-y: auto;
+            padding: 13px 14px;
+            border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
+            border-left: 0;
+            border-radius: 16px;
+            background: color-mix(in srgb, var(--card-bg) 94%, transparent);
+            box-shadow: 0 10px 34px rgba(0, 0, 0, 0.34);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+
+        html.app-shell.app-shell-map-tab #mapGuideStrip .map-guide-strip-title {
+            font-size: 17px;
+        }
+
+        html.app-shell.app-shell-map-tab #mapGuideStrip .map-guide-strip-actions {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        }
+
+        html.app-shell.app-shell-map-tab #mapGuideStrip .map-guide-strip-actions .btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        html.app-shell.app-shell-map-tab #mapGuideStrip .map-guide-nav-btn {
+            background: #315be8;
+            border-color: #315be8;
+        }
+
+        html.app-shell body.map-target-active #mapContainer .leaflet-bottom.leaflet-right {
+            bottom: min(31dvh, 230px);
         }
 
         html.app-shell.catalog-sector-focus body {

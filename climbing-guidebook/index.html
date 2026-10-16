@@ -641,6 +641,21 @@
             </div>
         </div>
 
+    <div class="map-boulder-sheet hidden" id="mapBoulderSheet" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="mapBoulderSheetTitle">
+        <section class="map-boulder-sheet-panel">
+            <div class="map-boulder-sheet-handle" aria-hidden="true"></div>
+            <header class="map-boulder-sheet-header">
+                <div class="map-boulder-sheet-heading">
+                    <strong id="mapBoulderSheetTitle">Боулдеры</strong>
+                    <span id="mapBoulderSheetMeta"></span>
+                </div>
+                <button type="button" class="map-boulder-sheet-close" id="mapBoulderSheetCloseBtn" data-map-boulder-sheet-close aria-label="Закрыть">×</button>
+            </header>
+            <div class="map-boulder-sheet-grades" id="mapBoulderSheetGrades" role="group" aria-label="Фильтр по категории"></div>
+            <div class="map-boulder-sheet-list" id="mapBoulderSheetList"></div>
+        </section>
+    </div>
+
     <div class="dialog-overlay hidden" id="profileSendsDialog" style="z-index: 997;">
         <div class="dialog-content">
             <div class="dialog-header dialog-header--with-back">

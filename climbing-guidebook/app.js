@@ -420,6 +420,10 @@
             if (now < _guidebookSystemBackLockUntil) return true;
             _guidebookSystemBackLockUntil = now + 280;
 
+            if (window.app?.closeMapBoulderSheet?.()) {
+                return true;
+            }
+
             if (typeof window.closeTopTelegramOverlay === 'function' && window.closeTopTelegramOverlay()) {
                 return true;
             }
@@ -711,7 +715,8 @@
             return `<button type="button" class="catalog-route-nav-btn btn btn-small map-popup-route-btn" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('external','${kind}', '${id}'); return false;" aria-label="Маршрут" title="Маршрут"><img class="catalog-route-nav-icon" src="icons/route-nav.png" alt="" decoding="async"></button>`;
         }
         /** Кнопка «Моё местоположение»: классическая метка-pin с точкой внутри. */
-        const MAP_LOCATE_PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>';
+        const MAP_LOCATE_PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.15 10.65 20.4 3.1a.8.8 0 0 1 1.05 1.05L13.9 21.4a.8.8 0 0 1-1.48-.08l-2.18-7.56-7.56-2.18a.8.8 0 0 1-.08-1.48l.55.55Zm8.58 1.62 1.66 5.75 5.33-12.17-12.17 5.33 5.18 1.49Z"/></svg>';
+        const MAP_NAVIGATE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 1.8 22.2 12 12 22.2 1.8 12 12 1.8Zm1 5.1-1.4 1.4 2.7 2.7H7v2h7.3l-2.7 2.7 1.4 1.4 5.1-5.1L13 6.9Z"/></svg>';
         /** Кемпинг: палатка на белом фоне. */
         const MAP_CAMPING_SIGN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" aria-hidden="true"><rect width="20" height="20" rx="3" fill="#fff"/><path fill="#141414" d="M4.5 14.2h11v1.35H4.5z"/><path fill="#141414" d="M10 4.8 5.6 14.05h8.8L10 4.8z"/><path fill="#141414" d="M8.35 6.05 10 4.05l1.65 2-.72.72-.48-.48-.48.48z"/></svg>';
 
@@ -5685,6 +5690,10 @@
                 this.userLocationMarker = null;
                 this.mapNavigationLine = null;
                 this.mapNavigationTrailLine = null;
+                this._mapNavigationActive = false;
+                this._mapNavigationPending = false;
+                this._activeMapNavigationPath = [];
+                this._mapLocateState = 'idle';
                 this._mapPointerCoords = null;
                 this._geoWatchId = null;
                 this._activeTrailRouteName = null;
@@ -5704,6 +5713,9 @@
                 this.mapFeatureMovePending = false;
                 this.mapEditingTrailFeatureId = null;
                 this._mapEditClickHandler = null;
+                this._mapBoulderSheetEntry = null;
+                this._mapBoulderSheetGrade = '';
+                this._mapBoulderSheetGrades = [];
                 this.areaPhotoData = null;
                 this.areaPhotoRemove = false;
                 this.currentPhotoPreview = null;
@@ -7364,6 +7376,7 @@
                     this.schedulePersistMapView();
                 });
                 this.attachMapFullscreenControl();
+                this.attachMapNavigationControl();
                 this.attachMapLocateControl();
                 this.attachMapEditInteraction();
                 this.attachMapPointerTracking();
@@ -7376,7 +7389,10 @@
                 this.syncMapZoomClass();
                 this.fillMapLegendSectorIcons();
                 this.syncMapLocateButtons();
-                this.applyCachedUserLocation();
+                if (this.applyCachedUserLocation()) {
+                    this._mapLocateState = 'active';
+                    this.syncMapLocateButtons();
+                }
                 this._mapRestoringView = false;
                 requestAnimationFrame(() => this.map.invalidateSize({ animate: false }));
                 setTimeout(() => this.map.invalidateSize({ animate: false }), 120);
@@ -7426,9 +7442,52 @@
 
             syncMapLocateButtons() {
                 const toolbarBtn = document.getElementById('mapLocateBtn');
-                if (toolbarBtn && !toolbarBtn.querySelector('.map-locate-pin-icon')) {
-                    toolbarBtn.innerHTML = `${this.buildMapLocatePinIconHtml()} Моё место`;
+                const labels = {
+                    idle: 'Моё место',
+                    loading: 'Определяем…',
+                    active: 'Центрировать',
+                    error: 'Повторить'
+                };
+                const titles = {
+                    idle: 'Показать моё местоположение',
+                    loading: 'Определяем местоположение',
+                    active: 'Центрировать карту на моей позиции',
+                    error: 'Повторить определение местоположения'
+                };
+                const state = labels[this._mapLocateState] ? this._mapLocateState : 'idle';
+                if (toolbarBtn) {
+                    toolbarBtn.innerHTML = `${this.buildMapLocatePinIconHtml()} ${labels[state]}`;
+                    toolbarBtn.classList.toggle('is-loading', state === 'loading');
+                    toolbarBtn.classList.toggle('is-active', state === 'active');
+                    toolbarBtn.classList.toggle('is-error', state === 'error');
+                    toolbarBtn.disabled = state === 'loading';
+                    toolbarBtn.setAttribute('aria-busy', state === 'loading' ? 'true' : 'false');
                 }
+                document.querySelectorAll('.map-locate-btn').forEach((btn) => {
+                    btn.classList.toggle('is-loading', state === 'loading');
+                    btn.classList.toggle('is-active', state === 'active');
+                    btn.classList.toggle('is-error', state === 'error');
+                    btn.disabled = state === 'loading';
+                    btn.title = titles[state];
+                    btn.setAttribute('aria-label', titles[state]);
+                    btn.setAttribute('aria-busy', state === 'loading' ? 'true' : 'false');
+                    btn.dataset.locationState = state;
+                });
+            }
+
+            handleMapLocateControl() {
+                if (this._mapLocateState === 'loading') return;
+                if (this._mapLocateState === 'active' && this.userLocation && this.map) {
+                    this.ensureUserLocationMarker();
+                    this.map.setView(
+                        [this.userLocation.lat, this.userLocation.lng],
+                        Math.max(this.map.getZoom(), 16),
+                        { animate: true }
+                    );
+                    this.updateMapStatus('Карта центрирована на вашей позиции.');
+                    return;
+                }
+                this.startUserLocationWatch();
             }
 
             attachMapLocateControl() {
@@ -7445,12 +7504,46 @@
                         L.DomEvent.disableClickPropagation(btn);
                         L.DomEvent.on(btn, 'click', (e) => {
                             L.DomEvent.stopPropagation(e);
-                            this.startUserLocationWatch();
+                            this.handleMapLocateControl();
                         });
                         return btn;
                     }
                 });
                 this.map.addControl(new Ctrl());
+            }
+
+            syncMapNavigationControl() {
+                const btn = document.querySelector('.map-navigate-btn');
+                if (!btn) return;
+                const visible = !!this.mapTarget && !this.catalogEmbeddedMapActive();
+                btn.classList.toggle('hidden', !visible);
+                btn.classList.toggle('is-active', !!this._mapNavigationActive);
+                btn.classList.toggle('is-loading', !!this._mapNavigationPending);
+                btn.title = this._mapNavigationActive ? 'Открыть во внешнем навигаторе' : 'Проложить маршрут';
+                btn.setAttribute('aria-label', btn.title);
+                btn.setAttribute('aria-busy', this._mapNavigationPending ? 'true' : 'false');
+            }
+
+            attachMapNavigationControl() {
+                if (!this.map || this._mapNavigationControlAttached) return;
+                this._mapNavigationControlAttached = true;
+                const Ctrl = L.Control.extend({
+                    options: { position: 'bottomright' },
+                    onAdd: () => {
+                        const btn = L.DomUtil.create('button', 'map-navigate-btn hidden');
+                        btn.type = 'button';
+                        btn.innerHTML = `<span class="map-navigate-icon">${MAP_NAVIGATE_SVG}</span>`;
+                        L.DomEvent.disableClickPropagation(btn);
+                        L.DomEvent.on(btn, 'click', (e) => {
+                            L.DomEvent.preventDefault(e);
+                            L.DomEvent.stopPropagation(e);
+                            this.handleMapNavigationControl();
+                        });
+                        return btn;
+                    }
+                });
+                this.map.addControl(new Ctrl());
+                this.syncMapNavigationControl();
             }
 
             attachMapFullscreenControl() {
@@ -7994,6 +8087,10 @@
 
             openMapClimbFromMarker(entry) {
                 if (!entry?.climbType) return;
+                if (entry.kind === 'boulder' && document.documentElement.classList.contains('app-shell')) {
+                    this.openMapBoulderSheet(entry);
+                    return;
+                }
                 const mapEl = this.map?.getContainer?.();
                 if (mapEl?.classList.contains('map-fs')) {
                     mapEl.classList.remove('map-fs');
@@ -8214,7 +8311,7 @@
             }
 
             buildMapBoulderStackPopupHtml(entry) {
-                const stack = entry.boulderAtPin || [];
+                const stack = this.mapBouldersAtPin(entry);
                 const meta = entry.meta ? `<div class="map-popup-meta">${this.escapeHtml(entry.meta)}</div>` : '';
                 const items = stack.map((b) => {
                     const grade = b.grade ? `<span class="map-popup-boulder-grade">${this.escapeHtml(b.grade)}</span>` : '';
@@ -8240,6 +8337,129 @@
                         ${actionsBlock}
                     </div>
                 `;
+            }
+
+            mapBouldersAtPin(entry) {
+                if (entry?.boulderAtPin?.length) return entry.boulderAtPin;
+                if (!entry || entry.kind !== 'boulder') return [];
+                return [{
+                    id: entry.id,
+                    title: entry.title,
+                    grade: entry.grade || '',
+                    meta: entry.meta || '',
+                    areaId: entry.areaId,
+                    sectorId: entry.sectorId
+                }];
+            }
+
+            mapGradeSortKey(value) {
+                const grade = String(value || '').trim().toUpperCase();
+                const match = grade.match(/^(\d+)\s*([ABC])?(\+)?/);
+                if (!match) return Number.MAX_SAFE_INTEGER;
+                const number = Number(match[1]);
+                const letter = match[2] ? match[2].charCodeAt(0) - 64 : 0;
+                const plus = match[3] ? 1 : 0;
+                return (number * 100) + (letter * 10) + plus;
+            }
+
+            openMapBoulderSheet(entry) {
+                const sheet = document.getElementById('mapBoulderSheet');
+                if (!sheet) return;
+                this._mapBoulderSheetEntry = entry;
+                this._mapBoulderSheetGrade = '';
+                this.map?.closePopup?.();
+                this.renderMapBoulderSheet();
+                sheet.classList.remove('hidden');
+                sheet.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('map-boulder-sheet-open');
+                requestAnimationFrame(() => {
+                    document.getElementById('mapBoulderSheetCloseBtn')?.focus({ preventScroll: true });
+                });
+            }
+
+            closeMapBoulderSheet() {
+                const sheet = document.getElementById('mapBoulderSheet');
+                if (!sheet || sheet.classList.contains('hidden')) return false;
+                sheet.classList.add('hidden');
+                sheet.setAttribute('aria-hidden', 'true');
+                document.body.classList.remove('map-boulder-sheet-open');
+                this._mapBoulderSheetEntry = null;
+                this._mapBoulderSheetGrade = '';
+                this._mapBoulderSheetGrades = [];
+                return true;
+            }
+
+            renderMapBoulderSheet() {
+                const entry = this._mapBoulderSheetEntry;
+                const stack = this.mapBouldersAtPin(entry);
+                const title = document.getElementById('mapBoulderSheetTitle');
+                const meta = document.getElementById('mapBoulderSheetMeta');
+                const chips = document.getElementById('mapBoulderSheetGrades');
+                const list = document.getElementById('mapBoulderSheetList');
+                if (!entry || !title || !meta || !chips || !list) return;
+
+                title.textContent = stack.length > 1 ? `${stack.length} боулдеров` : (stack[0]?.title || 'Боулдер');
+                meta.textContent = entry.meta || stack[0]?.meta || '';
+                meta.classList.toggle('hidden', !meta.textContent);
+
+                const grades = [...new Set(stack.map((b) => String(b.grade || '').trim()).filter(Boolean))]
+                    .sort((a, b) => this.mapGradeSortKey(a) - this.mapGradeSortKey(b)
+                        || a.localeCompare(b, 'ru', { numeric: true, sensitivity: 'base' }));
+                this._mapBoulderSheetGrades = grades;
+                if (this._mapBoulderSheetGrade && !grades.includes(this._mapBoulderSheetGrade)) {
+                    this._mapBoulderSheetGrade = '';
+                }
+
+                chips.replaceChildren();
+                const allChip = document.createElement('button');
+                allChip.type = 'button';
+                allChip.className = `map-boulder-sheet-chip${this._mapBoulderSheetGrade ? '' : ' active'}`;
+                allChip.textContent = 'Все';
+                allChip.dataset.gradeIndex = '-1';
+                allChip.setAttribute('aria-pressed', this._mapBoulderSheetGrade ? 'false' : 'true');
+                chips.appendChild(allChip);
+                grades.forEach((grade, index) => {
+                    const chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.className = `map-boulder-sheet-chip${this._mapBoulderSheetGrade === grade ? ' active' : ''}`;
+                    chip.textContent = grade;
+                    chip.dataset.gradeIndex = String(index);
+                    chip.setAttribute('aria-pressed', this._mapBoulderSheetGrade === grade ? 'true' : 'false');
+                    chips.appendChild(chip);
+                });
+
+                const visible = (this._mapBoulderSheetGrade
+                    ? stack.filter((b) => String(b.grade || '').trim() === this._mapBoulderSheetGrade)
+                    : [...stack])
+                    .sort((a, b) => this.mapGradeSortKey(a.grade) - this.mapGradeSortKey(b.grade)
+                        || String(a.title || '').localeCompare(String(b.title || ''), 'ru'));
+                list.replaceChildren();
+                visible.forEach((boulder) => {
+                    const sourceIndex = stack.indexOf(boulder);
+                    const item = document.createElement('button');
+                    item.type = 'button';
+                    item.className = 'map-popup-boulder-item map-boulder-sheet-item';
+                    item.dataset.boulderIndex = String(sourceIndex);
+
+                    const name = document.createElement('span');
+                    name.className = 'map-popup-boulder-name';
+                    name.textContent = boulder.title || 'Боулдер';
+                    item.appendChild(name);
+                    if (boulder.grade) {
+                        const grade = document.createElement('span');
+                        grade.className = 'map-popup-boulder-grade';
+                        grade.textContent = boulder.grade;
+                        item.appendChild(grade);
+                    }
+                    if (this.hasUserSent('boulder', boulder.id)) {
+                        const sent = document.createElement('span');
+                        sent.className = 'map-popup-boulder-sent';
+                        sent.textContent = '✓';
+                        sent.setAttribute('aria-label', 'Пройдено');
+                        item.appendChild(sent);
+                    }
+                    list.appendChild(item);
+                });
             }
 
             buildMapPopupHtml(entry) {
@@ -8551,7 +8771,7 @@
                         catalog: true,
                         areaId: primary.areaId,
                         sectorId: primary.sectorId,
-                        boulderAtPin: multi ? boulderAtPin : undefined
+                        boulderAtPin
                     });
                 });
                 return entries.filter((entry) => this.mapEntryInScope(entry));
@@ -8976,17 +9196,17 @@
 
             buildMapTrailLayer(latlngs, selected = false) {
                 const halo = L.polyline(latlngs, {
-                    color: '#14532d',
-                    weight: selected ? 11 : 9,
-                    opacity: 0.55,
+                    color: '#123b2b',
+                    weight: selected ? 10 : 7,
+                    opacity: 0.62,
                     lineJoin: 'round',
                     lineCap: 'round'
                 });
                 const line = L.polyline(latlngs, {
-                    color: selected ? '#38bdf8' : '#22c55e',
-                    weight: selected ? 6 : 5,
+                    color: selected ? '#38bdf8' : '#35d58a',
+                    weight: selected ? 6 : 4,
                     opacity: 0.98,
-                    dashArray: '12 10',
+                    dashArray: selected ? '7 8' : '2 8',
                     lineJoin: 'round',
                     lineCap: 'round'
                 });
@@ -9895,6 +10115,18 @@
                     this.showToast('Боулдер не найден', true);
                     return;
                 }
+                this.closeMapBoulderSheet();
+                const mapEl = this.map?.getContainer?.();
+                if (mapEl?.classList.contains('map-fs')) {
+                    mapEl.classList.remove('map-fs');
+                    document.body.classList.remove('map-fs-open');
+                    const fsBtn = mapEl.querySelector('.map-fs-btn');
+                    if (fsBtn) {
+                        fsBtn.innerHTML = '⛶';
+                        fsBtn.title = 'На весь экран';
+                    }
+                    setTimeout(() => this.map?.invalidateSize?.({ animate: false }), 60);
+                }
                 const coord = this.validMapCoord(boulder.latitude, boulder.longitude);
                 if (coord) {
                     this.setMapTarget({
@@ -9986,11 +10218,16 @@
                     lat: entry.lat,
                     lng: entry.lng
                 };
+                this._mapNavigationActive = false;
+                this._mapNavigationPending = false;
+                this._activeMapNavigationPath = [];
+                document.body.classList.add('map-target-active');
                 const btn = document.getElementById('mapTargetBtn');
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fas fa-crosshairs"></i> Показать цель';
                 }
+                this.syncMapNavigationControl();
                 this.refreshMapMarkerStyles();
                 this.renderMapGuideStrip();
                 this.renderMapCoordsBar();
@@ -10105,6 +10342,7 @@
                     return;
                 }
                 const guide = this.guideSnippetForMapEntry({ guideSource: source });
+                const navLabel = this._mapNavigationActive ? 'Открыть в навигаторе' : 'Проложить маршрут';
                 el.classList.remove('hidden');
                 el.innerHTML = `
                     <div class="map-guide-strip-title">
@@ -10112,9 +10350,52 @@
                     </div>
                     ${guide ? `<div class="map-guide-strip-body">${guide}</div>` : '<div class="map-guide-strip-body">Guide-поля для этой точки пока не заполнены.</div>'}
                     <div class="map-guide-strip-actions">
+                        <button type="button" class="btn btn-primary btn-small map-guide-nav-btn" id="mapGuideNavigateBtn">
+                            <span class="map-navigate-icon" aria-hidden="true">${MAP_NAVIGATE_SVG}</span> ${navLabel}
+                        </button>
                         <button type="button" class="btn btn-ghost btn-small" id="mapGuideOpenBtn">Подробнее в каталоге</button>
                     </div>
                 `;
+            }
+
+            fitMapToActiveNavigation() {
+                if (!this.map || !Array.isArray(this._activeMapNavigationPath) || this._activeMapNavigationPath.length < 2) return;
+                const bounds = L.latLngBounds(this._activeMapNavigationPath);
+                if (!bounds.isValid()) return;
+                this.map.fitBounds(bounds.pad(0.18), {
+                    maxZoom: 17,
+                    animate: true,
+                    paddingTopLeft: [24, 24],
+                    paddingBottomRight: [24, 170]
+                });
+            }
+
+            activateMapNavigation() {
+                if (!this.userLocation || !this.mapTarget) return false;
+                this._mapNavigationPending = false;
+                this._mapNavigationActive = true;
+                this.updateMapNavigationLine();
+                this.fitMapToActiveNavigation();
+                this.syncMapNavigationControl();
+                this.renderMapGuideStrip();
+                this.updateMapStatus();
+                return true;
+            }
+
+            handleMapNavigationControl() {
+                if (!this.mapTarget) return;
+                if (this._mapNavigationActive) {
+                    this.openExternalNavigation(this.mapTarget);
+                    return;
+                }
+                if (!this.userLocation) {
+                    this._mapNavigationPending = true;
+                    this.syncMapNavigationControl();
+                    this.renderMapGuideStrip();
+                    this.startUserLocationWatch();
+                    return;
+                }
+                this.activateMapNavigation();
             }
 
             bearingDegrees(a, b) {
@@ -10465,16 +10746,18 @@
             updateMapNavigationLine() {
                 if (!this.map) return;
                 this.clearMapNavigationLines();
-                if (!this.userLocation || !this.mapTarget) return;
+                this._activeMapNavigationPath = [];
+                if (!this._mapNavigationActive || !this.userLocation || !this.mapTarget) return;
                 const nav = this.buildNavigationPath(this.userLocation, this.mapTarget);
                 const path = this.dedupeMapPath(nav.path || []);
                 if (path.length < 2) return;
+                this._activeMapNavigationPath = path;
                 if (nav.viaTrail) {
                     this.mapNavigationTrailLine = L.polyline(path, {
-                        color: '#22c55e',
-                        weight: 6,
-                        opacity: 0.95,
-                        dashArray: '12 10',
+                        color: '#3be58f',
+                        weight: 7,
+                        opacity: 1,
+                        dashArray: '5 9',
                         lineJoin: 'round',
                         lineCap: 'round'
                     }).addTo(this.map);
@@ -10510,6 +10793,10 @@
 
             handleMapGeolocationError(err, { clearWatch = true } = {}) {
                 const text = this.formatGeolocationError(err);
+                this._mapLocateState = 'error';
+                this._mapNavigationPending = false;
+                this.syncMapLocateButtons();
+                this.syncMapNavigationControl();
                 this.showToast(text, true);
                 this.updateMapStatus(text);
                 if (clearWatch && this._geoWatchId != null && navigator.geolocation) {
@@ -10606,15 +10893,25 @@
                 const canBrowser = !!navigator.geolocation;
                 const canTelegram = this.canUseTelegramLocation();
                 if (!canBrowser && !canTelegram) {
+                    this._mapLocateState = 'error';
+                    this._mapNavigationPending = false;
+                    this.syncMapLocateButtons();
+                    this.syncMapNavigationControl();
                     this.showToast('Геолокация недоступна на этом устройстве', true);
                     this.updateMapStatus('Геолокация недоступна на этом устройстве.');
                     return;
                 }
+                this._mapLocateState = 'loading';
+                this.syncMapLocateButtons();
                 this._mapLocateRequested = true;
                 const hadCache = this.applyCachedUserLocation();
                 if (hadCache && this.map) {
                     const c = this.userLocation;
-                    this.map.setView([c.lat, c.lng], Math.max(this.map.getZoom(), 15), { animate: true });
+                    if (this._mapNavigationPending && this.mapTarget) {
+                        this.activateMapNavigation();
+                    } else {
+                        this.map.setView([c.lat, c.lng], Math.max(this.map.getZoom(), 15), { animate: true });
+                    }
                     this.updateMapStatus('Показана последняя известная позиция, уточняю GPS…');
                 } else {
                     this.updateMapStatus('Запрашиваю геолокацию…');
@@ -10642,12 +10939,18 @@
                 const coord = this.validMapCoord(pos.coords.latitude, pos.coords.longitude);
                 if (!coord) return;
                 this.userLocation = coord;
+                this._mapLocateState = 'active';
+                this.syncMapLocateButtons();
                 this.saveCachedUserLocation(coord);
                 if (Number.isFinite(Number(pos.coords.heading)) && Number(pos.coords.heading) >= 0) {
                     this.userLocationHeading = Number(pos.coords.heading);
                 }
                 this.ensureUserLocationMarker();
-                this.updateMapNavigationLine();
+                if (this._mapNavigationPending && this.mapTarget) {
+                    this.activateMapNavigation();
+                } else {
+                    this.updateMapNavigationLine();
+                }
                 this.renderMapCoordsBar();
                 this.renderMapNearestChip();
                 if ((fromUserAction || this._mapLocateRequested) && !this.mapTarget) {
@@ -13151,6 +13454,34 @@
 
             setupEventListeners() {
                 this.setupAuthEventListeners();
+                const mapBoulderSheet = document.getElementById('mapBoulderSheet');
+                mapBoulderSheet?.addEventListener('click', (e) => {
+                    if (e.target === mapBoulderSheet || e.target.closest('[data-map-boulder-sheet-close]')) {
+                        e.preventDefault();
+                        this.closeMapBoulderSheet();
+                        return;
+                    }
+                    const chip = e.target.closest('[data-grade-index]');
+                    if (chip) {
+                        e.preventDefault();
+                        const index = Number(chip.dataset.gradeIndex);
+                        this._mapBoulderSheetGrade = index >= 0
+                            ? (this._mapBoulderSheetGrades[index] || '')
+                            : '';
+                        this.renderMapBoulderSheet();
+                        return;
+                    }
+                    const item = e.target.closest('[data-boulder-index]');
+                    if (!item) return;
+                    e.preventDefault();
+                    const boulder = this.mapBouldersAtPin(this._mapBoulderSheetEntry)[Number(item.dataset.boulderIndex)];
+                    if (boulder) this.handleMapPopupBoulderPick(boulder.id);
+                });
+                document.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Escape' || !this.closeMapBoulderSheet()) return;
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                });
                 document.addEventListener('click', (e) => {
                     const backBtn = e.target.closest('[data-guide-back]');
                     if (!backBtn) return;
@@ -13300,7 +13631,7 @@
                     });
                 });
                 document.getElementById('mapLocateBtn')?.addEventListener('click', () => {
-                    this.startUserLocationWatch();
+                    this.handleMapLocateControl();
                 });
                 document.getElementById('mapTargetBtn')?.addEventListener('click', () => {
                     this.focusCurrentMapTarget();
@@ -13356,6 +13687,12 @@
                     if (resetBtn) {
                         e.preventDefault();
                         this.clearMapScope();
+                        return;
+                    }
+                    const navigateBtn = e.target.closest('#mapGuideNavigateBtn');
+                    if (navigateBtn) {
+                        e.preventDefault();
+                        this.handleMapNavigationControl();
                         return;
                     }
                     const guideBtn = e.target.closest('#mapGuideOpenBtn');
