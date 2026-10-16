@@ -5667,6 +5667,45 @@
             font-weight: 700;
         }
 
+        .map-popup-control-actions {
+            display: inline-flex;
+            flex: 0 0 auto;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .map-popup-control-btn {
+            width: 42px;
+            height: 42px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 0;
+            border-radius: 50%;
+            cursor: pointer;
+            touch-action: manipulation;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
+        }
+
+        .map-popup-control-btn--locate {
+            border: 1px solid #d1d5db;
+            background: #fff;
+            color: #2563eb;
+        }
+
+        .map-popup-control-btn--navigate {
+            border: 1px solid #315be8;
+            background: #315be8;
+            color: #fff;
+        }
+
+        .map-popup-control-btn .map-locate-pin-icon svg,
+        .map-popup-control-btn .map-navigate-icon svg {
+            width: 21px;
+            height: 21px;
+        }
+
         .map-popup-head .map-popup-route-btn {
             flex: 0 0 auto;
             margin-top: 1px;
@@ -8918,6 +8957,12 @@
         html.app-shell.app-shell-map-tab #mapGuideStrip .map-guide-nav-btn {
             background: #315be8;
             border-color: #315be8;
+        }
+
+        html.app-shell #mapGuideStrip,
+        html.app-shell #mapContainer .map-locate-btn,
+        html.app-shell #mapContainer .map-navigate-btn {
+            display: none !important;
         }
 
         html.app-shell body.map-target-active #mapContainer .leaflet-bottom.leaflet-right {

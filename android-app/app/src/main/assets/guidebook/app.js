@@ -714,13 +714,17 @@
             return `<button type="button" class="catalog-map-btn catalog-route-nav-btn btn btn-small" data-catalog-act="nav-route" data-map-kind="${mapKind}" data-id="${id}" aria-label="Маршрут" title="Маршрут"><img class="catalog-route-nav-icon" src="icons/route-nav.png" alt="" decoding="async"></button>`;
         }
 
-        function buildMapPopupRouteButtonHtml(kind, entityId) {
-            const id = String(entityId);
-            return `<button type="button" class="catalog-route-nav-btn btn btn-small map-popup-route-btn" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('external','${kind}', '${id}'); return false;" aria-label="Маршрут" title="Маршрут"><img class="catalog-route-nav-icon" src="icons/route-nav.png" alt="" decoding="async"></button>`;
-        }
         /** Кнопка «Моё местоположение»: классическая метка-pin с точкой внутри. */
         const MAP_LOCATE_PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.15 10.65 20.4 3.1a.8.8 0 0 1 1.05 1.05L13.9 21.4a.8.8 0 0 1-1.48-.08l-2.18-7.56-7.56-2.18a.8.8 0 0 1-.08-1.48l.55.55Zm8.58 1.62 1.66 5.75 5.33-12.17-12.17 5.33 5.18 1.49Z"/></svg>';
         const MAP_NAVIGATE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 1.8 22.2 12 12 22.2 1.8 12 12 1.8Zm1 5.1-1.4 1.4 2.7 2.7H7v2h7.3l-2.7 2.7 1.4 1.4 5.1-5.1L13 6.9Z"/></svg>';
+
+        function buildMapPopupControlsHtml(kind, entityId) {
+            const id = String(entityId);
+            return `<div class="map-popup-control-actions">
+                <button type="button" class="map-popup-control-btn map-popup-control-btn--locate" onclick="event.preventDefault(); event.stopPropagation(); window.app?.handleMapPopupAction?.('locate','${kind}', '${id}'); return false;" aria-label="Моё местоположение" title="Моё местоположение"><span class="map-locate-pin-icon">${MAP_LOCATE_PIN_SVG}</span></button>
+                <button type="button" class="map-popup-control-btn map-popup-control-btn--navigate" onclick="event.preventDefault(); event.stopPropagation(); window.app?.handleMapPopupAction?.('navigate','${kind}', '${id}'); return false;" aria-label="Проложить маршрут" title="Проложить маршрут"><span class="map-navigate-icon">${MAP_NAVIGATE_SVG}</span></button>
+            </div>`;
+        }
         /** Кемпинг: палатка на белом фоне. */
         const MAP_CAMPING_SIGN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" aria-hidden="true"><rect width="20" height="20" rx="3" fill="#fff"/><path fill="#141414" d="M4.5 14.2h11v1.35H4.5z"/><path fill="#141414" d="M10 4.8 5.6 14.05h8.8L10 4.8z"/><path fill="#141414" d="M8.35 6.05 10 4.05l1.65 2-.72.72-.48-.48-.48.48z"/></svg>';
 
@@ -8556,11 +8560,11 @@
                     ? `<button type="button" class="btn btn-small btn-ghost" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('catalog','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">В каталог</button>`
                     : '';
                 const isAreaOrSector = entry.kind === 'area' || entry.kind === 'sector';
-                const routeButton = isAreaOrSector
-                    ? buildMapPopupRouteButtonHtml(entry.kind, entry.id)
+                const mapControls = isAreaOrSector
+                    ? buildMapPopupControlsHtml(entry.kind, entry.id)
                     : '';
-                const titleBlock = isAreaOrSector && routeButton
-                    ? `<div class="map-popup-head"><strong class="map-popup-title">${this.escapeHtml(entry.title)}</strong>${routeButton}</div>`
+                const titleBlock = isAreaOrSector && mapControls
+                    ? `<div class="map-popup-head"><strong class="map-popup-title">${this.escapeHtml(entry.title)}</strong>${mapControls}</div>`
                     : `<strong>${this.escapeHtml(entry.title)}</strong>`;
                 const adminPinActions = this.isAdmin() && isAreaOrSector
                     ? `
@@ -10248,6 +10252,20 @@
             }
 
             handleMapPopupAction(action, kind, id) {
+                if (action === 'locate') {
+                    this.handleMapLocateControl();
+                    return;
+                }
+                if (action === 'navigate') {
+                    const target = this.navTargetFromKindId(kind, id);
+                    if (!target) {
+                        this.showToast('У объекта нет координат на карте', true);
+                        return;
+                    }
+                    this.setMapTarget(target);
+                    this.handleMapNavigationControl();
+                    return;
+                }
                 if (action === 'open') {
                     void this.showClimbDetailDialog(kind, id);
                     return;
