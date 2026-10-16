@@ -428,6 +428,10 @@
                 return true;
             }
 
+            if (window.app?.stepBackFromMap?.()) {
+                return true;
+            }
+
             if (typeof window.closeTopTelegramOverlay === 'function' && window.closeTopTelegramOverlay()) {
                 return true;
             }
@@ -8098,6 +8102,8 @@
                 if (!entry?.climbType) return;
                 if (this.catalogEmbeddedMapActive() && document.documentElement.classList.contains('app-shell')) {
                     if (entry.kind === 'boulder') {
+                        this.setMapScopeForEntry(entry.kind, entry.id);
+                        this.updateMapMarkers();
                         this.openMapBoulderSheet(entry);
                     } else {
                         void this.showClimbDetailDialog(entry.climbType, entry.id);
@@ -8105,6 +8111,8 @@
                     return;
                 }
                 if (entry.kind === 'boulder' && document.documentElement.classList.contains('app-shell')) {
+                    this.setMapScopeForEntry(entry.kind, entry.id);
+                    this.updateMapMarkers();
                     this.openMapBoulderSheet(entry);
                     return;
                 }
@@ -8257,6 +8265,17 @@
                     }
                     if (entry?.kind === 'sector' && document.documentElement.classList.contains('app-shell')) {
                         this.openMapSectorClimbSheet(entry);
+                        return;
+                    }
+                    if (
+                        entry?.kind === 'area'
+                        && document.documentElement.classList.contains('app-shell')
+                        && !this.catalogEmbeddedMapActive()
+                    ) {
+                        this.setMapScopeForEntry('area', entry.id);
+                        this.updateMapMarkers();
+                        this.fitMapToCatalogScope(15);
+                        this.syncMapDrillBackBtn();
                         return;
                     }
                     if (sectorCatalogJump) {
@@ -8420,6 +8439,7 @@
                 }
                 this.updateMapMarkers();
                 this.openMapBoulderSheet(entry);
+                this.syncMapDrillBackBtn();
             }
 
             mapGradeSortKey(value) {
@@ -9035,6 +9055,7 @@
                 this.scheduleMapDeclutter();
                 this.renderMapFeatureLayers();
                 this.renderMapNearestChip();
+                this.syncMapDrillBackBtn();
                 if (this.catalogEmbeddedMapActive() && this.mapCatalogScope?.areaId) {
                     this.scheduleCatalogMapAutoFit();
                 }
@@ -10057,6 +10078,68 @@
                 this.updateMapMarkers();
             }
 
+            mapDrillBackAvailable() {
+                if (!document.documentElement.classList.contains('app-shell')) return false;
+                const climbOpen = !document.getElementById('climbDetailDialog')?.classList.contains('hidden');
+                if (climbOpen) return false;
+                if (this.catalogEmbeddedMapActive()) {
+                    return this.catalog?.view === 'problems' || this.catalog?.view === 'sectors';
+                }
+                const mapTab = document.getElementById('map')?.classList.contains('active');
+                return !!mapTab && !!this.mapCatalogScope;
+            }
+
+            syncMapDrillBackBtn() {
+                const btn = document.getElementById('mapDrillBackBtn');
+                if (!btn) return;
+                const show = this.mapDrillBackAvailable();
+                const toSectors = !!(this.mapCatalogScope?.sectorId != null || this.catalog?.view === 'problems');
+                const label = toSectors ? 'Назад к секторам' : 'Назад к районам';
+                btn.classList.toggle('hidden', !show);
+                btn.setAttribute('aria-hidden', show ? 'false' : 'true');
+                btn.setAttribute('aria-label', label);
+                btn.title = label;
+            }
+
+            stepBackFromMap() {
+                this.closeMapClimbInfoSheet();
+                this.closeMapBoulderSheet();
+                if (this.catalogEmbeddedMapActive() && this.catalog) {
+                    if (this.catalog.view === 'problems') {
+                        this.catalog = { view: 'sectors', areaId: this.catalog.areaId, sectorId: null };
+                        this.mapCatalogScope = { areaId: Number(this.catalog.areaId), sectorId: null };
+                        this.syncCatalogEmbeddedMapUi(true);
+                        this.updateMapMarkers();
+                        this.scheduleCatalogMapAutoFit();
+                        this.syncMapDrillBackBtn();
+                        return true;
+                    }
+                    if (this.catalog.view === 'sectors') {
+                        this.catalog = { view: 'areas', areaId: null, sectorId: null };
+                        this.mapCatalogScope = null;
+                        void this.syncCatalogEmbeddedMap();
+                        this.renderCatalog();
+                        this.syncMapDrillBackBtn();
+                        return true;
+                    }
+                    return false;
+                }
+                if (this.mapCatalogScope?.sectorId != null) {
+                    const areaId = Number(this.mapCatalogScope.areaId);
+                    this.mapCatalogScope = Number.isFinite(areaId) ? { areaId, sectorId: null } : null;
+                    this.updateMapMarkers();
+                    if (this.mapCatalogScope) this.fitMapToCatalogScope(15);
+                    this.syncMapDrillBackBtn();
+                    return true;
+                }
+                if (this.mapCatalogScope) {
+                    this.clearMapScope();
+                    this.syncMapDrillBackBtn();
+                    return true;
+                }
+                return false;
+            }
+
             _reparentCatalogMapLegend(toCatalog) {
                 const legend = document.getElementById('mapLegend');
                 const mount = document.getElementById('catalogMapLegendMount');
@@ -10185,6 +10268,7 @@
                     this.applyCachedUserLocation();
                 }
                 if (typeof window.syncTelegramMiniAppUi === 'function') window.syncTelegramMiniAppUi();
+                this.syncMapDrillBackBtn();
             }
 
             async focusMapTarget(kind, id, { openPopup = true, setTarget = true } = {}) {
@@ -13634,6 +13718,10 @@
 
             setupEventListeners() {
                 this.setupAuthEventListeners();
+                document.getElementById('mapDrillBackBtn')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.stepBackFromMap();
+                });
                 const mapClimbInfoSheet = document.getElementById('mapClimbInfoSheet');
                 mapClimbInfoSheet?.addEventListener('click', (e) => {
                     const actionEl = e.target.closest('[data-map-climb-info-action]');
@@ -13646,6 +13734,10 @@
                     e.preventDefault();
                     const action = actionEl.dataset.mapClimbInfoAction;
                     const target = this._mapClimbInfoTarget;
+                    if (action === 'back') {
+                        this.stepBackFromMap();
+                        return;
+                    }
                     if (action === 'close') {
                         this.closeMapClimbInfoSheet();
                         return;
@@ -13663,6 +13755,11 @@
                 });
                 const mapBoulderSheet = document.getElementById('mapBoulderSheet');
                 mapBoulderSheet?.addEventListener('click', (e) => {
+                    if (e.target.closest('[data-map-boulder-sheet-back]')) {
+                        e.preventDefault();
+                        this.stepBackFromMap();
+                        return;
+                    }
                     if (e.target === mapBoulderSheet || e.target.closest('[data-map-boulder-sheet-close]')) {
                         e.preventDefault();
                         this.closeMapBoulderSheet();
@@ -14483,6 +14580,7 @@
                 if (typeof window.syncTelegramMiniAppUi === 'function') {
                     window.syncTelegramMiniAppUi();
                 }
+                this.syncMapDrillBackBtn();
             }
 
             hideDialog(dialogId) {
@@ -14537,6 +14635,7 @@
                 if (typeof window.syncTelegramMiniAppUi === 'function') {
                     window.syncTelegramMiniAppUi();
                 }
+                this.syncMapDrillBackBtn();
             }
 
             showToast(message, isError = false) {

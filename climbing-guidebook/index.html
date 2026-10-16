@@ -638,13 +638,16 @@
                     </div>
                     <div class="profile-stats-grid" id="profileStatsGrid"></div>
                 </div>
-            </div>
         </div>
+    </div>
+
+    <button type="button" class="map-drill-back-btn hidden" id="mapDrillBackBtn" aria-label="Назад к районам" title="Назад"></button>
 
     <div class="map-boulder-sheet hidden" id="mapBoulderSheet" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="mapBoulderSheetTitle">
         <section class="map-boulder-sheet-panel">
             <div class="map-boulder-sheet-handle" aria-hidden="true"></div>
             <header class="map-boulder-sheet-header">
+                <button type="button" class="guide-back-chevron-btn map-sheet-back-btn" data-map-boulder-sheet-back aria-label="Назад"></button>
                 <div class="map-boulder-sheet-heading">
                     <strong id="mapBoulderSheetTitle">Боулдеры</strong>
                     <span id="mapBoulderSheetMeta"></span>
@@ -660,6 +663,7 @@
         <section class="map-climb-info-sheet-panel">
             <div class="map-boulder-sheet-handle" aria-hidden="true"></div>
             <header class="map-boulder-sheet-header">
+                <button type="button" class="guide-back-chevron-btn map-sheet-back-btn" data-map-climb-info-action="back" aria-label="Назад"></button>
                 <div class="map-boulder-sheet-heading">
                     <strong id="mapClimbInfoTitle">Трасса</strong>
                     <span id="mapClimbInfoMeta"></span>

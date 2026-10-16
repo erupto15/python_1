@@ -5547,6 +5547,63 @@
             vertical-align: -0.15em;
         }
 
+        .map-drill-back-btn {
+            position: fixed;
+            top: calc(58px + env(safe-area-inset-top, 0px));
+            left: calc(12px + env(safe-area-inset-left, 0px));
+            z-index: 870;
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            border: 1px solid rgba(17, 24, 39, 0.12);
+            border-radius: 50%;
+            background: #fff;
+            color: #111827;
+            box-shadow: 0 5px 18px rgba(0, 0, 0, 0.28);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            touch-action: manipulation;
+        }
+
+        .map-drill-back-btn::before {
+            content: '';
+            display: block;
+            width: 11px;
+            height: 11px;
+            margin-left: 4px;
+            border-left: 2.5px solid currentColor;
+            border-bottom: 2.5px solid currentColor;
+            transform: rotate(45deg);
+        }
+
+        .map-drill-back-btn:active {
+            transform: scale(0.96);
+        }
+
+        html.app-shell.catalog-map-shell .map-drill-back-btn,
+        html.app-shell.app-shell-map-tab .map-drill-back-btn {
+            top: calc(58px + env(safe-area-inset-top, 0px));
+        }
+
+        .map-sheet-back-btn {
+            width: 34px;
+            height: 34px;
+            align-self: center;
+            filter: none;
+        }
+
+        .map-sheet-back-btn::before {
+            width: 11px;
+            height: 11px;
+            border-left-color: var(--text-color);
+            border-bottom-color: var(--text-color);
+            border-left-width: 2.5px;
+            border-bottom-width: 2.5px;
+        }
+
         .map-locate-btn {
             width: 54px;
             height: 54px;
