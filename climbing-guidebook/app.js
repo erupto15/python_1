@@ -8877,6 +8877,10 @@
                 if (!this.mapCatalogScope) return true;
                 const { areaId, sectorId } = this.mapCatalogScope;
                 if (sectorId != null) {
+                    if (this.appShellEmbeddedMapActive() && this.catalog?.view === 'problems') {
+                        if (entry.kind === 'sector') return Number(entry.areaId) === Number(areaId);
+                        if (entry.kind === 'area') return Number(entry.id) === Number(areaId);
+                    }
                     return Number(entry.sectorId) === Number(sectorId)
                         || (entry.kind === 'sector' && Number(entry.id) === Number(sectorId))
                         || (entry.kind === 'area' && Number(entry.id) === Number(areaId));
@@ -8912,7 +8916,7 @@
 
                 getSectors().forEach((sector) => {
                     const c = this.sectorMapPinCoordinate(sector.id)
-                        || (appShellOverview ? this.sectorMapCentroid(sector.id) : null);
+                        || (appShellEmbedded ? this.sectorMapCentroid(sector.id) : null);
                     if (!c) return;
                     const area = getAreas().find((a) => Number(a.id) === Number(sector.areaId));
                     const routesCount = APP_BOULDER_ONLY ? 0 : getRoutes().filter((r) => Number(r.sectorId) === Number(sector.id)).length;
@@ -8994,7 +8998,10 @@
                 return entries.filter((entry) => {
                     if (!this.mapEntryInScope(entry)) return false;
                     if (this.appShellEmbeddedMapActive() && this.catalog?.view === 'problems') {
-                        return entry.kind === 'route' || entry.kind === 'boulder';
+                        return entry.kind === 'sector'
+                            || entry.kind === 'area'
+                            || entry.kind === 'route'
+                            || entry.kind === 'boulder';
                     }
                     return true;
                 });
