@@ -1424,21 +1424,28 @@
             padding: 12px 16px;
             border: 2px solid var(--border-color);
             border-radius: 8px;
-            font-size: 15px;
-            transition: var(--transition);
+            font-family: var(--ui-font);
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 22px;
+            letter-spacing: 0;
+            transition: border-color 0.2s ease, background-color 0.2s ease;
             background-color: color-mix(in srgb, var(--card-bg) 88%, transparent);
             color: var(--text-color);
+            caret-color: var(--text-color);
+            -webkit-text-size-adjust: 100%;
         }
 
         .form-input:focus, .form-textarea:focus, .form-select:focus {
             outline: none;
             border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(93, 156, 255, 0.1);
         }
 
         .form-textarea {
             min-height: 120px;
             resize: vertical;
+            line-height: 22px;
+            overflow-wrap: break-word;
         }
 
         .form-row {
@@ -9118,7 +9125,9 @@
         html.catalog-map-shell #catalog #catalogList,
         html.catalog-map-shell #catalog .catalog-map-block-head,
         html.catalog-map-shell #catalog .catalog-map-legend-mount,
-        html.catalog-map-shell #catalog .catalog-map-edit-mount {
+        html.catalog-map-shell #catalog .catalog-map-edit-mount,
+        html.catalog-admin.catalog-map-shell #catalog .catalog-toolbar,
+        html.catalog-admin.catalog-map-shell #catalog .catalog-guide-hero {
             display: none !important;
         }
 
