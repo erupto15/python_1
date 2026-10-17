@@ -2827,11 +2827,8 @@
                 const background = options.background === true;
                 const showBusy = !background && (!isInitial || !catalogHasContent(getClimbingData()));
                 const busyMsg = isInitial ? 'Загрузка каталога…' : 'Обновление каталога…';
-                if (showBusy) setGlobalUiBusy(true, busyMsg);
+                if (showBusy) setGlobalUiBusy(true);
                 try {
-                    if (!background && !isInitial && _appRemoteDataReady) {
-                        window.app?.showToast?.('Обновление данных…', false);
-                    }
                     if (!options.skipWake) {
                         const awake = await wakeApiServer();
                         if (!awake) {
@@ -2891,21 +2888,16 @@
 
         let _globalUiBusyDepth = 0;
         let _globalUiBusyShowTimer = null;
-        let _globalUiBusyMessage = 'Загрузка…';
-        const GLOBAL_UI_BUSY_DELAY_MS = 320;
+        const GLOBAL_UI_BUSY_DELAY_MS = 80;
 
-        function setGlobalUiBusy(active, message = 'Загрузка…') {
+        function setGlobalUiBusy(active) {
             const overlay = document.getElementById('appGlobalBusy');
             if (!overlay) return;
-            const textEl = overlay.querySelector('.app-global-busy-text');
             if (active) {
                 _globalUiBusyDepth += 1;
-                _globalUiBusyMessage = message || 'Загрузка…';
-                if (textEl) textEl.textContent = _globalUiBusyMessage;
                 clearTimeout(_globalUiBusyShowTimer);
                 _globalUiBusyShowTimer = setTimeout(() => {
                     if (_globalUiBusyDepth <= 0) return;
-                    if (textEl) textEl.textContent = _globalUiBusyMessage;
                     overlay.classList.remove('hidden');
                     overlay.setAttribute('aria-busy', 'true');
                     document.documentElement.classList.add('app-ui-busy');
@@ -2922,10 +2914,11 @@
 
         window.setGlobalUiBusy = setGlobalUiBusy;
 
-        async function withGlobalUiBusy(message, fn) {
-            setGlobalUiBusy(true, message);
+        async function withGlobalUiBusy(_message, fn) {
+            const run = typeof _message === 'function' ? _message : fn;
+            setGlobalUiBusy(true);
             try {
-                return await fn();
+                return await run();
             } finally {
                 setGlobalUiBusy(false);
             }
@@ -7062,7 +7055,7 @@
                 const file = event?.target?.files?.[0];
                 if (!file) return;
                 try {
-                    this.showToast('Сжимаем фото…', false);
+                    setGlobalUiBusy(true);
                     const payload = await processImageUploadFile(file, 'cover');
                     this.areaPhotoData = {
                         data: payload.data,
@@ -7075,6 +7068,8 @@
                 } catch (err) {
                     this.showToast(err.message || 'Ошибка чтения файла', true);
                     this.clearAreaDialogPhoto();
+                } finally {
+                    setGlobalUiBusy(false);
                 }
             }
 
@@ -7084,7 +7079,7 @@
                     return;
                 }
                 try {
-                    this.showToast('Поворачиваем…', false);
+                    setGlobalUiBusy(true);
                     const rotated = await rotateImageDataUrlQuarterTurns(this.areaPhotoData.data, turnsClockwise, 0.9);
                     this.areaPhotoData = {
                         ...this.areaPhotoData,
@@ -7095,6 +7090,8 @@
                     this.renderAreaDialogPhotoPreview(rotated);
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось повернуть фото', true);
+                } finally {
+                    setGlobalUiBusy(false);
                 }
             }
 
@@ -7106,7 +7103,7 @@
                     return;
                 }
                 try {
-                    this.showToast('Поворачиваем…', false);
+                    setGlobalUiBusy(true);
                     const climbType = isRoute ? 'route' : 'boulder';
                     const rotated = await rotateImageDataUrlQuarterTurns(data.data, turnsClockwise, 0.9);
                     const next = {
@@ -7133,6 +7130,8 @@
                     this.renderQuickDialogPhotoPreview(kind);
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось повернуть фото', true);
+                } finally {
+                    setGlobalUiBusy(false);
                 }
             }
 
@@ -7142,7 +7141,7 @@
                     return;
                 }
                 try {
-                    this.showToast('Поворачиваем…', false);
+                    setGlobalUiBusy(true);
                     const climbType = this.currentPhotoPreview.climbType || null;
                     const rotated = await rotateImageDataUrlQuarterTurns(this.currentPhotoPreview.data, turnsClockwise, 0.9);
                     this.currentPhotoPreview = {
@@ -7167,6 +7166,8 @@
                     }
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось повернуть фото', true);
+                } finally {
+                    setGlobalUiBusy(false);
                 }
             }
 
@@ -7215,7 +7216,7 @@
                 const file = event?.target?.files?.[0];
                 if (!file) return;
                 try {
-                    this.showToast('Сжимаем фото…', false);
+                    setGlobalUiBusy(true);
                     const uploaded = await processImageUploadFile(file, 'climb');
                     const payload = {
                         data: uploaded.data,
@@ -7230,6 +7231,8 @@
                 } catch (err) {
                     this.showToast(err.message || 'Ошибка чтения файла', true);
                     this.clearQuickDialogPhoto(kind);
+                } finally {
+                    setGlobalUiBusy(false);
                 }
             }
 
@@ -13551,7 +13554,7 @@
                 }
                 this._photosLoadInProgress = true;
                 this.syncLoadPhotosButtonsUi({ loading: true });
-                this.showToast('Загрузка фотографий…', false);
+                setGlobalUiBusy(true);
                 try {
                     const awake = await wakeApiServer({ attempts: 3, timeoutMs: 12000, pauseMs: 600 });
                     if (!awake) throw new Error('Сервер не отвечает');
@@ -13565,6 +13568,7 @@
                 } finally {
                     this._photosLoadInProgress = false;
                     this.syncLoadPhotosButtonsUi({ loading: false });
+                    setGlobalUiBusy(false);
                 }
             }
 
@@ -14696,8 +14700,9 @@
             }
 
             showToast(message, isError = false) {
+                if (!isError) return;
                 const toast = document.createElement('div');
-                toast.className = `toast ${isError ? 'error' : 'success'}`;
+                toast.className = 'toast error';
                 toast.textContent = message;
                 document.body.appendChild(toast);
 
@@ -14779,7 +14784,7 @@
 
                 void (async () => {
                     try {
-                        this.showToast('Сжимаем фото…', false);
+                        setGlobalUiBusy(true);
                         const uploaded = await processImageUploadFile(file, 'climb');
                         const previewContainer = document.getElementById(previewContainerId);
 
@@ -14893,6 +14898,8 @@
                     } catch (err) {
                         this.showToast(err.message || 'Ошибка чтения файла', true);
                         event.target.value = '';
+                    } finally {
+                        setGlobalUiBusy(false);
                     }
                 })();
             }
@@ -17330,8 +17337,8 @@
                 if (!this.requireAdmin('Добавление видео')) return;
                 const ctx = this._climbDetailContext;
                 if (!ctx) return;
-                this.showToast('Загрузка видео…');
                 try {
+                    setGlobalUiBusy(true);
                     const uploaded = await uploadMediaFile(file, 'video');
                     await apiFetch('/api/videos', {
                         method: 'POST',
@@ -17349,10 +17356,11 @@
                             duration_sec: uploaded.duration_sec
                         })
                     });
-                    this.showToast('Видео добавлено');
                     await this.refreshClimbDetailVideos(ctx.climbType, ctx.climbId);
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось загрузить видео', true);
+                } finally {
+                    setGlobalUiBusy(false);
                 }
             }
 
@@ -17366,8 +17374,8 @@
                     return;
                 }
                 if (!this._commentDraftAttachments) this._commentDraftAttachments = [];
-                this.showToast(`Загрузка файлов (${files.length})…`);
                 try {
+                    setGlobalUiBusy(true);
                     for (const file of files) {
                         let uploaded;
                         if (isVideoLikeFile(file)) {
@@ -17399,9 +17407,10 @@
                         }
                     }
                     this.renderClimbCommentMediaPreview();
-                    this.showToast('Файлы прикреплены');
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось прикрепить файл', true);
+                } finally {
+                    setGlobalUiBusy(false);
                 }
             }
 
