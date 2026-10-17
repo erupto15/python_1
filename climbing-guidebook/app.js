@@ -420,6 +420,10 @@
             if (now < _guidebookSystemBackLockUntil) return true;
             _guidebookSystemBackLockUntil = now + 280;
 
+            if (typeof window.closeTopTelegramOverlay === 'function' && window.closeTopTelegramOverlay()) {
+                return true;
+            }
+
             if (window.app?.closeMapClimbInfoSheet?.()) {
                 return true;
             }
@@ -429,10 +433,6 @@
             }
 
             if (window.app?.stepBackFromMap?.()) {
-                return true;
-            }
-
-            if (typeof window.closeTopTelegramOverlay === 'function' && window.closeTopTelegramOverlay()) {
                 return true;
             }
 
@@ -5721,6 +5721,7 @@
                 this._mapBoulderSheetEntry = null;
                 this._mapBoulderSheetGrade = '';
                 this._mapBoulderSheetGrades = [];
+                this._mapClimbSheetRestore = null;
                 this._mapClimbInfoTarget = null;
                 this.areaPhotoData = null;
                 this.areaPhotoRemove = false;
@@ -8110,6 +8111,7 @@
                         this.updateMapMarkers();
                         this.openMapBoulderSheet(entry);
                     } else {
+                        this.captureMapClimbSheetRestore(this.mapSectorSheetEntry(entry.sectorId) || this._mapBoulderSheetEntry);
                         void this.showClimbDetailDialog(entry.climbType, entry.id);
                     }
                     return;
@@ -8472,6 +8474,41 @@
                 });
             }
 
+            mapSectorSheetEntry(sectorId) {
+                const id = Number(sectorId);
+                if (!Number.isFinite(id)) return null;
+                const sector = getSectors().find((item) => Number(item.id) === id);
+                if (!sector) return null;
+                const area = getAreas().find((item) => Number(item.id) === Number(sector.areaId));
+                return {
+                    kind: 'sector',
+                    id: sector.id,
+                    title: sector.name,
+                    meta: area?.name || '',
+                    areaId: sector.areaId,
+                    sectorId: sector.id
+                };
+            }
+
+            captureMapClimbSheetRestore(entry = this._mapBoulderSheetEntry) {
+                if (!entry) return;
+                this._mapClimbSheetRestore = {
+                    entry,
+                    grade: this._mapBoulderSheetGrade || ''
+                };
+            }
+
+            restoreMapClimbSheetAfterDetail() {
+                const saved = this._mapClimbSheetRestore;
+                this._mapClimbSheetRestore = null;
+                if (!saved?.entry) return;
+                this.openMapBoulderSheet(saved.entry);
+                if (saved.grade) {
+                    this._mapBoulderSheetGrade = saved.grade;
+                    this.renderMapBoulderSheet();
+                }
+            }
+
             closeMapBoulderSheet() {
                 const sheet = document.getElementById('mapBoulderSheet');
                 if (!sheet || sheet.classList.contains('hidden')) return false;
@@ -8503,6 +8540,8 @@
                         area?.name || ''
                     ].filter(Boolean).join(' · '),
                     description: String(climb.description || '').trim(),
+                    sectorId: climb.sectorId,
+                    areaId: climb.areaId ?? sector?.areaId,
                     lat: coord?.lat,
                     lng: coord?.lng
                 };
@@ -10401,6 +10440,7 @@
                     this.showToast('Боулдер не найден', true);
                     return;
                 }
+                this.captureMapClimbSheetRestore();
                 this.closeMapBoulderSheet();
                 const mapEl = this.map?.getContainer?.();
                 if (mapEl?.classList.contains('map-fs')) {
@@ -13801,6 +13841,7 @@
                     }
                     if (!target) return;
                     if (action === 'open') {
+                        this.captureMapClimbSheetRestore(this.mapSectorSheetEntry(target.sectorId));
                         this.closeMapClimbInfoSheet();
                         void this.showClimbDetailDialog(target.kind, target.id);
                         return;
@@ -13838,6 +13879,7 @@
                     const climbs = this.mapClimbsForSheet(this._mapBoulderSheetEntry);
                     const climb = climbs[Number(item.dataset.climbIndex ?? item.dataset.boulderIndex)];
                     if (!climb) return;
+                    this.captureMapClimbSheetRestore();
                     this.closeMapBoulderSheet();
                     if (climb.climbType === 'route') {
                         void this.showClimbDetailDialog('route', climb.id);
@@ -14678,6 +14720,11 @@
                     document.getElementById('climbDetailImageWrap')?.classList.add('hidden');
                     document.getElementById('climbDetailNoPhoto')?.classList.add('hidden');
                     document.getElementById('climbDetailSavePhotoBtn')?.classList.add('hidden');
+                    this.restoreMapClimbSheetAfterDetail();
+                    if (this.catalogEmbeddedMapActive() && this.map) {
+                        this.syncMapAfterTabShow();
+                        this.refreshMapMarkerStyles();
+                    }
                 }
                 if (typeof window.syncTelegramMiniAppUi === 'function') {
                     window.syncTelegramMiniAppUi();
@@ -15600,6 +15647,12 @@
                     return;
                 }
                 this._climbDetailOpenFlight = openKey;
+                if (this.appShellEmbeddedMapActive() && this.catalog?.view === 'problems' && !this._mapClimbSheetRestore) {
+                    this.captureMapClimbSheetRestore(
+                        this._mapBoulderSheetEntry || this.mapSectorSheetEntry(this.catalog.sectorId)
+                    );
+                }
+                this.closeMapBoulderSheet();
                 setGlobalUiBusy(true, 'Открываем карточку…');
                 const preferPhotoId = opts.preferPhotoId != null ? String(opts.preferPhotoId) : null;
                 try {
@@ -15615,6 +15668,7 @@
                             climbType === 'route' ? 'Трасса не найдена' : 'Боулдеринг не найден',
                             true
                         );
+                        this.restoreMapClimbSheetAfterDetail();
                         return;
                     }
                 const photo = pickClimbDetailPhoto(photos, preferPhotoId);
