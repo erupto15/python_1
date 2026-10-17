@@ -5588,6 +5588,11 @@
             top: calc(58px + env(safe-area-inset-top, 0px));
         }
 
+        body.map-boulder-sheet-open .map-drill-back-btn,
+        body.map-climb-info-sheet-open .map-drill-back-btn {
+            display: none !important;
+        }
+
         .map-sheet-back-btn {
             width: 34px;
             height: 34px;
@@ -5602,6 +5607,35 @@
             border-bottom-color: var(--text-color);
             border-left-width: 2.5px;
             border-bottom-width: 2.5px;
+        }
+
+        .map-admin-add-bar {
+            position: fixed;
+            left: max(12px, env(safe-area-inset-left, 0px));
+            right: max(12px, env(safe-area-inset-right, 0px));
+            bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+            z-index: 875;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+        }
+
+        .map-admin-add-bar .btn {
+            pointer-events: auto;
+            width: 100%;
+            justify-content: center;
+            box-shadow: 0 5px 18px rgba(0, 0, 0, 0.28);
+        }
+
+        html.catalog-map-shell .map-admin-add-bar,
+        html.app-shell.catalog-sector-focus .map-admin-add-bar {
+            bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        }
+
+        body.map-boulder-sheet-open .map-admin-add-bar,
+        body.map-climb-info-sheet-open .map-admin-add-bar {
+            display: none !important;
         }
 
         .map-locate-btn {

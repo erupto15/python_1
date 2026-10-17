@@ -6611,6 +6611,7 @@
                     else el.classList.add('hidden-by-role');
                 });
                 this.syncMapEditUi();
+                this.syncMapAdminAddBar();
                 const showSentFilter = loggedIn && this.isTelegramUser();
                 document.getElementById('hideSentRoutesWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
                 document.getElementById('hideSentBouldersWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
@@ -8436,6 +8437,7 @@
                         sectorId: Number(entry.id)
                     };
                     this.syncCatalogEmbeddedMapUi(true);
+                    this.renderCatalog();
                 }
                 this.updateMapMarkers();
                 this.openMapBoulderSheet(entry);
@@ -10089,6 +10091,39 @@
                 return !!mapTab && !!this.mapCatalogScope;
             }
 
+            mapAdminAddSectorId() {
+                if (this.catalog?.view === 'problems' && this.catalog.sectorId != null) {
+                    const id = Number(this.catalog.sectorId);
+                    return Number.isFinite(id) ? id : null;
+                }
+                if (this.mapCatalogScope?.sectorId != null) {
+                    const id = Number(this.mapCatalogScope.sectorId);
+                    return Number.isFinite(id) ? id : null;
+                }
+                return null;
+            }
+
+            syncMapAdminAddBar() {
+                const bar = document.getElementById('mapAdminAddBar');
+                if (!bar) return;
+                const climbOpen = !document.getElementById('climbDetailDialog')?.classList.contains('hidden');
+                const sectorId = this.mapAdminAddSectorId();
+                const show = this.isAdmin()
+                    && document.documentElement.classList.contains('app-shell')
+                    && sectorId != null
+                    && !climbOpen;
+                bar.innerHTML = show ? `
+                    ${APP_BOULDER_ONLY ? '' : `<button type="button" class="btn btn-primary" data-map-admin-add="route" data-id="${sectorId}">
+                        <i class="fas fa-plus"></i> Добавить трассу
+                    </button>`}
+                    <button type="button" class="btn btn-primary" data-map-admin-add="boulder" data-id="${sectorId}">
+                        <i class="fas fa-plus"></i> Добавить боулдеринг
+                    </button>` : '';
+                bar.hidden = !show;
+                bar.classList.toggle('hidden', !show);
+                bar.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+
             syncMapDrillBackBtn() {
                 const btn = document.getElementById('mapDrillBackBtn');
                 if (!btn) return;
@@ -10099,6 +10134,7 @@
                 btn.setAttribute('aria-hidden', show ? 'false' : 'true');
                 btn.setAttribute('aria-label', label);
                 btn.title = label;
+                this.syncMapAdminAddBar();
             }
 
             stepBackFromMap() {
@@ -10109,6 +10145,7 @@
                         this.catalog = { view: 'sectors', areaId: this.catalog.areaId, sectorId: null };
                         this.mapCatalogScope = { areaId: Number(this.catalog.areaId), sectorId: null };
                         this.syncCatalogEmbeddedMapUi(true);
+                        this.renderCatalog();
                         this.updateMapMarkers();
                         this.scheduleCatalogMapAutoFit();
                         this.syncMapDrillBackBtn();
@@ -13721,6 +13758,22 @@
                 document.getElementById('mapDrillBackBtn')?.addEventListener('click', (e) => {
                     e.preventDefault();
                     this.stepBackFromMap();
+                });
+                document.getElementById('mapAdminAddBar')?.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-map-admin-add]');
+                    if (!btn) return;
+                    e.preventDefault();
+                    const kind = btn.dataset.mapAdminAdd;
+                    const id = btn.dataset.id;
+                    if (kind === 'route') {
+                        if (!this.requireAdmin('Добавление трассы')) return;
+                        void this.quickAddRouteInSector(id);
+                        return;
+                    }
+                    if (kind === 'boulder') {
+                        if (!this.requireAdmin('Добавление боулдеринга')) return;
+                        void this.quickAddBoulderInSector(id);
+                    }
                 });
                 const mapClimbInfoSheet = document.getElementById('mapClimbInfoSheet');
                 mapClimbInfoSheet?.addEventListener('click', (e) => {

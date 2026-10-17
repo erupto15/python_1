@@ -5609,6 +5609,35 @@
             border-bottom-width: 2.5px;
         }
 
+        .map-admin-add-bar {
+            position: fixed;
+            left: max(12px, env(safe-area-inset-left, 0px));
+            right: max(12px, env(safe-area-inset-right, 0px));
+            bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+            z-index: 875;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+        }
+
+        .map-admin-add-bar .btn {
+            pointer-events: auto;
+            width: 100%;
+            justify-content: center;
+            box-shadow: 0 5px 18px rgba(0, 0, 0, 0.28);
+        }
+
+        html.catalog-map-shell .map-admin-add-bar,
+        html.app-shell.catalog-sector-focus .map-admin-add-bar {
+            bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        }
+
+        body.map-boulder-sheet-open .map-admin-add-bar,
+        body.map-climb-info-sheet-open .map-admin-add-bar {
+            display: none !important;
+        }
+
         .map-locate-btn {
             width: 54px;
             height: 54px;
@@ -9089,7 +9118,9 @@
         html.catalog-map-shell #catalog #catalogList,
         html.catalog-map-shell #catalog .catalog-map-block-head,
         html.catalog-map-shell #catalog .catalog-map-legend-mount,
-        html.catalog-map-shell #catalog .catalog-map-edit-mount {
+        html.catalog-map-shell #catalog .catalog-map-edit-mount,
+        html.catalog-admin.catalog-map-shell #catalog .catalog-toolbar,
+        html.catalog-admin.catalog-map-shell #catalog .catalog-guide-hero {
             display: none !important;
         }
 
