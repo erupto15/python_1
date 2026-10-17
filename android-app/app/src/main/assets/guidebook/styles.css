@@ -3337,8 +3337,7 @@
             scrollbar-width: thin;
         }
 
-        .climb-detail-video-tile,
-        .climb-detail-video-add {
+        .climb-detail-video-tile {
             position: relative;
             flex: 0 0 auto;
             width: 100%;
@@ -3420,45 +3419,6 @@
             -webkit-backdrop-filter: blur(6px);
         }
 
-        .climb-detail-video-add {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            border: 1.5px dashed color-mix(in srgb, var(--route-color) 55%, transparent);
-            background:
-                radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--route-color) 18%, transparent), transparent 58%),
-                linear-gradient(160deg, color-mix(in srgb, var(--text-color) 5%, transparent), color-mix(in srgb, var(--background-color) 40%, transparent));
-            color: var(--route-color);
-            cursor: pointer;
-            transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .climb-detail-video-add:hover,
-        .climb-detail-video-add:focus-visible {
-            border-color: var(--route-color);
-            transform: translateY(-1px);
-            outline: none;
-        }
-
-        .climb-detail-video-add-plus {
-            width: 64px;
-            height: 64px;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 34px;
-            font-weight: 300;
-            line-height: 1;
-            color: #fff;
-            background: linear-gradient(145deg, var(--tg-blue-hover), var(--tg-blue));
-            box-shadow: 0 10px 28px color-mix(in srgb, var(--route-color) 45%, transparent);
-        }
-
         html.theme-light .climb-detail-video-play {
             background: linear-gradient(180deg, rgba(26, 31, 44, 0.02), rgba(26, 31, 44, 0.28));
             color: var(--text-color);
@@ -3469,21 +3429,6 @@
             border-color: var(--border-color);
             color: var(--text-color);
             box-shadow: 0 6px 16px rgba(24, 32, 48, 0.16);
-        }
-
-        .climb-detail-video-add-label {
-            font-size: 12px;
-            font-weight: 600;
-            letter-spacing: 0.02em;
-            opacity: 0.92;
-        }
-
-        .climb-detail-video-add-hint {
-            font-size: 11px;
-            opacity: 0.55;
-            text-align: center;
-            padding: 0 10px;
-            line-height: 1.3;
         }
 
         .climb-detail-videos-empty-inline {
@@ -3512,17 +3457,10 @@
                 -webkit-overflow-scrolling: touch;
             }
 
-            .climb-detail-video-tile,
-            .climb-detail-video-add {
+            .climb-detail-video-tile {
                 flex: 0 0 132px;
                 width: 132px;
                 scroll-snap-align: start;
-            }
-
-            .climb-detail-video-add-plus {
-                width: 54px;
-                height: 54px;
-                font-size: 30px;
             }
         }
 

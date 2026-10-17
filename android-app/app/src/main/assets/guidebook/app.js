@@ -14407,13 +14407,6 @@
                         this.showEditBoulderDialog(Number(ctx.climbId));
                     }
                 });
-                document.getElementById('climbDetailAddVideoBtn')?.addEventListener('click', () => {
-                    if (!this.requireAdmin('Добавление видео')) return;
-                    document.getElementById('climbDetailVideoInput')?.click();
-                });
-                document.getElementById('climbDetailVideoInput')?.addEventListener('change', (e) => {
-                    void this.onClimbDetailVideoSelected(e);
-                });
                 document.getElementById('climbDetailCommentMedia')?.addEventListener('change', (e) => {
                     void this.onClimbCommentMediaSelected(e);
                 });
@@ -14429,13 +14422,6 @@
                     this.renderClimbCommentMediaPreview();
                 });
                 document.getElementById('climbDetailVideosList')?.addEventListener('click', (e) => {
-                    const addBtn = e.target.closest('[data-action="add-climb-video"]');
-                    if (addBtn) {
-                        e.preventDefault();
-                        if (!this.requireAdmin('Добавление видео')) return;
-                        document.getElementById('climbDetailVideoInput')?.click();
-                        return;
-                    }
                     const playBtn = e.target.closest('[data-action="play-climb-video"]');
                     if (playBtn) {
                         e.preventDefault();
@@ -17326,41 +17312,6 @@
                     }).join('');
                 } catch (err) {
                     list.innerHTML = `<p class="climb-detail-videos-empty">Не удалось загрузить комментарии: ${this.escapeHtml(err.message || '')}</p>`;
-                }
-            }
-
-            async onClimbDetailVideoSelected(event) {
-                const input = event?.target;
-                const file = input?.files?.[0];
-                if (input) input.value = '';
-                if (!file) return;
-                if (!this.requireAdmin('Добавление видео')) return;
-                const ctx = this._climbDetailContext;
-                if (!ctx) return;
-                try {
-                    setGlobalUiBusy(true);
-                    const uploaded = await uploadMediaFile(file, 'video');
-                    await apiFetch('/api/videos', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            climb_type: ctx.climbType,
-                            route_id: ctx.climbType === 'route' ? Number(ctx.climbId) : null,
-                            boulder_id: ctx.climbType === 'boulder' ? Number(ctx.climbId) : null,
-                            file_url: uploaded.url,
-                            file_name: uploaded.file_name || file.name,
-                            mime_type: uploaded.mime_type || file.type || null,
-                            file_size_bytes: uploaded.file_size_bytes || file.size,
-                            width: uploaded.width,
-                            height: uploaded.height,
-                            duration_sec: uploaded.duration_sec
-                        })
-                    });
-                    await this.refreshClimbDetailVideos(ctx.climbType, ctx.climbId);
-                } catch (err) {
-                    this.showToast(err.message || 'Не удалось загрузить видео', true);
-                } finally {
-                    setGlobalUiBusy(false);
                 }
             }
 
