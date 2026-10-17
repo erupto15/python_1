@@ -3191,6 +3191,10 @@
             align-items: stretch;
         }
 
+        .climb-detail-media-grid--photo-only {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
         .climb-detail-media-tile--photo {
             position: relative;
             min-height: clamp(240px, 48vh, 520px);
