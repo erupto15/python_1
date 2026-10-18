@@ -5432,7 +5432,8 @@
             min-width: 0;
         }
 
-        .map-popup-boulder-move {
+        .map-popup-boulder-move,
+        .map-popup-boulder-delete {
             flex-shrink: 0;
             width: 36px;
             min-height: 36px;
@@ -5445,6 +5446,12 @@
             font-size: 16px;
             line-height: 1;
             cursor: pointer;
+        }
+
+        .map-popup-boulder-delete {
+            color: #fb7185;
+            border-color: color-mix(in srgb, #fb7185 45%, var(--border-color));
+            font-size: 22px;
         }
 
         .map-feature-edit-bar {

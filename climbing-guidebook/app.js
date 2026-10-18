@@ -8144,9 +8144,15 @@
                 marker.on('click', (e) => {
                     L.DomEvent.stopPropagation(e);
                     if (this._mapPinJustDragged) return;
-                    if (this.mapEditMode && this.isAdmin() && this.mapDrawTool === 'edit' && this.isCatalogMapPinKind(entry.kind)) {
-                        this.beginMoveCatalogMapPin(entry);
-                        return;
+                    if (this.mapEditMode && this.isAdmin() && this.isCatalogMapPinKind(entry.kind)) {
+                        if (this.mapDrawTool === 'delete') {
+                            void this.deleteCatalogMapPin(entry);
+                            return;
+                        }
+                        if (this.mapDrawTool === 'edit') {
+                            this.beginMoveCatalogMapPin(entry);
+                            return;
+                        }
                     }
                     this.openMapClimbFromMarker(entry);
                 });
@@ -8282,7 +8288,7 @@
                     L.DomEvent.stopPropagation(e);
                     if (this._mapPinJustDragged) return;
                     if (this.mapEditMode && this.isAdmin()) {
-                        if (this.mapDrawTool === 'delete' && (entry.kind === 'area' || entry.kind === 'sector')) {
+                        if (this.mapDrawTool === 'delete' && this.isCatalogMapPinKind(entry.kind)) {
                             void this.deleteCatalogMapPin(entry);
                             return;
                         }
@@ -8386,22 +8392,25 @@
                     const sent = this.hasUserSent('boulder', b.id)
                         ? '<span class="map-popup-boulder-sent" aria-hidden="true">✓</span>'
                         : '';
-                    const moveBtn = this.isAdmin()
-                        ? `<button type="button" class="map-popup-boulder-move" onclick="event.preventDefault(); event.stopPropagation(); window.app?.beginMoveCatalogMapPinFromPopup?.('boulder','${this.escapeHtml(b.id)}'); return false;" title="Переместить" aria-label="Переместить">↔</button>`
+                    const adminBtns = this.isAdmin()
+                        ? `<button type="button" class="map-popup-boulder-move" onclick="event.preventDefault(); event.stopPropagation(); window.app?.beginMoveCatalogMapPinFromPopup?.('boulder','${this.escapeHtml(b.id)}'); return false;" title="Переместить" aria-label="Переместить">↔</button><button type="button" class="map-popup-boulder-delete" onclick="event.preventDefault(); event.stopPropagation(); window.app?.deleteCatalogMapPinFromPopup?.('boulder','${this.escapeHtml(b.id)}', true); return false;" title="Удалить метку" aria-label="Удалить метку">×</button>`
                         : '';
                     return `<div class="map-popup-boulder-row">
                         <button type="button" class="map-popup-boulder-item" onclick="event.preventDefault(); window.app?.handleMapPopupBoulderPick?.('${this.escapeHtml(b.id)}'); return false;">
                             <span class="map-popup-boulder-name">${this.escapeHtml(b.title || 'Боулдер')}</span>
                             ${grade}${sent}
                         </button>
-                        ${moveBtn}
+                        ${adminBtns}
                     </div>`;
                 }).join('');
                 const catalogButton = entry.catalog
                     ? `<button type="button" class="btn btn-small btn-ghost" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('catalog','boulder', '${this.escapeHtml(entry.id)}'); return false;">В каталог</button>`
                     : '';
-                const actionsBlock = catalogButton
-                    ? `<div class="map-popup-actions">${catalogButton}</div>`
+                const deletePinButton = this.isAdmin()
+                    ? `<button type="button" class="btn btn-small btn-danger" onclick="event.preventDefault(); window.app?.deleteCatalogMapPinFromPopup?.('boulder', '${this.escapeHtml(entry.id)}'); return false;">Удалить метку</button>`
+                    : '';
+                const actionsBlock = [catalogButton, deletePinButton].filter(Boolean).join('')
+                    ? `<div class="map-popup-actions">${catalogButton}${deletePinButton}</div>`
                     : '';
                 return `
                     <div class="map-popup map-popup--boulder-stack">
@@ -8723,7 +8732,7 @@
                 const adminPinActions = this.isAdmin() && canMovePin
                     ? `
                         <button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.beginMoveCatalogMapPinFromPopup?.('${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Переместить</button>
-                        ${isAreaOrSector ? `<button type="button" class="btn btn-small btn-danger" onclick="event.preventDefault(); window.app?.deleteCatalogMapPinFromPopup?.('${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Удалить метку</button>` : ''}
+                        <button type="button" class="btn btn-small btn-danger" onclick="event.preventDefault(); window.app?.deleteCatalogMapPinFromPopup?.('${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Удалить метку</button>
                     `
                     : '';
                 const actionButtons = [detailButton, catalogButton, adminPinActions].filter(Boolean).join('');
@@ -9700,10 +9709,14 @@
                 });
             }
 
-            deleteCatalogMapPinFromPopup(kind, id) {
+            deleteCatalogMapPinFromPopup(kind, id, single = false) {
                 const entry = this.catalogMapPinEntry(kind, id);
                 if (!entry) return;
-                void this.deleteCatalogMapPin(entry);
+                void this.deleteCatalogMapPin({
+                    ...entry,
+                    id: Number(id),
+                    ...(single ? { boulderAtPin: null, moveSingle: true } : {})
+                });
             }
 
             catalogMapPinMoveIds(entry) {
@@ -9828,37 +9841,50 @@
             }
 
             async deleteCatalogMapPin(entry) {
-                if (!entry || (entry.kind !== 'area' && entry.kind !== 'sector')) return;
+                if (!entry || !this.isCatalogMapPinKind(entry.kind)) return;
                 if (!this.requireAdmin('Удаление метки')) return;
-                const name = entry.title || (entry.kind === 'area' ? 'район' : 'сектор');
-                const msg = `Убрать метку «${name}» с карты? Координаты в каталоге будут очищены.`;
+                const kind = entry.kind;
+                const ids = this.catalogMapPinMoveIds(entry);
+                if (!ids.length) return;
+                const name = entry.title || this.resolveMapEntryTitle(kind, ids[0]);
+                const msg = ids.length > 1
+                    ? `Убрать с карты метку «${name}» (${ids.length} значков)? Координаты в каталоге будут очищены.`
+                    : `Убрать метку «${name}» с карты? Координаты в каталоге будут очищены.`;
                 if (!(await confirmDestructive(msg))) return;
+                const headers = { 'Content-Type': 'application/json' };
+                const body = JSON.stringify({ latitude: null, longitude: null });
                 try {
-                    if (entry.kind === 'area') {
-                        const saved = await apiFetch(`/api/areas/${Number(entry.id)}`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ latitude: null, longitude: null })
-                        });
+                    setGlobalUiBusy(true);
+                    if (kind === 'area') {
+                        const saved = await apiFetch(`/api/areas/${ids[0]}`, { method: 'PATCH', headers, body });
                         mergeAreaFromApiResponse(saved);
-                        await this.removeMapSignFeaturesForEntity('area', entry.id);
-                    } else {
-                        const saved = await apiFetch(`/api/sectors/${Number(entry.id)}`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ latitude: null, longitude: null })
-                        });
+                        await this.removeMapSignFeaturesForEntity('area', ids[0]);
+                    } else if (kind === 'sector') {
+                        const saved = await apiFetch(`/api/sectors/${ids[0]}`, { method: 'PATCH', headers, body });
                         mergeSectorFromApiResponse(saved);
-                        await this.removeMapSignFeaturesForEntity('sector', entry.id);
+                        await this.removeMapSignFeaturesForEntity('sector', ids[0]);
+                    } else if (kind === 'route') {
+                        for (const routeId of ids) {
+                            const saved = await apiFetch(`/api/routes/${routeId}`, { method: 'PATCH', headers, body });
+                            mergeRouteFromApiResponse(saved);
+                        }
+                    } else if (kind === 'boulder') {
+                        for (const boulderId of ids) {
+                            const saved = await apiFetch(`/api/boulders/${boulderId}`, { method: 'PATCH', headers, body });
+                            mergeBoulderFromApiResponse(saved);
+                        }
                     }
                     this.data = getClimbingData();
                     this.map?.closePopup();
                     this.updateMapMarkers();
-                    this.renderCatalog();
-                    this.showToast('Метка удалена');
-                    this.updateMapStatus('Метка района/сектора удалена с карты.');
+                    if (kind === 'area' || kind === 'sector') this.renderCatalog();
+                    this.updateMapStatus('Метка удалена с карты.');
                 } catch (err) {
+                    this.updateMapMarkers();
                     this.showToast(err.message || 'Не удалось удалить метку', true);
+                } finally {
+                    setGlobalUiBusy(false);
+                    this.syncMapEditUi();
                 }
             }
 
@@ -9911,7 +9937,7 @@
                 if (hint && this.mapEditMode) {
                     const toolHints = {
                         edit: 'Перетащите значок или нажмите его, затем карту — район, сектор, трасса или боулдер.',
-                        delete: 'Кликните по объекту на карте, чтобы удалить только его.',
+                        delete: 'Кликните по значку на карте, чтобы убрать его. Объект в каталоге останется.',
                         trail: 'Кликайте по карте, чтобы добавить точки тропы. «Завершить тропу» — сохранить.',
                         parking: 'Клик по карте — поставить парковку.',
                         camping: 'Клик по карте — поставить кемпинг.',
