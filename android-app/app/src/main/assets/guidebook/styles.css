@@ -59,6 +59,10 @@
             --tabs-rail-bg: rgba(255, 255, 255, 0.06);
             --tabs-inactive-bg: transparent;
             --action-btn-bg: rgba(255, 255, 255, 0.06);
+            --on-canvas-bg: #2a2530;
+            --on-canvas-border: rgba(255, 255, 255, 0.22);
+            --on-canvas-shadow: 0 6px 20px rgba(0, 0, 0, 0.42);
+            --on-canvas-placeholder: rgba(245, 245, 247, 0.55);
             /* Карта */
             --map-accent: #e8472a;
             --map-panel: rgba(15, 17, 22, 0.85);
@@ -188,8 +192,8 @@
         html.theme-light {
             --primary-color: #d63f24;
             --text-color: #1c1c1e;
-            --light-text: #636366;
-            --border-color: rgba(0, 0, 0, 0.08);
+            --light-text: #5a5466;
+            --border-color: rgba(32, 24, 48, 0.16);
             --background-color: #ead7d4;
             --card-bg: #ffffff;
             --surface-elevated: #ffffff;
@@ -207,12 +211,16 @@
             --tg-blue-hover: #e04a30;
             --tg-blue-active: #b8341c;
             --tg-btn-bg: #ffffff;
-            --tg-btn-bg-hover: #f8f8fa;
-            --tg-btn-border: rgba(0, 0, 0, 0.1);
+            --tg-btn-bg-hover: #f4f1f8;
+            --tg-btn-border: rgba(32, 24, 48, 0.18);
             --btn-primary-glow: 0 1px 0 rgba(255, 255, 255, 0.35) inset, 0 2px 8px rgba(214, 63, 36, 0.22);
             --btn-secondary-inset: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-            --btn-ghost-border: #aeb6c7;
-            --btn-ghost-hover-bg: rgba(26, 31, 44, 0.06);
+            --btn-ghost-border: rgba(32, 24, 48, 0.2);
+            --btn-ghost-hover-bg: #f4f1f8;
+            --on-canvas-bg: #ffffff;
+            --on-canvas-border: rgba(32, 24, 48, 0.2);
+            --on-canvas-shadow: 0 6px 22px rgba(48, 28, 64, 0.18);
+            --on-canvas-placeholder: #5a5466;
             --tabs-rail-bg: rgba(26, 31, 44, 0.06);
             --tabs-inactive-bg: #ffffff;
             --action-btn-bg: #ffffff;
@@ -274,13 +282,13 @@
             height: 42px;
             padding: 0;
             margin: 0;
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--on-canvas-border);
             border-radius: 50%;
-            background: color-mix(in srgb, var(--surface-elevated) 88%, transparent);
+            background: var(--on-canvas-bg);
             color: var(--text-color);
             cursor: pointer;
             touch-action: manipulation;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+            box-shadow: var(--on-canvas-shadow);
             transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
         }
 
@@ -293,8 +301,8 @@
 
         .header-corner-btn:hover,
         .header-corner-btn:focus-visible {
-            border-color: color-mix(in srgb, var(--primary-color) 55%, var(--border-color));
-            background: color-mix(in srgb, var(--primary-color) 10%, var(--surface-elevated));
+            border-color: color-mix(in srgb, var(--primary-color) 55%, var(--on-canvas-border));
+            background: color-mix(in srgb, var(--primary-color) 12%, var(--on-canvas-bg));
             outline: none;
         }
 
@@ -397,13 +405,19 @@
             width: 100%;
             min-width: 0;
             padding: 13px 46px 13px 18px;
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--on-canvas-border);
             border-radius: 999px;
-            background: var(--surface-elevated);
+            background: var(--on-canvas-bg);
             color: var(--text-color);
             font-size: 15px;
             font-weight: 500;
+            box-shadow: var(--on-canvas-shadow);
             transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+        }
+
+        .search-input::placeholder {
+            color: var(--on-canvas-placeholder);
+            opacity: 1;
         }
 
         .global-search-wrap .search-input:focus {
@@ -1062,10 +1076,10 @@
          * «Воздух»: обводка + читаемый текст. Для шапки, навигации, закрытия.
          */
         .btn-ghost {
-            background-color: color-mix(in srgb, var(--tg-btn-bg) 70%, transparent);
+            background-color: var(--on-canvas-bg);
             color: var(--text-color);
-            border-color: var(--btn-ghost-border);
-            box-shadow: none;
+            border-color: var(--on-canvas-border);
+            box-shadow: var(--on-canvas-shadow);
         }
 
         .btn-ghost:hover:not(:disabled) {
@@ -7045,9 +7059,10 @@
         .search-bar:not(.search-bar--compound) .search-input {
             flex: 1;
             padding: 12px 16px;
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--on-canvas-border);
             border-radius: 999px;
-            background: var(--surface-elevated);
+            background: var(--on-canvas-bg);
+            box-shadow: var(--on-canvas-shadow);
             font-size: 15px;
         }
 
@@ -7081,10 +7096,10 @@
             max-width: 100%;
             margin: 0;
             padding: 10px 14px;
-            border: 1px solid var(--tg-btn-border);
-            border-radius: var(--tg-btn-radius);
-            background: var(--tg-btn-bg);
-            box-shadow: var(--btn-secondary-inset);
+            border: 1px solid var(--on-canvas-border);
+            border-radius: 999px;
+            background: var(--on-canvas-bg);
+            box-shadow: var(--on-canvas-shadow);
             color: var(--text-color);
             font-size: 14px;
             line-height: 1.2;
@@ -7110,10 +7125,10 @@
             min-width: 0;
             margin: 0;
             padding: 10px 2rem 10px 14px;
-            border: 1px solid var(--tg-btn-border);
+            border: 1px solid var(--on-canvas-border);
             border-radius: var(--tg-btn-radius);
-            background: var(--tg-btn-bg);
-            box-shadow: var(--btn-secondary-inset);
+            background: var(--on-canvas-bg);
+            box-shadow: var(--on-canvas-shadow);
             color: var(--text-color);
             font-size: 14px;
             text-align: left;
@@ -7145,15 +7160,17 @@
         @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
             .search-bar.search-bar--compound .search-input,
             .search-bar.search-bar--compound .list-grade-select {
-                background-color: color-mix(in srgb, var(--card-bg) 35%, rgba(255, 255, 255, 0.07));
-                -webkit-backdrop-filter: blur(10px);
-                backdrop-filter: blur(10px);
+                background-color: var(--on-canvas-bg);
+                -webkit-backdrop-filter: none;
+                backdrop-filter: none;
             }
         }
 
         html.theme-light .search-bar.search-bar--compound .search-input,
         html.theme-light .search-bar.search-bar--compound .list-grade-select {
-            background-color: #ffffff;
+            background-color: var(--on-canvas-bg);
+            border-color: var(--on-canvas-border);
+            box-shadow: var(--on-canvas-shadow);
             -webkit-backdrop-filter: none;
             backdrop-filter: none;
         }
@@ -8866,13 +8883,13 @@
             bottom: calc(16px + var(--tg-chrome-bottom, 0px));
         }
 
-        /* Светлая тема Telegram: прозрачные поля и кнопки, текст из themeParams */
+        /* Светлая тема Telegram: непрозрачные плашки на градиентном холсте */
         html.tg-mini-app.tg-theme-light {
-            --tg-field-bg: transparent;
-            --tg-btn-bg: transparent;
-            --tg-btn-bg-hover: color-mix(in srgb, var(--text-color) 7%, transparent);
-            --tg-btn-border: color-mix(in srgb, var(--text-color) 22%, transparent);
-            --tg-btn-ghost-hover-bg: color-mix(in srgb, var(--text-color) 6%, transparent);
+            --tg-field-bg: var(--on-canvas-bg);
+            --tg-btn-bg: var(--on-canvas-bg);
+            --tg-btn-bg-hover: var(--btn-ghost-hover-bg);
+            --tg-btn-border: var(--on-canvas-border);
+            --tg-btn-ghost-hover-bg: var(--btn-ghost-hover-bg);
         }
 
         html.tg-mini-app.tg-theme-light .form-input,
@@ -8884,12 +8901,15 @@
         html.tg-mini-app.tg-theme-light .dialog-content .form-input,
         html.tg-mini-app.tg-theme-light .dialog-content .form-textarea,
         html.tg-mini-app.tg-theme-light .dialog-content .form-select,
-        html.tg-mini-app.tg-theme-light .grade-picker-toggle {
-            background-color: var(--tg-field-bg) !important;
+        html.tg-mini-app.tg-theme-light .grade-picker-toggle,
+        html.theme-light .search-input,
+        html.theme-light .search-bar.search-bar--compound .search-input {
+            background-color: var(--on-canvas-bg) !important;
             -webkit-backdrop-filter: none;
             backdrop-filter: none;
             color: var(--text-color);
-            border-color: color-mix(in srgb, var(--text-color) 24%, transparent);
+            border-color: var(--on-canvas-border);
+            box-shadow: var(--on-canvas-shadow);
         }
 
         html.tg-mini-app.tg-theme-light .form-input::placeholder,
@@ -8938,9 +8958,10 @@
         html.tg-mini-app.tg-theme-light .btn-ghost,
         html.theme-light .btn-secondary,
         html.theme-light .btn-ghost {
-            background-color: var(--tg-btn-bg) !important;
+            background-color: var(--on-canvas-bg) !important;
             color: var(--text-color);
-            border-color: var(--tg-btn-border);
+            border-color: var(--on-canvas-border);
+            box-shadow: var(--on-canvas-shadow);
         }
 
         html.tg-mini-app.tg-theme-light .card {
@@ -9385,10 +9406,11 @@
             bottom: 0;
             z-index: 860;
             padding: 6px calc(8px + env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) calc(8px + env(safe-area-inset-left, 0px));
-            background: color-mix(in srgb, var(--background-color) 92%, transparent);
-            border-top: 1px solid var(--border-color);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            background: var(--on-canvas-bg);
+            border-top: 1px solid var(--on-canvas-border);
+            box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12);
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
             gap: 4px;
             justify-content: space-around;
             align-items: stretch;
