@@ -7774,8 +7774,8 @@
             }
 
             mapLayerVisible(kind) {
+                if (kind === 'area') return false;
                 if (this.mapFilter === 'all') return true;
-                if (this.mapFilter === 'areas') return kind === 'area';
                 if (this.mapFilter === 'sectors') return kind === 'sector';
                 if (this.mapFilter === 'routes') return kind === 'route';
                 if (this.mapFilter === 'boulders') return kind === 'boulder';
@@ -8924,23 +8924,6 @@
                 const entries = [];
                 const appShellEmbedded = this.appShellEmbeddedMapActive();
                 const appShellOverview = appShellEmbedded && this.catalog?.view === 'sectors';
-                getAreas().forEach((area) => {
-                    const c = this.areaMapCoordinate(area.id);
-                    if (!c) return;
-                    const sectorsCount = getSectors().filter((s) => Number(s.areaId) === Number(area.id)).length;
-                    entries.push({
-                        kind: 'area',
-                        id: area.id,
-                        title: area.name,
-                        meta: `${sectorsCount} секторов`,
-                        labelSub: '',
-                        lat: c.lat,
-                        lng: c.lng,
-                        catalog: true,
-                        areaId: area.id,
-                        guideSource: area
-                    });
-                });
 
                 getSectors().forEach((sector) => {
                     const c = this.sectorMapPinCoordinate(sector.id)
@@ -9024,10 +9007,10 @@
                     });
                 });
                 return entries.filter((entry) => {
+                    if (entry.kind === 'area') return false;
                     if (!this.mapEntryInScope(entry)) return false;
                     if (this.appShellEmbeddedMapActive() && this.catalog?.view === 'problems') {
                         return entry.kind === 'sector'
-                            || entry.kind === 'area'
                             || entry.kind === 'route'
                             || entry.kind === 'boulder';
                     }
@@ -9185,6 +9168,7 @@
 
             mapFeatureVisible(feature) {
                 if (!feature) return false;
+                if (feature.featureType === 'area_sign') return false;
                 if (feature.featureType === 'trail' && !this.mapShowTrails) return false;
                 if (feature.featureType !== 'trail' && !this.mapShowPoi) return false;
                 if (this.mapFeatureCoordsDuplicateEntity(feature)) return false;
@@ -9663,7 +9647,7 @@
             }
 
             isCatalogMapPinKind(kind) {
-                return kind === 'area' || kind === 'sector' || kind === 'route' || kind === 'boulder';
+                return kind === 'sector' || kind === 'route' || kind === 'boulder';
             }
 
             catalogMapPinMoveLabel(kind) {
@@ -9910,7 +9894,7 @@
             }
 
             setMapDrawTool(tool) {
-                const allowed = ['edit', 'delete', 'trail', 'parking', 'camping', 'area_sign', 'sector_sign'];
+                const allowed = ['edit', 'delete', 'trail', 'parking', 'camping', 'sector_sign'];
                 this.mapDrawTool = allowed.includes(tool) ? tool : 'trail';
                 if (this.mapDrawTool !== 'edit') {
                     this.mapFeatureMovePending = false;
@@ -10194,7 +10178,7 @@
             }
 
             setMapFilter(filter) {
-                this.mapFilter = ['all', 'areas', 'sectors', 'routes', 'boulders'].includes(filter) ? filter : 'all';
+                this.mapFilter = ['all', 'sectors', 'routes', 'boulders'].includes(filter) ? filter : 'all';
                 this.syncMapFilterButtons();
                 this.updateMapMarkers();
             }

@@ -527,7 +527,6 @@
                     <div class="map-filter-row">
                         <div class="map-filter-group" role="group" aria-label="Фильтр объектов">
                             <button type="button" class="filter-btn active" data-map-filter="all">Все</button>
-                            <button type="button" class="filter-btn" data-map-filter="areas">Районы</button>
                             <button type="button" class="filter-btn" data-map-filter="sectors">Секторы</button>
                             <button type="button" class="filter-btn" data-map-filter="routes">Трассы</button>
                             <button type="button" class="filter-btn" data-map-filter="boulders">Боулдеры</button>
@@ -546,7 +545,6 @@
                         <span class="map-legend-item"><span class="map-legend-trail"></span> Тропа</span>
                         <span class="map-legend-item"><span class="map-legend-poi map-legend-poi--parking">P</span> Парковка</span>
                         <span class="map-legend-item"><span class="map-legend-camping-sign" id="mapLegendCamping" aria-hidden="true"></span> Кемпинг</span>
-                        <span class="map-legend-item"><span class="map-legend-area-droplet" id="mapLegendAreaDroplet" aria-hidden="true"></span> Район</span>
                     </div>
                     <div class="map-nav-row">
                         <button type="button" class="btn btn-secondary btn-small" id="mapLocateBtn">
@@ -561,7 +559,7 @@
                             <button type="button" class="btn btn-small btn-primary" id="mapEditToggleBtn">
                                 <i class="fas fa-pen"></i> Редактировать карту
                             </button>
-                            <span class="map-edit-hint" id="mapEditHint">Тропы, парковки, кемпинги и ручной перенос меток районов, секторов, трасс и боулдеров.</span>
+                            <span class="map-edit-hint" id="mapEditHint">Тропы, парковки, кемпинги и ручной перенос меток секторов, трасс и боулдеров.</span>
                         </div>
                         <div class="map-edit-tools hidden" id="mapEditTools">
                             <div class="map-filter-group">
@@ -570,7 +568,6 @@
                                 <button type="button" class="btn btn-small map-draw-tool-btn active" data-map-tool="trail"><i class="fas fa-route"></i> Тропа</button>
                                 <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="parking"><span class="map-tool-glyph map-tool-glyph--p" aria-hidden="true">P</span> Парковка</button>
                                 <button type="button" class="btn btn-small map-draw-tool-btn map-draw-tool-btn--camping" data-map-tool="camping"><span class="map-camping-sign map-camping-sign--tool" id="mapEditCampingIcon" aria-hidden="true"></span> Кемпинг</button>
-                                <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="area_sign"><span class="map-tool-area-droplet" id="mapToolAreaDroplet" aria-hidden="true"></span> Район</button>
                                 <button type="button" class="btn btn-small map-draw-tool-btn" data-map-tool="sector_sign"><span class="map-boulder-sector-icon map-boulder-sector-icon--tool" id="mapToolSectorSignIcon" aria-hidden="true"></span> Сектор</button>
                             </div>
                             <div class="map-filter-group">
