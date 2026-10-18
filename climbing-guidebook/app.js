@@ -8141,6 +8141,11 @@
                 marker.off('click');
                 marker.on('click', (e) => {
                     L.DomEvent.stopPropagation(e);
+                    if (this._mapPinJustDragged) return;
+                    if (this.mapEditMode && this.isAdmin() && this.mapDrawTool === 'edit' && this.isCatalogMapPinKind(entry.kind)) {
+                        this.beginMoveCatalogMapPin(entry);
+                        return;
+                    }
                     this.openMapClimbFromMarker(entry);
                 });
             }
@@ -8208,11 +8213,15 @@
                 const marker = L.marker([coord.lat, coord.lng], {
                     icon,
                     interactive: true,
+                    draggable: true,
+                    autoPan: true,
                     zIndexOffset: 500
                 });
+                marker.dragging?.disable();
                 if (addToMap) marker.addTo(this.map);
                 this.bindMapMarkerPopup(marker, entry);
                 this.bindMapClimbDotMarkerClick(marker, entry);
+                this.bindCatalogPinDrag(marker, entry);
                 return marker;
             }
 
@@ -8226,11 +8235,15 @@
                 const marker = L.marker([coord.lat, coord.lng], {
                     icon,
                     interactive: true,
+                    draggable: true,
+                    autoPan: true,
                     zIndexOffset: 600
                 });
+                marker.dragging?.disable();
                 if (addToMap) marker.addTo(this.map);
                 this.bindMapMarkerPopup(marker, entry);
                 this.bindMapClimbDotMarkerClick(marker, entry);
+                this.bindCatalogPinDrag(marker, entry);
                 return marker;
             }
 
@@ -8253,18 +8266,25 @@
                     iconSize: [0, 0],
                     iconAnchor: [0, 0]
                 });
-                const marker = L.marker([coord.lat, coord.lng], { icon, zIndexOffset: 400 })
-                    .addTo(this.map);
+                const marker = L.marker([coord.lat, coord.lng], {
+                    icon,
+                    draggable: true,
+                    autoPan: true,
+                    zIndexOffset: 400
+                }).addTo(this.map);
+                marker.dragging?.disable();
+                this.bindCatalogPinDrag(marker, entry);
                 const sectorCatalogJump = this.catalog?.view === 'sectors' && entry?.kind === 'sector';
                 if (!sectorCatalogJump) marker.bindPopup(this.buildMapPopupHtml(entry));
                 marker.on('click', (e) => {
                     L.DomEvent.stopPropagation(e);
+                    if (this._mapPinJustDragged) return;
                     if (this.mapEditMode && this.isAdmin()) {
                         if (this.mapDrawTool === 'delete' && (entry.kind === 'area' || entry.kind === 'sector')) {
                             void this.deleteCatalogMapPin(entry);
                             return;
                         }
-                        if (this.mapDrawTool === 'edit' && (entry.kind === 'area' || entry.kind === 'sector')) {
+                        if (this.mapDrawTool === 'edit' && this.isCatalogMapPinKind(entry.kind)) {
                             this.beginMoveCatalogMapPin(entry);
                             return;
                         }
@@ -8364,10 +8384,16 @@
                     const sent = this.hasUserSent('boulder', b.id)
                         ? '<span class="map-popup-boulder-sent" aria-hidden="true">✓</span>'
                         : '';
-                    return `<button type="button" class="map-popup-boulder-item" onclick="event.preventDefault(); window.app?.handleMapPopupBoulderPick?.('${this.escapeHtml(b.id)}'); return false;">
-                        <span class="map-popup-boulder-name">${this.escapeHtml(b.title || 'Боулдер')}</span>
-                        ${grade}${sent}
-                    </button>`;
+                    const moveBtn = this.isAdmin()
+                        ? `<button type="button" class="map-popup-boulder-move" onclick="event.preventDefault(); event.stopPropagation(); window.app?.beginMoveCatalogMapPinFromPopup?.('boulder','${this.escapeHtml(b.id)}'); return false;" title="Переместить" aria-label="Переместить">↔</button>`
+                        : '';
+                    return `<div class="map-popup-boulder-row">
+                        <button type="button" class="map-popup-boulder-item" onclick="event.preventDefault(); window.app?.handleMapPopupBoulderPick?.('${this.escapeHtml(b.id)}'); return false;">
+                            <span class="map-popup-boulder-name">${this.escapeHtml(b.title || 'Боулдер')}</span>
+                            ${grade}${sent}
+                        </button>
+                        ${moveBtn}
+                    </div>`;
                 }).join('');
                 const catalogButton = entry.catalog
                     ? `<button type="button" class="btn btn-small btn-ghost" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('catalog','boulder', '${this.escapeHtml(entry.id)}'); return false;">В каталог</button>`
@@ -8685,16 +8711,17 @@
                     ? `<button type="button" class="btn btn-small btn-ghost" onclick="event.preventDefault(); window.app?.handleMapPopupAction?.('catalog','${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">В каталог</button>`
                     : '';
                 const isAreaOrSector = entry.kind === 'area' || entry.kind === 'sector';
+                const canMovePin = this.isCatalogMapPinKind(entry.kind);
                 const mapControls = isAreaOrSector
                     ? buildMapPopupControlsHtml(entry.kind, entry.id)
                     : '';
                 const titleBlock = isAreaOrSector && mapControls
                     ? `<div class="map-popup-head"><strong class="map-popup-title">${this.escapeHtml(entry.title)}</strong>${mapControls}</div>`
                     : `<strong>${this.escapeHtml(entry.title)}</strong>`;
-                const adminPinActions = this.isAdmin() && isAreaOrSector
+                const adminPinActions = this.isAdmin() && canMovePin
                     ? `
                         <button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.beginMoveCatalogMapPinFromPopup?.('${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Переместить</button>
-                        <button type="button" class="btn btn-small btn-danger" onclick="event.preventDefault(); window.app?.deleteCatalogMapPinFromPopup?.('${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Удалить метку</button>
+                        ${isAreaOrSector ? `<button type="button" class="btn btn-small btn-danger" onclick="event.preventDefault(); window.app?.deleteCatalogMapPinFromPopup?.('${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Удалить метку</button>` : ''}
                     `
                     : '';
                 const actionButtons = [detailButton, catalogButton, adminPinActions].filter(Boolean).join('');
@@ -8744,6 +8771,7 @@
                     }
                 });
                 this.scheduleMapDeclutter();
+                this.syncMapMarkerDragState();
             }
 
             extendMapBounds(bounds, entry) {
@@ -9634,20 +9662,26 @@
                 }
             }
 
+            isCatalogMapPinKind(kind) {
+                return kind === 'area' || kind === 'sector' || kind === 'route' || kind === 'boulder';
+            }
+
+            catalogMapPinMoveLabel(kind) {
+                if (kind === 'area') return 'района';
+                if (kind === 'sector') return 'сектора';
+                if (kind === 'route') return 'трассы';
+                if (kind === 'boulder') return 'боулдера';
+                return 'метки';
+            }
+
             catalogMapPinEntry(kind, id) {
                 const stored = this.mapMarkerIndex.get(this.mapKey(kind, id));
-                if (stored) return stored;
-                if (kind === 'area') {
-                    const area = getAreas().find((a) => Number(a.id) === Number(id));
-                    const coord = area ? this.areaMapCoordinate(area.id) : null;
-                    if (!area || !coord) return null;
-                    return { kind: 'area', id: area.id, title: area.name, lat: coord.lat, lng: coord.lng };
-                }
-                if (kind === 'sector') {
-                    const sector = getSectors().find((s) => Number(s.id) === Number(id));
-                    const coord = sector ? this.sectorMapCoordinate(sector.id) : null;
-                    if (!sector || !coord) return null;
-                    return { kind: 'sector', id: sector.id, title: sector.name, lat: coord.lat, lng: coord.lng };
+                if (stored && stored.kind === kind && String(stored.id) === String(id)) return stored;
+                const coord = this.resolveMapEntryCoord(kind, id);
+                const title = this.resolveMapEntryTitle(kind, id);
+                if (!coord) return null;
+                if (kind === 'area' || kind === 'sector' || kind === 'route' || kind === 'boulder') {
+                    return { kind, climbType: kind === 'route' || kind === 'boulder' ? kind : undefined, id, title, lat: coord.lat, lng: coord.lng };
                 }
                 return null;
             }
@@ -9667,12 +9701,45 @@
             }
 
             beginMoveCatalogMapPin(entry) {
-                if (!entry || (entry.kind !== 'area' && entry.kind !== 'sector')) return;
+                if (!entry || !this.isCatalogMapPinKind(entry.kind)) return;
+                if (!this.mapEditMode) this.toggleMapEditMode(true);
+                this.setMapDrawTool('edit');
                 this._mapCatalogPinMove = { kind: entry.kind, id: Number(entry.id) };
                 this.mapFeatureMovePending = false;
-                const label = entry.kind === 'area' ? 'района' : 'сектора';
-                this.updateMapStatus(`Кликните на карте — новое положение метки ${label}.`);
+                this.map?.closePopup?.();
+                const label = this.catalogMapPinMoveLabel(entry.kind);
+                this.updateMapStatus(`Перетащите значок или кликните на карте — новое положение ${label}.`);
                 this.syncMapEditUi();
+            }
+
+            bindCatalogPinDrag(marker, entry) {
+                if (!marker || !entry) return;
+                marker.off('dragstart').off('dragend');
+                marker.on('dragstart', () => {
+                    if (!this.mapEditMode || !this.isAdmin()) return;
+                    this.map?.closePopup?.();
+                    this._mapPinJustDragged = false;
+                    this._mapCatalogPinMove = { kind: entry.kind, id: Number(entry.id) };
+                    this.map?.getContainer()?.classList.add('map-pin-moving');
+                });
+                marker.on('dragend', (e) => {
+                    this._mapPinJustDragged = true;
+                    this.map?.getContainer()?.classList.remove('map-pin-moving');
+                    const ll = e.target?.getLatLng?.();
+                    if (ll) void this.moveCatalogMapPin(ll.lat, ll.lng);
+                    setTimeout(() => { this._mapPinJustDragged = false; }, 80);
+                });
+            }
+
+            syncMapMarkerDragState() {
+                const on = !!(this.mapEditMode && this.isAdmin() && (this.mapDrawTool === 'edit' || this._mapCatalogPinMove));
+                this.mapMarkerIndex.forEach((stored) => {
+                    const dragging = stored.marker?.dragging;
+                    if (!dragging) return;
+                    if (on && this.isCatalogMapPinKind(stored.kind)) dragging.enable();
+                    else dragging.disable();
+                });
+                this.map?.getContainer()?.classList.toggle('map-edit-pins', on);
             }
 
             async moveCatalogMapPin(lat, lng) {
@@ -9680,32 +9747,52 @@
                 this._mapCatalogPinMove = null;
                 if (!move?.kind || !move?.id) return;
                 if (!this.requireAdmin('Перемещение метки')) return;
+                const kind = move.kind;
+                const id = Number(move.id);
                 try {
-                    if (move.kind === 'area') {
-                        const saved = await apiFetch(`/api/areas/${Number(move.id)}`, {
+                    setGlobalUiBusy(true);
+                    if (kind === 'area') {
+                        const saved = await apiFetch(`/api/areas/${id}`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ latitude: lat, longitude: lng })
                         });
                         mergeAreaFromApiResponse(saved);
-                        await this.removeMapSignFeaturesForEntity('area', move.id);
-                    } else {
-                        const saved = await apiFetch(`/api/sectors/${Number(move.id)}`, {
+                        await this.removeMapSignFeaturesForEntity('area', id);
+                    } else if (kind === 'sector') {
+                        const saved = await apiFetch(`/api/sectors/${id}`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ latitude: lat, longitude: lng })
                         });
                         mergeSectorFromApiResponse(saved);
-                        await this.removeMapSignFeaturesForEntity('sector', move.id);
+                        await this.removeMapSignFeaturesForEntity('sector', id);
+                    } else if (kind === 'route') {
+                        const saved = await apiFetch(`/api/routes/${id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: lat, longitude: lng })
+                        });
+                        mergeRouteFromApiResponse(saved);
+                    } else if (kind === 'boulder') {
+                        const saved = await apiFetch(`/api/boulders/${id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: lat, longitude: lng })
+                        });
+                        mergeBoulderFromApiResponse(saved);
                     }
                     this.data = getClimbingData();
                     this.map?.closePopup();
                     this.updateMapMarkers();
-                    this.renderCatalog();
-                    this.showToast('Метка перемещена');
+                    if (kind === 'area' || kind === 'sector') this.renderCatalog();
                     this.updateMapStatus('Метка перемещена.');
                 } catch (err) {
+                    this.updateMapMarkers();
                     this.showToast(err.message || 'Не удалось переместить метку', true);
+                } finally {
+                    setGlobalUiBusy(false);
+                    this.syncMapEditUi();
                 }
             }
 
@@ -9786,11 +9873,13 @@
                     toggleBtn.classList.toggle('btn-secondary', this.mapEditMode);
                     toggleBtn.innerHTML = this.mapEditMode
                         ? '<i class="fas fa-check"></i> Готово'
-                        : '<i class="fas fa-pen"></i> Редактировать карту';
+                        : (this.appShellEmbeddedMapActive()
+                            ? 'Раставить метки'
+                            : '<i class="fas fa-pen"></i> Редактировать карту');
                 }
                 if (hint && this.mapEditMode) {
                     const toolHints = {
-                        edit: 'Кликните по объекту на карте, чтобы изменить подпись или переместить его.',
+                        edit: 'Перетащите значок или нажмите его, затем карту — район, сектор, трасса или боулдер.',
                         delete: 'Кликните по объекту на карте, чтобы удалить только его.',
                         trail: 'Кликайте по карте, чтобы добавить точки тропы. «Завершить тропу» — сохранить.',
                         parking: 'Клик по карте — поставить парковку.',
@@ -9799,7 +9888,7 @@
                         sector_sign: 'Клик по карте — метка сектора.'
                     };
                     hint.textContent = this._mapCatalogPinMove
-                        ? 'Кликните на карте — новое положение метки района/сектора.'
+                        ? `Перетащите значок или кликните на карте — новое положение ${this.catalogMapPinMoveLabel(this._mapCatalogPinMove.kind)}.`
                         : (this.mapFeatureMovePending
                         ? 'Кликните на карте — новое положение выбранной метки.'
                         : (toolHints[this.mapDrawTool] || hint.textContent));
@@ -9816,6 +9905,8 @@
                 this.fillMapSectorSignToolIcon();
                 this.syncMapFeatureEditBar();
                 this.map?.getContainer()?.classList.toggle('map-edit-mode', !!this.mapEditMode);
+                document.body.classList.toggle('map-edit-open', !!(this.mapEditMode && admin));
+                this.syncMapMarkerDragState();
             }
 
             setMapDrawTool(tool) {
@@ -9837,6 +9928,7 @@
                 if (next) {
                     if (!this.mapShowPoi) this.toggleMapLayer('poi');
                     if (!this.mapShowTrails) this.toggleMapLayer('trails');
+                    if (this.appShellEmbeddedMapActive()) this.mapDrawTool = 'edit';
                 } else {
                     this.cancelMapLocationPick();
                     this._mapCatalogPinMove = null;
@@ -9849,7 +9941,9 @@
                 this.syncMapEditUi();
                 this.renderMapFeatureLayers();
                 this.updateMapStatus(this.mapEditMode
-                    ? 'Режим редактирования карты: выберите инструмент и кликайте по карте.'
+                    ? (this.appShellEmbeddedMapActive()
+                        ? 'Раставьте метки: перетащите значок или нажмите его, затем карту.'
+                        : 'Режим редактирования карты: выберите инструмент и кликайте по карте.')
                     : 'Нажмите маркер на карте, чтобы выбрать цель.');
             }
 

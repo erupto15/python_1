@@ -5412,6 +5412,41 @@
             cursor: crosshair;
         }
 
+        #mapContainer.map-edit-pins {
+            cursor: grab;
+        }
+
+        #mapContainer.map-pin-moving,
+        #mapContainer.map-pin-moving .leaflet-marker-icon {
+            cursor: grabbing;
+        }
+
+        .map-popup-boulder-row {
+            display: flex;
+            gap: 6px;
+            align-items: stretch;
+        }
+
+        .map-popup-boulder-row .map-popup-boulder-item {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .map-popup-boulder-move {
+            flex-shrink: 0;
+            width: 36px;
+            min-height: 36px;
+            margin: 0;
+            padding: 0;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-color);
+            font-size: 16px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
         .map-feature-edit-bar {
             display: flex;
             flex-direction: column;
@@ -5596,7 +5631,8 @@
         }
 
         body.map-boulder-sheet-open .map-admin-add-bar,
-        body.map-climb-info-sheet-open .map-admin-add-bar {
+        body.map-climb-info-sheet-open .map-admin-add-bar,
+        body.map-edit-open .map-admin-add-bar {
             display: none !important;
         }
 
@@ -9061,16 +9097,46 @@
         html.catalog-map-shell #catalog #catalogList,
         html.catalog-map-shell #catalog .catalog-map-block-head,
         html.catalog-map-shell #catalog .catalog-map-legend-mount,
-        html.catalog-map-shell #catalog .catalog-map-edit-mount,
         html.catalog-admin.catalog-map-shell #catalog .catalog-toolbar,
         html.catalog-admin.catalog-map-shell #catalog .catalog-guide-hero {
             display: none !important;
         }
 
         html.app-shell.catalog-map-shell #mapLegend,
-        html.app-shell.catalog-map-shell #mapEditPanel,
-        html.app-shell.catalog-map-shell #catalogMapLegendMount,
-        html.app-shell.catalog-map-shell #catalogMapEditMount {
+        html.app-shell.catalog-map-shell #catalogMapLegendMount {
+            display: none !important;
+        }
+
+        html.app-shell.catalog-map-shell.catalog-admin #catalogMapEditMount,
+        html.catalog-map-shell.catalog-admin #catalog .catalog-map-edit-mount {
+            display: block !important;
+            position: fixed;
+            top: calc(58px + env(safe-area-inset-top, 0px));
+            right: max(10px, env(safe-area-inset-right, 0px));
+            left: auto;
+            width: min(calc(100vw - 72px), 280px);
+            margin: 0;
+            z-index: 890;
+            pointer-events: none;
+        }
+
+        html.app-shell.catalog-map-shell.catalog-admin #catalogMapEditMount .map-edit-panel,
+        html.catalog-map-shell.catalog-admin #catalog .catalog-map-edit-mount .map-edit-panel {
+            pointer-events: auto;
+            margin: 0;
+            padding: 8px;
+            background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+        }
+
+        html.app-shell.catalog-map-shell.catalog-admin #mapEditTools {
+            display: none !important;
+        }
+
+        body.map-boulder-sheet-open #catalogMapEditMount,
+        body.map-climb-info-sheet-open #catalogMapEditMount {
             display: none !important;
         }
 
