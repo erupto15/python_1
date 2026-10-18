@@ -63,6 +63,9 @@
             --on-canvas-border: rgba(255, 255, 255, 0.22);
             --on-canvas-shadow: 0 6px 20px rgba(0, 0, 0, 0.42);
             --on-canvas-placeholder: rgba(245, 245, 247, 0.55);
+            --nav-dia-light: var(--logo-light-mid);
+            --nav-dia-dark: var(--logo-dark-bottom);
+            --nav-dia-arrow: var(--primary-color);
             /* Карта */
             --map-accent: #e8472a;
             --map-panel: rgba(15, 17, 22, 0.85);
@@ -221,6 +224,9 @@
             --on-canvas-border: rgba(32, 24, 48, 0.2);
             --on-canvas-shadow: 0 6px 22px rgba(48, 28, 64, 0.18);
             --on-canvas-placeholder: #5a5466;
+            --nav-dia-light: #e8ecf4;
+            --nav-dia-dark: #12151c;
+            --nav-dia-arrow: var(--primary-color);
             --tabs-rail-bg: rgba(26, 31, 44, 0.06);
             --tabs-inactive-bg: #ffffff;
             --action-btn-bg: #ffffff;
@@ -2880,17 +2886,17 @@
             min-width: 0;
             min-height: 0;
             border-radius: 50%;
-            background: #315be8;
-            border: 1px solid #315be8;
-            box-shadow: 0 5px 16px rgba(37, 75, 210, 0.4);
-            color: #fff;
+            background: var(--on-canvas-bg) !important;
+            border: 1px solid var(--on-canvas-border) !important;
+            box-shadow: var(--on-canvas-shadow) !important;
+            color: var(--text-color);
         }
 
         .catalog-route-nav-btn:hover,
         .catalog-route-nav-btn:focus-visible {
-            background: #244dd7;
-            border-color: #244dd7;
-            color: #fff;
+            background: color-mix(in srgb, var(--primary-color) 12%, var(--on-canvas-bg)) !important;
+            border-color: color-mix(in srgb, var(--primary-color) 45%, var(--on-canvas-border)) !important;
+            color: var(--text-color);
             transform: translateY(-1px);
         }
 
@@ -5904,27 +5910,27 @@
             justify-content: center;
             margin: 0;
             padding: 0;
-            border: 0;
+            border: 1px solid var(--on-canvas-border);
             border-radius: 50%;
-            background: #315be8;
-            color: #fff;
+            background: var(--on-canvas-bg);
+            color: var(--text-color);
             font-size: 23px;
             line-height: 1;
             cursor: pointer;
             pointer-events: auto;
             touch-action: manipulation;
-            box-shadow: 0 5px 18px rgba(37, 75, 210, 0.42);
-            transition: transform 0.15s ease, background 0.15s ease;
+            box-shadow: var(--on-canvas-shadow);
+            transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
         }
 
         .map-navigate-btn:hover {
-            background: #244dd7;
+            background: color-mix(in srgb, var(--primary-color) 12%, var(--on-canvas-bg));
             transform: translateY(-1px);
         }
 
         .map-navigate-btn.is-active {
-            background: #244dd7;
-            box-shadow: 0 0 0 4px rgba(49, 91, 232, 0.2), 0 5px 18px rgba(37, 75, 210, 0.46);
+            background: color-mix(in srgb, var(--primary-color) 16%, var(--on-canvas-bg));
+            box-shadow: 0 0 0 4px var(--accent-soft), var(--on-canvas-shadow);
         }
 
         .map-navigate-btn.is-loading .map-navigate-icon {
@@ -5942,6 +5948,22 @@
             width: 25px;
             height: 25px;
             display: block;
+            overflow: visible;
+            filter:
+                drop-shadow(0 0 0.6px rgba(255, 255, 255, 0.55))
+                drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+        }
+
+        .map-navigate-icon .nav-dia-light {
+            fill: var(--nav-dia-light);
+        }
+
+        .map-navigate-icon .nav-dia-dark {
+            fill: var(--nav-dia-dark);
+        }
+
+        .map-navigate-icon .nav-dia-arrow {
+            fill: var(--nav-dia-arrow);
         }
 
         .map-guide-nav-btn .map-navigate-icon svg {
@@ -6008,9 +6030,9 @@
         }
 
         .map-popup-control-btn--navigate {
-            border: 1px solid #315be8;
-            background: #315be8;
-            color: #fff;
+            border: 1px solid var(--on-canvas-border);
+            background: var(--on-canvas-bg);
+            color: var(--text-color);
         }
 
         .map-popup-control-btn .map-locate-pin-icon svg,
@@ -8925,12 +8947,12 @@
         html.tg-mini-app.tg-theme-light .route-markup-mode-btn,
         html.tg-mini-app.tg-theme-light .boulder-markup-mode-btn,
         html.tg-mini-app.tg-theme-light .tab-btn:not(.active) {
-            background-color: var(--tg-btn-bg) !important;
+            background-color: var(--on-canvas-bg) !important;
             -webkit-backdrop-filter: none;
             backdrop-filter: none;
             color: var(--text-color);
-            border-color: var(--tg-btn-border);
-            box-shadow: none;
+            border-color: var(--on-canvas-border);
+            box-shadow: var(--on-canvas-shadow);
         }
 
         html.tg-mini-app.tg-theme-light .btn-primary,
