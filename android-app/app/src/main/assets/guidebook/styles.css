@@ -3050,6 +3050,11 @@
             background: transparent;
         }
 
+        .photo-markup-overlay text {
+            letter-spacing: 0;
+            paint-order: stroke fill;
+        }
+
         .photo-markup-overlay .topo-line,
         .photo-markup-overlay .topo-line-end-dot,
         .photo-markup-overlay .topo-line-end-arrow {
@@ -7144,6 +7149,13 @@
                 -webkit-backdrop-filter: blur(10px);
                 backdrop-filter: blur(10px);
             }
+        }
+
+        html.theme-light .search-bar.search-bar--compound .search-input,
+        html.theme-light .search-bar.search-bar--compound .list-grade-select {
+            background-color: #ffffff;
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
         }
 
         html.tg-mini-app .search-bar.search-bar--compound .search-input {

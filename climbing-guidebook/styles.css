@@ -3050,6 +3050,11 @@
             background: transparent;
         }
 
+        .photo-markup-overlay text {
+            letter-spacing: 0;
+            paint-order: stroke fill;
+        }
+
         .photo-markup-overlay .topo-line,
         .photo-markup-overlay .topo-line-end-dot,
         .photo-markup-overlay .topo-line-end-arrow {

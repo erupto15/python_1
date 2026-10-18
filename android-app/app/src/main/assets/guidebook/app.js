@@ -2448,16 +2448,41 @@
                         const drawLabeledHold = (p, text) => {
                             const q = toPx(p);
                             if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return;
-                            const rHold = Math.max(11, Math.round(Math.min(w, h) * 0.028));
+                            const rHold = TOPO_MARKUP.labeledHoldRadiusPx;
                             drawCircle(p, rHold, TOPO_MARKUP.holdFill, TOPO_MARKUP.holdStroke, TOPO_MARKUP.holdStrokePx);
                             ctx.fillStyle = TOPO_MARKUP.holdLabelColor;
                             ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-                            ctx.lineWidth = 3;
-                            ctx.font = `700 ${Math.max(9, Math.round(rHold * 0.7))}px system-ui, sans-serif`;
+                            ctx.lineWidth = 1.2;
+                            ctx.font = '700 8px system-ui, -apple-system, "Segoe UI", sans-serif';
                             ctx.textAlign = 'center';
                             ctx.textBaseline = 'top';
-                            ctx.strokeText(text, q.x, q.y + rHold + 2);
-                            ctx.fillText(text, q.x, q.y + rHold + 2);
+                            ctx.strokeText(text, q.x, q.y + rHold + 3);
+                            ctx.fillText(text, q.x, q.y + rHold + 3);
+                        };
+                        const drawGradeOnLine = (pts) => {
+                            if (!gradeForLine) return;
+                            const mid = topoLineMidpointNorm(pts);
+                            if (!mid) return;
+                            const q = toPx(mid);
+                            const layout = topoGradeBadgeLayout(gradeLineLabel, pts, { iw: w, ih: h });
+                            const bx = q.x - layout.boxW / 2;
+                            const by = q.y - layout.boxH / 2;
+                            ctx.beginPath();
+                            if (typeof ctx.roundRect === 'function') {
+                                ctx.roundRect(bx, by, layout.boxW, layout.boxH, layout.rx);
+                            } else {
+                                ctx.rect(bx, by, layout.boxW, layout.boxH);
+                            }
+                            ctx.fillStyle = 'rgba(255,255,255,0.92)';
+                            ctx.fill();
+                            ctx.strokeStyle = lineColor;
+                            ctx.lineWidth = 1.5;
+                            ctx.stroke();
+                            ctx.fillStyle = lineColor;
+                            ctx.font = `800 ${layout.fontPx}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(gradeLineLabel, q.x, q.y);
                         };
 
                         if (climbType === 'route') {
@@ -2469,26 +2494,7 @@
                                 drawLabeledHold(p, 'Старт');
                             });
                             if (routeMarkup.finishHold) drawLabeledHold(routeMarkup.finishHold, 'Топ');
-                            if (gradeForLine) {
-                                const mid = topoLineMidpointNorm(pts);
-                                if (mid) {
-                                    const q = toPx(mid);
-                                    ctx.font = `800 ${Math.max(11, Math.round(Math.min(w, h) * 0.018))}px system-ui, sans-serif`;
-                                    const tw = ctx.measureText(gradeLineLabel).width;
-                                    const pad = 6;
-                                    ctx.fillStyle = 'rgba(255,255,255,0.92)';
-                                    ctx.strokeStyle = lineColor;
-                                    ctx.lineWidth = 2;
-                                    const bx = q.x - tw / 2 - pad;
-                                    const by = q.y - 10;
-                                    ctx.fillRect(bx, by, tw + pad * 2, 20);
-                                    ctx.strokeRect(bx, by, tw + pad * 2, 20);
-                                    ctx.fillStyle = lineColor;
-                                    ctx.textAlign = 'center';
-                                    ctx.textBaseline = 'middle';
-                                    ctx.fillText(gradeLineLabel, q.x, q.y);
-                                }
-                            }
+                            drawGradeOnLine(pts);
                         } else {
                             const boulderMarkup = normalizePhotoMarkup(markup, 'boulder') || markup;
                             const linePts = Array.isArray(boulderMarkup.linePoints) ? boulderMarkup.linePoints : [];
@@ -2496,26 +2502,7 @@
                             drawLineEnd(linePts, 'arrow');
                             (boulderMarkup.startHolds || []).forEach((p) => drawLabeledHold(p, 'Старт'));
                             if (boulderMarkup.finishHold) drawLabeledHold(boulderMarkup.finishHold, 'Финиш');
-                            if (gradeForLine) {
-                                const mid = topoLineMidpointNorm(linePts);
-                                if (mid) {
-                                    const q = toPx(mid);
-                                    ctx.font = `800 ${Math.max(11, Math.round(Math.min(w, h) * 0.018))}px system-ui, sans-serif`;
-                                    const tw = ctx.measureText(gradeLineLabel).width;
-                                    const pad = 6;
-                                    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
-                                    ctx.strokeStyle = lineColor;
-                                    ctx.lineWidth = 2;
-                                    const bx = q.x - tw / 2 - pad;
-                                    const by = q.y - 10;
-                                    ctx.fillRect(bx, by, tw + pad * 2, 20);
-                                    ctx.strokeRect(bx, by, tw + pad * 2, 20);
-                                    ctx.fillStyle = lineColor;
-                                    ctx.textAlign = 'center';
-                                    ctx.textBaseline = 'middle';
-                                    ctx.fillText(gradeLineLabel, q.x, q.y);
-                                }
-                            }
+                            drawGradeOnLine(linePts);
                         }
 
                         resolve(canvas.toDataURL('image/jpeg', 0.92));
@@ -5136,19 +5123,100 @@
             return px / iw;
         }
 
+        function topoAspect(geom) {
+            const iw = geom?.iw > 0 ? geom.iw : 400;
+            const ih = geom?.ih > 0 ? geom.ih : iw;
+            return { iw, ih, sx: 1 / iw, sy: 1 / ih };
+        }
+
+        function topoScreenGroup(NS, x, y, geom) {
+            const { sx, sy } = topoAspect(geom);
+            const g = document.createElementNS(NS, 'g');
+            g.setAttribute('transform', `translate(${x} ${y}) scale(${sx} ${sy})`);
+            return g;
+        }
+
+        function topoLineLengthPx(linePts, geom) {
+            const { iw, ih } = topoAspect(geom);
+            if (!linePts || linePts.length < 2) return 0;
+            let total = 0;
+            for (let i = 1; i < linePts.length; i += 1) {
+                const ax = Number(linePts[i - 1].x);
+                const ay = Number(linePts[i - 1].y);
+                const bx = Number(linePts[i].x);
+                const by = Number(linePts[i].y);
+                if (!Number.isFinite(ax) || !Number.isFinite(ay) || !Number.isFinite(bx) || !Number.isFinite(by)) continue;
+                total += Math.hypot((bx - ax) * iw, (by - ay) * ih);
+            }
+            return total;
+        }
+
+        function measureTopoGradeText(text, fontPx, fontWeight = '800') {
+            const canvas = measureTopoGradeText._c || (measureTopoGradeText._c = document.createElement('canvas'));
+            const ctx = canvas.getContext && canvas.getContext('2d');
+            if (!ctx) {
+                return { w: Math.max(1, String(text).length * fontPx * 0.72), h: fontPx };
+            }
+            ctx.font = `${fontWeight} ${fontPx}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+            const m = ctx.measureText(String(text));
+            const w = Number(m.width) || (String(text).length * fontPx * 0.72);
+            const asc = Number(m.actualBoundingBoxAscent);
+            const desc = Number(m.actualBoundingBoxDescent);
+            const h = (Number.isFinite(asc) && Number.isFinite(desc) && asc + desc > 0)
+                ? asc + desc
+                : fontPx;
+            return { w, h };
+        }
+
+        function topoGradeBadgeLayout(grade, linePts, geom) {
+            const linePx = topoLineLengthPx(linePts, geom);
+            const baseFont = 12;
+            const maxBadge = Math.max(10, Math.min(56, linePx * 0.28));
+            const minFont = 5;
+            let fontPx = baseFont;
+            let padX = 5;
+            let padY = 3;
+            const apply = (fp) => {
+                const k = fp / baseFont;
+                const pX = Math.max(1.5, 5 * k);
+                const pY = Math.max(1, 3 * k);
+                const m = measureTopoGradeText(grade, fp);
+                return {
+                    fontPx: fp,
+                    padX: pX,
+                    padY: pY,
+                    boxW: m.w + pX * 2,
+                    boxH: Math.max(m.h + pY * 2, fp * 1.08 + pY * 2),
+                    rx: Math.max(1.5, 4 * k)
+                };
+            };
+            let layout = apply(fontPx);
+            const fit = Math.min(1, maxBadge / Math.max(layout.boxW, layout.boxH, 1));
+            if (fit < 0.999) {
+                fontPx = Math.max(minFont, fontPx * fit);
+                layout = apply(fontPx);
+            }
+            if (layout.boxW > maxBadge) {
+                fontPx = Math.max(minFont, fontPx * (maxBadge / layout.boxW));
+                layout = apply(fontPx);
+            }
+            return layout;
+        }
+
         function appendTopoLineEndpointDot(svg, NS, point, geom, lineColor = TOPO_MARKUP.lineColor) {
             const ax = Number(point?.x);
             const ay = Number(point?.y);
             if (!Number.isFinite(ax) || !Number.isFinite(ay)) return;
-            const r = topoStrokeNorm(geom, TOPO_MARKUP.lineEndDotPx) / 2;
+            const g = topoScreenGroup(NS, Math.max(0, Math.min(1, ax)), Math.max(0, Math.min(1, ay)), geom);
             const c = document.createElementNS(NS, 'circle');
             c.setAttribute('class', 'topo-line-end-dot');
-            c.setAttribute('cx', String(Math.max(0, Math.min(1, ax))));
-            c.setAttribute('cy', String(Math.max(0, Math.min(1, ay))));
-            c.setAttribute('r', String(r));
+            c.setAttribute('cx', '0');
+            c.setAttribute('cy', '0');
+            c.setAttribute('r', String(TOPO_MARKUP.lineEndDotPx / 2));
             c.setAttribute('fill', lineColor);
             c.setAttribute('stroke', 'none');
-            svg.appendChild(c);
+            g.appendChild(c);
+            svg.appendChild(g);
         }
 
         function appendTopoLineEndMarker(svg, NS, linePts, geom, endStyle, lineColor = TOPO_MARKUP.lineColor) {
@@ -5165,36 +5233,38 @@
             const bx = Number(prev.x);
             const by = Number(prev.y);
             if (!Number.isFinite(ax) || !Number.isFinite(ay) || !Number.isFinite(bx) || !Number.isFinite(by)) return;
-            const angle = Math.atan2(ay - by, ax - bx);
+            const { iw, ih } = topoAspect(geom);
+            const angle = Math.atan2((ay - by) * ih, (ax - bx) * iw);
+            const g = topoScreenGroup(NS, ax, ay, geom);
             if (endStyle === 'dot') {
-                const r = topoStrokeNorm(geom, TOPO_MARKUP.lineEndDotPx) / 2;
+                const r = TOPO_MARKUP.lineEndDotPx / 2;
                 const c = document.createElementNS(NS, 'circle');
                 c.setAttribute('class', 'topo-line-end-dot');
-                c.setAttribute('cx', String(ax));
-                c.setAttribute('cy', String(ay));
+                c.setAttribute('cx', '0');
+                c.setAttribute('cy', '0');
                 c.setAttribute('r', String(r));
                 c.setAttribute('fill', lineColor);
                 c.setAttribute('stroke', 'none');
-                svg.appendChild(c);
+                g.appendChild(c);
+                svg.appendChild(g);
                 return;
             }
             if (endStyle === 'arrow') {
-                const len = topoStrokeNorm(geom, TOPO_MARKUP.lineEndArrowLenPx);
-                const wing = topoStrokeNorm(geom, TOPO_MARKUP.lineEndArrowWingPx);
-                const tipX = ax;
-                const tipY = ay;
-                const baseX = ax - len * Math.cos(angle);
-                const baseY = ay - len * Math.sin(angle);
+                const len = TOPO_MARKUP.lineEndArrowLenPx;
+                const wing = TOPO_MARKUP.lineEndArrowWingPx;
+                const baseX = -len * Math.cos(angle);
+                const baseY = -len * Math.sin(angle);
                 const leftX = baseX + wing * Math.cos(angle + Math.PI / 2);
                 const leftY = baseY + wing * Math.sin(angle + Math.PI / 2);
                 const rightX = baseX + wing * Math.cos(angle - Math.PI / 2);
                 const rightY = baseY + wing * Math.sin(angle - Math.PI / 2);
                 const poly = document.createElementNS(NS, 'polygon');
                 poly.setAttribute('class', 'topo-line-end-arrow');
-                poly.setAttribute('points', `${tipX},${tipY} ${leftX},${leftY} ${rightX},${rightY}`);
+                poly.setAttribute('points', `0,0 ${leftX},${leftY} ${rightX},${rightY}`);
                 poly.setAttribute('fill', lineColor);
                 poly.setAttribute('stroke', 'none');
-                svg.appendChild(poly);
+                g.appendChild(poly);
+                svg.appendChild(g);
             }
         }
 
@@ -5260,39 +5330,39 @@
             if (!grade || !isMarkupStageReady(geom) || !linePts || linePts.length < 2) return;
             const mid = topoLineMidpointNorm(linePts);
             if (!mid || !Number.isFinite(mid.x) || !Number.isFinite(mid.y)) return;
-            const fontPx = topoStrokeNorm(geom, 11);
-            const padX = topoStrokeNorm(geom, 5);
-            const padY = topoStrokeNorm(geom, 3);
-            const estW = grade.length * fontPx * 0.62;
-            const boxW = estW + padX * 2;
-            const boxH = fontPx + padY * 2;
             const x = Math.max(0, Math.min(1, mid.x));
             const y = Math.max(0, Math.min(1, mid.y));
+            const layout = topoGradeBadgeLayout(grade, linePts, geom);
+            const g = topoScreenGroup(NS, x, y, geom);
+            g.setAttribute('class', 'topo-line-grade-wrap');
+
             const rect = document.createElementNS(NS, 'rect');
             rect.setAttribute('class', 'topo-line-grade-bg');
-            rect.setAttribute('x', String(x - boxW / 2));
-            rect.setAttribute('y', String(y - boxH / 2));
-            rect.setAttribute('width', String(boxW));
-            rect.setAttribute('height', String(boxH));
-            rect.setAttribute('rx', String(topoStrokeNorm(geom, 4)));
+            rect.setAttribute('x', String(-layout.boxW / 2));
+            rect.setAttribute('y', String(-layout.boxH / 2));
+            rect.setAttribute('width', String(layout.boxW));
+            rect.setAttribute('height', String(layout.boxH));
+            rect.setAttribute('rx', String(layout.rx));
             rect.setAttribute('fill', 'rgba(255, 255, 255, 0.92)');
             rect.setAttribute('stroke', lineColor);
-            rect.setAttribute('stroke-width', String(topoStrokeNorm(geom, 1.5)));
-            svg.appendChild(rect);
+            rect.setAttribute('stroke-width', '1.5');
+            g.appendChild(rect);
 
             const label = document.createElementNS(NS, 'text');
             label.setAttribute('class', 'topo-line-grade');
-            label.setAttribute('x', String(x));
-            label.setAttribute('y', String(y));
+            label.setAttribute('x', '0');
+            label.setAttribute('y', '0');
             label.setAttribute('text-anchor', 'middle');
             label.setAttribute('dominant-baseline', 'central');
             label.setAttribute('fill', lineColor);
-            label.setAttribute('font-size', String(fontPx));
+            label.setAttribute('font-size', String(layout.fontPx));
             label.setAttribute('font-weight', '800');
             label.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, sans-serif');
+            label.setAttribute('letter-spacing', '0');
             label.setAttribute('pointer-events', 'none');
             label.textContent = grade;
-            svg.appendChild(label);
+            g.appendChild(label);
+            svg.appendChild(g);
         }
 
         function appendTopoLineSvg(svg, NS, linePts, geom, endStyle = null, lineColor = TOPO_MARKUP.lineColor) {
@@ -5315,7 +5385,8 @@
             pl.setAttribute('points', pairs.join(' '));
             pl.setAttribute('fill', 'none');
             pl.setAttribute('stroke', stroke);
-            pl.setAttribute('stroke-width', String(topoStrokeNorm(geom, TOPO_MARKUP.lineStrokePx)));
+            pl.setAttribute('stroke-width', String(TOPO_MARKUP.lineStrokePx));
+            pl.setAttribute('vector-effect', 'non-scaling-stroke');
             pl.setAttribute('stroke-linecap', 'round');
             pl.setAttribute('stroke-linejoin', 'round');
             svg.appendChild(pl);
@@ -5329,36 +5400,39 @@
             if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
             const labelText = options.label || null;
             const labeled = !!labelText;
-            const r = topoHoldRadiusNorm(geom, labeled);
-            const sw = topoStrokeNorm(geom, TOPO_MARKUP.holdStrokePx);
+            const rPx = labeled ? TOPO_MARKUP.labeledHoldRadiusPx : TOPO_MARKUP.holdRadiusPx;
+            const g = topoScreenGroup(NS, nx, ny, geom);
+            g.setAttribute('class', labeled ? 'topo-hold-wrap topo-hold-wrap--labeled' : 'topo-hold-wrap');
             const c = document.createElementNS(NS, 'circle');
             c.setAttribute('class', labeled ? 'topo-hold topo-hold--labeled' : 'topo-hold');
-            c.setAttribute('cx', String(nx));
-            c.setAttribute('cy', String(ny));
-            c.setAttribute('r', String(r));
+            c.setAttribute('cx', '0');
+            c.setAttribute('cy', '0');
+            c.setAttribute('r', String(rPx));
             c.setAttribute('fill', TOPO_MARKUP.holdFill);
             c.setAttribute('stroke', TOPO_MARKUP.holdStroke);
-            c.setAttribute('stroke-width', String(sw));
-            svg.appendChild(c);
+            c.setAttribute('stroke-width', String(TOPO_MARKUP.holdStrokePx));
+            g.appendChild(c);
 
-            if (!labelText) return;
-
-            const label = document.createElementNS(NS, 'text');
-            label.setAttribute('class', 'topo-hold-label');
-            label.setAttribute('x', String(nx));
-            label.setAttribute('y', String(ny + r + topoStrokeNorm(geom, 3)));
-            label.setAttribute('text-anchor', 'middle');
-            label.setAttribute('dominant-baseline', 'hanging');
-            label.setAttribute('fill', TOPO_MARKUP.holdLabelColor);
-            label.setAttribute('font-size', String(topoStrokeNorm(geom, 8)));
-            label.setAttribute('font-weight', '700');
-            label.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, sans-serif');
-            label.setAttribute('paint-order', 'stroke');
-            label.setAttribute('stroke', 'rgba(0,0,0,0.55)');
-            label.setAttribute('stroke-width', String(topoStrokeNorm(geom, 2)));
-            label.setAttribute('pointer-events', 'none');
-            label.textContent = labelText;
-            svg.appendChild(label);
+            if (labelText) {
+                const label = document.createElementNS(NS, 'text');
+                label.setAttribute('class', 'topo-hold-label');
+                label.setAttribute('x', '0');
+                label.setAttribute('y', String(rPx + 3));
+                label.setAttribute('text-anchor', 'middle');
+                label.setAttribute('dominant-baseline', 'hanging');
+                label.setAttribute('fill', TOPO_MARKUP.holdLabelColor);
+                label.setAttribute('font-size', '8');
+                label.setAttribute('font-weight', '700');
+                label.setAttribute('font-family', 'system-ui, -apple-system, Segoe UI, sans-serif');
+                label.setAttribute('letter-spacing', '0');
+                label.setAttribute('paint-order', 'stroke');
+                label.setAttribute('stroke', 'rgba(0,0,0,0.55)');
+                label.setAttribute('stroke-width', '1.2');
+                label.setAttribute('pointer-events', 'none');
+                label.textContent = labelText;
+                g.appendChild(label);
+            }
+            svg.appendChild(g);
         }
 
         const appendBoulderLineSvg = appendTopoLineSvg;
