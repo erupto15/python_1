@@ -7634,6 +7634,91 @@
                 return `${la.toFixed(6)}:${ln.toFixed(6)}`;
             }
 
+            mapPinSnapMeters() {
+                return 12;
+            }
+
+            mapCoordsDistanceMeters(lat1, lng1, lat2, lng2) {
+                const toRad = (deg) => (Number(deg) * Math.PI) / 180;
+                const dLat = toRad(lat2 - lat1);
+                const dLng = toRad(lng2 - lng1);
+                const a = Math.sin(dLat / 2) ** 2
+                    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+                return 6371000 * 2 * Math.asin(Math.min(1, Math.sqrt(a)));
+            }
+
+            mapCoordsWithinPinSnap(a, b) {
+                if (!a || !b) return false;
+                return this.mapCoordsDistanceMeters(a.lat, a.lng, b.lat, b.lng) <= this.mapPinSnapMeters();
+            }
+
+            mapPinCandidateCoords({ exclude = [] } = {}) {
+                const skip = new Set((exclude || []).map((item) => `${item.kind}:${item.id}`));
+                const out = [];
+                getSectors().forEach((sector) => {
+                    if (skip.has(`sector:${sector.id}`)) return;
+                    const coord = this.sectorMapPinCoordinate(sector.id);
+                    if (coord) out.push({ kind: 'sector', id: sector.id, coord });
+                });
+                getBoulders().forEach((boulder) => {
+                    if (skip.has(`boulder:${boulder.id}`)) return;
+                    const coord = this.validMapCoord(boulder.latitude, boulder.longitude);
+                    if (coord) out.push({ kind: 'boulder', id: boulder.id, coord });
+                });
+                if (!APP_BOULDER_ONLY) {
+                    getRoutes().forEach((route) => {
+                        if (skip.has(`route:${route.id}`)) return;
+                        const coord = this.validMapCoord(route.latitude, route.longitude);
+                        if (coord) out.push({ kind: 'route', id: route.id, coord });
+                    });
+                }
+                return out;
+            }
+
+            snapMapPinCoord(lat, lng, { exclude = [] } = {}) {
+                const coord = this.validMapCoord(lat, lng);
+                if (!coord) return null;
+                let best = null;
+                let bestDist = Infinity;
+                this.mapPinCandidateCoords({ exclude }).forEach((item) => {
+                    const dist = this.mapCoordsDistanceMeters(coord.lat, coord.lng, item.coord.lat, item.coord.lng);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        best = item.coord;
+                    }
+                });
+                if (best && bestDist <= this.mapPinSnapMeters()) {
+                    return { lat: best.lat, lng: best.lng };
+                }
+                return coord;
+            }
+
+            clusterMapPinItems(items) {
+                const list = (items || []).filter((item) => item?.coord);
+                const parent = list.map((_, index) => index);
+                const find = (index) => (parent[index] === index ? index : (parent[index] = find(parent[index])));
+                const union = (a, b) => {
+                    const ra = find(a);
+                    const rb = find(b);
+                    if (ra !== rb) parent[rb] = ra;
+                };
+                for (let i = 0; i < list.length; i += 1) {
+                    for (let j = i + 1; j < list.length; j += 1) {
+                        if (this.mapCoordsWithinPinSnap(list[i].coord, list[j].coord)) union(i, j);
+                    }
+                }
+                const groups = new Map();
+                list.forEach((item, index) => {
+                    const root = find(index);
+                    if (!groups.has(root)) groups.set(root, []);
+                    groups.get(root).push(item);
+                });
+                return [...groups.values()].map((group) => ({
+                    coord: group[0].coord,
+                    items: group
+                }));
+            }
+
             mapEntryHasBoulderId(entry, boulderId) {
                 if (!entry || entry.kind !== 'boulder') return false;
                 if (String(entry.id) === String(boulderId)) return true;
@@ -8100,26 +8185,22 @@
                     selected ? 'map-boulder-pin-icon--focused' : '',
                     done ? 'map-boulder-pin-icon--done' : ''
                 ].filter(Boolean).join(' ');
-                return `<div class="map-boulder-pin-hit" role="button" tabindex="-1" aria-label="${title}">${this.buildMapBoulderClimberPinIconHtml(extra)}</div>`;
+                const count = stackN > 1 ? `<span class="map-boulder-pin-count">${stackN}</span>` : '';
+                return `<div class="map-boulder-pin-hit" role="button" tabindex="-1" aria-label="${title}">${this.buildMapBoulderClimberPinIconHtml(extra)}${count}</div>`;
             }
 
             openMapClimbFromMarker(entry) {
                 if (!entry?.climbType) return;
-                if (this.catalogEmbeddedMapActive() && document.documentElement.classList.contains('app-shell')) {
-                    if (entry.kind === 'boulder') {
-                        this.setMapScopeForEntry(entry.kind, entry.id);
-                        this.updateMapMarkers();
-                        this.openMapBoulderSheet(entry);
-                    } else {
-                        this.captureMapClimbSheetRestore(this.mapSectorSheetEntry(entry.sectorId) || this._mapBoulderSheetEntry);
-                        void this.showClimbDetailDialog(entry.climbType, entry.id);
-                    }
-                    return;
-                }
-                if (entry.kind === 'boulder' && document.documentElement.classList.contains('app-shell')) {
+                const stackedBoulder = entry.kind === 'boulder' && (entry.boulderAtPin?.length || 0) > 1;
+                if (stackedBoulder || (entry.kind === 'boulder' && document.documentElement.classList.contains('app-shell'))) {
                     this.setMapScopeForEntry(entry.kind, entry.id);
                     this.updateMapMarkers();
                     this.openMapBoulderSheet(entry);
+                    return;
+                }
+                if (this.catalogEmbeddedMapActive() && document.documentElement.classList.contains('app-shell')) {
+                    this.captureMapClimbSheetRestore(this.mapSectorSheetEntry(entry.sectorId) || this._mapBoulderSheetEntry);
+                    void this.showClimbDetailDialog(entry.climbType, entry.id);
                     return;
                 }
                 const mapEl = this.map?.getContainer?.();
@@ -8995,18 +9076,24 @@
                     });
                 }
 
-                const bouldersByPin = new Map();
+                const sectorPinCoords = getSectors()
+                    .map((sector) => ({ id: sector.id, coord: this.sectorMapPinCoordinate(sector.id) }))
+                    .filter((item) => item.coord);
+                const boulderItems = [];
                 if (!appShellOverview) getBoulders().forEach((boulder) => {
-                    const c = this.validMapCoord(boulder.latitude, boulder.longitude);
-                    if (!c) return;
-                    const pinKey = this.mapPinCoordKey(c.lat, c.lng);
-                    if (!bouldersByPin.has(pinKey)) bouldersByPin.set(pinKey, []);
-                    bouldersByPin.get(pinKey).push({ boulder, coord: c });
+                    const coord = this.validMapCoord(boulder.latitude, boulder.longitude);
+                    if (!coord) return;
+                    boulderItems.push({ boulder, coord });
                 });
-                bouldersByPin.forEach((group) => {
-                    group.sort((a, b) => String(a.boulder.name || '').localeCompare(String(b.boulder.name || ''), 'ru'));
+                this.clusterMapPinItems(boulderItems).forEach((cluster) => {
+                    if (sectorPinCoords.some((sector) => this.mapCoordsWithinPinSnap(sector.coord, cluster.coord))) {
+                        return;
+                    }
+                    const group = [...cluster.items].sort((a, b) => (
+                        String(a.boulder.name || '').localeCompare(String(b.boulder.name || ''), 'ru')
+                    ));
                     const primary = group[0].boulder;
-                    const coord = group[0].coord;
+                    const coord = cluster.coord;
                     const boulderAtPin = group.map(({ boulder }) => ({
                         id: boulder.id,
                         title: boulder.name,
@@ -9808,6 +9895,11 @@
                 const ids = [...new Set((move.ids?.length ? move.ids : [move.id]).map(Number).filter(Number.isFinite))];
                 if (!ids.length) return;
                 const id = ids[0];
+                const snapped = this.snapMapPinCoord(lat, lng, {
+                    exclude: ids.map((pinId) => ({ kind, id: pinId }))
+                }) || { lat, lng };
+                lat = snapped.lat;
+                lng = snapped.lng;
                 this._mapCatalogPinMoving = true;
                 try {
                     setGlobalUiBusy(true);
@@ -10055,6 +10147,11 @@
                 if (!pick?.selectValue) return;
                 const id = Number(pick.selectValue);
                 if (!Number.isFinite(id)) return;
+                const snapped = this.snapMapPinCoord(lat, lng, {
+                    exclude: [{ kind, id }]
+                }) || { lat, lng };
+                lat = snapped.lat;
+                lng = snapped.lng;
                 const headers = { 'Content-Type': 'application/json' };
                 const body = JSON.stringify({ latitude: lat, longitude: lng });
                 try {

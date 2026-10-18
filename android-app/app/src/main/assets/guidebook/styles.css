@@ -5592,7 +5592,8 @@
             background: rgba(255, 255, 255, 0.1);
         }
 
-        .map-edit-head {
+        .map-edit-head,
+        #mapEditPanel {
             display: none !important;
         }
 
@@ -6555,6 +6556,7 @@
         }
 
         .map-boulder-pin-hit {
+            position: relative;
             width: 36px;
             height: 36px;
             display: flex;
@@ -6569,6 +6571,21 @@
             width: 28px;
             height: 28px;
             margin-right: 0;
+        }
+
+        .map-boulder-pin-count {
+            position: absolute;
+            right: -4px;
+            bottom: -3px;
+            min-width: 16px;
+            height: 16px;
+            padding: 0 4px;
+            border-radius: 999px;
+            background: #141414;
+            color: #fff;
+            border: 1.5px solid var(--boulder-color, #f04d23);
+            font: 700 10px/16px sans-serif;
+            text-align: center;
         }
 
         .map-boulder-pin-icon svg {
