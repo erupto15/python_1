@@ -5713,6 +5713,8 @@
                 this._mapPromptResolver = null;
                 this._mapCatalogPinMove = null;
                 this._mapCatalogPinMoving = false;
+                this._mapPinAddKind = null;
+                this._mapPinAddMenuOpen = false;
                 this._mapRestoringView = false;
                 this._mapViewSaveTimer = null;
                 this.mapSelectedFeatureId = null;
@@ -7399,6 +7401,7 @@
                 this.attachMapLocateControl();
                 this.attachMapEditInteraction();
                 this.attachMapPointerTracking();
+                this.mountMapPinEditor();
                 this.syncMapFilterButtons();
                 this.syncMapLayerButtons();
 
@@ -7776,7 +7779,6 @@
             }
 
             mapLayerVisible(kind) {
-                if (kind === 'area') return false;
                 if (this.mapFilter === 'all') return true;
                 if (this.mapFilter === 'sectors') return kind === 'sector';
                 if (this.mapFilter === 'routes') return kind === 'route';
@@ -8066,12 +8068,8 @@
             buildMapAreaBadgeHtml(title, sub, selected = false) {
                 const subHtml = sub ? ` <span>${this.escapeHtml(String(sub))}</span>` : '';
                 const sel = selected ? ' selected' : '';
-                if (this.catalogEmbeddedMapActive()) {
-                    const droplet = this.buildMapAreaDropletHtml('map-area-droplet-pin', { catalogWhite: true });
-                    return `<div class="map-sector-badge map-sector-badge--area map-area-badge--catalog${sel}">${droplet}<div class="map-sector-badge-label map-pin-label--plain">${this.escapeHtml(title)}${subHtml}</div></div>`;
-                }
-                const glyph = this.buildMapAreaDropletHtml('map-sector-badge-glyph map-area-badge-glyph');
-                return `<div class="map-sector-badge map-sector-badge--area${sel}">${glyph}<div class="map-sector-badge-label">${this.escapeHtml(title)}${subHtml}</div><div class="map-sector-badge-pointer" aria-hidden="true"></div><div class="map-sector-badge-dot" aria-hidden="true"></div></div>`;
+                const droplet = this.buildMapAreaDropletHtml('map-area-droplet-pin', { catalogWhite: true });
+                return `<div class="map-sector-badge map-sector-badge--area map-area-badge--catalog${sel}">${droplet}<div class="map-sector-badge-label map-pin-label--plain">${this.escapeHtml(title)}${subHtml}</div></div>`;
             }
 
             isMapPinLabelKind(kind) {
@@ -8935,6 +8933,23 @@
                 const entries = [];
                 const appShellEmbedded = this.appShellEmbeddedMapActive();
                 const appShellOverview = appShellEmbedded && this.catalog?.view === 'sectors';
+                getAreas().forEach((area) => {
+                    const c = this.areaMapCoordinate(area.id);
+                    if (!c) return;
+                    const sectorsCount = getSectors().filter((s) => Number(s.areaId) === Number(area.id)).length;
+                    entries.push({
+                        kind: 'area',
+                        id: area.id,
+                        title: area.name,
+                        meta: `${sectorsCount} секторов`,
+                        labelSub: '',
+                        lat: c.lat,
+                        lng: c.lng,
+                        catalog: true,
+                        areaId: area.id,
+                        guideSource: area
+                    });
+                });
 
                 getSectors().forEach((sector) => {
                     const c = this.sectorMapPinCoordinate(sector.id)
@@ -9018,10 +9033,10 @@
                     });
                 });
                 return entries.filter((entry) => {
-                    if (entry.kind === 'area') return false;
                     if (!this.mapEntryInScope(entry)) return false;
                     if (this.appShellEmbeddedMapActive() && this.catalog?.view === 'problems') {
                         return entry.kind === 'sector'
+                            || entry.kind === 'area'
                             || entry.kind === 'route'
                             || entry.kind === 'boulder';
                     }
@@ -9557,7 +9572,7 @@
                         this._mapPromptRequired = required;
                         return;
                     }
-                    if (required && !text && !selectVisible) {
+                    if (required && !this._mapPromptHideText && !text && !selectVisible) {
                         this.showToast('Укажите значение', true);
                         this._mapPromptResolver = resolve;
                         this._mapPromptRequired = required;
@@ -9578,6 +9593,7 @@
                 defaultValue = '',
                 hint = '',
                 required = false,
+                hideTextInput = false,
                 selectOptions = null,
                 selectLabel = 'Объект',
                 defaultSelectValue = null
@@ -9596,9 +9612,14 @@
                     }
                     this._mapPromptResolver = resolve;
                     this._mapPromptRequired = required;
+                    this._mapPromptHideText = !!hideTextInput;
                     if (titleEl) titleEl.textContent = title;
-                    if (inputLabelEl) inputLabelEl.textContent = inputLabel;
+                    if (inputLabelEl) {
+                        inputLabelEl.textContent = inputLabel;
+                        inputLabelEl.classList.toggle('hidden', !!hideTextInput);
+                    }
                     input.value = defaultValue || '';
+                    input.classList.toggle('hidden', !!hideTextInput);
                     if (hintEl) {
                         hintEl.textContent = hint;
                         hintEl.classList.toggle('hidden', !hint);
@@ -9617,7 +9638,7 @@
                     }
                     if (selectLabelEl && hasSelect) selectLabelEl.textContent = selectLabel;
                     this.showDialog('mapPromptDialog');
-                    requestAnimationFrame(() => (hasSelect ? select : input)?.focus?.());
+                    requestAnimationFrame(() => ((hasSelect || hideTextInput) ? select : input)?.focus?.());
                 });
             }
 
@@ -9673,7 +9694,7 @@
             }
 
             isCatalogMapPinKind(kind) {
-                return kind === 'sector' || kind === 'route' || kind === 'boulder';
+                return kind === 'area' || kind === 'sector' || kind === 'route' || kind === 'boulder';
             }
 
             catalogMapPinMoveLabel(kind) {
@@ -9914,6 +9935,151 @@
                 }
             }
 
+            mountMapPinEditor() {
+                const el = document.getElementById('mapPinEditor');
+                const container = document.getElementById('mapContainer');
+                if (!el || !container) return;
+                if (el.parentElement !== container) container.appendChild(el);
+                if (this.map && !this._mapPinEditorDomBound) {
+                    L.DomEvent.disableClickPropagation(el);
+                    L.DomEvent.disableScrollPropagation(el);
+                    this._mapPinEditorDomBound = true;
+                }
+                this.syncMapPinEditorUi();
+            }
+
+            syncMapPinEditorUi() {
+                const editor = document.getElementById('mapPinEditor');
+                if (!editor) return;
+                const admin = this.isAdmin();
+                editor.classList.toggle('hidden-by-role', !admin);
+                editor.classList.toggle('is-add-open', !!this._mapPinAddMenuOpen);
+                editor.querySelectorAll('[data-map-pin-tool]').forEach((btn) => {
+                    const tool = btn.getAttribute('data-map-pin-tool');
+                    const on = this.mapEditMode && (
+                        (tool === 'edit' && this.mapDrawTool === 'edit')
+                        || (tool === 'delete' && this.mapDrawTool === 'delete')
+                        || (tool === 'add' && (this.mapDrawTool === 'add_pin' || this._mapPinAddMenuOpen))
+                    );
+                    btn.classList.toggle('active', !!on);
+                    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                });
+                editor.querySelectorAll('[data-map-add-kind]').forEach((btn) => {
+                    btn.classList.toggle('active', this.mapDrawTool === 'add_pin' && this._mapPinAddKind === btn.getAttribute('data-map-add-kind'));
+                });
+                document.getElementById('mapPinEditorAddMenu')?.classList.toggle('hidden', !this._mapPinAddMenuOpen);
+            }
+
+            selectMapPinEditorTool(tool) {
+                if (!this.isAdmin()) return;
+                if (tool === 'add') {
+                    this._mapPinAddMenuOpen = !this._mapPinAddMenuOpen;
+                    this.syncMapPinEditorUi();
+                    return;
+                }
+                this._mapPinAddMenuOpen = false;
+                this._mapPinAddKind = null;
+                if (this.mapEditMode && this.mapDrawTool === tool) {
+                    this.toggleMapEditMode(false);
+                    return;
+                }
+                if (!this.mapEditMode) this.toggleMapEditMode(true);
+                this.setMapDrawTool(tool);
+            }
+
+            selectMapPinAddKind(kind) {
+                if (!this.isAdmin()) return;
+                const next = ['area', 'sector', 'boulder'].includes(kind) ? kind : null;
+                if (!next) return;
+                this._mapPinAddMenuOpen = false;
+                this._mapPinAddKind = next;
+                if (!this.mapEditMode) this.toggleMapEditMode(true);
+                this.setMapDrawTool('add_pin');
+                const labels = { area: 'район', sector: 'сектор', boulder: 'боулдер' };
+                this.updateMapStatus(`Кликните на карте — поставить ${labels[next]}.`);
+            }
+
+            catalogPinChoices(kind) {
+                const areaId = this.mapCatalogScope?.areaId;
+                const sectorId = this.mapCatalogScope?.sectorId;
+                const marked = (name, hasPin) => (hasPin ? `${name} (на карте)` : name);
+                if (kind === 'area') {
+                    return getAreas().map((area) => ({
+                        value: area.id,
+                        label: marked(area.name, !!this.areaMapCoordinate(area.id)),
+                        hasPin: !!this.areaMapCoordinate(area.id)
+                    }));
+                }
+                if (kind === 'sector') {
+                    return getSectors()
+                        .filter((sector) => !areaId || Number(sector.areaId) === Number(areaId))
+                        .map((sector) => {
+                            const hasPin = !!this.sectorMapPinCoordinate(sector.id);
+                            return { value: sector.id, label: marked(sector.name, hasPin), hasPin };
+                        });
+                }
+                if (kind === 'boulder') {
+                    return getBoulders()
+                        .filter((boulder) => {
+                            if (sectorId != null) return Number(boulder.sectorId) === Number(sectorId);
+                            if (areaId != null) return Number(boulder.areaId) === Number(areaId);
+                            return true;
+                        })
+                        .map((boulder) => {
+                            const hasPin = !!this.validMapCoord(boulder.latitude, boulder.longitude);
+                            const title = [boulder.name, boulder.grade].filter(Boolean).join(' · ');
+                            return { value: boulder.id, label: marked(title, hasPin), hasPin };
+                        });
+                }
+                return [];
+            }
+
+            async placeCatalogEntityPin(kind, lat, lng) {
+                if (!this.requireAdmin('Добавление метки')) return;
+                const choices = this.catalogPinChoices(kind);
+                if (!choices.length) {
+                    this.showToast('Нет объектов этого типа в каталоге', true);
+                    return;
+                }
+                const preferred = choices.find((item) => !item.hasPin) || choices[0];
+                const titles = { area: 'Добавить район', sector: 'Добавить сектор', boulder: 'Добавить боулдер' };
+                const labels = { area: 'Район', sector: 'Сектор', boulder: 'Боулдер' };
+                const pick = await this.promptMapTextInput({
+                    title: titles[kind] || 'Добавить метку',
+                    selectLabel: labels[kind] || 'Объект',
+                    selectOptions: choices,
+                    defaultSelectValue: preferred?.value,
+                    hideTextInput: true,
+                    hint: 'Выберите объект — значок появится в точке на карте.'
+                });
+                if (!pick?.selectValue) return;
+                const id = Number(pick.selectValue);
+                if (!Number.isFinite(id)) return;
+                const headers = { 'Content-Type': 'application/json' };
+                const body = JSON.stringify({ latitude: lat, longitude: lng });
+                try {
+                    setGlobalUiBusy(true);
+                    if (kind === 'area') {
+                        mergeAreaFromApiResponse(await apiFetch(`/api/areas/${id}`, { method: 'PATCH', headers, body }));
+                        await this.removeMapSignFeaturesForEntity('area', id);
+                    } else if (kind === 'sector') {
+                        mergeSectorFromApiResponse(await apiFetch(`/api/sectors/${id}`, { method: 'PATCH', headers, body }));
+                        await this.removeMapSignFeaturesForEntity('sector', id);
+                    } else if (kind === 'boulder') {
+                        mergeBoulderFromApiResponse(await apiFetch(`/api/boulders/${id}`, { method: 'PATCH', headers, body }));
+                    }
+                    this.data = getClimbingData();
+                    this.updateMapMarkers();
+                    if (kind === 'area' || kind === 'sector') this.renderCatalog();
+                    this.updateMapStatus('Метка добавлена.');
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось поставить метку', true);
+                } finally {
+                    setGlobalUiBusy(false);
+                    this.syncMapEditUi();
+                }
+            }
+
             syncMapEditUi() {
                 const panel = document.getElementById('mapEditPanel');
                 const tools = document.getElementById('mapEditTools');
@@ -9942,7 +10108,8 @@
                         parking: 'Клик по карте — поставить парковку.',
                         camping: 'Клик по карте — поставить кемпинг.',
                         area_sign: 'Клик по карте — метка района.',
-                        sector_sign: 'Клик по карте — метка сектора.'
+                        sector_sign: 'Клик по карте — метка сектора.',
+                        add_pin: 'Кликните на карте, затем выберите район, сектор или боулдер.'
                     };
                     hint.textContent = this._mapCatalogPinMove
                         ? `Перетащите значок или кликните на карте — новое положение ${this.catalogMapPinMoveLabel(this._mapCatalogPinMove.kind)}.`
@@ -9964,10 +10131,11 @@
                 this.map?.getContainer()?.classList.toggle('map-edit-mode', !!this.mapEditMode);
                 document.body.classList.toggle('map-edit-open', !!(this.mapEditMode && admin));
                 this.syncMapMarkerDragState();
+                this.mountMapPinEditor();
             }
 
             setMapDrawTool(tool) {
-                const allowed = ['edit', 'delete', 'trail', 'parking', 'camping', 'sector_sign'];
+                const allowed = ['edit', 'delete', 'trail', 'parking', 'camping', 'sector_sign', 'add_pin'];
                 this.mapDrawTool = allowed.includes(tool) ? tool : 'trail';
                 if (this.mapDrawTool !== 'edit') {
                     this.mapFeatureMovePending = false;
@@ -9985,10 +10153,14 @@
                 if (next) {
                     if (!this.mapShowPoi) this.toggleMapLayer('poi');
                     if (!this.mapShowTrails) this.toggleMapLayer('trails');
-                    if (this.appShellEmbeddedMapActive()) this.mapDrawTool = 'edit';
+                    if (this.appShellEmbeddedMapActive() && !['edit', 'delete', 'add_pin'].includes(this.mapDrawTool)) {
+                        this.mapDrawTool = 'edit';
+                    }
                 } else {
                     this.cancelMapLocationPick();
                     this._mapCatalogPinMove = null;
+                    this._mapPinAddKind = null;
+                    this._mapPinAddMenuOpen = false;
                 }
                 if (!next) {
                     this.mapDraftTrail = null;
@@ -10033,7 +10205,11 @@
                         return;
                     }
                     if (this.mapDrawTool === 'delete') {
-                        this.updateMapStatus('Кликните по объекту на карте, который нужно удалить.');
+                        this.updateMapStatus('Кликните по значку на карте, чтобы убрать его.');
+                        return;
+                    }
+                    if (this.mapDrawTool === 'add_pin' && this._mapPinAddKind) {
+                        void this.placeCatalogEntityPin(this._mapPinAddKind, lat, lng);
                         return;
                     }
                     if (this.mapDrawTool === 'trail') {
@@ -10438,6 +10614,7 @@
                     mapCard.appendChild(container);
                 }
                 this._mapDomInCatalog = !!(toCatalog && ctMount);
+                this.mountMapPinEditor();
                 if (this.map) this.syncMapAfterTabShow();
             }
 
@@ -14221,6 +14398,24 @@
                 });
                 document.getElementById('mapEditToggleBtn')?.addEventListener('click', () => {
                     this.toggleMapEditMode();
+                });
+                document.getElementById('mapPinEditor')?.addEventListener('click', (e) => {
+                    const addKind = e.target.closest('[data-map-add-kind]');
+                    if (addKind) {
+                        e.preventDefault();
+                        this.selectMapPinAddKind(addKind.getAttribute('data-map-add-kind'));
+                        return;
+                    }
+                    const toolBtn = e.target.closest('[data-map-pin-tool]');
+                    if (!toolBtn) return;
+                    e.preventDefault();
+                    this.selectMapPinEditorTool(toolBtn.getAttribute('data-map-pin-tool'));
+                });
+                document.addEventListener('click', (e) => {
+                    if (!this._mapPinAddMenuOpen) return;
+                    if (e.target.closest('#mapPinEditor')) return;
+                    this._mapPinAddMenuOpen = false;
+                    this.syncMapPinEditorUi();
                 });
                 document.getElementById('mapPromptDialogOk')?.addEventListener('click', () => {
                     this.finishMapPromptDialog(true);
