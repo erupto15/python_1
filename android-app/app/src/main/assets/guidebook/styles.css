@@ -10,15 +10,22 @@
             --light-text: #9898a0;
             --border-color: rgba(255, 255, 255, 0.1);
             --background-color: #0a0a0c;
-            --card-bg: #141416;
-            --surface-elevated: #1c1c1f;
+            --card-bg: #1a181d;
+            --surface-elevated: #221f27;
             --accent-soft: rgba(232, 71, 42, 0.14);
             --accent-glow: rgba(232, 71, 42, 0.28);
             --shadow: 0 10px 36px rgba(0, 0, 0, 0.42);
             --radius: 16px;
             --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             --display-font: 'Barlow Condensed', 'Arial Narrow', 'Helvetica Neue Condensed', sans-serif;
-            --ui-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            --ui-font: 'Source Sans 3', 'Source Sans Pro', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            --heading-tracking: -0.025em;
+            --title-accent-line: linear-gradient(90deg, #e8472a, #c4b4e0, #22b8a8);
+            --bg-noise: url("noise.png");
+            --bg-noise-opacity: 0.14;
+            --canvas-radial-warm: radial-gradient(ellipse 120% 70% at 50% -18%, rgba(232, 71, 42, 0.22), transparent 58%);
+            --canvas-radial-cool: radial-gradient(ellipse 70% 45% at 100% 0%, rgba(34, 184, 168, 0.1), transparent 52%);
+            --canvas-diagonal: linear-gradient(45deg, #4a1f22 8%, #1a1424 48%, #0a0a0c 86%);
             --logo-font: var(--display-font);
             /* Ромб логотипа (светлый / тёмный треугольник) */
             --logo-light-top: #ffffff;
@@ -78,6 +85,27 @@
             overflow-x: clip;
             overscroll-behavior-x: none;
             max-width: 100%;
+            min-height: 100%;
+            min-height: 100dvh;
+            background-color: var(--background-color);
+            background-image:
+                var(--canvas-radial-warm),
+                var(--canvas-radial-cool),
+                var(--canvas-diagonal);
+            background-repeat: no-repeat;
+        }
+
+        html::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background-image: var(--bg-noise);
+            background-repeat: repeat;
+            background-size: 220px 220px;
+            opacity: var(--bg-noise-opacity);
+            mix-blend-mode: overlay;
         }
 
         html.tg-mini-app {
@@ -132,13 +160,14 @@
         }
 
         body {
+            position: relative;
+            z-index: 1;
             font-family: var(--ui-font);
-            background:
-                radial-gradient(ellipse 120% 70% at 50% -18%, rgba(232, 71, 42, 0.13), transparent 58%),
-                radial-gradient(ellipse 70% 45% at 100% 0%, rgba(34, 184, 168, 0.07), transparent 50%),
-                var(--background-color);
+            font-weight: 400;
+            background: transparent;
             color: var(--text-color);
-            line-height: 1.55;
+            line-height: 1.65;
+            letter-spacing: -0.011em;
             color-scheme: dark;
             padding:
                 calc(20px + env(safe-area-inset-top, 0px))
@@ -161,12 +190,17 @@
             --text-color: #1c1c1e;
             --light-text: #636366;
             --border-color: rgba(0, 0, 0, 0.08);
-            --background-color: #f2f2f5;
+            --background-color: #ead7d4;
             --card-bg: #ffffff;
             --surface-elevated: #ffffff;
             --accent-soft: rgba(214, 63, 36, 0.1);
             --accent-glow: rgba(214, 63, 36, 0.18);
             --shadow: 0 12px 32px rgba(24, 32, 48, 0.08);
+            --title-accent-line: linear-gradient(90deg, #d63f24, #a89cc8, #2aa89c);
+            --canvas-radial-warm: radial-gradient(ellipse 120% 70% at 50% -18%, rgba(232, 71, 42, 0.28), transparent 58%);
+            --canvas-radial-cool: radial-gradient(ellipse 70% 45% at 100% 0%, rgba(34, 184, 168, 0.14), transparent 52%);
+            --canvas-diagonal: linear-gradient(45deg, #e37682 12%, #8f6d9a 52%, #5f4d93 88%);
+            --bg-noise-opacity: 0.22;
             --logo-shadow: 0 8px 22px rgba(24, 32, 48, 0.18);
             --logo-shadow-soft: 0 3px 10px rgba(24, 32, 48, 0.12);
             --tg-blue: #d63f24;
@@ -206,11 +240,11 @@
         /* Заголовок */
         header {
             text-align: center;
-            padding: 14px 0 10px;
-            border-bottom: 1px solid var(--border-color);
-            margin-bottom: 14px;
-            background: linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 72%, transparent), transparent);
-            border-radius: 0 0 20px 20px;
+            padding: 28px 0 22px;
+            border-bottom: none;
+            margin-bottom: 10px;
+            background: transparent;
+            border-radius: 0;
         }
 
         .header-top {
@@ -622,9 +656,13 @@
         }
 
         @media (prefers-reduced-motion: reduce) {
-            .site-logo-mark {
+            .site-logo-mark,
+            header {
                 transition: none;
                 animation: none !important;
+            }
+            header {
+                opacity: 1;
             }
         }
 
@@ -687,14 +725,14 @@
         }
 
         .site-tagline {
-            margin: 0;
-            color: var(--light-text);
-            font-size: 0.82rem;
-            line-height: 1.4;
-            font-weight: 600;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            max-width: 22rem;
+            margin: 0.15em auto 0;
+            color: color-mix(in srgb, var(--text-color) 72%, transparent);
+            font-size: 1.15rem;
+            line-height: 1.65;
+            font-weight: 300;
+            letter-spacing: var(--heading-tracking);
+            text-transform: none;
+            max-width: 26rem;
             text-align: center;
         }
 
@@ -780,11 +818,10 @@
 
         /* Карточки */
         .card {
-            background:
-                linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 92%, var(--primary-color) 8%), var(--card-bg));
+            background: var(--card-bg);
             border: 1px solid var(--border-color);
-            border-radius: calc(var(--radius) + 4px);
-            padding: 20px;
+            border-radius: calc(var(--radius) + 2px);
+            padding: 24px 22px 22px;
             box-shadow: var(--shadow);
             margin-bottom: 16px;
             animation: cardEnter 0.45s ease both;
@@ -868,13 +905,26 @@
 
         .card-title {
             font-family: var(--ui-font);
-            font-size: 1.35rem;
-            font-weight: 700;
-            letter-spacing: -0.01em;
+            font-size: 1.55rem;
+            font-weight: 300;
+            letter-spacing: var(--heading-tracking);
             color: var(--text-color);
             display: flex;
             align-items: center;
+            flex-wrap: wrap;
             gap: 10px;
+        }
+
+        .card-title::after {
+            content: "";
+            display: block;
+            flex: 1 0 100%;
+            width: 3.25em;
+            max-width: 3.25em;
+            height: 2px;
+            margin: 0.15em 0 0;
+            background-image: var(--title-accent-line);
+            border-radius: 1px;
         }
 
         .card-title i {
@@ -6894,11 +6944,11 @@
         @keyframes logoEnter {
             0% {
                 opacity: 0;
-                transform: scale(0.82) translateY(0.45rem) rotate(-2.2deg);
+                transform: scale(0.8) translateY(0.2rem) rotate(-20deg);
             }
-            58% {
-                opacity: 1;
-                transform: scale(1.035) translateY(0) rotate(0.35deg);
+            50% {
+                opacity: 0.55;
+                transform: scale(0.96) translateY(0) rotate(-4deg);
             }
             100% {
                 opacity: 1;
@@ -9054,6 +9104,14 @@
 
         html.app-shell .site-tagline {
             display: none;
+        }
+
+        html.app-shell .card {
+            padding: 16px 14px 14px;
+        }
+
+        html.app-shell .card-title {
+            font-size: 1.28rem;
         }
 
         html.app-shell .header-brand h1.site-logo {
