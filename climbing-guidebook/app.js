@@ -5712,6 +5712,7 @@
                 this._mapLocationPickTarget = null;
                 this._mapPromptResolver = null;
                 this._mapCatalogPinMove = null;
+                this._mapCatalogPinMoving = false;
                 this._mapRestoringView = false;
                 this._mapViewSaveTimer = null;
                 this.mapSelectedFeatureId = null;
@@ -7418,6 +7419,7 @@
 
             shouldClusterClimbMarkers() {
                 if (!this.map || typeof L.markerClusterGroup !== 'function') return false;
+                if (this.mapEditMode) return false;
                 if (this.catalogEmbeddedMapActive()) return false;
                 return this.map.getZoom() < 16;
             }
@@ -9052,32 +9054,47 @@
                     ) || null;
                     if (useCluster) {
                         this.mapClimbCluster.addLayer(stored.marker);
-                    } else {
-                        this.mapLayers.push(stored.marker);
                     }
                 }
 
-                if (entry.kind === 'area' || entry.kind === 'sector') {
-                    this.mapLayers.push(stored.marker);
-                }
+                if (stored.marker) this.mapLayers.push(stored.marker);
                 this.registerMapMarkerIndex(stored);
             }
 
             clearMapMarkerLayers() {
                 if (!this.map) return;
-                if (this.mapClimbCluster) {
-                    try {
-                        this.map.removeLayer(this.mapClimbCluster);
-                    } catch (_) {}
-                    this.mapClimbCluster = null;
-                }
+                const layers = new Set();
+                this.mapMarkerIndex.forEach((stored) => {
+                    if (stored?.marker) layers.add(stored.marker);
+                });
                 (this.mapLayers || []).forEach((layer) => {
+                    if (layer) layers.add(layer);
+                });
+                layers.forEach((layer) => {
+                    try {
+                        this.mapClimbCluster?.removeLayer(layer);
+                    } catch (_) {
+                        /* ignore */
+                    }
                     try {
                         this.map.removeLayer(layer);
                     } catch (_) {
                         /* ignore */
                     }
                 });
+                if (this.mapClimbCluster) {
+                    try {
+                        this.mapClimbCluster.clearLayers();
+                    } catch (_) {
+                        /* ignore */
+                    }
+                    try {
+                        this.map.removeLayer(this.mapClimbCluster);
+                    } catch (_) {
+                        /* ignore */
+                    }
+                    this.mapClimbCluster = null;
+                }
                 this.mapLayers = [];
                 this.mapMarkerIndex = new Map();
             }
@@ -9675,7 +9692,12 @@
                 if (!entry) return;
                 if (!this.mapEditMode) this.toggleMapEditMode(true);
                 this.setMapDrawTool('edit');
-                this.beginMoveCatalogMapPin(entry);
+                this.beginMoveCatalogMapPin({
+                    ...entry,
+                    id: Number(id),
+                    boulderAtPin: null,
+                    moveSingle: true
+                });
             }
 
             deleteCatalogMapPinFromPopup(kind, id) {
@@ -9684,11 +9706,26 @@
                 void this.deleteCatalogMapPin(entry);
             }
 
+            catalogMapPinMoveIds(entry) {
+                if (!entry) return [];
+                if (entry.moveSingle) {
+                    const id = Number(entry.id);
+                    return Number.isFinite(id) ? [id] : [];
+                }
+                if (entry.kind === 'boulder' && Array.isArray(entry.boulderAtPin) && entry.boulderAtPin.length) {
+                    return [...new Set(entry.boulderAtPin.map((b) => Number(b.id)).filter(Number.isFinite))];
+                }
+                const id = Number(entry.id);
+                return Number.isFinite(id) ? [id] : [];
+            }
+
             beginMoveCatalogMapPin(entry) {
                 if (!entry || !this.isCatalogMapPinKind(entry.kind)) return;
                 if (!this.mapEditMode) this.toggleMapEditMode(true);
                 this.setMapDrawTool('edit');
-                this._mapCatalogPinMove = { kind: entry.kind, id: Number(entry.id) };
+                const ids = this.catalogMapPinMoveIds(entry);
+                const id = Number(ids[0] ?? entry.id);
+                this._mapCatalogPinMove = { kind: entry.kind, id, ids };
                 this.mapFeatureMovePending = false;
                 this.map?.closePopup?.();
                 const label = this.catalogMapPinMoveLabel(entry.kind);
@@ -9703,7 +9740,8 @@
                     if (!this.mapEditMode || !this.isAdmin()) return;
                     this.map?.closePopup?.();
                     this._mapPinJustDragged = false;
-                    this._mapCatalogPinMove = { kind: entry.kind, id: Number(entry.id) };
+                    const ids = this.catalogMapPinMoveIds(entry);
+                    this._mapCatalogPinMove = { kind: entry.kind, id: Number(ids[0] ?? entry.id), ids };
                     this.map?.getContainer()?.classList.add('map-pin-moving');
                 });
                 marker.on('dragend', (e) => {
@@ -9711,7 +9749,7 @@
                     this.map?.getContainer()?.classList.remove('map-pin-moving');
                     const ll = e.target?.getLatLng?.();
                     if (ll) void this.moveCatalogMapPin(ll.lat, ll.lng);
-                    setTimeout(() => { this._mapPinJustDragged = false; }, 80);
+                    setTimeout(() => { this._mapPinJustDragged = false; }, 250);
                 });
             }
 
@@ -9730,9 +9768,13 @@
                 const move = this._mapCatalogPinMove;
                 this._mapCatalogPinMove = null;
                 if (!move?.kind || !move?.id) return;
+                if (this._mapCatalogPinMoving) return;
                 if (!this.requireAdmin('Перемещение метки')) return;
                 const kind = move.kind;
-                const id = Number(move.id);
+                const ids = [...new Set((move.ids?.length ? move.ids : [move.id]).map(Number).filter(Number.isFinite))];
+                if (!ids.length) return;
+                const id = ids[0];
+                this._mapCatalogPinMoving = true;
                 try {
                     setGlobalUiBusy(true);
                     if (kind === 'area') {
@@ -9752,19 +9794,23 @@
                         mergeSectorFromApiResponse(saved);
                         await this.removeMapSignFeaturesForEntity('sector', id);
                     } else if (kind === 'route') {
-                        const saved = await apiFetch(`/api/routes/${id}`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ latitude: lat, longitude: lng })
-                        });
-                        mergeRouteFromApiResponse(saved);
+                        for (const routeId of ids) {
+                            const saved = await apiFetch(`/api/routes/${routeId}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ latitude: lat, longitude: lng })
+                            });
+                            mergeRouteFromApiResponse(saved);
+                        }
                     } else if (kind === 'boulder') {
-                        const saved = await apiFetch(`/api/boulders/${id}`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ latitude: lat, longitude: lng })
-                        });
-                        mergeBoulderFromApiResponse(saved);
+                        for (const boulderId of ids) {
+                            const saved = await apiFetch(`/api/boulders/${boulderId}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ latitude: lat, longitude: lng })
+                            });
+                            mergeBoulderFromApiResponse(saved);
+                        }
                     }
                     this.data = getClimbingData();
                     this.map?.closePopup();
@@ -9775,6 +9821,7 @@
                     this.updateMapMarkers();
                     this.showToast(err.message || 'Не удалось переместить метку', true);
                 } finally {
+                    this._mapCatalogPinMoving = false;
                     setGlobalUiBusy(false);
                     this.syncMapEditUi();
                 }
@@ -9922,8 +9969,8 @@
                     this.mapEditingTrailFeatureId = null;
                     this.deselectMapFeature();
                 }
+                this.updateMapMarkers();
                 this.syncMapEditUi();
-                this.renderMapFeatureLayers();
                 this.updateMapStatus(this.mapEditMode
                     ? (this.appShellEmbeddedMapActive()
                         ? 'Раставьте метки: перетащите значок или нажмите его, затем карту.'
@@ -9934,6 +9981,10 @@
             attachMapEditInteraction() {
                 if (!this.map || this._mapEditClickHandler) return;
                 this._mapEditClickHandler = (e) => {
+                    if (this._mapPinJustDragged || this._mapCatalogPinMoving) {
+                        L.DomEvent.stop(e);
+                        return;
+                    }
                     const { lat, lng } = e.latlng;
                     if (this.applyMapLocationPick(lat, lng)) {
                         L.DomEvent.stop(e);
