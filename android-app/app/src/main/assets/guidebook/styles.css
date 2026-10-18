@@ -8941,11 +8941,11 @@
             opacity: 1;
         }
 
-        html.tg-mini-app.tg-theme-light .btn,
-        html.tg-mini-app.tg-theme-light .filter-btn,
-        html.tg-mini-app.tg-theme-light .grade-btn,
-        html.tg-mini-app.tg-theme-light .route-markup-mode-btn,
-        html.tg-mini-app.tg-theme-light .boulder-markup-mode-btn,
+        html.tg-mini-app.tg-theme-light .btn:not(.btn-primary):not(.btn-danger):not(.btn-success):not(.btn-route):not(.btn-boulder):not(.catalog-route-nav-btn),
+        html.tg-mini-app.tg-theme-light .filter-btn:not(.active),
+        html.tg-mini-app.tg-theme-light .grade-btn:not(.active),
+        html.tg-mini-app.tg-theme-light .route-markup-mode-btn:not(.active),
+        html.tg-mini-app.tg-theme-light .boulder-markup-mode-btn:not(.active),
         html.tg-mini-app.tg-theme-light .tab-btn:not(.active) {
             background-color: var(--on-canvas-bg) !important;
             -webkit-backdrop-filter: none;
@@ -8955,12 +8955,33 @@
             box-shadow: var(--on-canvas-shadow);
         }
 
-        html.tg-mini-app.tg-theme-light .btn-primary,
-        html.theme-light .btn-primary {
+        html.tg-mini-app.tg-theme-light .btn.btn-primary,
+        html.theme-light .btn.btn-primary {
             background-color: var(--tg-blue) !important;
             color: #fff !important;
-            border-color: color-mix(in srgb, var(--tg-blue) 55%, #0a1628 45%);
+            border-color: color-mix(in srgb, var(--tg-blue) 55%, #0a1628 45%) !important;
             box-shadow: var(--btn-primary-glow);
+        }
+
+        html.tg-mini-app.tg-theme-light .btn.btn-primary i,
+        html.theme-light .btn.btn-primary i,
+        html.tg-mini-app.tg-theme-light .btn.btn-danger,
+        html.theme-light .btn.btn-danger,
+        html.tg-mini-app.tg-theme-light .btn.btn-success,
+        html.theme-light .btn.btn-success {
+            color: #fff;
+        }
+
+        html.tg-mini-app.tg-theme-light .btn.btn-danger,
+        html.theme-light .btn.btn-danger {
+            background-color: var(--tg-danger) !important;
+            border-color: color-mix(in srgb, var(--tg-danger) 45%, #1a0505 55%) !important;
+        }
+
+        html.tg-mini-app.tg-theme-light .btn.btn-success,
+        html.theme-light .btn.btn-success {
+            background-color: var(--success-color) !important;
+            border-color: color-mix(in srgb, var(--success-color) 55%, #06210c 45%) !important;
         }
 
         html.tg-mini-app.tg-theme-light .tab-btn.active,
