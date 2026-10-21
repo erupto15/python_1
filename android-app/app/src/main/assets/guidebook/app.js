@@ -8291,12 +8291,83 @@
                 this.handleMapMarkerSelection(entry, { openNavigation: false, openPopup: true });
             }
 
+            placeMapPinOnExistingPoint(lat, lng, entry = null) {
+                if (!this.mapEditMode || !this.isAdmin()) return false;
+                if (this.mapDrawTool !== 'add_pin' || !this._mapPinAddKind) return false;
+                const coord = this.validMapCoord(lat, lng);
+                if (!coord) return false;
+                if (this._mapPinAddKind === 'boulder' && entry?.kind === 'boulder') {
+                    this.addBoulderOnSamePoint(entry);
+                    return true;
+                }
+                void this.placeCatalogEntityPin(this._mapPinAddKind, coord.lat, coord.lng);
+                return true;
+            }
+
+            boulderSamePointSource(entryOrId) {
+                const entry = entryOrId && typeof entryOrId === 'object' ? entryOrId : null;
+                if (entry?.kind && entry.kind !== 'boulder') return null;
+                const preferredId = Number(entry?.boulderAtPin?.[0]?.id ?? entry?.id ?? entryOrId);
+                const boulder = getBoulders().find((item) => Number(item.id) === preferredId)
+                    || getBoulders().find((item) => Number(item.id) === Number(entry?.id));
+                if (!boulder) return null;
+                const pin = entry ? this.validMapCoord(entry.lat, entry.lng) : null;
+                const coord = pin
+                    || this.validMapCoord(boulder.latitude, boulder.longitude);
+                if (!coord) return null;
+                return {
+                    boulder,
+                    latitude: coord.lat,
+                    longitude: coord.lng
+                };
+            }
+
+            refreshBoulderSheetAtPin(lat, lng) {
+                const sheet = document.getElementById('mapBoulderSheet');
+                if (!sheet || sheet.classList.contains('hidden')) return;
+                const coord = this.validMapCoord(lat, lng);
+                if (!coord) return;
+                let match = null;
+                this.mapMarkerIndex.forEach((stored) => {
+                    if (stored?.kind !== 'boulder') return;
+                    if (this.mapCoordsWithinPinSnap(coord, { lat: stored.lat, lng: stored.lng })) match = stored;
+                });
+                if (!match) return;
+                this._mapBoulderSheetEntry = match;
+                this.renderMapBoulderSheet();
+            }
+
+            addBoulderOnSamePoint(entryOrId) {
+                if (!this.requireAdmin('Добавление боулдеринга')) return;
+                const source = this.boulderSamePointSource(entryOrId);
+                if (!source) {
+                    this.showToast('У этого боулдера нет точки на карте', true);
+                    return;
+                }
+                const sectorId = Number(source.boulder.sectorId);
+                if (!Number.isFinite(sectorId) || sectorId <= 0) {
+                    this.showToast('Сначала укажите сектор боулдера', true);
+                    return;
+                }
+                this.quickAddBoulderInSector(sectorId);
+                this._lockBoulderPin = {
+                    latitude: source.latitude,
+                    longitude: source.longitude
+                };
+                const input = document.getElementById('quickBoulderCoordinates');
+                if (input) input.value = this.formatLocationInput(source.latitude, source.longitude);
+                const subtitle = document.getElementById('quickBoulderDialogSubtitle');
+                if (subtitle) subtitle.textContent = 'Новый боулдер сохранится на этой же точке';
+            }
+
             bindMapClimbDotMarkerClick(marker, entry) {
                 if (!marker) return;
                 marker.off('click');
                 marker.on('click', (e) => {
                     L.DomEvent.stopPropagation(e);
                     if (this._mapPinJustDragged) return;
+                    const ll = marker.getLatLng?.();
+                    if (this.placeMapPinOnExistingPoint(ll?.lat ?? entry?.lat, ll?.lng ?? entry?.lng, entry)) return;
                     if (this.mapEditMode && this.isAdmin() && this.isCatalogMapPinKind(entry.kind)) {
                         if (this.mapDrawTool === 'delete') {
                             void this.deleteCatalogMapPin(entry);
@@ -8421,11 +8492,12 @@
 
             createMapParentLabelMarker(entry, coord, html) {
                 const isPin = this.isMapPinLabelKind(entry?.kind);
+                const slot = Number(entry?.pinOverlapSlot) || 0;
                 const icon = L.divIcon({
                     className: isPin ? 'parent-label-icon map-sector-marker' : 'parent-label-icon',
                     html,
                     iconSize: [0, 0],
-                    iconAnchor: [0, 0]
+                    iconAnchor: [slot ? -48 * slot : 0, 0]
                 });
                 const marker = L.marker([coord.lat, coord.lng], {
                     icon,
@@ -8440,6 +8512,8 @@
                 marker.on('click', (e) => {
                     L.DomEvent.stopPropagation(e);
                     if (this._mapPinJustDragged) return;
+                    const ll = marker.getLatLng?.();
+                    if (this.placeMapPinOnExistingPoint(ll?.lat ?? entry?.lat, ll?.lng ?? entry?.lng, entry)) return;
                     if (this.mapEditMode && this.isAdmin()) {
                         if (this.mapDrawTool === 'delete' && this.isCatalogMapPinKind(entry.kind)) {
                             void this.deleteCatalogMapPin(entry);
@@ -8799,6 +8873,9 @@
                     meta.textContent = entry.meta || stack[0]?.meta || '';
                 }
                 meta.classList.toggle('hidden', !meta.textContent);
+                const addWrap = document.getElementById('mapBoulderSheetAdd');
+                const showAdd = this.isAdmin() && entry.kind === 'boulder' && !isRoutes;
+                addWrap?.classList.toggle('hidden', !showAdd);
 
                 const grades = [...new Set(stack.map((b) => String(b.grade || '').trim()).filter(Boolean))]
                     .sort((a, b) => this.mapGradeSortKey(a) - this.mapGradeSortKey(b)
@@ -8884,6 +8961,7 @@
                     : `<strong>${this.escapeHtml(entry.title)}</strong>`;
                 const adminPinActions = this.isAdmin() && canMovePin
                     ? `
+                        ${entry.kind === 'boulder' ? `<button type="button" class="btn btn-small btn-primary" onclick="event.preventDefault(); window.app?.addBoulderOnSamePoint?.(${Number(entry.id)}); return false;">Добавить на эту точку</button>` : ''}
                         <button type="button" class="btn btn-small btn-secondary" onclick="event.preventDefault(); window.app?.beginMoveCatalogMapPinFromPopup?.('${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Переместить</button>
                         <button type="button" class="btn btn-small btn-danger" onclick="event.preventDefault(); window.app?.deleteCatalogMapPinFromPopup?.('${entry.kind}', '${this.escapeHtml(entry.id)}'); return false;">Удалить метку</button>
                     `
@@ -9160,9 +9238,18 @@
                     boulderItems.push({ boulder, coord });
                 });
                 this.clusterMapPinItems(boulderItems).forEach((cluster) => {
-                    if (sectorPinCoords.some((sector) => this.mapCoordsWithinPinSnap(sector.coord, cluster.coord))) {
-                        return;
-                    }
+                    const onSector = sectorPinCoords.some((sector) => this.mapCoordsWithinPinSnap(sector.coord, cluster.coord));
+                    const sole = cluster.items.length === 1 ? cluster.items[0].boulder : null;
+                    const sector = sole ? getSectors().find((item) => Number(item.id) === Number(sole.sectorId)) : null;
+                    const sectorCoord = sector ? this.sectorMapPinCoordinate(sector.id) : null;
+                    const autoSectorMarker = !!(
+                        onSector
+                        && sole
+                        && sectorCoord
+                        && this.mapCoordsWithinPinSnap(sectorCoord, cluster.coord)
+                        && String(sole.name || '').trim() === String(sector.name || '').trim()
+                    );
+                    if (autoSectorMarker) return;
                     const group = [...cluster.items].sort((a, b) => (
                         String(a.boulder.name || '').localeCompare(String(b.boulder.name || ''), 'ru')
                     ));
@@ -9190,7 +9277,8 @@
                         catalog: true,
                         areaId: primary.areaId,
                         sectorId: primary.sectorId,
-                        boulderAtPin
+                        boulderAtPin,
+                        besideSector: onSector
                     });
                 });
                 return entries.filter((entry) => {
@@ -9203,6 +9291,18 @@
                     }
                     return true;
                 });
+            }
+
+            takeMapPinOverlapSlot(coord) {
+                if (!this._mapPinOverlapSlots) this._mapPinOverlapSlots = [];
+                const hit = this._mapPinOverlapSlots.find((item) => this.mapCoordsWithinPinSnap(item.coord, coord));
+                if (!hit) {
+                    this._mapPinOverlapSlots.push({ coord, count: 1 });
+                    return 0;
+                }
+                const slot = hit.count;
+                hit.count += 1;
+                return slot;
             }
 
             addMapEntry(entry) {
@@ -9221,6 +9321,7 @@
                 };
 
                 if (entry.kind === 'area' || entry.kind === 'sector') {
+                    stored.pinOverlapSlot = this.takeMapPinOverlapSlot(coord);
                     const labelSub = this.mapPinLabelSub(entry);
                     const labelHtml = this.buildMapParentLabelHtml(entry.title, labelSub, selected, entry.kind, entry);
                     stored.marker = this.createMapParentLabelMarker(stored, coord, labelHtml);
@@ -9300,6 +9401,7 @@
                 }
 
                 const entries = this.buildMapEntries();
+                this._mapPinOverlapSlots = [];
                 entries.forEach((entry) => this.addMapEntry(entry));
                 this.refreshMapMarkerStyles();
                 this.updateMapNavigationLine();
@@ -9433,6 +9535,12 @@
                 if (!layer || !feature) return;
                 const handler = (e) => {
                     if (!this.isAdmin()) return;
+                    if (this.mapEditMode && this.mapDrawTool === 'add_pin' && this._mapPinAddKind) {
+                        L.DomEvent.stopPropagation(e);
+                        const coord = this.mapFeatureCoords(feature) || (e?.latlng ? { lat: e.latlng.lat, lng: e.latlng.lng } : null);
+                        if (coord) this.placeMapPinOnExistingPoint(coord.lat, coord.lng);
+                        return;
+                    }
                     if (this.mapEditMode && this.mapDrawTool === 'delete') {
                         L.DomEvent.stopPropagation(e);
                         void this.deleteMapFeature(feature.id);
@@ -10120,6 +10228,7 @@
                 const admin = this.isAdmin();
                 editor.classList.toggle('hidden-by-role', !admin);
                 editor.classList.toggle('is-add-open', !!this._mapPinAddMenuOpen);
+                document.body.classList.toggle('map-pin-add-menu-open', !!this._mapPinAddMenuOpen);
                 editor.querySelectorAll('[data-map-pin-tool]').forEach((btn) => {
                     const tool = btn.getAttribute('data-map-pin-tool');
                     const on = this.mapEditMode && (
@@ -13536,6 +13645,7 @@
             }
 
             async quickAddBoulderInSector(sectorId) {
+                this._lockBoulderPin = null;
                 const sid = Number(sectorId || this.catalog.sectorId || 0);
                 document.getElementById('quickBoulderId').value = '';
                 document.getElementById('quickBoulderSectorId').value = String(sid || '');
@@ -13578,6 +13688,7 @@
 
             showEditBoulderDialog(boulderId, opts = {}) {
                 if (!this.requireAdmin('Редактирование боулдеринга')) return;
+                this._lockBoulderPin = null;
                 const boulder = getBoulders().find((b) => Number(b.id) === Number(boulderId));
                 if (!boulder) {
                     this.showToast('Боулдеринг не найден', true);
@@ -13701,7 +13812,10 @@
                 const ratingStr = (document.getElementById('quickBoulderRating').value || '').trim();
                 const heightStr = (document.getElementById('quickBoulderHeight').value || '').trim();
                 const boulderPhotoData = this.quickBoulderPhotoData;
-                const coordinates = this.parseCoordinates(document.getElementById('quickBoulderCoordinates').value || '');
+                const lockedPin = !editId ? this._lockBoulderPin : null;
+                const coordinates = lockedPin
+                    ? { latitude: lockedPin.latitude, longitude: lockedPin.longitude }
+                    : this.parseCoordinates(document.getElementById('quickBoulderCoordinates').value || '');
                 if (coordinates === null) {
                     this.showToast('Координаты в формате: широта, долгота', true);
                     return;
@@ -13750,6 +13864,7 @@
                     this.renderCatalog();
                     this.renderBoulders();
                     this.updateMapMarkers();
+                    if (lockedPin) this.refreshBoulderSheetAtPin(lockedPin.latitude, lockedPin.longitude);
                     this.showToast(editId ? 'Боулдеринг обновлён' : 'Боулдеринг добавлен');
                     this.showClimbDetailDialog('boulder', Number(savedBoulder.id));
                 } catch (err) {
@@ -14506,6 +14621,11 @@
                     if (e.target === mapBoulderSheet || e.target.closest('[data-map-boulder-sheet-close]')) {
                         e.preventDefault();
                         this.closeMapBoulderSheet();
+                        return;
+                    }
+                    if (e.target.closest('#mapBoulderSheetAddBtn')) {
+                        e.preventDefault();
+                        this.addBoulderOnSamePoint(this._mapBoulderSheetEntry);
                         return;
                     }
                     const chip = e.target.closest('[data-grade-index]');
@@ -15346,6 +15466,7 @@
                 const el = document.getElementById(dialogId);
                 if (!el || el.classList.contains('hidden')) return;
                 if (dialogId === 'sectorDialog') this._pendingMapPinCreate = null;
+                if (dialogId === 'quickBoulderDialog') this._lockBoulderPin = null;
                 el.classList.add('hidden');
                 this.syncBodyDialogScreenLock();
                 this.syncCatalogSectorFocusUi();

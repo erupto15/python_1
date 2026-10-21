@@ -5820,9 +5820,18 @@
         }
 
         body.map-boulder-sheet-open .map-admin-add-bar,
-        body.map-climb-info-sheet-open .map-admin-add-bar,
-        body.map-edit-open .map-admin-add-bar {
+        body.map-climb-info-sheet-open .map-admin-add-bar {
             display: none !important;
+        }
+
+        html.catalog-map-shell body.map-edit-open .map-admin-add-bar,
+        html.app-shell.catalog-sector-focus body.map-edit-open .map-admin-add-bar {
+            bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+        }
+
+        html.catalog-map-shell body.map-pin-add-menu-open .map-admin-add-bar,
+        html.app-shell.catalog-sector-focus body.map-pin-add-menu-open .map-admin-add-bar {
+            bottom: calc(268px + env(safe-area-inset-bottom, 0px));
         }
 
         .map-locate-btn {
@@ -6351,6 +6360,15 @@
             border-color: var(--primary-color);
             background: var(--primary-color);
             color: #fff;
+        }
+
+        .map-boulder-sheet-add {
+            margin-top: 10px;
+        }
+
+        .map-boulder-sheet-add .btn {
+            width: 100%;
+            justify-content: center;
         }
 
         .map-boulder-sheet-list {
