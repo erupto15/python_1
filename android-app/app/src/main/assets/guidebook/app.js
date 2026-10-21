@@ -10155,14 +10155,19 @@
 
             selectMapPinAddKind(kind) {
                 if (!this.isAdmin()) return;
-                const next = ['area', 'sector', 'boulder'].includes(kind) ? kind : null;
+                const next = ['area', 'sector', 'sector_route', 'sector_boulder', 'boulder'].includes(kind) ? kind : null;
                 if (!next) return;
                 this._mapPinAddMenuOpen = false;
-                this._mapPinAddKind = next;
+                this._mapPinAddKind = next === 'sector' ? 'sector_route' : next;
                 if (!this.mapEditMode) this.toggleMapEditMode(true);
                 this.setMapDrawTool('add_pin');
-                const labels = { area: 'район', sector: 'сектор', boulder: 'боулдер' };
-                this.updateMapStatus(`Кликните на карте — поставить ${labels[next]}.`);
+                const labels = {
+                    area: 'район',
+                    sector_route: 'сектор трудности',
+                    sector_boulder: 'сектор боулдеринга',
+                    boulder: 'боулдеринг'
+                };
+                this.updateMapStatus(`Кликните на карте — поставить ${labels[this._mapPinAddKind]}.`);
             }
 
             catalogPinChoices(kind) {
@@ -10176,9 +10181,14 @@
                         hasPin: !!this.areaMapCoordinate(area.id)
                     }));
                 }
-                if (kind === 'sector') {
+                if (kind === 'sector' || kind === 'sector_route' || kind === 'sector_boulder') {
                     return getSectors()
                         .filter((sector) => !areaId || Number(sector.areaId) === Number(areaId))
+                        .filter((sector) => {
+                            if (kind === 'sector_boulder') return this.isBoulderSector(sector.id);
+                            if (kind === 'sector_route') return !this.isBoulderSector(sector.id);
+                            return true;
+                        })
                         .map((sector) => {
                             const hasPin = !!this.sectorMapPinCoordinate(sector.id);
                             return { value: sector.id, label: marked(sector.name, hasPin), hasPin };
@@ -10200,29 +10210,120 @@
                 return [];
             }
 
-            async placeCatalogEntityPin(kind, lat, lng) {
-                if (!this.requireAdmin('Добавление метки')) return;
-                const choices = this.catalogPinChoices(kind);
-                if (!choices.length) {
-                    this.showToast('Нет объектов этого типа в каталоге', true);
+            mapPinAreaId() {
+                const scoped = Number(this.mapCatalogScope?.areaId || this.catalog?.areaId || 0);
+                return Number.isFinite(scoped) && scoped > 0 ? scoped : 0;
+            }
+
+            mapPinSectorId() {
+                const scoped = Number(this.mapCatalogScope?.sectorId || this.catalog?.sectorId || 0);
+                return Number.isFinite(scoped) && scoped > 0 ? scoped : 0;
+            }
+
+            async beginCreateCatalogPin(kind, lat, lng) {
+                const loc = this.formatLocationInput(lat, lng);
+                if (kind === 'area') {
+                    this.showAddAreaDialog();
+                    const input = document.getElementById('areaLocation');
+                    if (input) input.value = loc;
                     return;
                 }
-                const preferred = choices.find((item) => !item.hasPin) || choices[0];
-                const titles = { area: 'Добавить район', sector: 'Добавить сектор', boulder: 'Добавить боулдер' };
-                const labels = { area: 'Район', sector: 'Сектор', boulder: 'Боулдер' };
+                if (kind === 'sector_route' || kind === 'sector_boulder') {
+                    let areaId = this.mapPinAreaId();
+                    if (!areaId) {
+                        const areas = getAreas();
+                        if (!areas.length) {
+                            this.showToast('Сначала создайте район', true);
+                            return;
+                        }
+                        const pick = await this.promptMapTextInput({
+                            title: 'Район для сектора',
+                            selectLabel: 'Район',
+                            selectOptions: areas.map((area) => ({ value: area.id, label: area.name })),
+                            defaultSelectValue: areas[0]?.id,
+                            hideTextInput: true,
+                            hint: 'Новый сектор будет в этом районе.'
+                        });
+                        if (!pick?.selectValue) return;
+                        areaId = Number(pick.selectValue);
+                    }
+                    if (!Number.isFinite(areaId) || areaId <= 0) return;
+                    this._keepPendingMapPin = true;
+                    this._pendingMapPinCreate = kind === 'sector_boulder' ? { kind, lat, lng } : null;
+                    this.showAddSectorDialog(areaId);
+                    this._keepPendingMapPin = false;
+                    const input = document.getElementById('sectorLocation');
+                    if (input) input.value = loc;
+                    if (kind === 'sector_boulder') {
+                        const title = document.getElementById('sectorDialogTitle');
+                        if (title) title.textContent = 'Новый сектор боулдеринга';
+                    }
+                    return;
+                }
+                if (kind === 'boulder') {
+                    let sectorId = this.mapPinSectorId();
+                    if (!sectorId) {
+                        const areaId = this.mapPinAreaId();
+                        const sectors = getSectors().filter((sector) => !areaId || Number(sector.areaId) === areaId);
+                        if (!sectors.length) {
+                            this.showToast('Сначала поставьте сектор, затем боулдеринг', true);
+                            return;
+                        }
+                        const pick = await this.promptMapTextInput({
+                            title: 'Сектор для боулдеринга',
+                            selectLabel: 'Сектор',
+                            selectOptions: sectors.map((sector) => ({ value: sector.id, label: sector.name })),
+                            defaultSelectValue: sectors[0]?.id,
+                            hideTextInput: true,
+                            hint: 'Новый боулдеринг появится в этом секторе.'
+                        });
+                        if (!pick?.selectValue) return;
+                        sectorId = Number(pick.selectValue);
+                    }
+                    if (!Number.isFinite(sectorId) || sectorId <= 0) return;
+                    this.quickAddBoulderInSector(sectorId);
+                    const input = document.getElementById('quickBoulderCoordinates');
+                    if (input) input.value = loc;
+                    const subtitle = document.getElementById('quickBoulderDialogSubtitle');
+                    if (subtitle) subtitle.textContent = 'Точка уже на карте — укажите название и категорию';
+                }
+            }
+
+            async placeCatalogEntityPin(kind, lat, lng) {
+                if (!this.requireAdmin('Добавление метки')) return;
+                const placeKind = kind === 'sector' ? 'sector_route' : kind;
+                const choices = this.catalogPinChoices(placeKind);
+                const preferred = choices.find((item) => !item.hasPin) || null;
+                const titles = {
+                    area: 'Район на карте',
+                    sector_route: 'Сектор трудности',
+                    sector_boulder: 'Сектор боулдеринга',
+                    boulder: 'Боулдеринг на карте'
+                };
+                const labels = {
+                    area: 'Район',
+                    sector_route: 'Сектор',
+                    sector_boulder: 'Сектор',
+                    boulder: 'Боулдеринг'
+                };
                 const pick = await this.promptMapTextInput({
-                    title: titles[kind] || 'Добавить метку',
-                    selectLabel: labels[kind] || 'Объект',
-                    selectOptions: choices,
-                    defaultSelectValue: preferred?.value,
+                    title: titles[placeKind] || 'Добавить метку',
+                    selectLabel: labels[placeKind] || 'Объект',
+                    selectOptions: [{ value: '__new__', label: 'Новый' }, ...choices],
+                    defaultSelectValue: preferred?.value || '__new__',
                     hideTextInput: true,
-                    hint: 'Выберите объект — значок появится в точке на карте.'
+                    hint: 'Новый — создать и поставить в эту точку. Или выберите уже существующий из списка.'
                 });
                 if (!pick?.selectValue) return;
+                if (String(pick.selectValue) === '__new__') {
+                    await this.beginCreateCatalogPin(placeKind, lat, lng);
+                    return;
+                }
                 const id = Number(pick.selectValue);
                 if (!Number.isFinite(id)) return;
+                const patchKind = placeKind === 'sector_route' || placeKind === 'sector_boulder' ? 'sector' : placeKind;
                 const snapped = this.snapMapPinCoord(lat, lng, {
-                    exclude: [{ kind, id }]
+                    exclude: [{ kind: patchKind, id }]
                 }) || { lat, lng };
                 lat = snapped.lat;
                 lng = snapped.lng;
@@ -10230,18 +10331,18 @@
                 const body = JSON.stringify({ latitude: lat, longitude: lng });
                 try {
                     setGlobalUiBusy(true);
-                    if (kind === 'area') {
+                    if (patchKind === 'area') {
                         mergeAreaFromApiResponse(await apiFetch(`/api/areas/${id}`, { method: 'PATCH', headers, body }));
                         await this.removeMapSignFeaturesForEntity('area', id);
-                    } else if (kind === 'sector') {
+                    } else if (patchKind === 'sector') {
                         mergeSectorFromApiResponse(await apiFetch(`/api/sectors/${id}`, { method: 'PATCH', headers, body }));
                         await this.removeMapSignFeaturesForEntity('sector', id);
-                    } else if (kind === 'boulder') {
+                    } else if (patchKind === 'boulder') {
                         mergeBoulderFromApiResponse(await apiFetch(`/api/boulders/${id}`, { method: 'PATCH', headers, body }));
                     }
                     this.data = getClimbingData();
                     this.updateMapMarkers();
-                    if (kind === 'area' || kind === 'sector') this.renderCatalog();
+                    if (patchKind === 'area' || patchKind === 'sector') this.renderCatalog();
                     this.updateMapStatus('Метка добавлена.');
                 } catch (err) {
                     this.showToast(err.message || 'Не удалось поставить метку', true);
@@ -10280,7 +10381,7 @@
                         camping: 'Клик по карте — поставить кемпинг.',
                         area_sign: 'Клик по карте — метка района.',
                         sector_sign: 'Клик по карте — метка сектора.',
-                        add_pin: 'Кликните на карте, затем выберите район, сектор или боулдер.'
+                        add_pin: 'Плюс: сектор трудности, сектор боулдеринга, боулдеринг или район — затем клик по карте.'
                     };
                     hint.textContent = this._mapCatalogPinMove
                         ? `Перетащите значок или кликните на карте — новое положение ${this.catalogMapPinMoveLabel(this._mapCatalogPinMove.kind)}.`
@@ -13394,6 +13495,7 @@
 
             showAddSectorDialog(areaId) {
                 if (!this.requireAdmin('Добавление сектора')) return;
+                if (!this._keepPendingMapPin) this._pendingMapPinCreate = null;
                 document.getElementById('sectorDialogTitle').textContent = 'Новый сектор';
                 document.getElementById('sectorId').value = '';
                 document.getElementById('sectorAreaId').value = String(areaId);
@@ -13697,16 +13799,49 @@
                             body: JSON.stringify(payload)
                         });
                     mergeSectorFromApiResponse(savedSector);
+                    if (!id && savedSector?.id != null) {
+                        const idInput = document.getElementById('sectorId');
+                        if (idInput) idInput.value = String(savedSector.id);
+                    }
+                    const pendingPin = !id ? this._pendingMapPinCreate : null;
+                    this._pendingMapPinCreate = null;
+                    let placedBoulderSector = false;
+                    if (
+                        pendingPin?.kind === 'sector_boulder'
+                        && location.latitude != null
+                        && location.longitude != null
+                    ) {
+                        const savedBoulder = await apiFetch('/api/boulders', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                sector_id: Number(savedSector.id),
+                                area_id: areaId,
+                                name,
+                                description: null,
+                                grade: '7A',
+                                rating: null,
+                                height_m: null,
+                                latitude: location.latitude,
+                                longitude: location.longitude
+                            })
+                        });
+                        mergeBoulderFromApiResponse(savedBoulder);
+                        placedBoulderSector = true;
+                    }
                     this.data = getClimbingData();
+                    this.hideDialog('sectorDialog');
+                    this.fillSectorSelects();
+                    this.renderCatalog();
+                    this.updateMapMarkers();
+                    this.showToast(
+                        id
+                            ? 'Сектор обновлён'
+                            : (placedBoulderSector ? 'Сектор боулдеринга сохранён' : 'Сектор сохранён')
+                    );
                 } catch (err) {
                     this.showToast(`Ошибка сохранения сектора: ${err.message}`, true);
-                    return;
                 }
-                this.hideDialog('sectorDialog');
-                this.fillSectorSelects();
-                this.renderCatalog();
-                this.updateMapMarkers();
-                this.showToast(id ? 'Сектор обновлён' : 'Сектор сохранён');
             }
 
             async deleteSector(sectorId) {
@@ -14518,7 +14653,10 @@
                 document.getElementById('areaPhotoRotateRightBtn')?.addEventListener('click', () => {
                     void this.rotateAreaDialogPhoto(1);
                 });
-                document.getElementById('cancelSectorBtn')?.addEventListener('click', () => this.hideDialog('sectorDialog'));
+                document.getElementById('cancelSectorBtn')?.addEventListener('click', () => {
+                    this._pendingMapPinCreate = null;
+                    this.hideDialog('sectorDialog');
+                });
                 document.getElementById('sectorSubmitBtn')?.addEventListener('click', () => {
                     if (!this.requireAdmin('Сохранение сектора')) return;
                     this.saveSector();
@@ -15207,6 +15345,7 @@
                 }
                 const el = document.getElementById(dialogId);
                 if (!el || el.classList.contains('hidden')) return;
+                if (dialogId === 'sectorDialog') this._pendingMapPinCreate = null;
                 el.classList.add('hidden');
                 this.syncBodyDialogScreenLock();
                 this.syncCatalogSectorFocusUi();

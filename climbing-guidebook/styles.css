@@ -5635,7 +5635,7 @@
         .map-pin-editor-menu {
             display: flex;
             flex-direction: column;
-            min-width: 168px;
+            min-width: 210px;
             padding: 6px;
             border-radius: 16px;
             background: color-mix(in srgb, #141414 94%, transparent);
