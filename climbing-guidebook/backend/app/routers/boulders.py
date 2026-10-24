@@ -7,6 +7,7 @@ from app import schemas
 from app.db import get_db
 from app.deps import assert_admin, get_current_user
 from app.models import Area, Boulder, Photo, Sector, User
+from app.services.ascent_counts import attach_send_counts
 from app.services.climb_community_cleanup import purge_ascents_and_ratings_for_boulder
 
 router = APIRouter(prefix="/boulders", tags=["boulders"])
@@ -37,7 +38,9 @@ def list_boulders(
         q = q.filter(Boulder.sector_id == sector_id)
     if not include_deleted:
         q = q.filter(Boulder.deleted_at.is_(None))
-    return q.order_by(Boulder.id).all()
+    rows = q.order_by(Boulder.id).all()
+    attach_send_counts(db, boulders=rows)
+    return rows
 
 
 @router.post("", response_model=schemas.BoulderRead, status_code=201)

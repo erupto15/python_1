@@ -3879,6 +3879,8 @@
                 sector: r.sector_label || '',
                 category: r.category || '',
                 rating: r.rating ?? null,
+                authorName: r.author_name || '',
+                sendCount: Number(r.send_count) || 0,
                 latitude: r.latitude,
                 longitude: r.longitude,
                 sortOrder: r.sort_order ?? r.id ?? 0,
@@ -3897,6 +3899,8 @@
                 grade: b.grade || '',
                 category: b.category || '',
                 rating: b.rating ?? null,
+                authorName: b.author_name || '',
+                sendCount: Number(b.send_count) || 0,
                 height: b.height_m ?? '',
                 latitude: b.latitude,
                 longitude: b.longitude,
@@ -3906,6 +3910,16 @@
         }
 
         /** 8a.nu style: mean of 1–3 star votes, one decimal. */
+        function formatAscentCount(count) {
+            const value = Math.max(0, Number(count) || 0);
+            const mod10 = value % 10;
+            const mod100 = value % 100;
+            let word = 'пролазов';
+            if (mod10 === 1 && mod100 !== 11) word = 'пролаз';
+            else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) word = 'пролаза';
+            return `${value} ${word}`;
+        }
+
         function formatStarAverage(rating) {
             if (rating == null || rating === '') return '';
             const n = Number(rating);
@@ -8686,6 +8700,9 @@
                     title: climb.name,
                     grade: climb.grade || '',
                     meta: climb.grade || '',
+                    author: climb.authorName || '',
+                    rating: climb.rating ?? null,
+                    sendCount: Number(climb.sendCount) || 0,
                     areaId: climb.areaId,
                     sectorId: climb.sectorId,
                     climbType
@@ -8911,7 +8928,8 @@
                 grades.forEach((grade, index) => {
                     const chip = document.createElement('button');
                     chip.type = 'button';
-                    chip.className = `map-boulder-sheet-chip${this._mapBoulderSheetGrade === grade ? ' active' : ''}`;
+                    const tone = this._gradeChipToneByValue(grade);
+                    chip.className = `map-boulder-sheet-chip map-boulder-sheet-chip--${tone}${this._mapBoulderSheetGrade === grade ? ' active' : ''}`;
                     chip.textContent = grade;
                     chip.dataset.gradeIndex = String(index);
                     chip.setAttribute('aria-pressed', this._mapBoulderSheetGrade === grade ? 'true' : 'false');
@@ -8931,23 +8949,57 @@
                     item.className = 'map-popup-boulder-item map-boulder-sheet-item';
                     item.dataset.climbIndex = String(sourceIndex);
 
-                    const name = document.createElement('span');
-                    name.className = 'map-popup-boulder-name';
-                    name.textContent = climb.title || (climb.climbType === 'route' ? 'Трасса' : 'Боулдер');
-                    item.appendChild(name);
-                    if (climb.grade) {
-                        const grade = document.createElement('span');
-                        grade.className = 'map-popup-boulder-grade';
-                        grade.textContent = climb.grade;
-                        item.appendChild(grade);
-                    }
+                    const side = document.createElement('span');
+                    side.className = 'map-climb-row-side';
+
+                    const gradeLine = document.createElement('span');
+                    gradeLine.className = 'map-climb-row-grade-line';
+                    const grade = document.createElement('span');
+                    const tone = gradeBandFromValue(climb.grade);
+                    grade.className = `map-climb-row-grade map-climb-row-grade--${tone}`;
+                    grade.textContent = climb.grade || '—';
+                    gradeLine.appendChild(grade);
                     if (this.hasUserSent(climb.climbType || 'boulder', climb.id)) {
                         const sent = document.createElement('span');
-                        sent.className = 'map-popup-boulder-sent';
+                        sent.className = 'map-climb-row-sent';
                         sent.textContent = '✓';
                         sent.setAttribute('aria-label', 'Пройдено');
-                        item.appendChild(sent);
+                        gradeLine.appendChild(sent);
                     }
+                    side.appendChild(gradeLine);
+
+                    const stars = document.createElement('span');
+                    stars.className = 'map-climb-row-stars';
+                    const filled = Math.max(0, Math.min(3, Math.round(Number(climb.rating) || 0)));
+                    stars.setAttribute('aria-label', filled ? `Популярность ${filled} из 3` : 'Популярность не оценена');
+                    for (let star = 1; star <= 3; star += 1) {
+                        const mark = document.createElement('span');
+                        if (star <= filled) mark.className = 'is-on';
+                        mark.textContent = '★';
+                        stars.appendChild(mark);
+                    }
+                    side.appendChild(stars);
+
+                    const sends = document.createElement('span');
+                    sends.className = 'map-climb-row-sends';
+                    sends.textContent = formatAscentCount(climb.sendCount);
+                    side.appendChild(sends);
+                    item.appendChild(side);
+
+                    const copy = document.createElement('span');
+                    copy.className = 'map-climb-row-copy';
+                    const name = document.createElement('span');
+                    name.className = 'map-climb-row-name';
+                    name.textContent = climb.title || (climb.climbType === 'route' ? 'Трасса' : 'Боулдер');
+                    copy.appendChild(name);
+                    const authorName = String(climb.author || '').trim();
+                    if (authorName) {
+                        const author = document.createElement('span');
+                        author.className = 'map-climb-row-author';
+                        author.textContent = authorName;
+                        copy.appendChild(author);
+                    }
+                    item.appendChild(copy);
                     list.appendChild(item);
                 });
             }
@@ -9274,6 +9326,9 @@
                         id: boulder.id,
                         title: boulder.name,
                         grade: boulder.grade || '',
+                        author: boulder.authorName || '',
+                        rating: boulder.rating ?? null,
+                        sendCount: Number(boulder.sendCount) || 0,
                         meta: `${this.getStructureLabel(boulder.sectorId) || 'Каталог'} · ${boulder.grade || '—'}`,
                         areaId: boulder.areaId,
                         sectorId: boulder.sectorId
@@ -13691,6 +13746,7 @@
                 document.getElementById('quickRouteId').value = String(route.id);
                 document.getElementById('quickRouteSectorId').value = String(route.sectorId || '');
                 document.getElementById('quickRouteName').value = route.name || '';
+                document.getElementById('quickRouteAuthor').value = route.authorName || '';
                 this.setFormGradeValue('quickRouteGrade', route.grade || '6a');
                 document.getElementById('quickRouteDescription').value = route.description || '';
                 document.getElementById('quickRouteLength').value = route.length ?? '';
@@ -13719,6 +13775,7 @@
                 document.getElementById('quickBoulderId').value = String(boulder.id);
                 document.getElementById('quickBoulderSectorId').value = String(boulder.sectorId || '');
                 document.getElementById('quickBoulderName').value = boulder.name || '';
+                document.getElementById('quickBoulderAuthor').value = boulder.authorName || '';
                 this.setFormGradeValue('quickBoulderGrade', boulder.grade || '7A');
                 document.getElementById('quickBoulderDescription').value = boulder.description || '';
                 document.getElementById('quickBoulderHeight').value = boulder.height ?? '';
@@ -13749,6 +13806,7 @@
                     this.showToast('Введите название трассы', true);
                     return;
                 }
+                const authorName = (document.getElementById('quickRouteAuthor').value || '').trim();
                 const grade = normalizeRouteGrade((document.getElementById('quickRouteGrade').value || '').trim() || '6a');
                 const description = (document.getElementById('quickRouteDescription').value || '').trim();
                 const ratingStr = (document.getElementById('quickRouteRating').value || '').trim();
@@ -13767,6 +13825,7 @@
                         sector_id: sid,
                         area_id: Number(sector.areaId),
                         name,
+                        author_name: authorName || null,
                         description: description || null,
                         grade,
                         rating: ratingStr ? Number(ratingStr) : null,
@@ -13829,6 +13888,7 @@
                     this.showToast('Введите название боулдеринга', true);
                     return;
                 }
+                const authorName = (document.getElementById('quickBoulderAuthor').value || '').trim();
                 const grade = normalizeBoulderGrade((document.getElementById('quickBoulderGrade').value || '').trim() || '7A');
                 const description = (document.getElementById('quickBoulderDescription').value || '').trim();
                 const ratingStr = (document.getElementById('quickBoulderRating').value || '').trim();
@@ -13849,6 +13909,7 @@
                         sector_id: sid,
                         area_id: Number(sector.areaId),
                         name,
+                        author_name: authorName || null,
                         description: description || null,
                         grade,
                         rating: ratingStr ? Number(ratingStr) : null,

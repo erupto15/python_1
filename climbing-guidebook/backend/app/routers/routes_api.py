@@ -8,6 +8,7 @@ from app import schemas
 from app.db import get_db
 from app.deps import assert_admin, get_current_user
 from app.models import Area, Photo, Route, Sector, User
+from app.services.ascent_counts import attach_send_counts
 from app.services.climb_community_cleanup import purge_ascents_and_ratings_for_route
 from app.services.climb_rating import sync_climb_star_average
 
@@ -45,7 +46,9 @@ def list_routes(
         q = q.filter(Route.sector_id == sector_id)
     if not include_deleted:
         q = q.filter(Route.deleted_at.is_(None))
-    return q.order_by(Route.sort_order, Route.id).all()
+    rows = q.order_by(Route.sort_order, Route.id).all()
+    attach_send_counts(db, routes=rows)
+    return rows
 
 
 @router.post("", response_model=schemas.RouteRead, status_code=201)

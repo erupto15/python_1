@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app import schemas
 from app.db import get_db
 from app.models import Area, Boulder, MapFeature, Route, Sector
+from app.services.ascent_counts import attach_send_counts
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
@@ -100,6 +101,7 @@ def catalog_manifest(db: Session = Depends(get_db)) -> dict[str, object]:
 @router.get("/bundle")
 def catalog_bundle(db: Session = Depends(get_db)) -> dict[str, object]:
     areas, sectors, routes, boulders, map_features = _catalog_rows(db)
+    attach_send_counts(db, routes, boulders)
     version, counts = _catalog_version_from_rows(areas, sectors, routes, boulders, map_features)
     return {
         "manifest": {

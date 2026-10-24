@@ -200,6 +200,7 @@ class RouteCreate(BaseModel):
     sector_id: int
     area_id: int
     name: str = Field(max_length=255)
+    author_name: Optional[str] = Field(None, max_length=120)
     description: Optional[str] = None
     grade: str = Field(max_length=32)
     length_m: Optional[float] = None
@@ -217,6 +218,7 @@ class RouteUpdate(BaseModel):
     sector_id: Optional[int] = None
     area_id: Optional[int] = None
     name: Optional[str] = Field(None, max_length=255)
+    author_name: Optional[str] = Field(None, max_length=120)
     description: Optional[str] = None
     grade: Optional[str] = Field(None, max_length=32)
     length_m: Optional[float] = None
@@ -241,6 +243,7 @@ class RouteRead(BaseModel):
     area_id: int
     created_by: Optional[str]
     name: str
+    author_name: Optional[str] = None
     description: Optional[str]
     grade: str
     length_m: Optional[float]
@@ -251,6 +254,7 @@ class RouteRead(BaseModel):
     latitude: Optional[float]
     longitude: Optional[float]
     sort_order: int = 0
+    send_count: int = 0
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime]
@@ -260,6 +264,7 @@ class BoulderCreate(BaseModel):
     sector_id: int
     area_id: int
     name: str = Field(max_length=255)
+    author_name: Optional[str] = Field(None, max_length=120)
     description: Optional[str] = None
     grade: str = Field(max_length=32)
     category: Optional[str] = Field(None, max_length=64)
@@ -274,6 +279,7 @@ class BoulderUpdate(BaseModel):
     sector_id: Optional[int] = None
     area_id: Optional[int] = None
     name: Optional[str] = Field(None, max_length=255)
+    author_name: Optional[str] = Field(None, max_length=120)
     description: Optional[str] = None
     grade: Optional[str] = Field(None, max_length=32)
     category: Optional[str] = Field(None, max_length=64)
@@ -291,6 +297,7 @@ class BoulderRead(BaseModel):
     area_id: int
     created_by: Optional[str]
     name: str
+    author_name: Optional[str] = None
     description: Optional[str]
     grade: str
     category: Optional[str]
@@ -298,6 +305,7 @@ class BoulderRead(BaseModel):
     height_m: Optional[float]
     latitude: Optional[float]
     longitude: Optional[float]
+    send_count: int = 0
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime]

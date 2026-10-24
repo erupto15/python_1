@@ -6299,14 +6299,17 @@
         }
 
         .map-boulder-sheet-heading strong {
-            font-size: 17px;
-            line-height: 1.3;
+            font-family: var(--display-font);
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            line-height: 1.05;
         }
 
         .map-boulder-sheet-heading span {
             color: var(--light-text);
-            font-size: 12px;
-            line-height: 1.35;
+            font-size: 13px;
+            line-height: 1.3;
         }
 
         .map-boulder-sheet-close {
@@ -6357,6 +6360,78 @@
             color: #fff;
         }
 
+        .map-boulder-sheet-chip--yellow:not(.active) {
+            border-color: color-mix(in srgb, var(--map-grade-yellow) 55%, var(--border-color));
+            background: color-mix(in srgb, var(--map-grade-yellow) 18%, var(--surface-elevated));
+            color: var(--map-grade-yellow);
+        }
+
+        .map-boulder-sheet-chip--green:not(.active) {
+            border-color: color-mix(in srgb, var(--map-grade-green) 50%, var(--border-color));
+            background: color-mix(in srgb, var(--map-grade-green) 16%, var(--surface-elevated));
+            color: var(--map-grade-green);
+        }
+
+        .map-boulder-sheet-chip--orange:not(.active) {
+            border-color: color-mix(in srgb, var(--map-grade-orange) 50%, var(--border-color));
+            background: color-mix(in srgb, var(--map-grade-orange) 16%, var(--surface-elevated));
+            color: var(--map-grade-orange);
+        }
+
+        .map-boulder-sheet-chip--red:not(.active) {
+            border-color: color-mix(in srgb, var(--map-grade-red) 50%, var(--border-color));
+            background: color-mix(in srgb, var(--map-grade-red) 16%, var(--surface-elevated));
+            color: var(--map-grade-red);
+        }
+
+        .map-boulder-sheet-chip--black:not(.active) {
+            border-color: rgba(255, 255, 255, 0.28);
+            background: color-mix(in srgb, var(--map-grade-black) 70%, var(--surface-elevated));
+            color: #f5f5f7;
+        }
+
+        .map-boulder-sheet-chip--project:not(.active) {
+            border-color: color-mix(in srgb, #9e9e9e 55%, var(--border-color));
+            background: color-mix(in srgb, #9e9e9e 18%, var(--surface-elevated));
+            color: #c8c8c8;
+        }
+
+        .map-boulder-sheet-chip--yellow.active {
+            border-color: var(--map-grade-yellow);
+            background: var(--map-grade-yellow);
+            color: #1a1400;
+        }
+
+        .map-boulder-sheet-chip--green.active {
+            border-color: var(--map-grade-green);
+            background: var(--map-grade-green);
+            color: #fff;
+        }
+
+        .map-boulder-sheet-chip--orange.active {
+            border-color: var(--map-grade-orange);
+            background: var(--map-grade-orange);
+            color: #fff;
+        }
+
+        .map-boulder-sheet-chip--red.active {
+            border-color: var(--map-grade-red);
+            background: var(--map-grade-red);
+            color: #fff;
+        }
+
+        .map-boulder-sheet-chip--black.active {
+            border-color: #111;
+            background: var(--map-grade-black);
+            color: #f5f5f7;
+        }
+
+        .map-boulder-sheet-chip--project.active {
+            border-color: #8a8a8a;
+            background: #9e9e9e;
+            color: #fff;
+        }
+
         .map-boulder-sheet-add {
             margin-top: 10px;
         }
@@ -6371,17 +6446,124 @@
             min-height: 0;
             flex: 1 1 auto;
             flex-direction: column;
-            gap: 6px;
+            gap: 0;
+            margin-top: 4px;
             overflow-y: auto;
             overscroll-behavior: contain;
             -webkit-overflow-scrolling: touch;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            background: color-mix(in srgb, var(--surface-elevated) 72%, transparent);
         }
 
         .map-boulder-sheet-item {
-            min-height: 44px;
-            padding: 10px 12px;
-            background: var(--map-popup-boulder-item-bg);
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            align-items: center;
+            column-gap: 16px;
+            min-height: 76px;
+            padding: 12px 14px;
+            border: 0;
+            border-radius: 0;
+            border-bottom: 1px solid var(--border-color);
+            background: transparent;
             box-shadow: none;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            text-align: left;
+        }
+
+        .map-boulder-sheet-item:last-child {
+            border-bottom: 0;
+        }
+
+        .map-boulder-sheet-item:active {
+            background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+        }
+
+        .map-climb-row-side {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 3px;
+            min-width: 68px;
+        }
+
+        .map-climb-row-grade-line {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .map-climb-row-grade {
+            font-family: var(--display-font);
+            font-size: 30px;
+            font-weight: 700;
+            line-height: 0.9;
+            letter-spacing: 0.02em;
+            color: var(--text-color);
+        }
+
+        .map-climb-row-grade--yellow { color: var(--map-grade-yellow); }
+        .map-climb-row-grade--green { color: var(--map-grade-green); }
+        .map-climb-row-grade--orange { color: var(--map-grade-orange); }
+        .map-climb-row-grade--red { color: var(--map-grade-red); }
+        .map-climb-row-grade--black { color: #f5f5f7; }
+        html.theme-light .map-climb-row-grade--black,
+        html.tg-theme-light .map-climb-row-grade--black { color: #2a2a2e; }
+        .map-climb-row-grade--project { color: #bdbdbd; }
+
+        .map-climb-row-sent {
+            color: var(--map-tick-done, #22c55e);
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .map-climb-row-stars {
+            display: flex;
+            gap: 1px;
+            color: color-mix(in srgb, var(--light-text) 45%, transparent);
+            font-size: 12px;
+            letter-spacing: 0;
+            line-height: 1;
+        }
+
+        .map-climb-row-stars .is-on {
+            color: #f5c518;
+        }
+
+        .map-climb-row-sends {
+            color: var(--light-text);
+            font-size: 11px;
+            line-height: 1.2;
+        }
+
+        .map-climb-row-copy {
+            min-width: 0;
+            text-align: right;
+        }
+
+        .map-climb-row-name {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+        }
+
+        .map-climb-row-author {
+            display: block;
+            margin-top: 3px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--light-text);
+            font-size: 12px;
+            font-weight: 500;
+            line-height: 1.2;
         }
 
         .map-climb-info-description {
