@@ -325,6 +325,26 @@ class ClimbUserRating(Base):
     user: Mapped["User"] = relationship(back_populates="climb_ratings")
 
 
+class ClimbLike(Base):
+    """Личная отметка «нравится» на трассе или боулдере."""
+
+    __tablename__ = "climb_likes"
+    __table_args__ = (
+        CheckConstraint(
+            "(climb_type = 'route' AND route_id IS NOT NULL AND boulder_id IS NULL) "
+            "OR (climb_type = 'boulder' AND boulder_id IS NOT NULL AND route_id IS NULL)",
+            name="climb_likes_one_climb",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    climb_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    route_id: Mapped[Optional[int]] = mapped_column(ForeignKey("routes.id", ondelete="CASCADE"), index=True)
+    boulder_id: Mapped[Optional[int]] = mapped_column(ForeignKey("boulders.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class MapFeature(Base):
     __tablename__ = "map_features"
 

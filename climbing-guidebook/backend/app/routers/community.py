@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app import schemas
 from app.db import get_db
 from app.deps import get_current_user, get_current_user_optional
-from app.models import Area, Boulder, ClimbAscent, ClimbUserRating, Route, Sector, User
+from app.models import Area, Boulder, ClimbAscent, ClimbLike, ClimbUserRating, Route, Sector, User
 from app.services.climb_community_cleanup import purge_community_for_soft_deleted_climbs
 from app.services.climb_rating import star_average, sync_climb_star_average, upsert_climb_user_rating
 from app.services.climb_score import build_leaderboard
@@ -275,6 +275,38 @@ def delete_rating(
     sync_climb_star_average(db, climb_type, route_id, boulder_id)
 
 
+def _like_query(db: Session, climb_type: str, route_id: Optional[int], boulder_id: Optional[int]):
+    q = db.query(ClimbLike).filter(ClimbLike.climb_type == climb_type)
+    if climb_type == "route":
+        return q.filter(ClimbLike.route_id == route_id)
+    return q.filter(ClimbLike.boulder_id == boulder_id)
+
+
+@router.put("/likes", response_model=schemas.ClimbLikeState)
+def toggle_like(
+    payload: schemas.ClimbLikeToggle,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> schemas.ClimbLikeState:
+    climb_type, route_id, boulder_id = _climb_ids(payload.climb_type, payload.route_id, payload.boulder_id)
+    _ensure_climb_exists(db, climb_type, route_id, boulder_id)
+    row = _like_query(db, climb_type, route_id, boulder_id).filter(ClimbLike.user_id == current.id).first()
+    if row:
+        db.delete(row)
+        db.commit()
+        return schemas.ClimbLikeState(liked=False)
+    db.add(
+        ClimbLike(
+            user_id=current.id,
+            climb_type=climb_type,
+            route_id=route_id,
+            boulder_id=boulder_id,
+        )
+    )
+    db.commit()
+    return schemas.ClimbLikeState(liked=True)
+
+
 @router.get("/ranking/leaderboard", response_model=schemas.LeaderboardRead)
 def ranking_leaderboard(
     top: int = Query(10, ge=1, le=20, description="Сколько лучших пролазов учитывать в каждой дисциплине"),
@@ -377,6 +409,12 @@ def climb_stats(
             my_stars = my_rating.stars
             my_felt = my_rating.felt_grade
 
+    like_q = _like_query(db, climb_type, route_id, boulder_id)
+    like_count = like_q.count()
+    liked = False
+    if current and like_q.filter(ClimbLike.user_id == current.id).first():
+        liked = True
+
     felt_grades = [str(g[0]) for g in felt_rows if g and g[0]]
 
     recent_rows = (
@@ -411,4 +449,6 @@ def climb_stats(
         my_tries=my_tries,
         my_stars=my_stars,
         my_felt_grade=my_felt,
+        liked=liked,
+        like_count=like_count,
     )

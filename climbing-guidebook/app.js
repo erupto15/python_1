@@ -42,24 +42,6 @@
             },
             climbDetailDialog: {
                 resolve() {
-                    const app = window.app;
-                    const canLog = app && app.isLoggedIn && app.isLoggedIn() && app.isTelegramUser && app.isTelegramUser();
-                    if (canLog) {
-                        const ctx = app._climbDetailContext;
-                        const alreadySent = ctx
-                            && (app.hasUserSent(ctx.climbType, ctx.climbId)
-                                || app._climbCommunityStats?.my_status === 'send');
-                        const logRow = document.getElementById('climbDetailLogRow');
-                        const logBtn = document.getElementById('climbDetailOpenLogBtn');
-                        const logHidden = !logRow
-                            || logRow.classList.contains('hidden')
-                            || logBtn?.classList.contains('hidden');
-                        if (!logHidden && !alreadySent) {
-                            const logLabel = logRow?.querySelector('.climb-detail-log-row-label');
-                            const text = (logLabel?.textContent || '').trim() || 'Добавить в логбук';
-                            return { text, btnId: 'climbDetailOpenLogBtn' };
-                        }
-                    }
                     return null;
                 }
             },
@@ -15425,21 +15407,37 @@
                 });
                 this.setupClimbPhotoViewerListeners();
 
-                const climbDetailLogRow = document.getElementById('climbDetailLogRow');
-                climbDetailLogRow?.addEventListener('click', (e) => {
-                    if (e.target.closest('#climbDetailOpenLogBtn')) return;
-                    if (climbDetailLogRow.classList.contains('hidden')) return;
-                    const logBtn = document.getElementById('climbDetailOpenLogBtn');
-                    if (logBtn && !logBtn.classList.contains('hidden')) logBtn.click();
-                });
-                climbDetailLogRow?.addEventListener('keydown', (e) => {
-                    if (e.key !== 'Enter' && e.key !== ' ') return;
-                    e.preventDefault();
-                    climbDetailLogRow?.click();
-                });
                 document.getElementById('climbDetailOpenLogBtn')?.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    const row = document.getElementById('climbDetailLogRow');
+                    if (row?.classList.contains('is-sent')) {
+                        this.showToast('Пролаз уже в логбуке');
+                        return;
+                    }
                     void this.openClimbLogDialog();
+                });
+                document.getElementById('climbDetailLikeBtn')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    void this.toggleClimbDetailLike();
+                });
+                document.getElementById('climbDetailRateBtn')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleClimbDetailRatePopover();
+                });
+                document.getElementById('climbDetailRatePopover')?.addEventListener('click', (e) => {
+                    const starBtn = e.target.closest('[data-stars]');
+                    if (!starBtn) return;
+                    e.stopPropagation();
+                    const stars = Number(starBtn.getAttribute('data-stars'));
+                    if (!Number.isFinite(stars)) return;
+                    void this.pickClimbDetailStars(stars);
+                });
+                document.addEventListener('click', (e) => {
+                    const pop = document.getElementById('climbDetailRatePopover');
+                    if (!pop || pop.classList.contains('hidden')) return;
+                    if (e.target.closest('#climbDetailRatePopover, #climbDetailRateBtn')) return;
+                    pop.classList.add('hidden');
+                    document.getElementById('climbDetailRateBtn')?.setAttribute('aria-expanded', 'false');
                 });
                 document.addEventListener('click', (e) => {
                     const logBtn = e.target.closest('[data-climb-log-add]');
@@ -16653,30 +16651,112 @@
                 const logBtn = document.getElementById('climbDetailOpenLogBtn');
                 const logRow = document.getElementById('climbDetailLogRow');
                 const sentMark = document.getElementById('climbDetailSentMark');
+                const likeBtn = document.getElementById('climbDetailLikeBtn');
+                const rateBtn = document.getElementById('climbDetailRateBtn');
                 const logLabel = logRow?.querySelector('.climb-detail-log-row-label');
                 const ctx = this._climbDetailContext;
-                const canLog = this.canUseClimbLogbook();
-                const alreadySent = ctx
+                const alreadySent = !!(ctx
                     && (this.hasUserSent(ctx.climbType, ctx.climbId)
-                        || this._climbCommunityStats?.my_status === 'send');
-                logRow?.classList.toggle('hidden', !canLog);
-                logBtn?.classList.toggle('hidden', !canLog || alreadySent);
-                sentMark?.classList.toggle('hidden', !canLog || !alreadySent);
+                        || this._climbCommunityStats?.my_status === 'send'));
+                const liked = !!this._climbCommunityStats?.liked;
+                const stars = Math.min(3, Number(this._climbCommunityStats?.my_stars) || 0);
+                logRow?.classList.toggle('hidden', !ctx);
+                logBtn?.classList.remove('hidden');
+                logBtn?.classList.toggle('is-sent', alreadySent);
+                sentMark?.classList.toggle('hidden', !alreadySent);
                 if (logLabel) {
                     logLabel.textContent = alreadySent ? 'Пролаз в логбуке' : 'Добавить в логбук';
                 }
-                if (logRow) {
-                    const logActionable = canLog && !alreadySent;
-                    logRow.classList.toggle('is-sent', canLog && alreadySent);
-                    if (logActionable) {
-                        logRow.setAttribute('role', 'button');
-                        logRow.setAttribute('tabindex', '0');
-                    } else {
-                        logRow.removeAttribute('role');
-                        logRow.removeAttribute('tabindex');
-                    }
+                if (logBtn) {
+                    logBtn.setAttribute('aria-label', alreadySent ? 'Пролаз в логбуке' : 'Добавить в логбук');
                 }
+                logRow?.classList.toggle('is-sent', alreadySent);
+                logRow?.removeAttribute('role');
+                logRow?.removeAttribute('tabindex');
+                likeBtn?.classList.toggle('is-on', liked);
+                likeBtn?.setAttribute('aria-pressed', liked ? 'true' : 'false');
+                rateBtn?.classList.toggle('is-on', stars > 0);
+                rateBtn?.setAttribute('aria-label', stars ? `Оценка: ${stars} из 3` : 'Поставить звёзды');
+                this.paintClimbRatePopover(stars);
                 this.syncClimbDetailMarkupActionUi();
+            }
+
+            paintClimbRatePopover(stars) {
+                document.querySelectorAll('#climbDetailRatePopover [data-stars]').forEach((btn) => {
+                    const n = Number(btn.getAttribute('data-stars'));
+                    btn.classList.toggle('is-on', n <= stars && stars > 0);
+                });
+            }
+
+            toggleClimbDetailRatePopover() {
+                if (!this._climbDetailContext) return;
+                if (!this.canUseClimbLogbook()) {
+                    this.showToast(authTelegramGateMessage(), true);
+                    return;
+                }
+                const pop = document.getElementById('climbDetailRatePopover');
+                const rateBtn = document.getElementById('climbDetailRateBtn');
+                if (!pop) return;
+                const open = pop.classList.contains('hidden');
+                pop.classList.toggle('hidden', !open);
+                rateBtn?.setAttribute('aria-expanded', open ? 'true' : 'false');
+            }
+
+            async pickClimbDetailStars(starValue) {
+                const ctx = this._climbDetailContext;
+                if (!ctx) return;
+                if (!this.canUseClimbLogbook()) {
+                    this.showToast(authTelegramGateMessage(), true);
+                    return;
+                }
+                const current = Math.min(3, Number(this._climbCommunityStats?.my_stars) || 0);
+                try {
+                    const next = await this.saveCommunityStarRating(ctx.climbType, ctx.climbId, starValue, current);
+                    if (this._climbCommunityStats) this._climbCommunityStats.my_stars = next || null;
+                    this.syncClimbDetailFooterActions();
+                    const fresh = await this.fetchClimbCommunityStats(ctx.climbType, ctx.climbId);
+                    this._climbCommunityStats = fresh;
+                    patchClimbRatingInLocalCache(ctx.climbType, ctx.climbId, resolveClimbDisplayRating(fresh, ctx.climbType));
+                    await this.refreshClimbDetailViewPanel(ctx.climbType, ctx.climbId);
+                    this.renderCatalog();
+                    if (!APP_BOULDER_ONLY) this.renderRoutes();
+                    this.renderBoulders();
+                    this.syncClimbDetailFooterActions();
+                    document.getElementById('climbDetailRatePopover')?.classList.add('hidden');
+                    document.getElementById('climbDetailRateBtn')?.setAttribute('aria-expanded', 'false');
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось сохранить оценку', true);
+                }
+            }
+
+            async toggleClimbDetailLike() {
+                const ctx = this._climbDetailContext;
+                if (!ctx) return;
+                if (!this.canUseClimbLogbook()) {
+                    this.showToast(authTelegramGateMessage(), true);
+                    return;
+                }
+                const btn = document.getElementById('climbDetailLikeBtn');
+                if (btn?.disabled) return;
+                if (btn) btn.disabled = true;
+                try {
+                    const res = await apiFetch('/api/likes', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            climb_type: ctx.climbType,
+                            route_id: ctx.climbType === 'route' ? Number(ctx.climbId) : null,
+                            boulder_id: ctx.climbType === 'boulder' ? Number(ctx.climbId) : null
+                        })
+                    });
+                    if (!this._climbCommunityStats) this._climbCommunityStats = {};
+                    this._climbCommunityStats.liked = !!res?.liked;
+                    this.syncClimbDetailFooterActions();
+                } catch (err) {
+                    this.showToast(err.message || 'Не удалось сохранить', true);
+                } finally {
+                    if (btn) btn.disabled = false;
+                }
             }
 
             syncClimbDetailMarkupActionUi() {

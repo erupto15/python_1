@@ -550,6 +550,18 @@ class ClimbCommunityStats(BaseModel):
     my_tries: Optional[int] = None
     my_stars: Optional[int] = None
     my_felt_grade: Optional[str] = None
+    liked: bool = False
+    like_count: int = 0
+
+
+class ClimbLikeToggle(BaseModel):
+    climb_type: Literal["route", "boulder"]
+    route_id: Optional[int] = None
+    boulder_id: Optional[int] = None
+
+
+class ClimbLikeState(BaseModel):
+    liked: bool
 
 
 class MyAscentSummary(BaseModel):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.models import Boulder, ClimbAscent, ClimbUserRating, Route
+from app.models import Boulder, ClimbAscent, ClimbLike, ClimbUserRating, Route
 
 
 def purge_ascents_and_ratings_for_route(db: Session, route_id: int) -> None:
@@ -16,6 +16,10 @@ def purge_ascents_and_ratings_for_route(db: Session, route_id: int) -> None:
         ClimbUserRating.climb_type == "route",
         ClimbUserRating.route_id == route_id,
     ).delete(synchronize_session=False)
+    db.query(ClimbLike).filter(
+        ClimbLike.climb_type == "route",
+        ClimbLike.route_id == route_id,
+    ).delete(synchronize_session=False)
 
 
 def purge_ascents_and_ratings_for_boulder(db: Session, boulder_id: int) -> None:
@@ -26,6 +30,10 @@ def purge_ascents_and_ratings_for_boulder(db: Session, boulder_id: int) -> None:
     db.query(ClimbUserRating).filter(
         ClimbUserRating.climb_type == "boulder",
         ClimbUserRating.boulder_id == boulder_id,
+    ).delete(synchronize_session=False)
+    db.query(ClimbLike).filter(
+        ClimbLike.climb_type == "boulder",
+        ClimbLike.boulder_id == boulder_id,
     ).delete(synchronize_session=False)
 
 
@@ -53,6 +61,13 @@ def _delete_route_community_not_in_catalog(db: Session, active_ids: set[int]) ->
         rq.delete(synchronize_session=False)
     else:
         db.query(ClimbUserRating).filter(ClimbUserRating.climb_type == "route").delete(synchronize_session=False)
+
+    lq = db.query(ClimbLike).filter(ClimbLike.climb_type == "route", ClimbLike.route_id.isnot(None))
+    if active_ids:
+        lq = lq.filter(~ClimbLike.route_id.in_(active_ids))
+        lq.delete(synchronize_session=False)
+    else:
+        db.query(ClimbLike).filter(ClimbLike.climb_type == "route").delete(synchronize_session=False)
     return removed
 
 
@@ -80,6 +95,13 @@ def _delete_boulder_community_not_in_catalog(db: Session, active_ids: set[int]) 
         rq.delete(synchronize_session=False)
     else:
         db.query(ClimbUserRating).filter(ClimbUserRating.climb_type == "boulder").delete(synchronize_session=False)
+
+    lq = db.query(ClimbLike).filter(ClimbLike.climb_type == "boulder", ClimbLike.boulder_id.isnot(None))
+    if active_ids:
+        lq = lq.filter(~ClimbLike.boulder_id.in_(active_ids))
+        lq.delete(synchronize_session=False)
+    else:
+        db.query(ClimbLike).filter(ClimbLike.climb_type == "boulder").delete(synchronize_session=False)
     return removed
 
 
