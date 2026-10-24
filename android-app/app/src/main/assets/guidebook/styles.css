@@ -4302,14 +4302,22 @@
             flex-shrink: 0;
         }
 
+        .climb-detail-photo-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            min-width: 0;
+            gap: 10px;
+        }
+
         .climb-detail-navigate-btn {
-            position: absolute;
-            right: 12px;
-            bottom: 12px;
-            z-index: 8;
+            position: static;
+            align-self: flex-end;
+            flex-shrink: 0;
+            z-index: 1;
             width: 46px;
             height: 46px;
-            margin: 0;
+            margin: 0 4px 0 0;
             padding: 0;
             display: inline-flex;
             align-items: center;
