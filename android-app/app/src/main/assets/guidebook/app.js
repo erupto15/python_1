@@ -8693,11 +8693,12 @@
 
             openMapSectorClimbSheet(entry) {
                 const climbs = this.mapClimbsForSheet(entry);
+                this.map?.closePopup?.();
+                this.closeMapBoulderSheet();
                 if (!climbs.length) {
                     this.handleMapMarkerSelection(entry, { openNavigation: false, openPopup: true });
                     return;
                 }
-                this.map?.closePopup?.();
                 this.setMapScopeForEntry('sector', entry.id);
                 if (this.appShellEmbeddedMapActive() && this.catalog) {
                     this.catalog = {
@@ -8709,7 +8710,6 @@
                     this.renderCatalog();
                 }
                 this.updateMapMarkers();
-                this.openMapBoulderSheet(entry);
                 this.syncMapDrillBackBtn();
             }
 
@@ -8865,6 +8865,12 @@
                 const isRoutes = stack.some((item) => item.climbType === 'route');
                 if (entry.kind === 'sector') {
                     title.textContent = entry.title || (isRoutes ? 'Трассы' : 'Боулдеры');
+                    meta.textContent = isRoutes
+                        ? `${stack.length} трасс`
+                        : `${stack.length} боулдеров`;
+                } else if (stack.length > 1) {
+                    const sector = getSectors().find((item) => Number(item.id) === Number(entry.sectorId || stack[0]?.sectorId));
+                    title.textContent = sector?.name || entry.title || (isRoutes ? 'Трассы' : 'Боулдеры');
                     meta.textContent = isRoutes
                         ? `${stack.length} трасс`
                         : `${stack.length} боулдеров`;
@@ -9148,8 +9154,8 @@
                 const { areaId, sectorId } = this.mapCatalogScope;
                 if (sectorId != null) {
                     if (this.appShellEmbeddedMapActive() && this.catalog?.view === 'problems') {
-                        if (entry.kind === 'sector') return Number(entry.areaId) === Number(areaId);
-                        if (entry.kind === 'area') return Number(entry.id) === Number(areaId);
+                        if (entry.kind === 'sector') return Number(entry.id) === Number(sectorId);
+                        if (entry.kind === 'area') return false;
                     }
                     return Number(entry.sectorId) === Number(sectorId)
                         || (entry.kind === 'sector' && Number(entry.id) === Number(sectorId))
