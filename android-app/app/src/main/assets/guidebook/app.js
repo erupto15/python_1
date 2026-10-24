@@ -17853,9 +17853,9 @@
                 if (status === 'send' && !body.ascent_style) {
                     throw new Error('Выберите тип пролаза: онсайт, флэш или редпоинт');
                 }
-                if (climbType === 'route' && status === 'send') {
-                    const picked = Number(this._climbLogPickedStars || 0);
-                    if (picked >= 1 && picked <= 3) {
+                if (status === 'send') {
+                    const picked = Number(this._climbLogPickedStars || this._climbCommunityStats?.my_stars || 0);
+                    if (climbType === 'route' && picked >= 1 && picked <= 3) {
                         body.stars = picked;
                     }
                     const felt = (document.getElementById('climbLogFeltGrade')?.value || '').trim();
@@ -17937,6 +17937,8 @@
                     if (!Number.isFinite(tries) || tries < 1) tries = 1;
                     if (tries > 99) tries = 99;
                     input.value = String(tries);
+                    const valueEl = document.getElementById('climbLogTriesValue');
+                    if (valueEl) valueEl.textContent = String(tries);
                     const style = this.resolveBoulderAscentStyle(tries);
                     if (hidden) hidden.value = style;
                     this.updateClimbLogBoulderStyleHint(tries, style);
@@ -17979,6 +17981,34 @@
                     input.disabled = false;
                     if (!input.value || Number(input.value) < 1) input.value = '1';
                 }
+                const valueEl = document.getElementById('climbLogTriesValue');
+                if (valueEl) valueEl.textContent = String(input.value || '1');
+                document.getElementById('climbLogTriesMinus')?.toggleAttribute('disabled', fixedTries);
+                document.getElementById('climbLogTriesPlus')?.toggleAttribute('disabled', fixedTries);
+            }
+
+            bindClimbLogTriesStepper() {
+                const input = document.getElementById('climbLogTries');
+                const minus = document.getElementById('climbLogTriesMinus');
+                const plus = document.getElementById('climbLogTriesPlus');
+                if (!input || !minus || !plus) return;
+                const setTries = (next) => {
+                    const routeStyle = this._climbDetailContext?.climbType === 'route'
+                        ? this.getSelectedAscentStyle()
+                        : '';
+                    let tries = Math.max(1, Math.min(99, next));
+                    if (routeStyle === 'onsight' || routeStyle === 'flash') tries = 1;
+                    input.value = String(tries);
+                    const valueEl = document.getElementById('climbLogTriesValue');
+                    if (valueEl) valueEl.textContent = String(tries);
+                    input.dispatchEvent(new Event('input'));
+                };
+                minus.addEventListener('click', () => {
+                    setTries((parseInt(input.value, 10) || 1) - 1);
+                });
+                plus.addEventListener('click', () => {
+                    setTries((parseInt(input.value, 10) || 1) + 1);
+                });
             }
 
             bindAscentStylePicker(initialStyle = 'redpoint') {
@@ -18453,53 +18483,48 @@
                         || await this.fetchClimbCommunityStats(climbType, climbId);
                     this._climbCommunityStats = stats;
                     const triesVal = Math.max(1, Number(stats.my_tries) || 1);
-                    const boulderLogStyleFields = climbType === 'boulder' ? `
-                        <div class="climb-log-field">
-                            <span class="form-label">Тип пролаза</span>
-                            <p class="form-hint climb-log-boulder-style" id="climbLogBoulderStyleHint"></p>
-                            <input type="hidden" id="climbLogSendStyle" value="${this.resolveBoulderAscentStyle(triesVal)}">
-                        </div>
-                        <div class="climb-log-field" id="climbLogTriesField">
-                            <span class="form-label">Попыток</span>
-                            <div class="climb-log-field-row">
-                                <input type="number" class="form-input" id="climbLogTries" min="1" max="99" value="${triesVal}">
-                            </div>
-                        </div>
+                    const climbForGrade = climbType === 'route'
+                        ? getRoutes().find((r) => String(r.id) === String(climbId))
+                        : getBoulders().find((b) => String(b.id) === String(climbId));
+                    const gradeDefault = stats.my_felt_grade || climbForGrade?.grade || '';
+                    const styleRow = climbType === 'boulder' ? `
+                        <input type="hidden" id="climbLogSendStyle" value="${this.resolveBoulderAscentStyle(triesVal)}">
                     ` : `
-                        <div class="climb-log-field">
-                            <span class="form-label">Тип пролаза</span>
-                            <div class="climb-log-field-row">
-                                <div class="ascent-style-picker" id="climbLogSendStylePicker" role="radiogroup" aria-label="Тип пролаза">
-                                    <button type="button" class="ascent-style-btn" data-style="onsight" aria-pressed="false">Онсайт</button>
-                                    <button type="button" class="ascent-style-btn" data-style="flash" aria-pressed="false">Флэш</button>
-                                    <button type="button" class="ascent-style-btn active" data-style="redpoint" aria-pressed="true">Редпоинт</button>
-                                </div>
-                                <input type="hidden" id="climbLogSendStyle" value="redpoint">
+                        <div class="climb-log-row">
+                            <span class="climb-log-row-label">Тип</span>
+                            <div class="ascent-style-picker" id="climbLogSendStylePicker" role="radiogroup" aria-label="Тип пролаза">
+                                <button type="button" class="ascent-style-btn" data-style="onsight" aria-pressed="false">Онсайт</button>
+                                <button type="button" class="ascent-style-btn" data-style="flash" aria-pressed="false">Флэш</button>
+                                <button type="button" class="ascent-style-btn active" data-style="redpoint" aria-pressed="true">Редпоинт</button>
                             </div>
-                        </div>
-                        <div class="climb-log-field" id="climbLogTriesField">
-                            <span class="form-label">Попыток</span>
-                            <div class="climb-log-field-row">
-                                <input type="number" class="form-input" id="climbLogTries" min="1" max="99" value="${triesVal}">
-                            </div>
+                            <input type="hidden" id="climbLogSendStyle" value="redpoint">
                         </div>
                     `;
+                    const now = new Date();
+                    const pad = (n) => String(n).padStart(2, '0');
+                    const loggedStamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
                     formEl.innerHTML = `
-                        ${boulderLogStyleFields}
-                        <div class="climb-log-field">
-                            <span class="form-label">Ваша категория</span>
-                            <input type="hidden" id="climbLogFeltGrade" value="${this.escapeHtml(stats.my_felt_grade || '')}">
+                        ${styleRow}
+                        <div class="climb-log-row" id="climbLogTriesField">
+                            <span class="climb-log-row-label">Попытки</span>
+                            <div class="climb-log-stepper">
+                                <button type="button" class="climb-log-step" id="climbLogTriesMinus" aria-label="Меньше попыток">−</button>
+                                <span class="climb-log-stepper-value" id="climbLogTriesValue">${triesVal}</span>
+                                <input type="hidden" id="climbLogTries" value="${triesVal}">
+                                <button type="button" class="climb-log-step" id="climbLogTriesPlus" aria-label="Больше попыток">+</button>
+                            </div>
+                        </div>
+                        <div class="climb-log-row">
+                            <span class="climb-log-row-label">Категория</span>
+                            <input type="hidden" id="climbLogFeltGrade" value="${this.escapeHtml(gradeDefault)}">
                             <div class="grade-picker grade-picker--form" id="climbLogFeltGradePicker">
                                 <button type="button" class="grade-picker-toggle grade-picker-toggle--all" id="climbLogFeltGradeToggle" aria-expanded="false" aria-controls="climbLogFeltGradeDropdown">—</button>
                                 <div class="grade-picker-dropdown" id="climbLogFeltGradeDropdown">
-                                    <div class="grade-visual-strip" id="climbLogFeltGradeStrip" role="listbox" aria-label="Ваша категория"></div>
+                                    <div class="grade-visual-strip" id="climbLogFeltGradeStrip" role="listbox" aria-label="Категория"></div>
                                 </div>
                             </div>
                         </div>
-                        <div class="climb-log-field">
-                            <span class="form-label">Оценка качества${climbType === 'route' ? ' (влияет на рейтинг трассы)' : ''}</span>
-                            <span id="climbLogUserStarsPicker"></span>
-                        </div>
+                        <div class="climb-log-date">${loggedStamp}</div>
                     `;
 
                     if (climbType === 'boulder') {
@@ -18507,6 +18532,7 @@
                     } else {
                         this.bindAscentStylePicker('redpoint');
                     }
+                    this.bindClimbLogTriesStepper();
 
                     const feltNormalize = climbType === 'route' ? normalizeRouteGrade : normalizeBoulderGrade;
                     const feltOptions = climbType === 'route' ? ROUTE_GRADE_OPTIONS : BOULDER_GRADE_OPTIONS;
@@ -18516,34 +18542,12 @@
                         toggleId: 'climbLogFeltGradeToggle',
                         options: ['', ...feltOptions],
                         normalize: feltNormalize,
-                        defaultValue: feltNormalize(stats.my_felt_grade || ''),
+                        defaultValue: feltNormalize(gradeDefault),
                         emptyLabel: '—',
                         placeholder: 'Выберите категорию'
                     });
 
-                    let pickedStars = Math.min(3, stats.my_stars || 0);
-                    this._climbLogPickedStars = pickedStars;
-                    const starsWrap = document.getElementById('climbLogUserStarsPicker');
-                    const starPickHandler = (n) => {
-                        void (async () => {
-                            try {
-                                const next = await this.saveCommunityStarRating(climbType, climbId, n, pickedStars);
-                                pickedStars = next;
-                                this._climbLogPickedStars = pickedStars;
-                                this.renderCommunityStarPicker(starsWrap, pickedStars, starPickHandler);
-                                const fresh = await this.fetchClimbCommunityStats(climbType, climbId);
-                                this._climbCommunityStats = fresh;
-                                patchClimbRatingInLocalCache(climbType, climbId, resolveClimbDisplayRating(fresh, climbType));
-                                await this.refreshClimbDetailViewPanel(climbType, climbId);
-                                this.renderCatalog();
-                                if (!APP_BOULDER_ONLY) this.renderRoutes();
-                                this.renderBoulders();
-                            } catch (err) {
-                                this.showToast(err.message, true);
-                            }
-                        })();
-                    };
-                    this.renderCommunityStarPicker(starsWrap, pickedStars, starPickHandler);
+                    this._climbLogPickedStars = Math.min(3, stats.my_stars || 0);
                 } catch (err) {
                     formEl.innerHTML = '<p style="color:var(--light-text);margin:0;">Не удалось загрузить форму.</p>';
                     console.warn('climb log form', err);

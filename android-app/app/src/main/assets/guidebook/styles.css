@@ -4537,19 +4537,28 @@
             }
         }
 
+        #climbLogDialog .dialog-body {
+            display: flex;
+            flex-direction: column;
+        }
+
         #climbLogDialog .dialog-footer.dialog-footer--log-submit {
             display: flex;
             flex-direction: row;
             flex-wrap: nowrap;
-            justify-content: center;
-            align-items: center;
+            justify-content: stretch;
+            align-items: stretch;
             width: 100%;
             padding-top: 10px;
         }
 
-        #climbLogDialog .dialog-footer.dialog-footer--log-submit .climb-log-add-btn--submit {
-            flex: 0 0 auto;
-            margin: 0;
+        #climbLogDialog .climb-log-submit {
+            width: 100%;
+            min-height: 48px;
+            border-radius: 12px;
+            font-size: 17px;
+            font-weight: 700;
+            justify-content: center;
         }
 
         @media (max-width: 400px) {
@@ -8242,7 +8251,95 @@
         .climb-log-form {
             display: flex;
             flex-direction: column;
-            gap: 14px;
+            flex: 1;
+            gap: 0;
+            min-height: 0;
+        }
+
+        .climb-log-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            min-height: 56px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .climb-log-row-label {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .climb-log-stepper {
+            display: inline-flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .climb-log-step {
+            width: 36px;
+            height: 36px;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: var(--text-color);
+            font-size: 28px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .climb-log-step:disabled {
+            opacity: 0.35;
+        }
+
+        .climb-log-stepper-value {
+            min-width: 1.4em;
+            text-align: center;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .climb-log-row .ascent-style-picker {
+            justify-content: flex-end;
+        }
+
+        .climb-log-row .grade-picker,
+        .climb-log-row .grade-picker--form {
+            width: auto;
+            min-width: 72px;
+            margin: 0;
+        }
+
+        .climb-log-row .grade-picker-toggle {
+            min-height: 0;
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            padding: 0 22px 0 0;
+            font-size: 17px;
+            font-weight: 600;
+            text-align: right;
+        }
+
+        .climb-log-row .grade-picker-toggle:hover {
+            background: transparent;
+        }
+
+        .climb-log-row .grade-picker-dropdown {
+            width: min(280px, 72vw);
+            max-width: none;
+            right: 0;
+            left: auto;
+        }
+
+        .climb-log-date {
+            margin-top: auto;
+            padding-top: 18px;
+            text-align: right;
+            color: var(--light-text);
+            font-size: 14px;
         }
 
         .climb-log-form .climb-log-field {

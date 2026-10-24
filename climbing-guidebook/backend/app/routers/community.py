@@ -197,10 +197,10 @@ def log_ascent(
     db.add(row)
     db.commit()
     db.refresh(row)
-    if climb_type == "route" and payload.status == "send":
+    if payload.status == "send":
         stars = payload.stars
         felt = (payload.felt_grade or "").strip() or None
-        if stars is not None or felt:
+        if climb_type == "route" and (stars is not None or felt):
             vote_stars = stars if stars is not None else 2
             upsert_climb_user_rating(
                 db,
@@ -211,6 +211,29 @@ def log_ascent(
                 stars=int(vote_stars),
                 felt_grade=felt,
             )
+        elif climb_type == "boulder" and (stars is not None or felt):
+            existing = (
+                db.query(ClimbUserRating)
+                .filter(
+                    ClimbUserRating.user_id == current.id,
+                    ClimbUserRating.climb_type == "boulder",
+                    ClimbUserRating.boulder_id == boulder_id,
+                )
+                .first()
+            )
+            if stars is not None:
+                upsert_climb_user_rating(
+                    db,
+                    user_id=current.id,
+                    climb_type=climb_type,
+                    route_id=route_id,
+                    boulder_id=boulder_id,
+                    stars=int(stars),
+                    felt_grade=felt,
+                )
+            elif existing and felt:
+                existing.felt_grade = felt
+                db.commit()
     return row
 
 
