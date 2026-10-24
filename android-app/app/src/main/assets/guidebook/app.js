@@ -7712,6 +7712,10 @@
                 return 12;
             }
 
+            mapBoulderSamePointMeters() {
+                return 1.5;
+            }
+
             mapCoordsDistanceMeters(lat1, lng1, lat2, lng2) {
                 const toRad = (deg) => (Number(deg) * Math.PI) / 180;
                 const dLat = toRad(lat2 - lat1);
@@ -7724,6 +7728,11 @@
             mapCoordsWithinPinSnap(a, b) {
                 if (!a || !b) return false;
                 return this.mapCoordsDistanceMeters(a.lat, a.lng, b.lat, b.lng) <= this.mapPinSnapMeters();
+            }
+
+            mapCoordsWithinBoulderPoint(a, b) {
+                if (!a || !b) return false;
+                return this.mapCoordsDistanceMeters(a.lat, a.lng, b.lat, b.lng) <= this.mapBoulderSamePointMeters();
             }
 
             mapPinCandidateCoords({ exclude = [] } = {}) {
@@ -7778,7 +7787,7 @@
                 };
                 for (let i = 0; i < list.length; i += 1) {
                     for (let j = i + 1; j < list.length; j += 1) {
-                        if (this.mapCoordsWithinPinSnap(list[i].coord, list[j].coord)) union(i, j);
+                        if (this.mapCoordsWithinBoulderPoint(list[i].coord, list[j].coord)) union(i, j);
                     }
                 }
                 const groups = new Map();
@@ -8330,7 +8339,7 @@
                 let match = null;
                 this.mapMarkerIndex.forEach((stored) => {
                     if (stored?.kind !== 'boulder') return;
-                    if (this.mapCoordsWithinPinSnap(coord, { lat: stored.lat, lng: stored.lng })) match = stored;
+                    if (this.mapCoordsWithinBoulderPoint(coord, { lat: stored.lat, lng: stored.lng })) match = stored;
                 });
                 if (!match) return;
                 this._mapBoulderSheetEntry = match;
@@ -10282,7 +10291,9 @@
                     sector_boulder: 'сектор боулдеринга',
                     boulder: 'боулдеринг'
                 };
-                this.updateMapStatus(`Кликните на карте — поставить ${labels[this._mapPinAddKind]}.`);
+                this.updateMapStatus(this._mapPinAddKind === 'boulder'
+                    ? 'Кликните по карте — новая точка. Клик по уже существующей точке боулдера добавит боулдер на неё.'
+                    : `Кликните на карте — поставить ${labels[this._mapPinAddKind]}.`);
             }
 
             catalogPinChoices(kind) {
@@ -10397,10 +10408,11 @@
                     }
                     if (!Number.isFinite(sectorId) || sectorId <= 0) return;
                     this.quickAddBoulderInSector(sectorId);
+                    this._lockBoulderPin = null;
                     const input = document.getElementById('quickBoulderCoordinates');
                     if (input) input.value = loc;
                     const subtitle = document.getElementById('quickBoulderDialogSubtitle');
-                    if (subtitle) subtitle.textContent = 'Точка уже на карте — укажите название и категорию';
+                    if (subtitle) subtitle.textContent = 'Новая точка на карте — укажите название и категорию';
                 }
             }
 
@@ -10425,9 +10437,11 @@
                     title: titles[placeKind] || 'Добавить метку',
                     selectLabel: labels[placeKind] || 'Объект',
                     selectOptions: [{ value: '__new__', label: 'Новый' }, ...choices],
-                    defaultSelectValue: preferred?.value || '__new__',
+                    defaultSelectValue: placeKind === 'boulder' ? '__new__' : (preferred?.value || '__new__'),
                     hideTextInput: true,
-                    hint: 'Новый — создать и поставить в эту точку. Или выберите уже существующий из списка.'
+                    hint: placeKind === 'boulder'
+                        ? 'Новый — отдельная точка в месте клика. Чтобы добавить боулдер на уже существующую точку, нажмите на неё.'
+                        : 'Новый — создать и поставить в эту точку. Или выберите уже существующий из списка.'
                 });
                 if (!pick?.selectValue) return;
                 if (String(pick.selectValue) === '__new__') {
@@ -10437,11 +10451,13 @@
                 const id = Number(pick.selectValue);
                 if (!Number.isFinite(id)) return;
                 const patchKind = placeKind === 'sector_route' || placeKind === 'sector_boulder' ? 'sector' : placeKind;
-                const snapped = this.snapMapPinCoord(lat, lng, {
-                    exclude: [{ kind: patchKind, id }]
-                }) || { lat, lng };
-                lat = snapped.lat;
-                lng = snapped.lng;
+                if (patchKind !== 'boulder') {
+                    const snapped = this.snapMapPinCoord(lat, lng, {
+                        exclude: [{ kind: patchKind, id }]
+                    }) || { lat, lng };
+                    lat = snapped.lat;
+                    lng = snapped.lng;
+                }
                 const headers = { 'Content-Type': 'application/json' };
                 const body = JSON.stringify({ latitude: lat, longitude: lng });
                 try {
