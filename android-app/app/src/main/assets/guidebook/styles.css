@@ -8334,6 +8334,44 @@
             left: auto;
         }
 
+        .climb-log-comment {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .climb-log-comment-label {
+            width: 100%;
+            margin: 0;
+            padding: 16px 0;
+            border: 0;
+            background: transparent;
+            color: var(--text-color);
+            font-size: 17px;
+            font-weight: 600;
+            text-align: left;
+            cursor: text;
+        }
+
+        .climb-log-notes {
+            width: 100%;
+            min-height: 72px;
+            margin: 0 0 12px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: var(--text-color);
+            font: inherit;
+            font-size: 15px;
+            line-height: 1.4;
+            resize: vertical;
+        }
+
+        .climb-log-notes::placeholder {
+            color: var(--light-text);
+        }
+
         .climb-log-date {
             margin-top: auto;
             padding-top: 18px;
