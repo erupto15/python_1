@@ -8726,6 +8726,7 @@
 
             openMapSectorClimbSheet(entry) {
                 const climbs = this.mapClimbsForSheet(entry);
+                const routeSector = !this.isBoulderSector(entry?.id);
                 this.map?.closePopup?.();
                 this.closeMapBoulderSheet();
                 if (!climbs.length) {
@@ -8743,6 +8744,7 @@
                     this.renderCatalog();
                 }
                 this.updateMapMarkers();
+                if (routeSector) this.openMapBoulderSheet(entry);
                 this.syncMapDrillBackBtn();
             }
 
