@@ -282,6 +282,17 @@
             gap: 8px;
         }
 
+        .header-corner-actions .theme-toggle-btn {
+            width: 42px;
+            height: 42px;
+            min-width: 42px;
+            padding: 0;
+        }
+
+        .header-corner-actions .theme-toggle-text {
+            display: none !important;
+        }
+
         .header-corner-btn {
             display: inline-flex;
             align-items: center;
