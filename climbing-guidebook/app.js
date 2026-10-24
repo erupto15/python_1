@@ -18527,8 +18527,8 @@
                             </div>
                         </div>
                         <div class="climb-log-comment">
-                            <button type="button" class="climb-log-comment-label" id="climbLogCommentToggle">Комментарий</button>
-                            <textarea id="climbLogNotes" class="climb-log-notes hidden" maxlength="2000" rows="3" placeholder="Напишите комментарий"></textarea>
+                            <label class="climb-log-comment-label" for="climbLogNotes">Комментарий</label>
+                            <textarea id="climbLogNotes" class="climb-log-notes" maxlength="2000" rows="2" placeholder="Напишите комментарий"></textarea>
                         </div>
                         <div class="climb-log-date">${loggedStamp}</div>
                     `;
@@ -18539,12 +18539,6 @@
                         this.bindAscentStylePicker('redpoint');
                     }
                     this.bindClimbLogTriesStepper();
-                    document.getElementById('climbLogCommentToggle')?.addEventListener('click', () => {
-                        const notes = document.getElementById('climbLogNotes');
-                        if (!notes) return;
-                        notes.classList.remove('hidden');
-                        notes.focus();
-                    });
 
                     const feltNormalize = climbType === 'route' ? normalizeRouteGrade : normalizeBoulderGrade;
                     const feltOptions = climbType === 'route' ? ROUTE_GRADE_OPTIONS : BOULDER_GRADE_OPTIONS;

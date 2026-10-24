@@ -8338,34 +8338,35 @@
             display: flex;
             flex-direction: column;
             align-items: stretch;
+            gap: 8px;
+            padding: 14px 0 12px;
             border-bottom: 1px solid var(--border-color);
         }
 
         .climb-log-comment-label {
-            width: 100%;
             margin: 0;
-            padding: 16px 0;
-            border: 0;
-            background: transparent;
+            padding: 0;
             color: var(--text-color);
             font-size: 17px;
             font-weight: 600;
             text-align: left;
-            cursor: text;
         }
 
         .climb-log-notes {
+            display: block;
             width: 100%;
-            min-height: 72px;
-            margin: 0 0 12px;
-            padding: 0;
-            border: 0;
-            background: transparent;
+            min-height: 64px;
+            margin: 0;
+            padding: 10px 12px;
+            box-sizing: border-box;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--text-color) 7%, transparent);
             color: var(--text-color);
             font: inherit;
             font-size: 15px;
             line-height: 1.4;
-            resize: vertical;
+            resize: none;
         }
 
         .climb-log-notes::placeholder {
