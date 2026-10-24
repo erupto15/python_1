@@ -318,18 +318,6 @@
             transform: scale(0.96);
         }
 
-        #openProfileBtn {
-            display: none;
-        }
-
-        html.tg-mini-app #openProfileBtn {
-            display: inline-flex;
-        }
-
-        html.standalone-app #openProfileBtn {
-            display: inline-flex;
-        }
-
         .profile-vkid-btn {
             width: 100%;
             max-width: 320px;
@@ -2888,17 +2876,17 @@
             min-width: 0;
             min-height: 0;
             border-radius: 50%;
-            background: var(--on-canvas-bg) !important;
-            border: 1px solid var(--on-canvas-border) !important;
-            box-shadow: var(--on-canvas-shadow) !important;
-            color: var(--text-color);
+            background: var(--primary-color) !important;
+            border: 1px solid color-mix(in srgb, #fff 22%, var(--primary-color)) !important;
+            box-shadow: 0 6px 18px rgba(232, 71, 42, 0.38) !important;
+            color: #fff;
         }
 
         .catalog-route-nav-btn:hover,
         .catalog-route-nav-btn:focus-visible {
-            background: color-mix(in srgb, var(--primary-color) 12%, var(--on-canvas-bg)) !important;
-            border-color: color-mix(in srgb, var(--primary-color) 45%, var(--on-canvas-border)) !important;
-            color: var(--text-color);
+            background: var(--tg-blue-hover) !important;
+            border-color: var(--tg-blue-hover) !important;
+            color: #fff;
             transform: translateY(-1px);
         }
 
@@ -5925,27 +5913,27 @@
             justify-content: center;
             margin: 0;
             padding: 0;
-            border: 1px solid var(--on-canvas-border);
+            border: 1px solid color-mix(in srgb, #fff 22%, var(--primary-color));
             border-radius: 50%;
-            background: var(--on-canvas-bg);
-            color: var(--text-color);
+            background: var(--primary-color);
+            color: #fff;
             font-size: 23px;
             line-height: 1;
             cursor: pointer;
             pointer-events: auto;
             touch-action: manipulation;
-            box-shadow: var(--on-canvas-shadow);
+            box-shadow: 0 6px 18px rgba(232, 71, 42, 0.38);
             transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
         }
 
         .map-navigate-btn:hover {
-            background: color-mix(in srgb, var(--primary-color) 12%, var(--on-canvas-bg));
+            background: var(--tg-blue-hover);
             transform: translateY(-1px);
         }
 
         .map-navigate-btn.is-active {
-            background: color-mix(in srgb, var(--primary-color) 16%, var(--on-canvas-bg));
-            box-shadow: 0 0 0 4px var(--accent-soft), var(--on-canvas-shadow);
+            background: var(--tg-blue-active);
+            box-shadow: 0 0 0 4px var(--accent-soft), 0 6px 18px rgba(232, 71, 42, 0.38);
         }
 
         .map-navigate-btn.is-loading .map-navigate-icon {
@@ -5957,28 +5945,18 @@
             align-items: center;
             justify-content: center;
             line-height: 0;
+            color: #fff;
         }
 
         .map-navigate-icon svg {
-            width: 25px;
-            height: 25px;
+            width: 26px;
+            height: 26px;
             display: block;
             overflow: visible;
-            filter:
-                drop-shadow(0 0 0.6px rgba(255, 255, 255, 0.55))
-                drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
         }
 
-        .map-navigate-icon .nav-dia-light {
-            fill: var(--nav-dia-light);
-        }
-
-        .map-navigate-icon .nav-dia-dark {
-            fill: var(--nav-dia-dark);
-        }
-
-        .map-navigate-icon .nav-dia-arrow {
-            fill: var(--nav-dia-arrow);
+        .map-guide-nav-btn .map-navigate-icon {
+            color: #fff;
         }
 
         .map-guide-nav-btn .map-navigate-icon svg {
@@ -6045,9 +6023,9 @@
         }
 
         .map-popup-control-btn--navigate {
-            border: 1px solid var(--on-canvas-border);
-            background: var(--on-canvas-bg);
-            color: var(--text-color);
+            border: 1px solid color-mix(in srgb, #fff 22%, var(--primary-color));
+            background: var(--primary-color);
+            color: #fff;
         }
 
         .map-popup-control-btn .map-locate-pin-icon svg,

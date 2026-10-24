@@ -720,7 +720,7 @@
 
         /** Кнопка «Моё местоположение»: классическая метка-pin с точкой внутри. */
         const MAP_LOCATE_PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.15 10.65 20.4 3.1a.8.8 0 0 1 1.05 1.05L13.9 21.4a.8.8 0 0 1-1.48-.08l-2.18-7.56-7.56-2.18a.8.8 0 0 1-.08-1.48l.55.55Zm8.58 1.62 1.66 5.75 5.33-12.17-12.17 5.33 5.18 1.49Z"/></svg>';
-        const MAP_NAVIGATE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path class="nav-dia-light" d="M12 2.1 21.9 12 2.1 12 12 2.1z"/><path class="nav-dia-dark" d="M2.1 12 21.9 12 12 21.9z"/><path class="nav-dia-arrow" d="M8.1 11.05h5.05L11.2 9.1l1.35-1.35 4.85 4.85-4.85 4.85-1.35-1.35 1.95-1.95H8.1z"/></svg>';
+        const MAP_NAVIGATE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3.4 18.5 20.6 12 13.1 5.5 20.6Z" transform="rotate(40 12 12)"/></svg>';
 
         function buildMapPopupControlsHtml(kind, entityId) {
             const id = String(entityId);
