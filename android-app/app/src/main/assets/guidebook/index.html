@@ -2,7 +2,25 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <script>
+        (function () {
+            var blockPagePinch = function (e) {
+                var el = e.target;
+                if (el && el.closest && el.closest('.leaflet-container')) return;
+                e.preventDefault();
+            };
+            document.addEventListener('gesturestart', blockPagePinch, { passive: false });
+            document.addEventListener('gesturechange', blockPagePinch, { passive: false });
+            document.addEventListener('gestureend', blockPagePinch, { passive: false });
+            document.addEventListener('touchmove', function (e) {
+                if (!e.touches || e.touches.length < 2) return;
+                var el = e.target;
+                if (el && el.closest && el.closest('.leaflet-container, .photo-wrap')) return;
+                e.preventDefault();
+            }, { passive: false });
+        })();
+    </script>
     <title>6А9А — скалолазные районы и маршруты</title>
     <script>
     (function () {
