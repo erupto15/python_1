@@ -184,6 +184,14 @@ def log_ascent(
         raise HTTPException(status_code=400, detail="ascent_style applies only to sends")
     if payload.status == "attempt":
         style = None
+    tries = payload.tries
+    if payload.status == "send":
+        if climb_type == "boulder" and style == "onsight":
+            raise HTTPException(status_code=400, detail="Онсайт доступен только для трасс")
+        if style in ("onsight", "flash"):
+            tries = 1
+        elif style == "redpoint":
+            tries = max(2, int(tries or 1))
     row = ClimbAscent(
         user_id=current.id,
         climb_type=climb_type,
@@ -191,7 +199,7 @@ def log_ascent(
         boulder_id=boulder_id,
         status=payload.status,
         ascent_style=style,
-        tries=payload.tries,
+        tries=tries,
         notes=(payload.notes or "").strip() or None,
     )
     db.add(row)
