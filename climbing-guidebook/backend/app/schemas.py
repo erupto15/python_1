@@ -564,6 +564,12 @@ class ClimbLikeState(BaseModel):
     liked: bool
 
 
+class ClimbLikeItem(BaseModel):
+    climb_type: Literal["route", "boulder"]
+    route_id: Optional[int] = None
+    boulder_id: Optional[int] = None
+
+
 class MyAscentSummary(BaseModel):
     sent_route_ids: list[int] = Field(default_factory=list)
     sent_boulder_ids: list[int] = Field(default_factory=list)

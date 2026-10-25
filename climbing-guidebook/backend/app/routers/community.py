@@ -313,6 +313,45 @@ def _like_query(db: Session, climb_type: str, route_id: Optional[int], boulder_i
     return q.filter(ClimbLike.boulder_id == boulder_id)
 
 
+@router.get("/likes", response_model=list[schemas.ClimbLikeItem])
+def list_my_likes(
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[schemas.ClimbLikeItem]:
+    rows = (
+        db.query(ClimbLike)
+        .filter(ClimbLike.user_id == current.id)
+        .order_by(ClimbLike.created_at.desc(), ClimbLike.id.desc())
+        .all()
+    )
+    items: list[schemas.ClimbLikeItem] = []
+    seen: set[tuple[str, int]] = set()
+    for row in rows:
+        if row.climb_type == "route" and row.route_id:
+            route = db.get(Route, row.route_id)
+            if route is None or route.deleted_at is not None:
+                continue
+            key = ("route", int(row.route_id))
+        elif row.climb_type == "boulder" and row.boulder_id:
+            boulder = db.get(Boulder, row.boulder_id)
+            if boulder is None or boulder.deleted_at is not None:
+                continue
+            key = ("boulder", int(row.boulder_id))
+        else:
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append(
+            schemas.ClimbLikeItem(
+                climb_type=key[0],
+                route_id=key[1] if key[0] == "route" else None,
+                boulder_id=key[1] if key[0] == "boulder" else None,
+            )
+        )
+    return items
+
+
 @router.put("/likes", response_model=schemas.ClimbLikeState)
 def toggle_like(
     payload: schemas.ClimbLikeToggle,

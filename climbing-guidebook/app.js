@@ -406,6 +406,10 @@
                 return true;
             }
 
+            if (window.app?.closeAppMenu?.()) {
+                return true;
+            }
+
             if (window.app?.closeMapClimbInfoSheet?.()) {
                 return true;
             }
@@ -648,7 +652,8 @@
                 tg.BackButton.show();
             } else if (overlayTab) {
                 tg.BackButton.show();
-            } else if (document.documentElement.classList.contains('catalog-assistant-search-open')
+            } else if (document.documentElement.classList.contains('app-menu-open')
+                || document.documentElement.classList.contains('catalog-assistant-search-open')
                 || document.documentElement.classList.contains('search-screen-open')) {
                 tg.BackButton.show();
             } else if (app && app.catalog && app.catalog.view !== 'areas') {
@@ -836,6 +841,11 @@
             if (text) {
                 text.textContent = isLight ? 'Светлая' : 'Тёмная';
             }
+            const menuIcon = document.getElementById('appMenuThemeIcon');
+            const menuLabel = document.getElementById('appMenuThemeLabel');
+            menuIcon?.querySelector('.app-menu-theme-sun')?.classList.toggle('hidden', isLight);
+            menuIcon?.querySelector('.app-menu-theme-moon')?.classList.toggle('hidden', !isLight);
+            if (menuLabel) menuLabel.textContent = isLight ? 'Тёмная тема' : 'Светлая тема';
         }
 
         function applyAppTheme(theme, { persist = false } = {}) {
@@ -8955,6 +8965,10 @@
                 const visible = (this._mapBoulderSheetGrade
                     ? stack.filter((b) => String(b.grade || '').trim() === this._mapBoulderSheetGrade)
                     : [...stack])
+                    .filter((b) => this.climbPassesGuideFilters(
+                        { id: b.id, grade: b.grade },
+                        b.climbType || 'boulder'
+                    ))
                     .sort((a, b) => this.mapGradeSortKey(a.grade) - this.mapGradeSortKey(b.grade)
                         || String(a.title || '').localeCompare(String(b.title || ''), 'ru'));
                 list.replaceChildren();
@@ -9018,6 +9032,14 @@
                     item.appendChild(copy);
                     list.appendChild(item);
                 });
+                if (!visible.length) {
+                    const empty = document.createElement('p');
+                    empty.className = 'app-menu-empty';
+                    empty.textContent = this.guideFiltersActive()
+                        ? 'Нет трасс по выбранным фильтрам.'
+                        : (stack.length ? 'Ничего не найдено.' : 'В этой точке пока нет трасс.');
+                    list.appendChild(empty);
+                }
             }
 
             buildMapPopupHtml(entry) {
@@ -12624,6 +12646,181 @@
                 return true;
             }
 
+            guideFilters() {
+                if (!this._guideFilters) {
+                    this._guideFilters = {
+                        discipline: 'all',
+                        gradeFrom: '',
+                        gradeTo: '',
+                        hideSent: false
+                    };
+                }
+                return this._guideFilters;
+            }
+
+            guideFiltersActive() {
+                const filters = this.guideFilters();
+                return filters.discipline !== 'all'
+                    || !!filters.gradeFrom
+                    || !!filters.gradeTo
+                    || !!filters.hideSent;
+            }
+
+            climbPassesGuideFilters(climb, climbType) {
+                const filters = this.guideFilters();
+                const kind = climbType === 'route' ? 'route' : 'boulder';
+                if (filters.discipline === 'route' && kind !== 'route') return false;
+                if (filters.discipline === 'boulder' && kind !== 'boulder') return false;
+                if (filters.hideSent && this.hasUserSent(kind, climb?.id)) return false;
+                const key = this.mapGradeSortKey(climb?.grade);
+                if (filters.gradeFrom && key < this.mapGradeSortKey(filters.gradeFrom)) return false;
+                if (filters.gradeTo && key > this.mapGradeSortKey(filters.gradeTo)) return false;
+                return true;
+            }
+
+            syncGuideFiltersMark() {
+                const active = this.guideFiltersActive();
+                document.getElementById('appMenuBtn')?.classList.toggle('is-filtering', active);
+                document.getElementById('appMenuFiltersBtn')?.classList.toggle('is-on', active);
+            }
+
+            applyGuideFiltersChange() {
+                this.syncGuideFiltersMark();
+                this.renderCatalog();
+                if (this._mapBoulderSheetEntry) this.renderMapBoulderSheet();
+                const favorites = document.getElementById('favoritesDialog');
+                if (favorites && !favorites.classList.contains('hidden')) {
+                    void this.renderFavoritesList();
+                }
+            }
+
+            fillGuideFilterGrades() {
+                const from = document.getElementById('guideFilterGradeFrom');
+                const to = document.getElementById('guideFilterGradeTo');
+                if (!from || !to || from.dataset.ready === '1') return;
+                const seenKeys = new Set();
+                const grades = [];
+                [...ROUTE_GRADE_OPTIONS, ...BOULDER_GRADE_OPTIONS].forEach((grade) => {
+                    if (!grade || isProjectGrade(grade)) return;
+                    const key = this.mapGradeSortKey(grade);
+                    if (seenKeys.has(key)) return;
+                    seenKeys.add(key);
+                    grades.push(grade);
+                });
+                grades.sort((a, b) => this.mapGradeSortKey(a) - this.mapGradeSortKey(b));
+                const options = ['<option value="">Любая</option>']
+                    .concat(grades.map((grade) => `<option value="${this.escapeHtml(grade)}">${this.escapeHtml(formatGradeLabel(grade))}</option>`));
+                from.innerHTML = options.join('');
+                to.innerHTML = options.join('');
+                from.dataset.ready = '1';
+            }
+
+            syncGuideFiltersForm() {
+                const filters = this.guideFilters();
+                this.fillGuideFilterGrades();
+                document.querySelectorAll('[data-guide-discipline]').forEach((btn) => {
+                    const on = btn.dataset.guideDiscipline === filters.discipline;
+                    btn.classList.toggle('active', on);
+                    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                });
+                const from = document.getElementById('guideFilterGradeFrom');
+                const to = document.getElementById('guideFilterGradeTo');
+                const hideSent = document.getElementById('guideFilterHideSent');
+                if (from) from.value = filters.gradeFrom;
+                if (to) to.value = filters.gradeTo;
+                if (hideSent) hideSent.checked = !!filters.hideSent;
+            }
+
+            toggleAppMenu(force) {
+                const root = document.documentElement;
+                const open = typeof force === 'boolean'
+                    ? force
+                    : !root.classList.contains('app-menu-open');
+                root.classList.toggle('app-menu-open', open);
+                document.getElementById('appMenuPanel')?.classList.toggle('hidden', !open);
+                document.getElementById('appMenuBtn')?.setAttribute('aria-expanded', open ? 'true' : 'false');
+                if (typeof window.syncTelegramMiniAppUi === 'function') window.syncTelegramMiniAppUi();
+                return open;
+            }
+
+            closeAppMenu() {
+                if (!document.documentElement.classList.contains('app-menu-open')) return false;
+                this.toggleAppMenu(false);
+                return true;
+            }
+
+            openSearchFromMenu() {
+                this.closeAppMenu();
+                const catalogActive = !!document.getElementById('catalog')?.classList.contains('active');
+                const input = document.getElementById(catalogActive ? 'catalogSearch' : 'globalSearch')
+                    || document.getElementById('catalogSearch')
+                    || document.getElementById('globalSearch');
+                if (!input) return;
+                input.focus();
+                if (!document.documentElement.classList.contains('search-screen-open')) {
+                    this.openSearchScreen(input.id === 'globalSearch' ? 'global' : 'catalog');
+                }
+            }
+
+            openGuideFilters() {
+                this.closeAppMenu();
+                this.syncGuideFiltersForm();
+                this.showDialog('guideFiltersDialog');
+            }
+
+            async openFavorites() {
+                this.closeAppMenu();
+                const list = document.getElementById('favoritesList');
+                if (list) list.innerHTML = '<div class="empty-state"><p>Загрузка…</p></div>';
+                this.showDialog('favoritesDialog');
+                await this.renderFavoritesList();
+            }
+
+            async renderFavoritesList() {
+                const list = document.getElementById('favoritesList');
+                if (!list) return;
+                if (!this.canUseClimbLogbook()) {
+                    list.innerHTML = `<div class="empty-state"><p>${this.escapeHtml(authTelegramGateMessage())}</p></div>`;
+                    return;
+                }
+                let rows = [];
+                try {
+                    rows = await apiFetch('/api/likes');
+                } catch (err) {
+                    list.innerHTML = `<div class="empty-state"><p>${this.escapeHtml(err?.message || 'Не удалось загрузить избранное')}</p></div>`;
+                    return;
+                }
+                const sectors = getSectors();
+                const areas = getAreas();
+                const items = (Array.isArray(rows) ? rows : []).map((row) => {
+                    const kind = row?.climb_type === 'boulder' ? 'boulder' : 'route';
+                    const id = Number(kind === 'route' ? row.route_id : row.boulder_id);
+                    const climb = (kind === 'route' ? getRoutes() : getBoulders())
+                        .find((item) => Number(item.id) === id)
+                        || { id, name: kind === 'route' ? 'Трасса' : 'Боулдер', grade: '' };
+                    if (!this.climbPassesGuideFilters(climb, kind)) return null;
+                    const sector = sectors.find((item) => Number(item.id) === Number(climb.sectorId));
+                    const area = areas.find((item) => Number(item.id) === Number(sector?.areaId || climb.areaId));
+                    const place = [sector?.name, area?.name].filter(Boolean).join(' · ');
+                    return { kind, id, climb, place };
+                }).filter(Boolean);
+                if (!items.length) {
+                    list.innerHTML = `<div class="empty-state"><p>${this.guideFiltersActive()
+                        ? 'Нет трасс по выбранным фильтрам.'
+                        : 'Пока пусто. Отметьте трассу сердечком в карточке.'}</p></div>`;
+                    return;
+                }
+                list.innerHTML = items.map((item) => `
+                    <button type="button" class="app-favorites-row" data-fav-type="${item.kind}" data-fav-id="${item.id}">
+                        <span class="${gradeBadgeClassName(item.climb.grade)}">${this.escapeHtml(formatGradeLabel(item.climb.grade))}</span>
+                        <span class="app-favorites-copy">
+                            <span class="app-favorites-name">${this.escapeHtml(item.climb.name || (item.kind === 'route' ? 'Трасса' : 'Боулдер'))}</span>
+                            ${item.place ? `<span class="app-favorites-place">${this.escapeHtml(item.place)}</span>` : ''}
+                        </span>
+                    </button>
+                `).join('');
+            }
+
             clearAllSearchDropdowns({ clearInput = false, refreshCatalog = false } = {}) {
                 this.clearSearchDropdown({ clearInput, which: 'global' });
                 this.clearSearchDropdown({ clearInput, which: 'catalog' });
@@ -13322,6 +13519,8 @@
                             b.description
                         ));
                     }
+                    rs = rs.filter((r) => this.climbPassesGuideFilters(r, 'route'));
+                    bs = bs.filter((b) => this.climbPassesGuideFilters(b, 'boulder'));
                     const blocks = [];
                     const canReorderRoutes = this.isAdmin() && !APP_BOULDER_ONLY && rs.length > 1;
                     if (!APP_BOULDER_ONLY && rs.length) {
@@ -13384,9 +13583,11 @@
                         });
                     }
                     if (!bs.length && (!rs.length || APP_BOULDER_ONLY)) {
-                        const msg = APP_BOULDER_ONLY
-                            ? 'В секторе пока нет боулдеров.'
-                            : 'В секторе пока нет трасс и боулдеров.';
+                        const msg = this.guideFiltersActive()
+                            ? 'Нет трасс по выбранным фильтрам.'
+                            : (APP_BOULDER_ONLY
+                                ? 'В секторе пока нет боулдеров.'
+                                : 'В секторе пока нет трасс и боулдеров.');
                         blocks.push(`<div class="empty-state"><p>${msg}</p></div>`);
                     }
                     list.innerHTML = blocks.join('');
@@ -14866,6 +15067,74 @@
                         window.handleGuidebookSystemBack();
                     }
                 });
+                document.getElementById('appMenu')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const item = e.target.closest('[data-app-menu]');
+                    if (item) {
+                        e.preventDefault();
+                        const action = item.dataset.appMenu;
+                        if (action === 'search') this.openSearchFromMenu();
+                        else if (action === 'favorites') void this.openFavorites();
+                        else if (action === 'theme') {
+                            toggleAppTheme();
+                            if (window.isTelegramMiniApp && window.isTelegramMiniApp()) {
+                                try {
+                                    const tg = window.Telegram?.WebApp;
+                                    const bg = getComputedStyle(document.documentElement)
+                                        .getPropertyValue('--background-color')
+                                        .trim();
+                                    if (tg && bg) {
+                                        tg.setHeaderColor?.(bg);
+                                        tg.setBackgroundColor?.(bg);
+                                    }
+                                } catch (_) { /* ignore */ }
+                            }
+                        }
+                        else if (action === 'filters') this.openGuideFilters();
+                        return;
+                    }
+                    if (e.target.closest('#appMenuBtn')) {
+                        e.preventDefault();
+                        this.toggleAppMenu();
+                    }
+                });
+                document.getElementById('favoritesList')?.addEventListener('click', (e) => {
+                    const row = e.target.closest('[data-fav-type]');
+                    if (!row) return;
+                    const id = Number(row.dataset.favId);
+                    const kind = row.dataset.favType === 'boulder' ? 'boulder' : 'route';
+                    if (!Number.isFinite(id)) return;
+                    this.hideDialog('favoritesDialog');
+                    void this.showClimbDetailDialog(kind, id);
+                });
+                document.querySelectorAll('[data-guide-discipline]').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        this.guideFilters().discipline = btn.dataset.guideDiscipline || 'all';
+                        this.syncGuideFiltersForm();
+                        this.applyGuideFiltersChange();
+                    });
+                });
+                document.getElementById('guideFilterGradeFrom')?.addEventListener('change', (e) => {
+                    this.guideFilters().gradeFrom = e.target.value || '';
+                    this.applyGuideFiltersChange();
+                });
+                document.getElementById('guideFilterGradeTo')?.addEventListener('change', (e) => {
+                    this.guideFilters().gradeTo = e.target.value || '';
+                    this.applyGuideFiltersChange();
+                });
+                document.getElementById('guideFilterHideSent')?.addEventListener('change', (e) => {
+                    this.guideFilters().hideSent = !!e.target.checked;
+                    this.applyGuideFiltersChange();
+                });
+                document.getElementById('guideFiltersResetBtn')?.addEventListener('click', () => {
+                    this._guideFilters = null;
+                    this.syncGuideFiltersForm();
+                    this.applyGuideFiltersChange();
+                });
+                document.getElementById('guideFiltersDoneBtn')?.addEventListener('click', () => {
+                    this.hideDialog('guideFiltersDialog');
+                });
+                this.syncGuideFiltersMark();
                 document.getElementById('themeToggleBtn')?.addEventListener('click', () => {
                     const next = toggleAppTheme();
                     if (window.isTelegramMiniApp && window.isTelegramMiniApp()) {
@@ -15271,8 +15540,17 @@
                     }
                     this._closeAllGradePickers();
                 });
+                document.addEventListener('click', (e) => {
+                    if (!document.documentElement.classList.contains('app-menu-open')) return;
+                    if (e.target.closest && e.target.closest('#appMenu')) return;
+                    this.closeAppMenu();
+                });
                 document.addEventListener('keydown', (e) => {
                     if (e.key === 'Escape') {
+                        if (this.closeAppMenu()) {
+                            e.preventDefault();
+                            return;
+                        }
                         if (typeof window.closeTopTelegramOverlay === 'function' && window.closeTopTelegramOverlay()) {
                             e.preventDefault();
                             return;

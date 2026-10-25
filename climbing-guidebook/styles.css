@@ -10157,3 +10157,179 @@
             max-height: none;
             overflow: auto;
         }
+
+        .header-corner-actions .theme-toggle-btn {
+            display: none !important;
+        }
+
+        .app-menu {
+            position: relative;
+        }
+
+        html.app-menu-open .header-corner-actions {
+            z-index: 90;
+        }
+
+        .app-menu-btn {
+            position: relative;
+            background: #2c2c30;
+            color: #fff;
+            border-color: transparent;
+        }
+
+        html.theme-light .app-menu-btn {
+            background: #f4f4f6;
+            color: #1c1c1e;
+        }
+
+        .app-menu-dots {
+            display: block;
+            width: 22px;
+            height: 22px;
+            fill: currentColor;
+        }
+
+        .app-menu-btn.is-filtering::after {
+            content: "";
+            position: absolute;
+            top: 7px;
+            right: 7px;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .app-menu-panel {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            z-index: 91;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            width: min(280px, calc(100vw - 32px));
+            padding: 8px;
+            border-radius: 22px;
+            background: color-mix(in srgb, var(--background-color) 82%, #000);
+            color: var(--text-color);
+            border: 1px solid color-mix(in srgb, var(--text-color) 12%, transparent);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(18px);
+        }
+
+        html.theme-light .app-menu-panel {
+            background: color-mix(in srgb, #fff 88%, var(--background-color));
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+        }
+
+        .app-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            min-height: 52px;
+            padding: 6px 10px;
+            border: 0;
+            border-radius: 16px;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            font-size: 17px;
+            font-weight: 600;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .app-menu-item:hover,
+        .app-menu-item:focus-visible {
+            background: color-mix(in srgb, var(--text-color) 8%, transparent);
+            outline: none;
+        }
+
+        .app-menu-item.is-on .app-menu-ico {
+            background: var(--text-color);
+            color: var(--background-color);
+        }
+
+        .app-menu-ico {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 36px;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: color-mix(in srgb, var(--text-color) 12%, transparent);
+            color: var(--text-color);
+        }
+
+        .app-menu-ico svg {
+            display: block;
+            width: 18px;
+            height: 18px;
+        }
+
+        .app-filters-body {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .app-filter-discipline {
+            display: flex;
+            gap: 8px;
+        }
+
+        .app-filter-discipline .filter-btn {
+            flex: 1 1 0;
+        }
+
+        .app-filters-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .app-favorites-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .app-favorites-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            background: color-mix(in srgb, var(--text-color) 5%, transparent);
+            color: inherit;
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .app-favorites-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .app-favorites-name {
+            font-weight: 600;
+        }
+
+        .app-favorites-place,
+        .app-menu-empty {
+            color: var(--light-text);
+            font-size: 14px;
+        }
+
+        .app-menu-empty {
+            margin: 12px 8px;
+        }

@@ -304,6 +304,37 @@
                             <path fill="currentColor" d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/>
                         </svg>
                     </button>
+                    <div class="app-menu" id="appMenu">
+                        <button type="button" class="header-corner-btn app-menu-btn" id="appMenuBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="appMenuPanel" title="Меню" aria-label="Меню">
+                            <svg class="app-menu-dots" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <circle cx="12" cy="5.5" r="2.15"/>
+                                <circle cx="6.2" cy="12" r="2.15"/>
+                                <circle cx="17.8" cy="12" r="2.15"/>
+                                <circle cx="12" cy="18.5" r="2.15"/>
+                            </svg>
+                        </button>
+                        <div class="app-menu-panel hidden" id="appMenuPanel" role="menu" aria-label="Меню">
+                            <button type="button" class="app-menu-item" data-app-menu="search" role="menuitem">
+                                <span class="app-menu-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/></svg></span>
+                                <span>Поиск</span>
+                            </button>
+                            <button type="button" class="app-menu-item" data-app-menu="favorites" role="menuitem">
+                                <span class="app-menu-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.2s-6.6-4.1-6.6-8.5a3.7 3.7 0 0 1 6.6-2.2 3.7 3.7 0 0 1 6.6 2.2c0 4.4-6.6 8.5-6.6 8.5z"/></svg></span>
+                                <span>Избранное</span>
+                            </button>
+                            <button type="button" class="app-menu-item" data-app-menu="theme" id="appMenuThemeBtn" role="menuitem">
+                                <span class="app-menu-ico" id="appMenuThemeIcon" aria-hidden="true">
+                                    <svg class="app-menu-theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3.4"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18"/></svg>
+                                    <svg class="app-menu-theme-moon hidden" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 3.2a8.2 8.2 0 1 0 5.3 12.6A7 7 0 0 1 15.5 3.2z"/></svg>
+                                </span>
+                                <span id="appMenuThemeLabel">Светлая тема</span>
+                            </button>
+                            <button type="button" class="app-menu-item" data-app-menu="filters" id="appMenuFiltersBtn" role="menuitem">
+                                <span class="app-menu-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="2.2" fill="currentColor"/><circle cx="15" cy="12" r="2.2" fill="currentColor"/><circle cx="10" cy="17" r="2.2" fill="currentColor"/></svg></span>
+                                <span>Фильтры</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div class="header-brand">
                     <h1 class="site-logo" title="6А9А">
@@ -710,6 +741,52 @@
                 <button type="button" class="btn btn-secondary" data-map-climb-info-action="navigate">Маршрут</button>
             </div>
         </section>
+    </div>
+
+    <div class="dialog-overlay hidden" id="favoritesDialog" style="z-index: 996;">
+        <div class="dialog-content">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" data-close-dialog="favoritesDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
+                <div class="dialog-header-text">
+                    <div class="dialog-title">Избранное</div>
+                    <div class="dialog-subtitle">Трассы, отмеченные сердечком</div>
+                </div>
+            </div>
+            <div class="dialog-body">
+                <div id="favoritesList" class="app-favorites-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dialog-overlay hidden" id="guideFiltersDialog" style="z-index: 996;">
+        <div class="dialog-content">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" data-close-dialog="guideFiltersDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
+                <div class="dialog-header-text">
+                    <div class="dialog-title">Фильтры</div>
+                    <div class="dialog-subtitle">Списки трасс и избранное</div>
+                </div>
+            </div>
+            <div class="dialog-body app-filters-body">
+                <div class="app-filter-discipline" role="group" aria-label="Дисциплина">
+                    <button type="button" class="filter-btn active" data-guide-discipline="all">Все</button>
+                    <button type="button" class="filter-btn" data-guide-discipline="route">Трудность</button>
+                    <button type="button" class="filter-btn" data-guide-discipline="boulder">Боулдеринг</button>
+                </div>
+                <label class="auth-label" for="guideFilterGradeFrom">Категория от</label>
+                <select class="form-select" id="guideFilterGradeFrom"></select>
+                <label class="auth-label" for="guideFilterGradeTo">Категория до</label>
+                <select class="form-select" id="guideFilterGradeTo"></select>
+                <label class="filter-toggle-label" for="guideFilterHideSent">
+                    <input type="checkbox" id="guideFilterHideSent">
+                    <span>Скрыть пройденные</span>
+                </label>
+                <div class="app-filters-actions">
+                    <button type="button" class="btn btn-ghost" id="guideFiltersResetBtn">Сбросить</button>
+                    <button type="button" class="btn btn-primary" id="guideFiltersDoneBtn">Готово</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="dialog-overlay hidden" id="profileSendsDialog" style="z-index: 997;">
