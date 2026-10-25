@@ -2942,9 +2942,14 @@
             box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28) !important;
         }
 
+        .catalog-area-card > .catalog-area-card-nav .catalog-route-nav-btn .map-navigate-icon {
+            color: #111;
+        }
+
         .catalog-area-card > .catalog-area-card-nav .catalog-route-nav-btn .map-navigate-icon svg {
             width: 20px;
             height: 20px;
+            fill: currentColor;
         }
 
         .catalog-row:hover {
