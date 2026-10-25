@@ -18904,6 +18904,7 @@
                 const sendsEl = document.getElementById('climbDetailCommunitySends');
                 if (!panel || !statsEl) return;
                 panel.classList.remove('hidden');
+                sendsEl?.classList.remove('hidden');
                 statsEl.textContent = 'Загрузка…';
                 if (sendsEl) sendsEl.innerHTML = '';
                 try {
