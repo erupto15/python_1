@@ -10270,26 +10270,208 @@
             height: 18px;
         }
 
+        .app-filter-screen .dialog-title {
+            font-size: 34px;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+        }
+
         .app-filters-body {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
+            padding-bottom: 8px;
         }
 
-        .app-filter-discipline {
+        .app-filter-grade-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+            font-size: 20px;
+            font-weight: 650;
+        }
+
+        .app-filter-grade-pills {
             display: flex;
             gap: 8px;
         }
 
-        .app-filter-discipline .filter-btn {
-            flex: 1 1 0;
+        .app-filter-grade-pills span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 64px;
+            min-height: 40px;
+            padding: 6px 10px;
+            border-radius: 8px;
+            background: #2a2a2e;
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
         }
 
-        .app-filters-actions {
+        html.theme-light .app-filter-grade-pills span {
+            background: #1c1c1e;
+        }
+
+        .app-filter-range {
+            position: relative;
+            height: 40px;
+            margin: 0 4px 18px;
+        }
+
+        .app-filter-range-track,
+        .app-filter-range-fill {
+            position: absolute;
+            top: 18px;
+            height: 4px;
+            border-radius: 999px;
+        }
+
+        .app-filter-range-track {
+            left: 14px;
+            right: 14px;
+            background: #3a3a3e;
+        }
+
+        .app-filter-range-fill {
+            background: #3ddc84;
+        }
+
+        .app-filter-range input[type="range"] {
+            position: absolute;
+            left: 0;
+            top: 6px;
+            width: 100%;
+            margin: 0;
+            background: none;
+            pointer-events: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .app-filter-range input[type="range"]::-webkit-slider-runnable-track {
+            height: 4px;
+            background: transparent;
+        }
+
+        .app-filter-range input[type="range"]::-webkit-slider-thumb {
+            pointer-events: auto;
+            -webkit-appearance: none;
+            width: 28px;
+            height: 28px;
+            margin-top: -12px;
+            border: 0;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+        }
+
+        .app-filter-section-title {
+            margin: 8px 0 0;
+            font-size: 20px;
+            font-weight: 650;
+        }
+
+        .app-filter-node--sector {
+            margin-left: 12px;
+        }
+
+        .app-filter-row {
+            position: relative;
             display: flex;
-            justify-content: flex-end;
+            align-items: center;
             gap: 8px;
-            margin-top: 8px;
+            min-height: 68px;
+            padding: 10px 52px 18px 2px;
+            border-bottom: 1px solid color-mix(in srgb, var(--text-color) 14%, transparent);
+            cursor: pointer;
+        }
+
+        .app-filter-row--leaf {
+            min-height: 52px;
+            padding-bottom: 10px;
+            cursor: default;
+        }
+
+        .app-filter-name {
+            font-size: 17px;
+            font-weight: 600;
+        }
+
+        .app-filter-grade-note {
+            color: var(--light-text);
+            font-size: 14px;
+        }
+
+        .app-filter-arrow {
+            position: absolute;
+            right: 16px;
+            bottom: 4px;
+            width: 14px;
+            height: 14px;
+            color: #8e8e93;
+            pointer-events: none;
+        }
+
+        .app-filter-arrow svg {
+            display: block;
+            width: 14px;
+            height: 14px;
+        }
+
+        .app-filter-node.is-open > .app-filter-row .app-filter-arrow svg {
+            transform: rotate(180deg);
+        }
+
+        .app-filter-check {
+            position: absolute;
+            top: 14px;
+            right: 12px;
+            display: flex;
+            margin: 0;
+        }
+
+        .app-filter-check input {
+            width: 22px;
+            height: 22px;
+            margin: 0;
+            border: 2px solid #8e8e93;
+            border-radius: 5px;
+            background: transparent;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        .app-filter-check input:checked {
+            border-color: #fff;
+            background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.2 6.4 11l6.1-6.2' fill='none' stroke='%23111' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 14px 14px no-repeat;
+        }
+
+        .app-filter-screen .app-filters-actions {
+            border-top: 0;
+            background: linear-gradient(to top, var(--card-bg) 70%, transparent);
+        }
+
+        .app-filter-find {
+            width: 100%;
+            min-height: 52px;
+            border: 0;
+            border-radius: 16px;
+            background: #fff;
+            color: #111;
+            font: inherit;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+        }
+
+        html.theme-light .app-filter-find {
+            background: #111;
+            color: #fff;
         }
 
         .app-favorites-list {

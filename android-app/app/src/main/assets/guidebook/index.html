@@ -759,32 +759,49 @@
     </div>
 
     <div class="dialog-overlay hidden" id="guideFiltersDialog" style="z-index: 996;">
-        <div class="dialog-content">
+        <div class="dialog-content app-filter-screen">
             <div class="dialog-header dialog-header--with-back">
                 <button type="button" class="overlay-screen-back btn btn-ghost btn-small" data-close-dialog="guideFiltersDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                 <div class="dialog-header-text">
-                    <div class="dialog-title">Фильтры</div>
-                    <div class="dialog-subtitle">Списки трасс и избранное</div>
+                    <div class="dialog-title">Фильтр</div>
                 </div>
             </div>
             <div class="dialog-body app-filters-body">
-                <div class="app-filter-discipline" role="group" aria-label="Дисциплина">
-                    <button type="button" class="filter-btn active" data-guide-discipline="all">Все</button>
-                    <button type="button" class="filter-btn" data-guide-discipline="route">Трудность</button>
-                    <button type="button" class="filter-btn" data-guide-discipline="boulder">Боулдеринг</button>
+                <div class="app-filter-grade">
+                    <div class="app-filter-grade-head">
+                        <span>Категория</span>
+                        <span class="app-filter-grade-pills">
+                            <span id="guideFilterGradeFromLabel">4</span>
+                            <span id="guideFilterGradeToLabel">Проект</span>
+                        </span>
+                    </div>
+                    <div class="app-filter-range">
+                        <div class="app-filter-range-track"></div>
+                        <div class="app-filter-range-fill" id="guideFilterRangeFill"></div>
+                        <input type="range" id="guideFilterGradeFrom" min="0" max="1" value="0" aria-label="Категория от">
+                        <input type="range" id="guideFilterGradeTo" min="0" max="1" value="1" aria-label="Категория до">
+                    </div>
                 </div>
-                <label class="auth-label" for="guideFilterGradeFrom">Категория от</label>
-                <select class="form-select" id="guideFilterGradeFrom"></select>
-                <label class="auth-label" for="guideFilterGradeTo">Категория до</label>
-                <select class="form-select" id="guideFilterGradeTo"></select>
-                <label class="filter-toggle-label" for="guideFilterHideSent">
-                    <input type="checkbox" id="guideFilterHideSent">
-                    <span>Скрыть пройденные</span>
-                </label>
-                <div class="app-filters-actions">
-                    <button type="button" class="btn btn-ghost" id="guideFiltersResetBtn">Сбросить</button>
-                    <button type="button" class="btn btn-primary" id="guideFiltersDoneBtn">Готово</button>
+                <h3 class="app-filter-section-title">Районы</h3>
+                <div id="guideFilterPlaces" class="app-filter-places"></div>
+            </div>
+            <div class="dialog-footer app-filters-actions">
+                <button type="button" class="app-filter-find" id="guideFiltersDoneBtn">Найти</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="dialog-overlay hidden" id="guideFilterResultsDialog" style="z-index: 997;">
+        <div class="dialog-content">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" data-close-dialog="guideFilterResultsDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
+                <div class="dialog-header-text">
+                    <div class="dialog-title">Трассы</div>
+                    <div class="dialog-subtitle" id="guideFilterResultsMeta"></div>
                 </div>
+            </div>
+            <div class="dialog-body">
+                <div id="guideFilterResultsList" class="app-favorites-list"></div>
             </div>
         </div>
     </div>

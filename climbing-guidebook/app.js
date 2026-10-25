@@ -12652,18 +12652,62 @@
                         discipline: 'all',
                         gradeFrom: '',
                         gradeTo: '',
-                        hideSent: false
+                        hideSent: false,
+                        areaIds: [],
+                        sectorIds: [],
+                        climbIds: []
                     };
                 }
-                return this._guideFilters;
+                const filters = this._guideFilters;
+                if (!Array.isArray(filters.areaIds)) filters.areaIds = [];
+                if (!Array.isArray(filters.sectorIds)) filters.sectorIds = [];
+                if (!Array.isArray(filters.climbIds)) filters.climbIds = [];
+                return filters;
+            }
+
+            guideFilterGradeScale() {
+                if (this._guideFilterGradeScale) return this._guideFilterGradeScale;
+                const seenKeys = new Set();
+                const grades = [];
+                [...ROUTE_GRADE_OPTIONS, ...BOULDER_GRADE_OPTIONS].forEach((grade) => {
+                    if (!grade || isProjectGrade(grade)) return;
+                    const key = this.mapGradeSortKey(grade);
+                    if (seenKeys.has(key)) return;
+                    seenKeys.add(key);
+                    grades.push(grade);
+                });
+                grades.sort((a, b) => this.mapGradeSortKey(a) - this.mapGradeSortKey(b));
+                grades.push(GRADE_PROJECT_VALUE);
+                this._guideFilterGradeScale = grades;
+                return grades;
+            }
+
+            guideFilterGradeLabel(grade) {
+                if (isProjectGrade(grade)) return 'Проект';
+                return formatGradeLabel(grade) || '—';
+            }
+
+            guideFilterGradeIndex(grade, fallback) {
+                const scale = this.guideFilterGradeScale();
+                if (!grade) return fallback;
+                if (isProjectGrade(grade)) return scale.length - 1;
+                const key = this.mapGradeSortKey(grade);
+                const index = scale.findIndex((item) => this.mapGradeSortKey(item) === key);
+                return index >= 0 ? index : fallback;
             }
 
             guideFiltersActive() {
                 const filters = this.guideFilters();
+                const scale = this.guideFilterGradeScale();
+                const from = this.guideFilterGradeIndex(filters.gradeFrom, 0);
+                const to = this.guideFilterGradeIndex(filters.gradeTo, scale.length - 1);
                 return filters.discipline !== 'all'
-                    || !!filters.gradeFrom
-                    || !!filters.gradeTo
-                    || !!filters.hideSent;
+                    || from > 0
+                    || to < scale.length - 1
+                    || !!filters.hideSent
+                    || filters.areaIds.length > 0
+                    || filters.sectorIds.length > 0
+                    || filters.climbIds.length > 0;
             }
 
             climbPassesGuideFilters(climb, climbType) {
@@ -12672,9 +12716,28 @@
                 if (filters.discipline === 'route' && kind !== 'route') return false;
                 if (filters.discipline === 'boulder' && kind !== 'boulder') return false;
                 if (filters.hideSent && this.hasUserSent(kind, climb?.id)) return false;
-                const key = this.mapGradeSortKey(climb?.grade);
-                if (filters.gradeFrom && key < this.mapGradeSortKey(filters.gradeFrom)) return false;
-                if (filters.gradeTo && key > this.mapGradeSortKey(filters.gradeTo)) return false;
+                const scale = this.guideFilterGradeScale();
+                const from = this.guideFilterGradeIndex(filters.gradeFrom, 0);
+                const to = this.guideFilterGradeIndex(filters.gradeTo, scale.length - 1);
+                const climbIndex = isProjectGrade(climb?.grade)
+                    ? scale.length - 1
+                    : scale.findIndex((item) => this.mapGradeSortKey(item) === this.mapGradeSortKey(climb?.grade));
+                if (climbIndex < 0) {
+                    if (from > 0 || to < scale.length - 1) return false;
+                } else if (climbIndex < from || climbIndex > to) {
+                    return false;
+                }
+                const hasPlace = filters.areaIds.length || filters.sectorIds.length || filters.climbIds.length;
+                if (hasPlace) {
+                    const sector = getSectors().find((item) => Number(item.id) === Number(climb?.sectorId));
+                    const areaId = Number(sector?.areaId || climb?.areaId);
+                    const sectorId = Number(climb?.sectorId);
+                    const climbKey = `${kind}:${Number(climb?.id)}`;
+                    const picked = filters.areaIds.some((id) => Number(id) === areaId)
+                        || filters.sectorIds.some((id) => Number(id) === sectorId)
+                        || filters.climbIds.includes(climbKey);
+                    if (!picked) return false;
+                }
                 return true;
             }
 
@@ -12694,41 +12757,176 @@
                 }
             }
 
-            fillGuideFilterGrades() {
-                const from = document.getElementById('guideFilterGradeFrom');
-                const to = document.getElementById('guideFilterGradeTo');
-                if (!from || !to || from.dataset.ready === '1') return;
-                const seenKeys = new Set();
-                const grades = [];
-                [...ROUTE_GRADE_OPTIONS, ...BOULDER_GRADE_OPTIONS].forEach((grade) => {
-                    if (!grade || isProjectGrade(grade)) return;
-                    const key = this.mapGradeSortKey(grade);
-                    if (seenKeys.has(key)) return;
-                    seenKeys.add(key);
-                    grades.push(grade);
-                });
-                grades.sort((a, b) => this.mapGradeSortKey(a) - this.mapGradeSortKey(b));
-                const options = ['<option value="">Любая</option>']
-                    .concat(grades.map((grade) => `<option value="${this.escapeHtml(grade)}">${this.escapeHtml(formatGradeLabel(grade))}</option>`));
-                from.innerHTML = options.join('');
-                to.innerHTML = options.join('');
-                from.dataset.ready = '1';
+            guideFilterDraft() {
+                if (!this._guideFilterDraft) this.beginGuideFilterDraft();
+                return this._guideFilterDraft;
             }
 
-            syncGuideFiltersForm() {
+            beginGuideFilterDraft() {
                 const filters = this.guideFilters();
-                this.fillGuideFilterGrades();
-                document.querySelectorAll('[data-guide-discipline]').forEach((btn) => {
-                    const on = btn.dataset.guideDiscipline === filters.discipline;
-                    btn.classList.toggle('active', on);
-                    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-                });
-                const from = document.getElementById('guideFilterGradeFrom');
-                const to = document.getElementById('guideFilterGradeTo');
-                const hideSent = document.getElementById('guideFilterHideSent');
-                if (from) from.value = filters.gradeFrom;
-                if (to) to.value = filters.gradeTo;
-                if (hideSent) hideSent.checked = !!filters.hideSent;
+                const last = this.guideFilterGradeScale().length - 1;
+                this._guideFilterDraft = {
+                    gradeFromIndex: this.guideFilterGradeIndex(filters.gradeFrom, 0),
+                    gradeToIndex: this.guideFilterGradeIndex(filters.gradeTo, last),
+                    areaIds: new Set((filters.areaIds || []).map(Number)),
+                    sectorIds: new Set((filters.sectorIds || []).map(Number)),
+                    climbIds: new Set(filters.climbIds || [])
+                };
+                if (!this._guideFilterOpen) {
+                    this._guideFilterOpen = { area: new Set(), sector: new Set() };
+                }
+            }
+
+            syncGuideFilterRangeUi() {
+                const scale = this.guideFilterGradeScale();
+                const draft = this.guideFilterDraft();
+                const max = Math.max(1, scale.length - 1);
+                const from = Math.max(0, Math.min(draft.gradeFromIndex, draft.gradeToIndex, max));
+                const to = Math.max(from, Math.min(Math.max(draft.gradeFromIndex, draft.gradeToIndex), max));
+                draft.gradeFromIndex = from;
+                draft.gradeToIndex = to;
+                const fromEl = document.getElementById('guideFilterGradeFrom');
+                const toEl = document.getElementById('guideFilterGradeTo');
+                if (fromEl) {
+                    fromEl.max = String(max);
+                    fromEl.value = String(from);
+                }
+                if (toEl) {
+                    toEl.max = String(max);
+                    toEl.value = String(to);
+                }
+                const fill = document.getElementById('guideFilterRangeFill');
+                if (fill) {
+                    const start = from / max;
+                    const end = to / max;
+                    fill.style.left = `calc(14px + (100% - 28px) * ${start})`;
+                    fill.style.width = `calc((100% - 28px) * ${Math.max(0, end - start)})`;
+                }
+                const fromLabel = document.getElementById('guideFilterGradeFromLabel');
+                const toLabel = document.getElementById('guideFilterGradeToLabel');
+                if (fromLabel) fromLabel.textContent = this.guideFilterGradeLabel(scale[from]);
+                if (toLabel) toLabel.textContent = this.guideFilterGradeLabel(scale[to]);
+            }
+
+            guideFilterCheckHtml(kind, id, checked, climbKey = '') {
+                const extra = climbKey ? ` data-climb-key="${this.escapeHtml(climbKey)}"` : '';
+                return `<label class="app-filter-check"><input type="checkbox" data-filter-check="${kind}" data-id="${id}"${extra}${checked ? ' checked' : ''} aria-label="Выбрать"></label>`;
+            }
+
+            guideFilterArrowHtml() {
+                return '<span class="app-filter-arrow" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M2.2 4.2 6 8l3.8-3.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+            }
+
+            guideFilterClimbRows(sectorId) {
+                const draft = this.guideFilterDraft();
+                const rows = [
+                    ...getRoutes().filter((item) => Number(item.sectorId) === Number(sectorId)).map((item) => ({ kind: 'route', item })),
+                    ...getBoulders().filter((item) => Number(item.sectorId) === Number(sectorId)).map((item) => ({ kind: 'boulder', item }))
+                ].sort((a, b) => this.mapGradeSortKey(a.item.grade) - this.mapGradeSortKey(b.item.grade)
+                    || String(a.item.name || '').localeCompare(String(b.item.name || ''), 'ru'));
+                if (!rows.length) {
+                    return '<p class="app-menu-empty">В секторе пока нет трасс.</p>';
+                }
+                return rows.map(({ kind, item }) => {
+                    const key = `${kind}:${Number(item.id)}`;
+                    return `
+                        <div class="app-filter-row app-filter-row--leaf">
+                            <span class="app-filter-name">${this.escapeHtml(item.name || (kind === 'route' ? 'Трасса' : 'Боулдер'))}</span>
+                            <span class="app-filter-grade-note">${this.escapeHtml(this.guideFilterGradeLabel(item.grade))}</span>
+                            ${this.guideFilterCheckHtml('climb', item.id, draft.climbIds.has(key), key)}
+                        </div>`;
+                }).join('');
+            }
+
+            renderGuideFilterPlaces() {
+                const root = document.getElementById('guideFilterPlaces');
+                if (!root) return;
+                const draft = this.guideFilterDraft();
+                const open = this._guideFilterOpen;
+                const areas = [...getAreas()].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru'));
+                const sectors = getSectors();
+                if (!areas.length) {
+                    root.innerHTML = '<p class="app-menu-empty">Нет районов.</p>';
+                    return;
+                }
+                root.innerHTML = areas.map((area) => {
+                    const areaId = Number(area.id);
+                    const areaSectors = sectors
+                        .filter((item) => Number(item.areaId) === areaId)
+                        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru'));
+                    const expanded = open.area.has(areaId);
+                    const canExpand = areaSectors.length > 0;
+                    const sectorHtml = expanded ? areaSectors.map((sector) => {
+                        const sectorId = Number(sector.id);
+                        const sectorOpen = open.sector.has(sectorId);
+                        const climbs = [
+                            ...getRoutes().filter((item) => Number(item.sectorId) === sectorId),
+                            ...getBoulders().filter((item) => Number(item.sectorId) === sectorId)
+                        ];
+                        const sectorCanExpand = climbs.length > 0;
+                        return `
+                            <div class="app-filter-node app-filter-node--sector${sectorOpen ? ' is-open' : ''}">
+                                <div class="app-filter-row${sectorCanExpand ? '' : ' app-filter-row--leaf'}" ${sectorCanExpand ? `data-filter-toggle="sector" data-id="${sectorId}"` : ''}>
+                                    <span class="app-filter-name">${this.escapeHtml(sector.name || 'Сектор')}</span>
+                                    ${sectorCanExpand ? this.guideFilterArrowHtml() : ''}
+                                    ${this.guideFilterCheckHtml('sector', sectorId, draft.sectorIds.has(sectorId))}
+                                </div>
+                                ${sectorOpen ? `<div class="app-filter-children">${this.guideFilterClimbRows(sectorId)}</div>` : ''}
+                            </div>`;
+                    }).join('') : '';
+                    return `
+                        <div class="app-filter-node${expanded ? ' is-open' : ''}">
+                            <div class="app-filter-row${canExpand ? '' : ' app-filter-row--leaf'}" ${canExpand ? `data-filter-toggle="area" data-id="${areaId}"` : ''}>
+                                <span class="app-filter-name">${this.escapeHtml(area.name || 'Район')}</span>
+                                ${canExpand ? this.guideFilterArrowHtml() : ''}
+                                ${this.guideFilterCheckHtml('area', areaId, draft.areaIds.has(areaId))}
+                            </div>
+                            ${expanded ? `<div class="app-filter-children">${sectorHtml}</div>` : ''}
+                        </div>`;
+                }).join('');
+            }
+
+            commitGuideFilters() {
+                const filters = this.guideFilters();
+                const draft = this.guideFilterDraft();
+                const scale = this.guideFilterGradeScale();
+                const last = scale.length - 1;
+                filters.gradeFrom = draft.gradeFromIndex <= 0 ? '' : scale[draft.gradeFromIndex];
+                filters.gradeTo = draft.gradeToIndex >= last ? '' : scale[draft.gradeToIndex];
+                filters.areaIds = [...draft.areaIds];
+                filters.sectorIds = [...draft.sectorIds];
+                filters.climbIds = [...draft.climbIds];
+                this.applyGuideFiltersChange();
+                this.hideDialog('guideFiltersDialog');
+                this.showGuideFilterResults();
+            }
+
+            showGuideFilterResults() {
+                const list = document.getElementById('guideFilterResultsList');
+                const meta = document.getElementById('guideFilterResultsMeta');
+                const items = [
+                    ...getRoutes().filter((item) => this.climbPassesGuideFilters(item, 'route')).map((item) => ({ kind: 'route', item })),
+                    ...getBoulders().filter((item) => this.climbPassesGuideFilters(item, 'boulder')).map((item) => ({ kind: 'boulder', item }))
+                ].sort((a, b) => this.mapGradeSortKey(a.item.grade) - this.mapGradeSortKey(b.item.grade)
+                    || String(a.item.name || '').localeCompare(String(b.item.name || ''), 'ru'));
+                if (meta) meta.textContent = items.length ? `${items.length}` : '';
+                if (!list) return;
+                const sectors = getSectors();
+                const areas = getAreas();
+                list.innerHTML = items.length ? items.map(({ kind, item }) => {
+                    const sector = sectors.find((row) => Number(row.id) === Number(item.sectorId));
+                    const area = areas.find((row) => Number(row.id) === Number(sector?.areaId || item.areaId));
+                    const place = [area?.name, sector?.name].filter(Boolean).join(' · ');
+                    return `
+                        <button type="button" class="app-favorites-row" data-filter-result="${kind}" data-id="${item.id}">
+                            <span class="${gradeBadgeClassName(item.grade)}">${this.escapeHtml(this.guideFilterGradeLabel(item.grade))}</span>
+                            <span class="app-favorites-copy">
+                                <span class="app-favorites-name">${this.escapeHtml(item.name || (kind === 'route' ? 'Трасса' : 'Боулдер'))}</span>
+                                ${place ? `<span class="app-favorites-place">${this.escapeHtml(place)}</span>` : ''}
+                            </span>
+                        </button>`;
+                }).join('') : '<div class="empty-state"><p>Нет трасс по выбранным фильтрам.</p></div>';
+                this.showDialog('guideFilterResultsDialog');
             }
 
             toggleAppMenu(force) {
@@ -12764,7 +12962,9 @@
 
             openGuideFilters() {
                 this.closeAppMenu();
-                this.syncGuideFiltersForm();
+                this.beginGuideFilterDraft();
+                this.syncGuideFilterRangeUi();
+                this.renderGuideFilterPlaces();
                 this.showDialog('guideFiltersDialog');
             }
 
@@ -15107,32 +15307,55 @@
                     this.hideDialog('favoritesDialog');
                     void this.showClimbDetailDialog(kind, id);
                 });
-                document.querySelectorAll('[data-guide-discipline]').forEach((btn) => {
-                    btn.addEventListener('click', () => {
-                        this.guideFilters().discipline = btn.dataset.guideDiscipline || 'all';
-                        this.syncGuideFiltersForm();
-                        this.applyGuideFiltersChange();
-                    });
+                const onGuideFilterRange = (which) => (e) => {
+                    const draft = this.guideFilterDraft();
+                    const value = Number(e.target.value);
+                    if (which === 'from') draft.gradeFromIndex = value;
+                    else draft.gradeToIndex = value;
+                    if (draft.gradeFromIndex > draft.gradeToIndex) {
+                        const swap = draft.gradeFromIndex;
+                        draft.gradeFromIndex = draft.gradeToIndex;
+                        draft.gradeToIndex = swap;
+                    }
+                    this.syncGuideFilterRangeUi();
+                };
+                document.getElementById('guideFilterGradeFrom')?.addEventListener('input', onGuideFilterRange('from'));
+                document.getElementById('guideFilterGradeTo')?.addEventListener('input', onGuideFilterRange('to'));
+                document.getElementById('guideFilterPlaces')?.addEventListener('click', (e) => {
+                    if (e.target.closest('.app-filter-check')) return;
+                    const row = e.target.closest('[data-filter-toggle]');
+                    if (!row) return;
+                    const id = Number(row.dataset.id);
+                    const set = row.dataset.filterToggle === 'sector'
+                        ? this._guideFilterOpen.sector
+                        : this._guideFilterOpen.area;
+                    if (set.has(id)) set.delete(id);
+                    else set.add(id);
+                    this.renderGuideFilterPlaces();
                 });
-                document.getElementById('guideFilterGradeFrom')?.addEventListener('change', (e) => {
-                    this.guideFilters().gradeFrom = e.target.value || '';
-                    this.applyGuideFiltersChange();
+                document.getElementById('guideFilterPlaces')?.addEventListener('change', (e) => {
+                    const input = e.target.closest('[data-filter-check]');
+                    if (!input) return;
+                    const draft = this.guideFilterDraft();
+                    const kind = input.dataset.filterCheck;
+                    const set = kind === 'area'
+                        ? draft.areaIds
+                        : (kind === 'sector' ? draft.sectorIds : draft.climbIds);
+                    const value = kind === 'climb' ? input.dataset.climbKey : Number(input.dataset.id);
+                    if (input.checked) set.add(value);
+                    else set.delete(value);
                 });
-                document.getElementById('guideFilterGradeTo')?.addEventListener('change', (e) => {
-                    this.guideFilters().gradeTo = e.target.value || '';
-                    this.applyGuideFiltersChange();
-                });
-                document.getElementById('guideFilterHideSent')?.addEventListener('change', (e) => {
-                    this.guideFilters().hideSent = !!e.target.checked;
-                    this.applyGuideFiltersChange();
-                });
-                document.getElementById('guideFiltersResetBtn')?.addEventListener('click', () => {
-                    this._guideFilters = null;
-                    this.syncGuideFiltersForm();
-                    this.applyGuideFiltersChange();
+                document.getElementById('guideFilterResultsList')?.addEventListener('click', (e) => {
+                    const row = e.target.closest('[data-filter-result]');
+                    if (!row) return;
+                    const id = Number(row.dataset.id);
+                    const kind = row.dataset.filterResult === 'boulder' ? 'boulder' : 'route';
+                    if (!Number.isFinite(id)) return;
+                    this.hideDialog('guideFilterResultsDialog');
+                    void this.showClimbDetailDialog(kind, id);
                 });
                 document.getElementById('guideFiltersDoneBtn')?.addEventListener('click', () => {
-                    this.hideDialog('guideFiltersDialog');
+                    this.commitGuideFilters();
                 });
                 this.syncGuideFiltersMark();
                 document.getElementById('themeToggleBtn')?.addEventListener('click', () => {
