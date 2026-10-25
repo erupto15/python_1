@@ -421,11 +421,17 @@
             const globalResults = document.getElementById('globalSearchResults');
             const catalogResults = document.getElementById('catalogSearchResults');
             const assistantSearch = document.documentElement.classList.contains('catalog-assistant-search-open');
+            const searchScreen = document.documentElement.classList.contains('search-screen-open');
             const searchOpen = assistantSearch
+                || searchScreen
                 || (globalResults && !globalResults.classList.contains('hidden'))
                 || (catalogResults && !catalogResults.classList.contains('hidden'));
             if (searchOpen) {
-                window.app?.clearAllSearchDropdowns?.({ refreshCatalog: true });
+                if (searchScreen && typeof window.app?.closeSearchScreen === 'function') {
+                    window.app.closeSearchScreen();
+                } else {
+                    window.app?.clearAllSearchDropdowns?.({ refreshCatalog: true });
+                }
                 document.getElementById('globalSearch')?.blur();
                 document.getElementById('catalogSearch')?.blur();
                 if (typeof window.syncTelegramMiniAppUi === 'function') window.syncTelegramMiniAppUi();
@@ -642,7 +648,8 @@
                 tg.BackButton.show();
             } else if (overlayTab) {
                 tg.BackButton.show();
-            } else if (document.documentElement.classList.contains('catalog-assistant-search-open')) {
+            } else if (document.documentElement.classList.contains('catalog-assistant-search-open')
+                || document.documentElement.classList.contains('search-screen-open')) {
                 tg.BackButton.show();
             } else if (app && app.catalog && app.catalog.view !== 'areas') {
                 tg.BackButton.show();
@@ -12231,6 +12238,7 @@
             }
 
             isCatalogSearchUiOpen() {
+                if (document.documentElement.classList.contains('search-screen-open')) return true;
                 if (document.documentElement.classList.contains('catalog-assistant-search-open')) return true;
                 if (!document.getElementById('catalog')?.classList.contains('active')) return false;
                 return ['catalogSearchResults', 'globalSearchResults'].some((id) => {
@@ -12545,6 +12553,77 @@
                 document.documentElement.classList.toggle('catalog-assistant-search-open', !!active);
             }
 
+            syncKeyboardInset() {
+                const root = document.documentElement;
+                const vv = window.visualViewport;
+                let inset = 0;
+                if (vv) {
+                    inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+                }
+                root.style.setProperty('--keyboard-inset', `${Math.round(inset)}px`);
+                root.classList.toggle('keyboard-open', inset > 40);
+            }
+
+            openSearchScreen(which = 'catalog') {
+                if (!document.documentElement.classList.contains('app-shell')) return;
+                const root = document.documentElement;
+                const source = which === 'global' ? 'global' : 'catalog';
+                root.classList.add('search-screen-open');
+                root.dataset.searchScreen = source;
+                const input = this.getSearchInput(source);
+                if (input) {
+                    if (!input.dataset.placeholderIdle) {
+                        input.dataset.placeholderIdle = input.getAttribute('placeholder') || '';
+                    }
+                    input.setAttribute('placeholder', 'Название трассы');
+                }
+                const query = String(input?.value || '').trim();
+                root.classList.toggle('search-screen-has-query', query.length > 0);
+                this.syncSearchClearButton(source);
+                this.syncKeyboardInset();
+                window.scrollTo(0, 0);
+                if (typeof window.syncTelegramMiniAppUi === 'function') {
+                    window.syncTelegramMiniAppUi();
+                }
+            }
+
+            closeSearchScreen() {
+                const root = document.documentElement;
+                const source = root.dataset.searchScreen === 'global' ? 'global' : 'catalog';
+                root.classList.remove('search-screen-open', 'search-screen-has-query', 'keyboard-open');
+                delete root.dataset.searchScreen;
+                ['catalog', 'global'].forEach((which) => {
+                    const input = this.getSearchInput(which);
+                    if (input?.dataset.placeholderIdle) {
+                        input.setAttribute('placeholder', input.dataset.placeholderIdle);
+                    }
+                });
+                this.clearAllSearchDropdowns({ clearInput: true, refreshCatalog: true });
+                this.getSearchInput(source)?.blur();
+                this.getSearchInput(source === 'catalog' ? 'global' : 'catalog')?.blur();
+                if (typeof window.syncTelegramMiniAppUi === 'function') {
+                    window.syncTelegramMiniAppUi();
+                }
+            }
+
+            dismissSearchScreenClear(which) {
+                const root = document.documentElement;
+                if (!root.classList.contains('search-screen-open')) return false;
+                const input = this.getSearchInput(which);
+                if (input && String(input.value || '').trim()) {
+                    input.value = '';
+                    this.syncLinkedSearchInputs(which);
+                    root.classList.remove('search-screen-has-query');
+                    this.clearSearchDropdown({ which });
+                    this.setCatalogAssistantSearchOpen(false);
+                    this.syncSearchClearButton(which);
+                    input.focus();
+                    return true;
+                }
+                this.closeSearchScreen();
+                return true;
+            }
+
             clearAllSearchDropdowns({ clearInput = false, refreshCatalog = false } = {}) {
                 this.clearSearchDropdown({ clearInput, which: 'global' });
                 this.clearSearchDropdown({ clearInput, which: 'catalog' });
@@ -12573,8 +12652,11 @@
                     : document.getElementById('globalSearchClearBtn');
                 if (!input || !btn) return;
                 const hasText = String(input.value || '').length > 0;
-                btn.classList.toggle('hidden', !hasText);
-                btn.setAttribute('aria-hidden', hasText ? 'false' : 'true');
+                const screenOpen = document.documentElement.classList.contains('search-screen-open')
+                    && document.documentElement.dataset.searchScreen === which;
+                const show = hasText || screenOpen;
+                btn.classList.toggle('hidden', !show);
+                btn.setAttribute('aria-hidden', show ? 'false' : 'true');
             }
 
             syncGlobalSearchClearButton() {
@@ -12673,7 +12755,14 @@
             renderGlobalSearchResults(preferredWhich = null) {
                 const which = this.resolveActiveSearchWhich(preferredWhich);
                 const query = String(this.getSearchInput(which)?.value || '').trim();
+                const screenOpen = document.documentElement.classList.contains('search-screen-open');
+                document.documentElement.classList.toggle('search-screen-has-query', screenOpen && query.length > 0);
                 if (query.length < 2) {
+                    if (screenOpen) {
+                        this.clearSearchDropdown({ which });
+                        this.setCatalogAssistantSearchOpen(false);
+                        return;
+                    }
                     this.clearAllSearchDropdowns({ refreshCatalog: true });
                     return;
                 }
@@ -15068,6 +15157,24 @@
                         this.openGlobalSearchResult(item.dataset.globalKind, Number(item.dataset.id));
                     });
                 };
+                const bindSearchScreen = (which) => {
+                    const input = this.getSearchInput(which);
+                    input?.addEventListener('focus', () => {
+                        this._activeSearchSource = which;
+                        this.openSearchScreen(which);
+                    });
+                    input?.addEventListener('input', () => {
+                        const query = String(input.value || '').trim();
+                        const screenOpen = document.documentElement.classList.contains('search-screen-open');
+                        document.documentElement.classList.toggle('search-screen-has-query', screenOpen && query.length > 0);
+                        this.syncSearchClearButton(which);
+                    });
+                };
+                bindSearchScreen('global');
+                bindSearchScreen('catalog');
+                this.syncKeyboardInset();
+                window.visualViewport?.addEventListener('resize', () => this.syncKeyboardInset());
+                window.visualViewport?.addEventListener('scroll', () => this.syncKeyboardInset());
                 document.getElementById('globalSearch')?.addEventListener('input', () => {
                     this._activeSearchSource = 'global';
                     this.syncLinkedSearchInputs('global');
@@ -15083,11 +15190,13 @@
                 document.getElementById('globalSearchClearBtn')?.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    if (this.dismissSearchScreenClear('global')) return;
                     this.clearGlobalSearchInput();
                 });
                 document.getElementById('catalogSearchClearBtn')?.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    if (this.dismissSearchScreenClear('catalog')) return;
                     this.clearCatalogSearchInput();
                 });
                 this.syncSearchClearButton('global');
@@ -15148,6 +15257,10 @@
 
                 document.addEventListener('click', (e) => {
                     if (e.target && e.target.closest && e.target.closest('.grade-picker')) return;
+                    if (document.documentElement.classList.contains('search-screen-open')) {
+                        this._closeAllGradePickers();
+                        return;
+                    }
                     if (e.target && e.target.closest && e.target.closest('.global-search-wrap')) return;
                     if (e.target && e.target.closest && e.target.closest('.catalog-card-search')) return;
                     const dropdownVisible = !this.getSearchResultsBox('global')?.classList.contains('hidden')
@@ -15162,6 +15275,11 @@
                     if (e.key === 'Escape') {
                         if (typeof window.closeTopTelegramOverlay === 'function' && window.closeTopTelegramOverlay()) {
                             e.preventDefault();
+                            return;
+                        }
+                        if (document.documentElement.classList.contains('search-screen-open')) {
+                            e.preventDefault();
+                            this.closeSearchScreen();
                             return;
                         }
                         const dropdownVisible = !this.getSearchResultsBox('global')?.classList.contains('hidden')
