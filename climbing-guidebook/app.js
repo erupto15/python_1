@@ -707,9 +707,12 @@
             return `<span class="${extraClass}" aria-hidden="true">${AREA_DISTRICT_ICON_SVG}</span>`;
         }
 
+        const CATALOG_MAP_BTN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9.2 4.6 4.4 6.4v12.9l4.8-1.7 5.6 1.8 5-1.8V4.7l-5 1.8-5.6-1.9zm.4 1.9 4.8 1.6v10.3l-4.8-1.6V6.5zm6 1.7 3.2-1.1v10.2l-3.2 1.1V8.2z"/></svg>';
+        const CATALOG_ROUTE_PILL_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M3 12.5c1.6-.2 2.2-2.2 3.6-3.4S8.6 6.8 10.2 5.6 13 3.6 13 3.6"/></svg>';
+
         function buildCatalogRouteNavButtonHtml(mapKind, entityId) {
             const id = String(entityId);
-            return `<button type="button" class="catalog-map-btn catalog-route-nav-btn btn btn-small" data-catalog-act="nav-route" data-map-kind="${mapKind}" data-id="${id}" aria-label="Проложить маршрут" title="Проложить маршрут"><span class="map-navigate-icon" aria-hidden="true">${MAP_NAVIGATE_SVG}</span></button>`;
+            return `<button type="button" class="catalog-map-btn catalog-route-nav-btn btn btn-small" data-catalog-act="nav-route" data-map-kind="${mapKind}" data-id="${id}" aria-label="Карта" title="Карта"><span class="map-navigate-icon" aria-hidden="true">${CATALOG_MAP_BTN_SVG}</span></button>`;
         }
 
         /** Кнопка «Моё местоположение»: классическая метка-pin с точкой внутри. */
@@ -13434,14 +13437,52 @@
                 }
             }
 
+            ruPlural(count, one, few, many) {
+                const n = Math.abs(Number(count) || 0);
+                const mod100 = n % 100;
+                const mod10 = n % 10;
+                if (mod100 > 10 && mod100 < 20) return many;
+                if (mod10 > 1 && mod10 < 5) return few;
+                if (mod10 === 1) return one;
+                return many;
+            }
+
             catalogAreaCardMeta(area) {
-                const sectors = getSectors();
-                const sc = sectors.filter((s) => Number(s.areaId) === Number(area.id)).length;
-                const rc = getRoutes().filter((r) => Number(r.areaId) === Number(area.id)).length;
-                const bcnt = getBoulders().filter((b) => Number(b.areaId) === Number(area.id)).length;
-                return APP_BOULDER_ONLY
-                    ? `${sc} сект. · ${bcnt} боулд.`
-                    : `${sc} сект. · ${rc} трасс · ${bcnt} боулд.`;
+                const sc = getSectors().filter((s) => Number(s.areaId) === Number(area.id)).length;
+                return `${sc} ${this.ruPlural(sc, 'сектор', 'сектора', 'секторов')}`;
+            }
+
+            catalogAreaStatPillHtml(area) {
+                return `<span class="catalog-stat-pill catalog-stat-pill--light"><span class="catalog-stat-dot" aria-hidden="true"></span><span class="catalog-stat-pill-text">${this.escapeHtml(this.catalogAreaCardMeta(area))}</span></span>`;
+            }
+
+            catalogGradeSpan(climbs) {
+                const graded = (climbs || []).filter((item) => item?.grade && !isProjectGrade(item.grade));
+                if (!graded.length) return '';
+                graded.sort((a, b) => this.mapGradeSortKey(a.grade) - this.mapGradeSortKey(b.grade));
+                const showGrade = (grade) => formatGradeLabel(grade).replace(/[a-z]/g, (ch) => ch.toUpperCase());
+                const low = showGrade(graded[0].grade);
+                const high = showGrade(graded[graded.length - 1].grade);
+                return low === high ? low : `${low} – ${high}`;
+            }
+
+            catalogSectorStatPillsHtml(sector) {
+                const routes = getRoutes().filter((item) => Number(item.sectorId) === Number(sector.id));
+                const boulders = getBoulders().filter((item) => Number(item.sectorId) === Number(sector.id));
+                const pills = [];
+                if (boulders.length) {
+                    const hardest = [...boulders].sort((a, b) => this.mapGradeSortKey(b.grade) - this.mapGradeSortKey(a.grade))[0];
+                    const tone = gradeBandFromValue(hardest?.grade);
+                    pills.push(`<span class="catalog-stat-pill"><span class="catalog-stat-dot catalog-stat-dot--${tone}" aria-hidden="true"></span>${boulders.length}</span>`);
+                }
+                if (routes.length) {
+                    pills.push(`<span class="catalog-stat-pill"><span class="catalog-stat-glyph" aria-hidden="true">${CATALOG_ROUTE_PILL_SVG}</span>${routes.length}</span>`);
+                }
+                const span = this.catalogGradeSpan([...routes, ...boulders]);
+                if (span) {
+                    pills.push(`<span class="catalog-stat-pill">${this.escapeHtml(span)}</span>`);
+                }
+                return pills.length ? `<div class="catalog-stat-row">${pills.join('')}</div>` : '';
             }
 
             /** Подпись на карточке района у иконки маршрута: по фактическим трассам/боулдерам в районе. */
@@ -13547,18 +13588,19 @@
                 for (let i = 0; i < visibleAreas.length; i += 1) {
                     const btn = rows[i].querySelector('[data-catalog-go="area"]');
                     if (!btn || String(btn.dataset.id) !== String(visibleAreas[i].id)) return false;
+                    if (!btn.querySelector('.catalog-stat-pill-text')) return false;
                 }
                 list.classList.add('catalog-list--syncing');
                 visibleAreas.forEach((area, i) => {
                     const row = rows[i];
                     const openBtn = row.querySelector('.catalog-area-card-open');
                     const titleEl = row.querySelector('.catalog-row-title');
-                    const metaEl = row.querySelector('.catalog-row-meta');
+                    const pillText = row.querySelector('.catalog-stat-pill-text');
                     let descEl = row.querySelector('.catalog-area-card-desc');
                     const desc = String(area.description || '').trim();
                     const name = String(area.name || '');
                     if (titleEl) titleEl.textContent = name;
-                    if (metaEl) metaEl.textContent = this.catalogAreaCardMeta(area);
+                    if (pillText) pillText.textContent = this.catalogAreaCardMeta(area);
                     if (desc) {
                         if (!descEl && openBtn) {
                             descEl = document.createElement('div');
@@ -13613,7 +13655,6 @@
                         : (list.closest('.tab-content') || document.scrollingElement || document.documentElement);
                     const scrollTop = scrollParent?.scrollTop ?? 0;
                     list.innerHTML = visibleAreas.length ? visibleAreas.map(a => {
-                        const meta = this.catalogAreaCardMeta(a);
                         const imageUrl = resolvePhotoDisplayUrl(a.imageData);
                         const thumb = imageUrl
                             ? `<img class="catalog-area-card-image" src="${this.escapeHtml(imageUrl)}" alt="${this.escapeHtml(a.name)}" loading="lazy">`
@@ -13622,11 +13663,13 @@
                         return `
                             <div class="catalog-row catalog-area-card">
                                 <button type="button" class="catalog-row-open catalog-area-card-open" data-catalog-go="area" data-id="${a.id}" aria-label="Открыть район: ${this.escapeHtml(a.name)}">
-                                    ${thumb}
-                                    <div class="catalog-area-card-text">
-                                        <div class="catalog-row-title">${this.escapeHtml(a.name)}</div>
-                                        <div class="catalog-row-meta">${meta}</div>
-                                        ${desc ? `<div class="catalog-area-card-desc">${this.escapeHtml(desc)}</div>` : ''}
+                                    <div class="catalog-area-card-cover">
+                                        ${thumb}
+                                        <div class="catalog-area-card-text">
+                                            <div class="catalog-row-title">${this.escapeHtml(a.name)}</div>
+                                            ${this.catalogAreaStatPillHtml(a)}
+                                            ${desc ? `<div class="catalog-area-card-desc">${this.escapeHtml(desc)}</div>` : ''}
+                                        </div>
                                     </div>
                                 </button>
                                 ${this.buildCatalogAreaNavBlockHtml(a)}
@@ -13662,21 +13705,25 @@
                     const visibleSectors = catalogTerm
                         ? listSectors.filter((s) => this.catalogTextMatches(catalogTerm, s.name, s.description))
                         : listSectors;
+                    const areaImageUrl = resolvePhotoDisplayUrl(area?.imageData);
                     list.innerHTML = visibleSectors.length ? visibleSectors.map(s => {
-                        const rc = getRoutes().filter(r => Number(r.sectorId) === Number(s.id)).length;
-                        const bcnt = getBoulders().filter(b => Number(b.sectorId) === Number(s.id)).length;
-                        const meta = APP_BOULDER_ONLY
-                            ? `${bcnt} боулдеров`
-                            : `${rc} трасс · ${bcnt} боулдеров`;
                         const desc = String(s.description || '').trim();
-                        const sectorIcon = this.buildMapSectorKindIconHtml(s.id, 'catalog-sector-kind-icon');
+                        const thumb = areaImageUrl
+                            ? `<img class="catalog-area-card-image" src="${this.escapeHtml(areaImageUrl)}" alt="" loading="lazy">`
+                            : `<div class="catalog-area-card-image catalog-area-card-image--placeholder">${buildAreaDistrictIconHtml('area-district-icon area-district-icon--card')}</div>`;
                         return `
-                            <div class="catalog-row">
-                                <button type="button" class="catalog-row-open" data-catalog-go="sector" data-id="${s.id}" aria-label="Открыть сектор: ${this.escapeHtml(s.name)}">
-                                    <div class="catalog-row-title catalog-row-title--with-kind-icon">${sectorIcon}<span>${this.escapeHtml(s.name)}</span></div>
-                                    <div class="catalog-row-meta">${meta}</div>
-                                    ${desc ? `<div class="catalog-area-card-desc">${this.escapeHtml(desc)}</div>` : ''}
+                            <div class="catalog-row catalog-area-card catalog-sector-card">
+                                <button type="button" class="catalog-row-open catalog-area-card-open" data-catalog-go="sector" data-id="${s.id}" aria-label="Открыть сектор: ${this.escapeHtml(s.name)}">
+                                    <div class="catalog-area-card-cover">
+                                        ${thumb}
+                                        <div class="catalog-area-card-text">
+                                            <div class="catalog-row-title">${this.escapeHtml(s.name)}</div>
+                                            ${this.catalogSectorStatPillsHtml(s)}
+                                            ${desc ? `<div class="catalog-area-card-desc">${this.escapeHtml(desc)}</div>` : ''}
+                                        </div>
+                                    </div>
                                 </button>
+                                <div class="catalog-area-card-nav">${buildCatalogRouteNavButtonHtml('sector', s.id)}</div>
                                 <div class="catalog-row-actions ${this.isAdmin() ? '' : 'hidden-by-role'}" style="align-self:center">
                                     ${this.renderRowActions(`data-catalog-act="edit-sector" data-id="${s.id}"`, `data-catalog-act="delete-sector" data-id="${s.id}"`)}
                                 </div>
