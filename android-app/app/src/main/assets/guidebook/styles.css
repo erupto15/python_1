@@ -4009,6 +4009,10 @@
             visibility: hidden;
         }
 
+        body.dialog-screen-open .dialog-overlay:not(.hidden) {
+            visibility: visible;
+        }
+
         .dialog-overlay {
             position: fixed;
             inset: 0;
