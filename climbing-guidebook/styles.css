@@ -6116,13 +6116,28 @@
 
         html.app-shell.catalog-map-shell #catalogMapBlock {
             position: fixed;
-            top: calc(52px + env(safe-area-inset-top, 0px));
+            top: env(safe-area-inset-top, 0px);
             right: 0;
             bottom: calc(58px + env(safe-area-inset-bottom, 0px));
             left: 0;
             width: auto;
             margin: 0;
             z-index: 2;
+        }
+
+        html.app-shell.catalog-map-shell .map-drill-back-btn {
+            top: calc(12px + env(safe-area-inset-top, 0px));
+            left: calc(12px + env(safe-area-inset-left, 0px));
+            z-index: 890;
+            height: 44px;
+            padding: 0 14px 0 10px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 18px;
+            background: rgba(22, 22, 26, 0.82);
+            color: #fff;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
 
         html.app-shell.catalog-map-shell #catalogMapContainerMount,
