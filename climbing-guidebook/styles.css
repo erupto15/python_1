@@ -9879,17 +9879,24 @@
         }
 
         html.app-shell .header-top {
-            flex-direction: row;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: 44px minmax(0, 1fr) 44px;
             align-items: center;
+            justify-items: center;
             gap: 6px 8px;
         }
 
         html.app-shell .header-brand {
-            flex: 1 1 auto;
+            grid-column: 1 / -1;
+            grid-row: 1;
+            justify-self: center;
+            width: auto;
+            flex: none;
             min-width: 0;
-            align-items: flex-start;
-            text-align: left;
+            padding-inline: 0;
+            align-items: center;
+            text-align: center;
+            pointer-events: none;
         }
 
         html.app-shell .site-tagline {
@@ -9906,19 +9913,39 @@
 
         html.app-shell .header-brand h1.site-logo {
             margin: 0;
+            pointer-events: auto;
         }
 
         html.app-shell .site-logo-mark {
             transform: scale(0.82);
-            transform-origin: left center;
+            transform-origin: center center;
         }
 
         html.app-shell .header-corner-actions {
-            order: 2;
-            margin-left: auto;
+            position: static;
+            display: contents;
+            margin: 0;
+        }
+
+        html.app-shell #openRankingBtn {
+            grid-column: 1;
+            grid-row: 1;
+            justify-self: start;
+        }
+
+        html.app-shell .app-menu {
+            grid-column: 3;
+            grid-row: 1;
+            justify-self: end;
+        }
+
+        html.app-shell.app-menu-open .app-menu {
+            z-index: 90;
         }
 
         html.app-shell .header-search-auth {
+            grid-column: 1 / -1;
+            grid-row: 2;
             flex: 1 1 100%;
             order: 3;
             display: none;
