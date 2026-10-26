@@ -707,12 +707,11 @@
             return `<span class="${extraClass}" aria-hidden="true">${AREA_DISTRICT_ICON_SVG}</span>`;
         }
 
-        const CATALOG_MAP_BTN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9.2 4.6 4.4 6.4v12.9l4.8-1.7 5.6 1.8 5-1.8V4.7l-5 1.8-5.6-1.9zm.4 1.9 4.8 1.6v10.3l-4.8-1.6V6.5zm6 1.7 3.2-1.1v10.2l-3.2 1.1V8.2z"/></svg>';
         const CATALOG_ROUTE_PILL_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M3 12.5c1.6-.2 2.2-2.2 3.6-3.4S8.6 6.8 10.2 5.6 13 3.6 13 3.6"/></svg>';
 
         function buildCatalogRouteNavButtonHtml(mapKind, entityId) {
             const id = String(entityId);
-            return `<button type="button" class="catalog-map-btn catalog-route-nav-btn btn btn-small" data-catalog-act="nav-route" data-map-kind="${mapKind}" data-id="${id}" aria-label="Карта" title="Карта"><span class="map-navigate-icon" aria-hidden="true">${CATALOG_MAP_BTN_SVG}</span></button>`;
+            return `<button type="button" class="catalog-map-btn catalog-route-nav-btn btn btn-small" data-catalog-act="nav-route" data-map-kind="${mapKind}" data-id="${id}" aria-label="Проложить маршрут" title="Проложить маршрут"><span class="map-navigate-icon" aria-hidden="true">${MAP_NAVIGATE_SVG}</span></button>`;
         }
 
         /** Кнопка «Моё местоположение»: классическая метка-pin с точкой внутри. */
