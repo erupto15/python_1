@@ -10124,8 +10124,8 @@
 
         html.app-shell #mapContainer .leaflet-top.leaflet-left {
             top: auto;
-            bottom: 18px;
-            left: 8px;
+            bottom: calc(clamp(56px, 8dvh, 96px) + env(safe-area-inset-bottom, 0px));
+            left: max(8px, env(safe-area-inset-left, 0px));
             margin: 0;
         }
 
