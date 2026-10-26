@@ -10122,6 +10122,36 @@
             display: none !important;
         }
 
+        html.app-shell #mapContainer .leaflet-top.leaflet-left {
+            top: auto;
+            bottom: 18px;
+            left: 8px;
+            margin: 0;
+        }
+
+        html.app-shell #mapContainer .leaflet-control-zoom {
+            margin: 0;
+            border: 0;
+            box-shadow: none;
+            background: transparent;
+        }
+
+        html.app-shell #mapContainer .leaflet-control-zoom a,
+        html.app-shell #mapContainer .leaflet-control-zoom a:hover,
+        html.app-shell #mapContainer .leaflet-control-zoom a:focus {
+            background: transparent !important;
+            background-color: transparent !important;
+            border: 0 !important;
+            box-shadow: none !important;
+            color: #111;
+            width: 40px !important;
+            height: 36px !important;
+            line-height: 36px !important;
+            font-size: 22px;
+            font-weight: 650;
+            text-shadow: 0 0 3px #fff, 0 1px 2px rgba(255, 255, 255, 0.95);
+        }
+
         html.catalog-map-shell #mapContainer .leaflet-bottom.leaflet-right {
             bottom: max(12px, env(safe-area-inset-bottom, 0px));
         }
