@@ -170,24 +170,87 @@
         .tg-boot-overlay {
             position: fixed; inset: 0; z-index: 99999;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            gap: 12px; background: #0a0a0c; color: #f5f5f7;
+            gap: 18px; background: #0a0a0c; color: #f5f5f7;
             font: 600 18px/1.3 system-ui, -apple-system, sans-serif;
+            opacity: 1;
+            transition: opacity 0.42s ease;
         }
         html.theme-light .tg-boot-overlay {
             background: #f2f2f5; color: #1c1c1e;
         }
+        .tg-boot-overlay.is-leaving {
+            opacity: 0;
+            pointer-events: none;
+        }
         .tg-boot-overlay.hidden { display: none !important; }
         html.tg-miniapp-duplicate body { visibility: hidden; }
-        .tg-boot-spinner {
-            width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.15);
-            border-top-color: #e8472a; border-radius: 50%;
-            animation: tg-boot-spin 0.8s linear infinite;
+        .tg-boot-logo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transform: scale(2.15);
+            transform-origin: center;
+            filter:
+                drop-shadow(0 0 0.55px rgba(255, 255, 255, 0.42))
+                drop-shadow(0 0 1px rgba(0, 0, 0, 0.52))
+                drop-shadow(0 8px 18px rgba(0, 0, 0, 0.4));
         }
-        html.theme-light .tg-boot-spinner {
-            border-color: rgba(26, 31, 44, 0.15);
-            border-top-color: #d63f24;
+        .tg-boot-tri {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 4.5rem;
+            height: 2.35rem;
+            box-sizing: border-box;
+            font-family: "Barlow Condensed", "Arial Narrow", "Helvetica Neue Condensed", sans-serif;
+            font-weight: 700;
+            font-size: 1.48rem;
+            line-height: 1;
+            letter-spacing: 0.01em;
+            padding-inline: 0.22rem;
         }
-        @keyframes tg-boot-spin { to { transform: rotate(360deg); } }
+        .tg-boot-tri--light {
+            clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+            background: linear-gradient(168deg, #ffffff 0%, #e8ecf4 52%, #d2dae6 100%);
+            color: #0c1018;
+            align-items: flex-start;
+            padding-top: 0.26rem;
+            padding-bottom: 0.2rem;
+            animation: tg-boot-from-top 0.72s cubic-bezier(0.22, 1.15, 0.36, 1) both;
+        }
+        .tg-boot-tri--dark {
+            clip-path: polygon(0% 0%, 100% 0%, 50% 100%);
+            background: linear-gradient(348deg, #1c2433 0%, #141a24 45%, #0a0d12 100%);
+            color: #f2f5fa;
+            margin-top: -0.62rem;
+            padding: 0.12rem 0.22rem 0.28rem;
+            animation: tg-boot-from-bottom 0.72s cubic-bezier(0.22, 1.15, 0.36, 1) 0.1s both;
+        }
+        .tg-boot-tri--dark span {
+            display: inline-block;
+            transform: translateY(-0.04rem);
+        }
+        .tg-boot-status {
+            margin: 0;
+            max-width: 18rem;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 600;
+        }
+        .tg-boot-status[hidden] { display: none !important; }
+        @keyframes tg-boot-from-top {
+            from { opacity: 0; transform: translateY(-34px) scale(0.9); }
+            to { opacity: 1; transform: none; }
+        }
+        @keyframes tg-boot-from-bottom {
+            from { opacity: 0; transform: translateY(34px) scale(0.9); }
+            to { opacity: 1; transform: none; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .tg-boot-overlay { transition: none; }
+            .tg-boot-tri--light,
+            .tg-boot-tri--dark { animation: none; }
+        }
     </style>
     <script>
     (function () {
@@ -242,10 +305,23 @@
                 if (signalReady() || Date.now() - started > 15000) clearInterval(timer);
             }, 20);
         }
+        var bootShownAt = Date.now();
+        var bootLeaveTimer = null;
         window.hideTelegramBootOverlay = function hideTelegramBootOverlay() {
-            const el = document.getElementById('tgBootOverlay');
-            if (el) el.classList.add('hidden');
             signalReady();
+            var el = document.getElementById('tgBootOverlay');
+            if (!el || el.dataset.bootError || el.classList.contains('hidden') || el.classList.contains('is-leaving') || bootLeaveTimer) return;
+            var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            var minMs = reduce ? 320 : 1500;
+            var wait = Math.max(0, minMs - (Date.now() - bootShownAt));
+            bootLeaveTimer = setTimeout(function () {
+                bootLeaveTimer = null;
+                if (el.dataset.bootError) return;
+                el.classList.add('is-leaving');
+                setTimeout(function () {
+                    if (!el.dataset.bootError) el.classList.add('hidden');
+                }, reduce ? 0 : 420);
+            }, wait);
         };
         // Страховка: не держим splash вечно, если шрифты/скрипты зависли в WebView.
         setTimeout(function () {
@@ -278,9 +354,12 @@
     <div id="appGlobalBusy" class="app-global-busy hidden" role="status" aria-live="polite" aria-busy="false" aria-label="Загрузка">
         <div class="app-global-busy-spinner" aria-hidden="true"></div>
     </div>
-    <div id="tgBootOverlay" class="tg-boot-overlay" role="status" aria-live="polite">
-        <div class="tg-boot-spinner" aria-hidden="true"></div>
-        <div>6А9А</div>
+    <div id="tgBootOverlay" class="tg-boot-overlay" role="status" aria-live="polite" aria-label="6А9А">
+        <div class="tg-boot-logo" aria-hidden="true">
+            <span class="tg-boot-tri tg-boot-tri--light">6А</span>
+            <span class="tg-boot-tri tg-boot-tri--dark"><span>9А</span></span>
+        </div>
+        <p class="tg-boot-status" hidden></p>
     </div>
 
     <div class="container">

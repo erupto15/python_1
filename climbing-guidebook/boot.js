@@ -43,9 +43,11 @@
     script.onerror = function () {
         const overlay = document.getElementById('tgBootOverlay');
         if (overlay) {
-            overlay.classList.remove('hidden');
-            const label = overlay.querySelector('div:last-child');
+            overlay.dataset.bootError = '1';
+            overlay.classList.remove('hidden', 'is-leaving');
+            const label = overlay.querySelector('.tg-boot-status');
             if (label) {
+                label.hidden = false;
                 label.textContent = 'Не удалось загрузить приложение. Проверьте сеть.';
             }
         }
