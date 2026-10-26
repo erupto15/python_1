@@ -9933,6 +9933,12 @@
             margin-top: 0;
         }
 
+        html.app-shell:not(.search-screen-open) #catalog .catalog-card-search,
+        html.app-shell.catalog-sector-focus:not(.search-screen-open) #catalog .catalog-card-search,
+        html.app-shell.search-screen-open:not([data-search-screen="catalog"]) #catalog .catalog-card-search {
+            display: none !important;
+        }
+
         html.app-shell.app-shell-map-tab #map .map-toolbar {
             margin-top: 0;
             padding: 0;
