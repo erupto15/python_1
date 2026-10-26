@@ -11012,6 +11012,7 @@
                 btn.setAttribute('aria-hidden', show ? 'false' : 'true');
                 btn.setAttribute('aria-label', label);
                 btn.title = label;
+                btn.textContent = 'Назад';
                 this.syncMapAdminAddBar();
             }
 
@@ -11099,6 +11100,9 @@
                 this._reparentCatalogMapEdit(!!active);
                 this.fillMapLegendSectorIcons();
                 this.syncMapEditUi();
+                if (this.map && shellMap) {
+                    requestAnimationFrame(() => this.map?.invalidateSize?.({ animate: false }));
+                }
             }
 
             _reparentMapDom(toCatalog) {

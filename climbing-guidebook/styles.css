@@ -6061,23 +6061,30 @@
 
         .map-drill-back-btn {
             position: fixed;
-            top: calc(58px + env(safe-area-inset-top, 0px));
-            left: calc(12px + env(safe-area-inset-left, 0px));
-            z-index: 870;
-            width: 44px;
-            height: 44px;
-            padding: 0;
-            border: 1px solid rgba(17, 24, 39, 0.12);
-            border-radius: 50%;
-            background: #fff;
-            color: #111827;
-            box-shadow: 0 5px 18px rgba(0, 0, 0, 0.28);
+            top: calc(8px + env(safe-area-inset-top, 0px));
+            left: calc(8px + env(safe-area-inset-left, 0px));
+            z-index: 880;
+            width: auto;
+            height: 40px;
+            margin: 0;
+            padding: 0 12px 0 8px;
+            border: 0;
+            border-radius: 12px;
+            background: transparent;
+            color: var(--text-color);
+            box-shadow: none;
             cursor: pointer;
-            display: flex;
+            display: inline-flex;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
+            gap: 2px;
+            font: inherit;
+            font-size: 16px;
+            font-weight: 650;
+            line-height: 1;
             pointer-events: auto;
             touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .map-drill-back-btn::before {
@@ -6085,19 +6092,44 @@
             display: block;
             width: 11px;
             height: 11px;
-            margin-left: 4px;
+            margin: 0 2px 0 0;
             border-left: 2.5px solid currentColor;
             border-bottom: 2.5px solid currentColor;
             transform: rotate(45deg);
+            flex: 0 0 auto;
         }
 
         .map-drill-back-btn:active {
             transform: scale(0.96);
         }
 
-        html.app-shell.catalog-map-shell .map-drill-back-btn,
-        html.app-shell.app-shell-map-tab .map-drill-back-btn {
-            top: calc(58px + env(safe-area-inset-top, 0px));
+        html.app-shell.catalog-map-shell header,
+        html.app-shell.catalog-map-shell .tabs {
+            display: none !important;
+        }
+
+        html.app-shell.catalog-map-shell .container {
+            overflow: hidden;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        html.app-shell.catalog-map-shell #catalogMapBlock {
+            position: fixed;
+            top: calc(52px + env(safe-area-inset-top, 0px));
+            right: 0;
+            bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+            left: 0;
+            width: auto;
+            margin: 0;
+            z-index: 2;
+        }
+
+        html.app-shell.catalog-map-shell #catalogMapContainerMount,
+        html.app-shell.catalog-map-shell #catalogMapContainerMount #mapContainer {
+            width: 100%;
+            height: 100% !important;
+            min-height: 0;
         }
 
         body.map-boulder-sheet-open .map-drill-back-btn,
