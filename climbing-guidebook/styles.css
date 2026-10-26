@@ -9993,19 +9993,74 @@
             background: transparent;
         }
 
-        html.app-shell.app-shell-map-tab #mapContainer {
-            height: calc(var(--app-height, 100dvh) - 9.25rem);
-            min-height: 360px;
-            width: 100vw;
-            margin-left: calc(50% - 50vw);
-            margin-top: 0;
-            border: 0;
-            border-radius: 0;
+        html.app-shell.app-shell-map-tab header {
+            display: none !important;
         }
 
-        html.app-shell.app-shell-map-tab #map .card-title,
-        html.app-shell.app-shell-map-tab #map .overlay-screen-back {
+        html.app-shell.app-shell-map-tab #map .card {
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        #map > .map-overlay-back {
             display: none;
+        }
+
+        html.app-shell.app-shell-map-tab #mapContainer {
+            position: fixed;
+            top: env(safe-area-inset-top, 0px);
+            right: 0;
+            bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+            left: 0;
+            width: auto;
+            height: auto !important;
+            min-height: 0;
+            margin: 0;
+            border: 0;
+            border-radius: 0;
+            z-index: 2;
+        }
+
+        html.app-shell.app-shell-map-tab #map .card-title {
+            display: none !important;
+        }
+
+        html.app-shell.app-shell-map-tab #map > .map-overlay-back {
+            display: inline-flex !important;
+            position: fixed;
+            top: calc(12px + env(safe-area-inset-top, 0px));
+            left: calc(12px + env(safe-area-inset-left, 0px));
+            z-index: 890;
+            height: 44px;
+            margin: 0;
+            padding: 0 14px 0 10px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 18px;
+            background: rgba(22, 22, 26, 0.82);
+            color: #fff;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            align-items: center;
+            font-size: 16px;
+            font-weight: 650;
+            line-height: 1;
+            gap: 2px;
+        }
+
+        html.app-shell.app-shell-map-tab #map > .map-overlay-back::before {
+            content: '';
+            display: block;
+            width: 11px;
+            height: 11px;
+            margin: 0 2px 0 0;
+            border-left: 2.5px solid currentColor;
+            border-bottom: 2.5px solid currentColor;
+            transform: rotate(45deg);
+            flex: 0 0 auto;
         }
 
         html.app-shell.app-shell-map-tab #mapToolbar > .map-filter-row,
