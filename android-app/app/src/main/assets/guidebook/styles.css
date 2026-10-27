@@ -2467,12 +2467,12 @@
         }
 
         .catalog-map-block .map-area-droplet-inner {
-            stroke: var(--map-accent, #e8472a);
+            stroke: #111;
             stroke-width: 2.8px;
         }
 
         .catalog-map-block .map-area-badge--catalog.selected .map-area-droplet-inner {
-            stroke: #ff5c45;
+            stroke: #111;
             stroke-width: 3px;
         }
 
@@ -10297,13 +10297,13 @@
             background-color: transparent !important;
             border: 0 !important;
             box-shadow: none !important;
-            color: #111;
+            color: #fff;
             width: 40px !important;
             height: 36px !important;
             line-height: 36px !important;
             font-size: 22px;
             font-weight: 650;
-            text-shadow: 0 0 3px #fff, 0 1px 2px rgba(255, 255, 255, 0.95);
+            text-shadow: 0 0 3px #000, 0 1px 2px rgba(0, 0, 0, 0.9);
         }
 
         html.catalog-map-shell #mapContainer .leaflet-bottom.leaflet-right {
@@ -10896,4 +10896,49 @@
 
         .app-menu-empty {
             margin: 12px 8px;
+        }
+
+        #mapContainer .map-boulder-climber-icon,
+        #mapContainer .map-boulder-pin-icon,
+        #mapContainer .map-boulder-sector-icon,
+        #mapContainer .map-route-sector-icon,
+        #mapContainer .map-sector-badge-glyph {
+            background: #fff !important;
+            color: #111 !important;
+            border-color: #111 !important;
+        }
+
+        #mapContainer .map-boulder-pin-count {
+            background: #fff;
+            color: #111;
+            border-color: #111;
+        }
+
+        #mapContainer .map-boulder-pin-icon--focused {
+            filter: none;
+            box-shadow: 0 0 0 2px #111;
+        }
+
+        #mapContainer .map-climb-dot {
+            background: #fff;
+            border-color: #111;
+        }
+
+        #mapContainer .map-climb-dot.focused {
+            background: #111;
+            border-color: #fff;
+            box-shadow: 0 0 0 2px #fff;
+        }
+
+        #mapContainer .map-sector-badge-dot {
+            background: #fff !important;
+            border-color: #111 !important;
+        }
+
+        #mapContainer .map-sector-badge-pointer {
+            border-top-color: #fff !important;
+        }
+
+        #mapContainer .map-area-badge--catalog .map-area-droplet-pin {
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.65));
         }

@@ -7499,9 +7499,9 @@
                 if (window.GuidebookMapTiles?.addBasemapLayer) {
                     window.GuidebookMapTiles.addBasemapLayer(this.map);
                 } else {
-                    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        maxZoom: 19,
-                        attribution: '&copy; OpenStreetMap contributors'
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+                        maxZoom: 16,
+                        attribution: 'Tiles &copy; Esri'
                     }).addTo(this.map);
                 }
 
@@ -8236,7 +8236,7 @@
             }
 
             buildMapAreaDropletCatalogSvg() {
-                return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 20" aria-hidden="true"><path fill="#141414" d="M14 3.5c-3.2 0-5.8 2.5-5.8 5.6 0 3.3 5.8 10.9 5.8 10.9s5.8-7.6 5.8-10.9c0-3.1-2.6-5.6-5.8-5.6zm0 3.6a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/><circle cx="14" cy="8.6" r="1.55" fill="#fff"/></svg>';
+                return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 20" aria-hidden="true"><path fill="#fff" stroke="#111" stroke-width="1.25" d="M14 3.5c-3.2 0-5.8 2.5-5.8 5.6 0 3.3 5.8 10.9 5.8 10.9s5.8-7.6 5.8-10.9c0-3.1-2.6-5.6-5.8-5.6z"/><circle cx="14" cy="8.6" r="1.7" fill="#111"/></svg>';
             }
 
             buildMapAreaDropletHtml(extraClass = '', { catalogWhite = false } = {}) {
