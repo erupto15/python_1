@@ -7488,9 +7488,11 @@
                     attributionControl: false,
                     tapTolerance: 20
                 });
-                if (savedView) {
+                if (savedView && Number(savedView.zoom) >= 12) {
                     this.map.setView([savedView.lat, savedView.lng], savedView.zoom);
                     this._mapFitDone = true;
+                } else if (savedView) {
+                    this.map.setView([savedView.lat, savedView.lng], Math.max(Number(savedView.zoom) || 5, 5));
                 } else {
                     this.map.setView([55.7558, 37.6173], 5);
                 }
@@ -9210,37 +9212,76 @@
                 return points;
             }
 
+            mapFitAnchor(points) {
+                const areaId = this.mapCatalogScope?.areaId;
+                if (areaId != null) {
+                    const area = getAreas().find((a) => Number(a.id) === Number(areaId));
+                    const own = this.validMapCoord(area?.latitude, area?.longitude);
+                    if (own) return own;
+                    const centroid = this.areaMapCoordinate(areaId);
+                    if (centroid) return centroid;
+                }
+                if (!points?.length) return null;
+                const lats = points.map((p) => p.lat).sort((a, b) => a - b);
+                const lngs = points.map((p) => p.lng).sort((a, b) => a - b);
+                const mid = Math.floor(points.length / 2);
+                return { lat: lats[mid], lng: lngs[mid] };
+            }
+
+            mapPointsNearAnchor(points, anchor, maxMeters = 20000) {
+                if (!anchor) return points || [];
+                const near = (points || []).filter((p) => this.distanceMeters(anchor, p) <= maxMeters);
+                return near.length ? near : [anchor];
+            }
+
+            applyMapFit(points, maxZoom = 16) {
+                if (!this.map || !points?.length) return;
+                this._mapRestoringView = true;
+                const release = () => requestAnimationFrame(() => {
+                    this._mapRestoringView = false;
+                });
+                if (points.length === 1) {
+                    this.map.setView([points[0].lat, points[0].lng], Math.min(maxZoom, 15), { animate: false });
+                    release();
+                    return;
+                }
+                const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng]));
+                if (!bounds.isValid()) {
+                    release();
+                    return;
+                }
+                this.map.fitBounds(bounds.pad(0.06), { maxZoom, animate: false });
+                release();
+            }
+
+            fitMapCloserToArea(maxZoom = 16) {
+                if (!this.map) return;
+                let points = this.mapCatalogScope?.areaId ? this.collectPointsForCatalogScope() : [];
+                if (!points.length) {
+                    this.mapMarkerIndex.forEach((entry) => {
+                        if (entry?.lat == null || entry?.lng == null) return;
+                        points.push({ lat: Number(entry.lat), lng: Number(entry.lng) });
+                    });
+                }
+                const anchor = this.mapFitAnchor(points);
+                points = this.mapPointsNearAnchor(points, anchor, 20000);
+                this.applyMapFit(points, maxZoom);
+            }
+
             fitMapToCatalogScope(maxZoom = 15) {
                 if (!this.map) return;
                 const points = this.collectPointsForCatalogScope();
-                if (points.length === 1) {
-                    this._mapRestoringView = true;
-                    this.map.setView([points[0].lat, points[0].lng], Math.min(maxZoom, 14), { animate: true });
-                    requestAnimationFrame(() => {
-                        this._mapRestoringView = false;
-                    });
+                const anchor = this.mapFitAnchor(points);
+                const near = this.mapPointsNearAnchor(points, anchor, 20000);
+                if (near.length) {
+                    this.applyMapFit(near, maxZoom);
                     return;
-                }
-                if (points.length > 1) {
-                    const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng]));
-                    if (bounds.isValid()) {
-                        this._mapRestoringView = true;
-                        const pad = this.catalogEmbeddedMapActive() ? 0.12 : 0.18;
-                        this.map.fitBounds(bounds.pad(pad), { maxZoom, animate: true });
-                        requestAnimationFrame(() => {
-                            this._mapRestoringView = false;
-                        });
-                        return;
-                    }
                 }
                 this.fitMapToVisibleMarkers(maxZoom);
             }
 
             fitMapToVisibleMarkers(maxZoom = 15) {
-                if (!this.map || !this.mapMarkerIndex.size) return;
-                const bounds = this.mapVisibleBounds();
-                if (!bounds) return;
-                this.map.fitBounds(bounds.pad(0.22), { maxZoom, animate: true });
+                this.fitMapCloserToArea(maxZoom);
             }
 
             catalogEmbeddedMapActive() {
@@ -9524,11 +9565,8 @@
                 this.updateMapStatus();
 
                 if (!this.catalogEmbeddedMapActive() && !this._mapFitDone && this.mapMarkerIndex.size) {
-                    const bounds = this.mapVisibleBounds();
-                    if (bounds) {
-                        this.map.fitBounds(bounds.pad(0.2), { maxZoom: 14, animate: false });
-                        this._mapFitDone = true;
-                    }
+                    this.fitMapCloserToArea(16);
+                    this._mapFitDone = true;
                 }
                 this.syncMapZoomClass();
                 this.scheduleMapDeclutter();
@@ -11205,6 +11243,9 @@
                 }
                 if (typeof window.syncTelegramMiniAppUi === 'function') window.syncTelegramMiniAppUi();
                 this.syncMapDrillBackBtn();
+                if (this.map && this.map.getZoom() < 12) {
+                    this.fitMapCloserToArea(16);
+                }
             }
 
             async focusMapTarget(kind, id, { openPopup = true, setTarget = true } = {}) {
