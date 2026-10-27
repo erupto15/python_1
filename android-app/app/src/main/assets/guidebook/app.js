@@ -8637,16 +8637,20 @@
             }
 
             declutterMapLabels() {
-                if (!this.map || this.map.getZoom() <= 10) return;
+                if (!this.map) return;
                 const entries = [...this.mapMarkerIndex.values()]
                     .filter((entry) => entry.labelEl)
                     .sort((a, b) => this.mapDeclutterPriority(b) - this.mapDeclutterPriority(a));
+                if (this.map.getZoom() <= 10) {
+                    entries.forEach((entry) => entry.labelEl?.classList.remove('declutter-hidden'));
+                    return;
+                }
                 const kept = [];
                 entries.forEach((entry) => {
                     const el = entry.labelEl;
                     if (!el) return;
                     el.classList.remove('declutter-hidden');
-                    if (this.mapEntrySelected(entry)) return;
+                    if (entry.kind === 'area' || this.mapEntrySelected(entry)) return;
                     if (this.catalogEmbeddedMapActive() && this.isMapPinLabelKind(entry.kind)) {
                         const rect = el.getBoundingClientRect();
                         if (rect.width && rect.height) kept.push(rect);
