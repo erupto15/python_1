@@ -5915,6 +5915,56 @@
             display: none !important;
         }
 
+        .map-pin-editor-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            max-width: calc(100vw - 24px);
+            pointer-events: none;
+        }
+
+        .map-pin-editor-panel:has(.map-pin-editor-adds:not([hidden])) {
+            align-items: stretch;
+            width: min(420px, calc(100vw - 24px));
+            padding: 8px;
+            border-radius: 22px;
+            background: color-mix(in srgb, #141414 88%, transparent);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            pointer-events: auto;
+        }
+
+        .map-pin-editor-panel:has(.map-pin-editor-adds:not([hidden])) .map-pin-editor-dock {
+            align-self: center;
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            padding: 0;
+        }
+
+        .map-pin-editor-adds {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            pointer-events: auto;
+        }
+
+        .map-pin-editor-adds[hidden],
+        .map-pin-editor-adds.hidden {
+            display: none !important;
+        }
+
+        .map-pin-editor-adds .btn {
+            width: 100%;
+            justify-content: center;
+        }
+
         .map-pin-editor-dock,
         .map-pin-editor-menu {
             pointer-events: auto;
@@ -6181,7 +6231,7 @@
         }
 
         html.app-shell:not(.catalog-map-shell):not(.app-shell-map-tab) .map-drill-back-btn,
-        html.app-shell:not(.catalog-map-shell):not(.app-shell-map-tab) .map-admin-add-bar {
+        html.app-shell .map-admin-add-bar {
             display: none !important;
         }
 
@@ -10262,15 +10312,6 @@
 
         html.catalog-map-shell #mapContainer .map-pin-editor {
             bottom: max(14px, env(safe-area-inset-bottom, 0px));
-        }
-
-        html.app-shell.app-shell-map-tab:has(#mapAdminAddBar:not(.hidden)) #mapContainer .map-pin-editor {
-            bottom: 124px;
-        }
-
-        html.app-shell.catalog-map-shell:has(#mapAdminAddBar:not(.hidden)) #mapContainer .map-pin-editor,
-        html.catalog-map-shell:has(#mapAdminAddBar:not(.hidden)) #mapContainer .map-pin-editor {
-            bottom: 72px;
         }
 
         html.catalog-map-shell .catalog-map-block .map-sector-badge--route .map-sector-badge-glyph,

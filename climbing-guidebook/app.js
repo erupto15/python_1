@@ -10988,24 +10988,34 @@
             }
 
             syncMapAdminAddBar() {
+                const slot = document.getElementById('mapPinEditorAdds');
                 const bar = document.getElementById('mapAdminAddBar');
-                if (!bar) return;
                 const climbOpen = !document.getElementById('climbDetailDialog')?.classList.contains('hidden');
                 const sectorId = this.mapAdminAddSectorId();
                 const show = this.isAdmin()
                     && document.documentElement.classList.contains('app-shell')
                     && sectorId != null
-                    && !climbOpen;
-                bar.innerHTML = show ? `
+                    && !climbOpen
+                    && !!slot;
+                const html = show ? `
                     ${APP_BOULDER_ONLY ? '' : `<button type="button" class="btn btn-primary" data-map-admin-add="route" data-id="${sectorId}">
                         <i class="fas fa-plus"></i> Добавить трассу
                     </button>`}
                     <button type="button" class="btn btn-primary" data-map-admin-add="boulder" data-id="${sectorId}">
                         <i class="fas fa-plus"></i> Добавить боулдеринг
                     </button>` : '';
-                bar.hidden = !show;
-                bar.classList.toggle('hidden', !show);
-                bar.setAttribute('aria-hidden', show ? 'false' : 'true');
+                if (slot) {
+                    slot.innerHTML = html;
+                    slot.hidden = !show;
+                    slot.classList.toggle('hidden', !show);
+                    slot.setAttribute('aria-hidden', show ? 'false' : 'true');
+                }
+                if (bar) {
+                    bar.innerHTML = '';
+                    bar.hidden = true;
+                    bar.classList.add('hidden');
+                    bar.setAttribute('aria-hidden', 'true');
+                }
             }
 
             syncMapDrillBackBtn() {
@@ -15558,6 +15568,22 @@
                     this.toggleMapEditMode();
                 });
                 document.getElementById('mapPinEditor')?.addEventListener('click', (e) => {
+                    const adminAdd = e.target.closest('[data-map-admin-add]');
+                    if (adminAdd) {
+                        e.preventDefault();
+                        const kind = adminAdd.dataset.mapAdminAdd;
+                        const id = adminAdd.dataset.id;
+                        if (kind === 'route') {
+                            if (!this.requireAdmin('Добавление трассы')) return;
+                            void this.quickAddRouteInSector(id);
+                            return;
+                        }
+                        if (kind === 'boulder') {
+                            if (!this.requireAdmin('Добавление боулдеринга')) return;
+                            void this.quickAddBoulderInSector(id);
+                        }
+                        return;
+                    }
                     const addKind = e.target.closest('[data-map-add-kind]');
                     if (addKind) {
                         e.preventDefault();
