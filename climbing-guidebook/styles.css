@@ -10264,6 +10264,15 @@
             bottom: max(14px, env(safe-area-inset-bottom, 0px));
         }
 
+        html.app-shell.app-shell-map-tab:has(#mapAdminAddBar:not(.hidden)) #mapContainer .map-pin-editor {
+            bottom: 124px;
+        }
+
+        html.app-shell.catalog-map-shell:has(#mapAdminAddBar:not(.hidden)) #mapContainer .map-pin-editor,
+        html.catalog-map-shell:has(#mapAdminAddBar:not(.hidden)) #mapContainer .map-pin-editor {
+            bottom: 72px;
+        }
+
         html.catalog-map-shell .catalog-map-block .map-sector-badge--route .map-sector-badge-glyph,
         html.catalog-map-shell .catalog-map-block .map-sector-badge--boulder .map-sector-badge-glyph {
             width: 34px;
