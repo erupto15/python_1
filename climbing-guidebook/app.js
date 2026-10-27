@@ -638,6 +638,9 @@
                 btn.classList.toggle('active', active);
                 btn.setAttribute('aria-current', active ? 'page' : 'false');
             });
+            if (app && typeof app.syncMapDrillBackBtn === 'function') {
+                app.syncMapDrillBackBtn();
+            }
         };
 
         window.syncTelegramMiniAppUi = function syncTelegramMiniAppUi() {
@@ -10970,6 +10973,9 @@
             }
 
             mapAdminAddSectorId() {
+                const mapTab = !!document.getElementById('map')?.classList.contains('active');
+                const embedded = this.catalogEmbeddedMapActive();
+                if (!mapTab && !embedded) return null;
                 if (this.catalog?.view === 'problems' && this.catalog.sectorId != null) {
                     const id = Number(this.catalog.sectorId);
                     return Number.isFinite(id) ? id : null;

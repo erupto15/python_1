@@ -6180,6 +6180,11 @@
             pointer-events: none;
         }
 
+        html.app-shell:not(.catalog-map-shell):not(.app-shell-map-tab) .map-drill-back-btn,
+        html.app-shell:not(.catalog-map-shell):not(.app-shell-map-tab) .map-admin-add-bar {
+            display: none !important;
+        }
+
         .map-admin-add-bar .btn {
             pointer-events: auto;
             width: 100%;
@@ -9949,6 +9954,8 @@
             flex: 1 1 100%;
             order: 3;
             display: none;
+            min-width: 0;
+            max-width: 100%;
         }
 
         html.app-shell.app-shell-global-search-open .header-search-auth {
