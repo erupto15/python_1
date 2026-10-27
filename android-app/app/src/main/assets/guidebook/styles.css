@@ -10297,13 +10297,13 @@
             background-color: transparent !important;
             border: 0 !important;
             box-shadow: none !important;
-            color: #fff;
+            color: #111;
             width: 40px !important;
             height: 36px !important;
             line-height: 36px !important;
             font-size: 22px;
             font-weight: 650;
-            text-shadow: 0 0 3px #000, 0 1px 2px rgba(0, 0, 0, 0.9);
+            text-shadow: 0 0 3px #fff, 0 1px 2px rgba(255, 255, 255, 0.95);
         }
 
         html.catalog-map-shell #mapContainer .leaflet-bottom.leaflet-right {
