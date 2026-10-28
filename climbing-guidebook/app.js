@@ -4436,11 +4436,18 @@
                     const rect = wrap.getBoundingClientRect();
                     const dist = touchSpan(e.touches[0], e.touches[1]);
                     const newScale = Math.max(1, Math.min(6, pinchStartScale * (dist / pinchStartDist)));
-                    const ratio = newScale / pinchStartScale;
+                    const ratio = newScale / Math.max(0.0001, pinchStartScale);
+                    const c = localPoint(
+                        { clientX: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                            clientY: (e.touches[0].clientY + e.touches[1].clientY) / 2 },
+                        rect
+                    );
+                    const ox = rect.width / 2;
+                    const oy = rect.height / 2;
                     const z = getPhotoZoomState(wrap);
                     z.scale = newScale;
-                    z.tx = pinchCx - (pinchCx - pinchStartTx) * ratio;
-                    z.ty = pinchCy - (pinchCy - pinchStartTy) * ratio;
+                    z.tx = (c.x - ox) - ((pinchCx - ox) - pinchStartTx) * ratio;
+                    z.ty = (c.y - oy) - ((pinchCy - oy) - pinchStartTy) * ratio;
                     clampPhotoStagePan(wrap);
                     applyPhotoStageTransform(wrap);
                     return;
