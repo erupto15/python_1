@@ -5860,6 +5860,23 @@
             }
         }
 
+        function patchPhotoMarkupInLocalCache(photoId, markup, climbTypeHint = '') {
+            const data = getClimbingData();
+            const photos = data.photos || [];
+            const idx = photos.findIndex((p) => String(p.id) === String(photoId));
+            if (idx < 0) return null;
+
+            const current = photos[idx];
+            const climbType = climbTypeHint || current.type || 'route';
+            const normalizedMarkup = normalizePhotoMarkup(markup, climbType === 'boulder' ? 'boulder' : 'route') || markup || null;
+            const next = { ...current, markup: normalizedMarkup };
+            data.photos = [...photos.slice(0, idx), next, ...photos.slice(idx + 1)];
+            recomputeNextPhotoId(data);
+            saveClimbingData(data);
+            _photosLoadedFromApi = true;
+            return next;
+        }
+
         function getAreas() {
             return getClimbingData().areas || [];
         }
@@ -5878,6 +5895,105 @@
             const data = getClimbingData();
             data.sectors = sectors;
             saveClimbingData(data);
+        }
+
+        function boulderZoneConvexHull(points) {
+            const pts = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+            if (pts.length <= 2) return pts;
+            const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+            const lower = [];
+            pts.forEach((p) => {
+                while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+                lower.push(p);
+            });
+            const upper = [];
+            for (let i = pts.length - 1; i >= 0; i -= 1) {
+                const p = pts[i];
+                while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+                upper.push(p);
+            }
+            lower.pop();
+            upper.pop();
+            return lower.concat(upper);
+        }
+
+        function boulderZoneOffsetHull(hull, pad) {
+            const n = hull.length;
+            if (n < 2) return hull;
+            if (n === 2) {
+                const a = hull[0];
+                const b = hull[1];
+                let dx = b.x - a.x;
+                let dy = b.y - a.y;
+                const len = Math.hypot(dx, dy) || 1;
+                dx /= len;
+                dy /= len;
+                const px = -dy;
+                const py = dx;
+                return [
+                    { x: a.x - dx * pad + px * pad, y: a.y - dy * pad + py * pad },
+                    { x: b.x + dx * pad + px * pad, y: b.y + dy * pad + py * pad },
+                    { x: b.x + dx * pad - px * pad, y: b.y + dy * pad - py * pad },
+                    { x: a.x - dx * pad - px * pad, y: a.y - dy * pad - py * pad }
+                ];
+            }
+            const cx = hull.reduce((sum, p) => sum + p.x, 0) / n;
+            const cy = hull.reduce((sum, p) => sum + p.y, 0) / n;
+            return hull.map((p, i) => {
+                const prev = hull[(i - 1 + n) % n];
+                const next = hull[(i + 1) % n];
+                const e1x = p.x - prev.x;
+                const e1y = p.y - prev.y;
+                const e2x = next.x - p.x;
+                const e2y = next.y - p.y;
+                const l1 = Math.hypot(e1x, e1y) || 1;
+                const l2 = Math.hypot(e2x, e2y) || 1;
+                let n1x = e1y / l1;
+                let n1y = -e1x / l1;
+                let n2x = e2y / l2;
+                let n2y = -e2x / l2;
+                let nx = n1x + n2x;
+                let ny = n1y + n2y;
+                const nl = Math.hypot(nx, ny) || 1;
+                nx /= nl;
+                ny /= nl;
+                if ((p.x - cx) * nx + (p.y - cy) * ny < 0) {
+                    nx = -nx;
+                    ny = -ny;
+                }
+                const along = Math.max(0.35, Math.abs(n1x * nx + n1y * ny));
+                const dist = Math.min(pad / along, pad * 2.2);
+                return { x: p.x + nx * dist, y: p.y + ny * dist };
+            });
+        }
+
+        /** Контур зоны боулдеринга: круг для одной точки, иначе выпуклая оболочка с отступом. */
+        function boulderZoneShape(points, padMeters = 42) {
+            const list = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lng));
+            if (!list.length) return null;
+            const origin = list[0];
+            const latRad = origin.lat * Math.PI / 180;
+            const mPerDegLat = 111320;
+            const mPerDegLng = 111320 * Math.cos(latRad);
+            const toM = (p) => ({
+                x: (p.lng - origin.lng) * mPerDegLng,
+                y: (p.lat - origin.lat) * mPerDegLat
+            });
+            const fromM = (m) => ({
+                lat: origin.lat + m.y / mPerDegLat,
+                lng: origin.lng + m.x / mPerDegLng
+            });
+            const uniq = [];
+            list.forEach((p) => {
+                const m = toM(p);
+                if (uniq.some((u) => Math.hypot(u.x - m.x, u.y - m.y) < 4)) return;
+                uniq.push(m);
+            });
+            if (uniq.length <= 1) {
+                return { type: 'circle', lat: list[0].lat, lng: list[0].lng, radius: padMeters };
+            }
+            const hull = boulderZoneOffsetHull(boulderZoneConvexHull(uniq), padMeters);
+            return { type: 'polygon', latlngs: hull.map((m) => [fromM(m).lat, fromM(m).lng]) };
         }
 
         class ClimbingApp {
@@ -8859,6 +8975,7 @@
             openMapSectorClimbSheet(entry) {
                 const climbs = this.mapClimbsForSheet(entry);
                 const routeSector = !this.isBoulderSector(entry?.id);
+                this._sectorBoulderZoneId = Number(entry?.id);
                 this.map?.closePopup?.();
                 this.closeMapBoulderSheet();
                 if (!climbs.length) {
@@ -9684,6 +9801,65 @@
                 if (this.catalogEmbeddedMapActive() && this.mapCatalogScope?.areaId) {
                     this.scheduleCatalogMapAutoFit();
                 }
+                this.syncSectorBoulderZone();
+            }
+
+            clearSectorBoulderZone() {
+                if (this._sectorBoulderZoneLayer && this.map) {
+                    try {
+                        this.map.removeLayer(this._sectorBoulderZoneLayer);
+                    } catch (_) {
+                        /* ignore */
+                    }
+                }
+                this._sectorBoulderZoneLayer = null;
+            }
+
+            sectorIdForBoulderZone() {
+                const id = Number(this._sectorBoulderZoneId);
+                if (!Number.isFinite(id) || id <= 0) return null;
+                const scopeSector = this.mapCatalogScope?.sectorId;
+                if (scopeSector == null || Number(scopeSector) !== id) return null;
+                return id;
+            }
+
+            boulderCoordsForSectorZone(sectorId) {
+                const points = getBoulders()
+                    .filter((boulder) => Number(boulder.sectorId) === Number(sectorId))
+                    .map((boulder) => this.validMapCoord(boulder.latitude, boulder.longitude))
+                    .filter(Boolean);
+                if (points.length < 2) return points;
+                const lats = points.map((p) => p.lat).sort((a, b) => a - b);
+                const lngs = points.map((p) => p.lng).sort((a, b) => a - b);
+                const mid = Math.floor(points.length / 2);
+                const anchor = { lat: lats[mid], lng: lngs[mid] };
+                const near = points.filter((p) => this.distanceMeters(anchor, p) <= 700);
+                return near.length ? near : points;
+            }
+
+            syncSectorBoulderZone() {
+                this.clearSectorBoulderZone();
+                if (!this.map || typeof L === 'undefined') return;
+                const sectorId = this.sectorIdForBoulderZone();
+                if (!sectorId) return;
+                const shape = boulderZoneShape(this.boulderCoordsForSectorZone(sectorId), 42);
+                if (!shape) return;
+                const style = {
+                    className: 'sector-boulder-zone',
+                    color: '#111111',
+                    weight: 2.5,
+                    opacity: 0.95,
+                    fillColor: '#ffffff',
+                    fillOpacity: 0.46,
+                    interactive: false,
+                    bubblingMouseEvents: false
+                };
+                const layer = shape.type === 'circle'
+                    ? L.circle([shape.lat, shape.lng], { radius: shape.radius, ...style })
+                    : L.polygon(shape.latlngs, style);
+                layer.addTo(this.map);
+                layer.bringToBack?.();
+                this._sectorBoulderZoneLayer = layer;
             }
 
             scheduleCatalogMapAutoFit() {
@@ -11104,6 +11280,7 @@
 
             clearMapScope() {
                 this.mapCatalogScope = null;
+                this._sectorBoulderZoneId = null;
                 this.updateMapMarkers();
             }
 
@@ -11768,7 +11945,9 @@
             handleMapMarkerSelection(entry, { openNavigation = false, openPopup = true } = {}) {
                 if (!entry || entry.lat == null || entry.lng == null) return;
                 this.setMapTarget(entry);
+                if (entry.kind === 'sector') this._sectorBoulderZoneId = Number(entry.id);
                 this.setMapScopeForEntry(entry.kind, entry.id);
+                this.syncSectorBoulderZone();
                 this.renderMapCoordsBar();
                 if (openPopup && entry.marker?.openPopup) {
                     entry.marker.openPopup();
@@ -16908,6 +17087,34 @@
                 return s === '' || s === 'temp' || s.startsWith('temp-');
             }
 
+            syncSavedPhotoMarkupLocally(photoId, markup, climbType) {
+                const savedPhoto = patchPhotoMarkupInLocalCache(photoId, markup, climbType);
+                const normalizedMarkup = savedPhoto?.markup
+                    || normalizePhotoMarkup(markup, climbType === 'boulder' ? 'boulder' : 'route')
+                    || markup
+                    || null;
+                const pid = String(photoId);
+
+                if (this.currentPhotoPreview && String(this.currentPhotoPreview.photoId || '') === pid) {
+                    this.currentPhotoPreview.markup = normalizedMarkup;
+                }
+
+                if (this._photoGallery?.entries?.length) {
+                    this._photoGallery.entries = this._photoGallery.entries.map((entry) => {
+                        if (String(entry?.photo?.id) !== pid) return entry;
+                        return {
+                            ...entry,
+                            photo: {
+                                ...entry.photo,
+                                markup: normalizedMarkup
+                            }
+                        };
+                    });
+                }
+
+                return normalizedMarkup;
+            }
+
             refreshClimbDetailMarkupOverlayIfOpen() {
                 const dlg = document.getElementById('climbDetailDialog');
                 const ctx = this._climbDetailContext;
@@ -18201,16 +18408,18 @@
                         body: JSON.stringify({ markup: newMarkup })
                     });
                     patchPhotoInLocalCacheFromApi(updated);
+                    const savedMarkup = this.syncSavedPhotoMarkupLocally(photoId, newMarkup, 'route');
                     this.showToast('Разметка обновлена');
                     const pid = String(photoId);
                     const prev = document.querySelector(`.photo-preview-with-markup[data-photo-id="${pid}"]`);
                     if (prev) {
                         resetPhotoStageInContainer(prev);
-                        this.applyPhotoPreviewMarkupOverlay(prev, newMarkup, prev.dataset.climbType || 'route');
+                        this.applyPhotoPreviewMarkupOverlay(prev, savedMarkup, prev.dataset.climbType || 'route');
                         this.syncMarkupButtonOnPreviewItem(prev, true);
                     }
                 } catch (err) {
                     this.showToast(`Ошибка сохранения разметки: ${err.message}`, true);
+                    return;
                 }
 
                 this.refreshClimbDetailMarkupOverlayIfOpen();
@@ -18646,16 +18855,18 @@
                         body: JSON.stringify({ markup: newMarkup })
                     });
                     patchPhotoInLocalCacheFromApi(updated);
+                    const savedMarkup = this.syncSavedPhotoMarkupLocally(photoId, newMarkup, 'boulder');
                     this.showToast('Разметка боулдеринга обновлена');
                     const pid = String(photoId);
                     const prev = document.querySelector(`.photo-preview-with-markup[data-photo-id="${pid}"]`);
                     if (prev) {
                         resetPhotoStageInContainer(prev);
-                        this.applyPhotoPreviewMarkupOverlay(prev, newMarkup, prev.dataset.climbType || 'boulder');
+                        this.applyPhotoPreviewMarkupOverlay(prev, savedMarkup, prev.dataset.climbType || 'boulder');
                         this.syncMarkupButtonOnPreviewItem(prev, true);
                     }
                 } catch (err) {
                     this.showToast(`Ошибка сохранения разметки: ${err.message}`, true);
+                    return;
                 }
 
                 this.hideDialog('boulderHoldsMarkupDialog');
