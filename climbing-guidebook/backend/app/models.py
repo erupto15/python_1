@@ -138,6 +138,7 @@ class Boulder(Base):
     grade: Mapped[str] = mapped_column(String(32), nullable=False)
     category: Mapped[Optional[str]] = mapped_column(String(64))
     rating: Mapped[Optional[float]] = mapped_column(Float)
+    admin_rating: Mapped[Optional[float]] = mapped_column(Float)
     height_m: Mapped[Optional[float]] = mapped_column(Float)
     latitude: Mapped[Optional[float]] = mapped_column(Float)
     longitude: Mapped[Optional[float]] = mapped_column(Float)

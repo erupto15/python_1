@@ -59,21 +59,19 @@ def sync_climb_star_average(
 ) -> tuple[float | None, int, float | None]:
     """
     Returns (community_avg, vote_count, display_rating_on_climb).
-    For routes display_rating follows admin_rating + votes; for boulders = community avg.
+    Display rating is the admin baseline until there are votes, then a blend.
+    The same rule applies to routes and boulders so an admin star rating
+    is not wiped when the climb card is opened before anyone votes.
     """
     stars = _rating_rows(db, climb_type, route_id, boulder_id)
     count = len(stars)
     avg = star_average(stars)
-    display: float | None
-    if climb_type == "route":
-        climb = db.get(Route, route_id)
-        admin = getattr(climb, "admin_rating", None) if climb is not None else None
-        if admin is None and climb is not None and climb.rating is not None and not stars:
-            admin = climb.rating
-        display = compute_route_display_rating(admin, stars)
-    else:
-        climb = db.get(Boulder, boulder_id)
-        display = avg
+    climb = db.get(Route, route_id) if climb_type == "route" else db.get(Boulder, boulder_id)
+    admin = getattr(climb, "admin_rating", None) if climb is not None else None
+    if admin is None and climb is not None and climb.rating is not None and not stars:
+        admin = climb.rating
+        climb.admin_rating = admin
+    display = compute_route_display_rating(admin, stars)
     if climb is not None:
         climb.rating = display
         db.add(climb)

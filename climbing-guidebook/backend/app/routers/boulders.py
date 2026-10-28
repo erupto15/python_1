@@ -9,8 +9,15 @@ from app.deps import assert_admin, get_current_user
 from app.models import Area, Boulder, Photo, Sector, User
 from app.services.ascent_counts import attach_send_counts
 from app.services.climb_community_cleanup import purge_ascents_and_ratings_for_boulder
+from app.services.climb_rating import sync_climb_star_average
 
 router = APIRouter(prefix="/boulders", tags=["boulders"])
+
+
+def _apply_boulder_admin_rating(boulder: Boulder, rating: float | None) -> None:
+    boulder.admin_rating = rating
+    if rating is not None:
+        boulder.rating = rating
 
 
 def _validate_active_sector_area(db: Session, sector_id: int | None, area_id: int | None) -> Sector:
@@ -54,10 +61,16 @@ def create_boulder(
     data.pop("created_by", None)
     _validate_active_sector_area(db, payload.sector_id, payload.area_id)
     data["created_by"] = user.id
+    admin_rating = data.pop("rating", None)
     boulder = Boulder(**data)
+    if admin_rating is not None:
+        _apply_boulder_admin_rating(boulder, admin_rating)
     db.add(boulder)
     db.commit()
     db.refresh(boulder)
+    if admin_rating is not None:
+        sync_climb_star_average(db, "boulder", boulder_id=boulder.id)
+        db.refresh(boulder)
     return boulder
 
 
@@ -100,10 +113,16 @@ def update_boulder(
             data.get("sector_id", b.sector_id),
             data.get("area_id", b.area_id),
         )
+    admin_rating_update = data.pop("rating", None) if "rating" in data else None
     for k, v in data.items():
         setattr(b, k, v)
+    if admin_rating_update is not None:
+        _apply_boulder_admin_rating(b, admin_rating_update)
     db.commit()
     db.refresh(b)
+    if admin_rating_update is not None:
+        sync_climb_star_average(db, "boulder", boulder_id=b.id)
+        db.refresh(b)
     return b
 
 

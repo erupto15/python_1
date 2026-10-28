@@ -3975,18 +3975,24 @@
 
         function patchClimbRatingInLocalCache(climbType, climbId, rating) {
             const data = getClimbingData();
+            const next = rating == null || rating === '' ? null : rating;
             if (climbType === 'route') {
                 const arr = data.routes || [];
                 const idx = arr.findIndex((r) => Number(r.id) === Number(climbId));
                 if (idx < 0) return;
-                data.routes = [...arr.slice(0, idx), { ...arr[idx], rating: rating ?? null }, ...arr.slice(idx + 1)];
+                const current = arr[idx].rating;
+                if (next == null && current != null && current !== '') return;
+                data.routes = [...arr.slice(0, idx), { ...arr[idx], rating: next }, ...arr.slice(idx + 1)];
             } else {
                 const arr = data.boulders || [];
                 const idx = arr.findIndex((b) => Number(b.id) === Number(climbId));
                 if (idx < 0) return;
-                data.boulders = [...arr.slice(0, idx), { ...arr[idx], rating: rating ?? null }, ...arr.slice(idx + 1)];
+                const current = arr[idx].rating;
+                if (next == null && current != null && current !== '') return;
+                data.boulders = [...arr.slice(0, idx), { ...arr[idx], rating: next }, ...arr.slice(idx + 1)];
             }
             saveClimbingData(data);
+            window.app?.renderMapBoulderSheet?.();
         }
 
         function mapApiPhotoToUi(p) {
@@ -5852,6 +5858,23 @@
                 recomputeNextPhotoId(data);
                 saveClimbingData(data);
             }
+        }
+
+        function patchPhotoMarkupInLocalCache(photoId, markup, climbTypeHint = '') {
+            const data = getClimbingData();
+            const photos = data.photos || [];
+            const idx = photos.findIndex((p) => String(p.id) === String(photoId));
+            if (idx < 0) return null;
+
+            const current = photos[idx];
+            const climbType = climbTypeHint || current.type || 'route';
+            const normalizedMarkup = normalizePhotoMarkup(markup, climbType === 'boulder' ? 'boulder' : 'route') || markup || null;
+            const next = { ...current, markup: normalizedMarkup };
+            data.photos = [...photos.slice(0, idx), next, ...photos.slice(idx + 1)];
+            recomputeNextPhotoId(data);
+            saveClimbingData(data);
+            _photosLoadedFromApi = true;
+            return next;
         }
 
         function getAreas() {
@@ -8811,10 +8834,20 @@
             mapClimbsForSheet(entry) {
                 if (!entry) return [];
                 if (entry.kind === 'boulder') {
-                    return this.mapBouldersAtPin(entry).map((item) => ({
-                        ...item,
-                        climbType: 'boulder'
-                    }));
+                    return this.mapBouldersAtPin(entry).map((item) => {
+                        const live = getBoulders().find((boulder) => Number(boulder.id) === Number(item.id));
+                        const liveRating = live?.rating;
+                        const rating = liveRating != null && liveRating !== ''
+                            ? liveRating
+                            : (item.rating ?? null);
+                        return {
+                            ...item,
+                            author: item.author || live?.authorName || '',
+                            rating,
+                            sendCount: live ? (Number(live.sendCount) || 0) : (Number(item.sendCount) || 0),
+                            climbType: 'boulder'
+                        };
+                    });
                 }
                 if (entry.kind !== 'sector') return [];
                 const sectorId = Number(entry.id);
@@ -14407,9 +14440,9 @@
 
             async quickAddRouteInSector(sectorId) {
                 const sid = Number(sectorId || this.catalog.sectorId || 0);
+                document.getElementById('quickRouteForm')?.reset();
                 document.getElementById('quickRouteId').value = '';
                 document.getElementById('quickRouteSectorId').value = String(sid || '');
-                document.getElementById('quickRouteForm')?.reset();
                 this.setFormGradeValue('quickRouteGrade', '6a');
                 document.getElementById('quickRouteDialogTitle').textContent = 'Добавить трассу';
                 document.getElementById('quickRouteDialogSubtitle').textContent = 'Новая трасса в выбранном секторе';
@@ -14422,9 +14455,9 @@
             async quickAddBoulderInSector(sectorId) {
                 this._lockBoulderPin = null;
                 const sid = Number(sectorId || this.catalog.sectorId || 0);
+                document.getElementById('quickBoulderForm')?.reset();
                 document.getElementById('quickBoulderId').value = '';
                 document.getElementById('quickBoulderSectorId').value = String(sid || '');
-                document.getElementById('quickBoulderForm')?.reset();
                 this.setFormGradeValue('quickBoulderGrade', '7A');
                 document.getElementById('quickBoulderDialogTitle').textContent = 'Добавить боулдеринг';
                 document.getElementById('quickBoulderDialogSubtitle').textContent = 'Новый боулдеринг в выбранном секторе';
@@ -16892,6 +16925,34 @@
                 return s === '' || s === 'temp' || s.startsWith('temp-');
             }
 
+            syncSavedPhotoMarkupLocally(photoId, markup, climbType) {
+                const savedPhoto = patchPhotoMarkupInLocalCache(photoId, markup, climbType);
+                const normalizedMarkup = savedPhoto?.markup
+                    || normalizePhotoMarkup(markup, climbType === 'boulder' ? 'boulder' : 'route')
+                    || markup
+                    || null;
+                const pid = String(photoId);
+
+                if (this.currentPhotoPreview && String(this.currentPhotoPreview.photoId || '') === pid) {
+                    this.currentPhotoPreview.markup = normalizedMarkup;
+                }
+
+                if (this._photoGallery?.entries?.length) {
+                    this._photoGallery.entries = this._photoGallery.entries.map((entry) => {
+                        if (String(entry?.photo?.id) !== pid) return entry;
+                        return {
+                            ...entry,
+                            photo: {
+                                ...entry.photo,
+                                markup: normalizedMarkup
+                            }
+                        };
+                    });
+                }
+
+                return normalizedMarkup;
+            }
+
             refreshClimbDetailMarkupOverlayIfOpen() {
                 const dlg = document.getElementById('climbDetailDialog');
                 const ctx = this._climbDetailContext;
@@ -18185,16 +18246,18 @@
                         body: JSON.stringify({ markup: newMarkup })
                     });
                     patchPhotoInLocalCacheFromApi(updated);
+                    const savedMarkup = this.syncSavedPhotoMarkupLocally(photoId, newMarkup, 'route');
                     this.showToast('Разметка обновлена');
                     const pid = String(photoId);
                     const prev = document.querySelector(`.photo-preview-with-markup[data-photo-id="${pid}"]`);
                     if (prev) {
                         resetPhotoStageInContainer(prev);
-                        this.applyPhotoPreviewMarkupOverlay(prev, newMarkup, prev.dataset.climbType || 'route');
+                        this.applyPhotoPreviewMarkupOverlay(prev, savedMarkup, prev.dataset.climbType || 'route');
                         this.syncMarkupButtonOnPreviewItem(prev, true);
                     }
                 } catch (err) {
                     this.showToast(`Ошибка сохранения разметки: ${err.message}`, true);
+                    return;
                 }
 
                 this.refreshClimbDetailMarkupOverlayIfOpen();
@@ -18630,16 +18693,18 @@
                         body: JSON.stringify({ markup: newMarkup })
                     });
                     patchPhotoInLocalCacheFromApi(updated);
+                    const savedMarkup = this.syncSavedPhotoMarkupLocally(photoId, newMarkup, 'boulder');
                     this.showToast('Разметка боулдеринга обновлена');
                     const pid = String(photoId);
                     const prev = document.querySelector(`.photo-preview-with-markup[data-photo-id="${pid}"]`);
                     if (prev) {
                         resetPhotoStageInContainer(prev);
-                        this.applyPhotoPreviewMarkupOverlay(prev, newMarkup, prev.dataset.climbType || 'boulder');
+                        this.applyPhotoPreviewMarkupOverlay(prev, savedMarkup, prev.dataset.climbType || 'boulder');
                         this.syncMarkupButtonOnPreviewItem(prev, true);
                     }
                 } catch (err) {
                     this.showToast(`Ошибка сохранения разметки: ${err.message}`, true);
+                    return;
                 }
 
                 this.hideDialog('boulderHoldsMarkupDialog');
@@ -18970,7 +19035,7 @@
                 const ctx = this._climbDetailContext;
                 const climbType = ctx?.climbType;
                 const displayRating = resolveClimbDisplayRating(stats, climbType);
-                if (climbType === 'route' && displayRating != null && displayRating !== '') {
+                if (displayRating != null && displayRating !== '') {
                     parts.push(`${parts.length ? ' · ' : ''}рейтинг: ★ ${this.escapeHtml(formatStarAverage(displayRating))}`);
                     if (stats.ratings_count > 0 && stats.admin_stars != null) {
                         parts.push(` <span style="color:var(--light-text);">(база ★ ${this.escapeHtml(formatStarAverage(stats.admin_stars))}, голосов ${stats.ratings_count})</span>`);

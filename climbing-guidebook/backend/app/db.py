@@ -74,6 +74,7 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE sectors ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION",
             "ALTER TABLE routes ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0",
             "ALTER TABLE routes ADD COLUMN IF NOT EXISTS admin_rating DOUBLE PRECISION",
+            "ALTER TABLE boulders ADD COLUMN IF NOT EXISTS admin_rating DOUBLE PRECISION",
             "ALTER TABLE routes ADD COLUMN IF NOT EXISTS author_name VARCHAR(120)",
             "ALTER TABLE boulders ADD COLUMN IF NOT EXISTS author_name VARCHAR(120)",
         ]
@@ -106,6 +107,7 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE sectors ADD COLUMN longitude REAL",
             "ALTER TABLE routes ADD COLUMN sort_order INTEGER DEFAULT 0",
             "ALTER TABLE routes ADD COLUMN admin_rating FLOAT",
+            "ALTER TABLE boulders ADD COLUMN admin_rating FLOAT",
             "ALTER TABLE routes ADD COLUMN author_name VARCHAR(120)",
             "ALTER TABLE boulders ADD COLUMN author_name VARCHAR(120)",
         ]
@@ -173,6 +175,12 @@ def ensure_optional_columns() -> None:
             conn.execute(
                 text(
                     "UPDATE routes SET admin_rating = rating "
+                    "WHERE admin_rating IS NULL AND rating IS NOT NULL"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE boulders SET admin_rating = rating "
                     "WHERE admin_rating IS NULL AND rating IS NOT NULL"
                 )
             )

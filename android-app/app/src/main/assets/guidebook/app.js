@@ -3975,18 +3975,24 @@
 
         function patchClimbRatingInLocalCache(climbType, climbId, rating) {
             const data = getClimbingData();
+            const next = rating == null || rating === '' ? null : rating;
             if (climbType === 'route') {
                 const arr = data.routes || [];
                 const idx = arr.findIndex((r) => Number(r.id) === Number(climbId));
                 if (idx < 0) return;
-                data.routes = [...arr.slice(0, idx), { ...arr[idx], rating: rating ?? null }, ...arr.slice(idx + 1)];
+                const current = arr[idx].rating;
+                if (next == null && current != null && current !== '') return;
+                data.routes = [...arr.slice(0, idx), { ...arr[idx], rating: next }, ...arr.slice(idx + 1)];
             } else {
                 const arr = data.boulders || [];
                 const idx = arr.findIndex((b) => Number(b.id) === Number(climbId));
                 if (idx < 0) return;
-                data.boulders = [...arr.slice(0, idx), { ...arr[idx], rating: rating ?? null }, ...arr.slice(idx + 1)];
+                const current = arr[idx].rating;
+                if (next == null && current != null && current !== '') return;
+                data.boulders = [...arr.slice(0, idx), { ...arr[idx], rating: next }, ...arr.slice(idx + 1)];
             }
             saveClimbingData(data);
+            window.app?.renderMapBoulderSheet?.();
         }
 
         function mapApiPhotoToUi(p) {
@@ -8811,10 +8817,20 @@
             mapClimbsForSheet(entry) {
                 if (!entry) return [];
                 if (entry.kind === 'boulder') {
-                    return this.mapBouldersAtPin(entry).map((item) => ({
-                        ...item,
-                        climbType: 'boulder'
-                    }));
+                    return this.mapBouldersAtPin(entry).map((item) => {
+                        const live = getBoulders().find((boulder) => Number(boulder.id) === Number(item.id));
+                        const liveRating = live?.rating;
+                        const rating = liveRating != null && liveRating !== ''
+                            ? liveRating
+                            : (item.rating ?? null);
+                        return {
+                            ...item,
+                            author: item.author || live?.authorName || '',
+                            rating,
+                            sendCount: live ? (Number(live.sendCount) || 0) : (Number(item.sendCount) || 0),
+                            climbType: 'boulder'
+                        };
+                    });
                 }
                 if (entry.kind !== 'sector') return [];
                 const sectorId = Number(entry.id);
@@ -14407,9 +14423,9 @@
 
             async quickAddRouteInSector(sectorId) {
                 const sid = Number(sectorId || this.catalog.sectorId || 0);
+                document.getElementById('quickRouteForm')?.reset();
                 document.getElementById('quickRouteId').value = '';
                 document.getElementById('quickRouteSectorId').value = String(sid || '');
-                document.getElementById('quickRouteForm')?.reset();
                 this.setFormGradeValue('quickRouteGrade', '6a');
                 document.getElementById('quickRouteDialogTitle').textContent = 'Добавить трассу';
                 document.getElementById('quickRouteDialogSubtitle').textContent = 'Новая трасса в выбранном секторе';
@@ -14422,9 +14438,9 @@
             async quickAddBoulderInSector(sectorId) {
                 this._lockBoulderPin = null;
                 const sid = Number(sectorId || this.catalog.sectorId || 0);
+                document.getElementById('quickBoulderForm')?.reset();
                 document.getElementById('quickBoulderId').value = '';
                 document.getElementById('quickBoulderSectorId').value = String(sid || '');
-                document.getElementById('quickBoulderForm')?.reset();
                 this.setFormGradeValue('quickBoulderGrade', '7A');
                 document.getElementById('quickBoulderDialogTitle').textContent = 'Добавить боулдеринг';
                 document.getElementById('quickBoulderDialogSubtitle').textContent = 'Новый боулдеринг в выбранном секторе';
@@ -18970,7 +18986,7 @@
                 const ctx = this._climbDetailContext;
                 const climbType = ctx?.climbType;
                 const displayRating = resolveClimbDisplayRating(stats, climbType);
-                if (climbType === 'route' && displayRating != null && displayRating !== '') {
+                if (displayRating != null && displayRating !== '') {
                     parts.push(`${parts.length ? ' · ' : ''}рейтинг: ★ ${this.escapeHtml(formatStarAverage(displayRating))}`);
                     if (stats.ratings_count > 0 && stats.admin_stars != null) {
                         parts.push(` <span style="color:var(--light-text);">(база ★ ${this.escapeHtml(formatStarAverage(stats.admin_stars))}, голосов ${stats.ratings_count})</span>`);

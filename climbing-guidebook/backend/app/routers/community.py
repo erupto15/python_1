@@ -436,7 +436,7 @@ def climb_stats(
     avg, _, display = sync_climb_star_average(db, climb_type, route_id, boulder_id)
     climb = db.get(Route, route_id) if climb_type == "route" else db.get(Boulder, boulder_id)
     admin_stars = None
-    if climb_type == "route" and climb is not None:
+    if climb is not None:
         admin_stars = getattr(climb, "admin_rating", None)
         if display is None and climb.rating is not None:
             display = climb.rating
