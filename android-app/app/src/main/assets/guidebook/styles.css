@@ -3269,6 +3269,29 @@
             transition: transform 0.22s ease-out;
         }
 
+        .photo-wrap.is-photo-cover .stage {
+            inset: auto !important;
+            left: 50% !important;
+            top: 50% !important;
+            width: var(--photo-base-w, 100%) !important;
+            height: var(--photo-base-h, 100%) !important;
+            max-width: none !important;
+            max-height: none !important;
+            transform: translate(
+                calc(-50% + var(--photo-tx, 0px)),
+                calc(-50% + var(--photo-ty, 0px))
+            ) scale(var(--photo-scale, 1)) !important;
+            transform-origin: center center;
+        }
+
+        .photo-wrap.is-photo-cover .stage img {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: none !important;
+            max-height: none !important;
+            object-fit: fill !important;
+        }
+
         .photo-wrap img {
             display: block;
             width: 100%;
@@ -10941,4 +10964,30 @@
 
         #mapContainer .map-area-badge--catalog .map-area-droplet-pin {
             filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.65));
+        }
+
+        .climb-photo-viewer-mount .photo-wrap.is-photo-cover .stage,
+        .climb-detail-photo-panel .photo-wrap.is-photo-cover .stage,
+        .climb-detail-media-tile--photo .photo-wrap.is-photo-cover .stage {
+            inset: auto !important;
+            left: 50% !important;
+            top: 50% !important;
+            width: var(--photo-base-w, 100%) !important;
+            height: var(--photo-base-h, 100%) !important;
+            max-width: none !important;
+            max-height: none !important;
+            transform: translate(
+                calc(-50% + var(--photo-tx, 0px)),
+                calc(-50% + var(--photo-ty, 0px))
+            ) scale(var(--photo-scale, 1)) !important;
+        }
+
+        .climb-photo-viewer-mount .photo-wrap.is-photo-cover .stage img,
+        .climb-detail-photo-panel .photo-wrap.is-photo-cover .stage img,
+        .climb-detail-media-tile--photo .photo-wrap.is-photo-cover .stage img {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: none !important;
+            max-height: none !important;
+            object-fit: fill !important;
         }

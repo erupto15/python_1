@@ -4197,7 +4197,7 @@
                     handlers.onTap?.();
                     return;
                 }
-                if (handlers.canSwipe && !handlers.canSwipe()) return;
+                if (handlers.canSwipe && !handlers.canSwipe(dx)) return;
                 if (Math.abs(dx) < threshold || Math.abs(dx) < Math.abs(dy) * 1.15) return;
                 if (dx < 0) handlers.onSwipeLeft?.();
                 else handlers.onSwipeRight?.();
@@ -4219,32 +4219,73 @@
             return wrap._zoom;
         }
 
+        function syncPhotoCoverBox(wrap) {
+            if (wrap?.dataset.coverPan !== '1') return null;
+            const img = wrap.querySelector('img');
+            const viewW = wrap.clientWidth;
+            const viewH = wrap.clientHeight;
+            if (!img?.naturalWidth || !img?.naturalHeight || viewW < 8 || viewH < 8) return null;
+            const fit = Math.max(viewW / img.naturalWidth, viewH / img.naturalHeight);
+            const baseW = img.naturalWidth * fit;
+            const baseH = img.naturalHeight * fit;
+            wrap._cover = { baseW, baseH, viewW, viewH };
+            wrap.classList.add('is-photo-cover');
+            return wrap._cover;
+        }
+
+        function photoPanLimits(wrap) {
+            const z = getPhotoZoomState(wrap);
+            const W = Math.max(1, wrap.clientWidth || 1);
+            const H = Math.max(1, wrap.clientHeight || 1);
+            if (wrap?.dataset.coverPan === '1') {
+                const cover = syncPhotoCoverBox(wrap);
+                if (cover) {
+                    return {
+                        maxTx: Math.max(0, (cover.baseW * z.scale - cover.viewW) / 2),
+                        maxTy: Math.max(0, (cover.baseH * z.scale - cover.viewH) / 2)
+                    };
+                }
+            }
+            if (z.scale <= 1.001) return { maxTx: 0, maxTy: 0 };
+            return {
+                maxTx: (W * (z.scale - 1)) / 2,
+                maxTy: (H * (z.scale - 1)) / 2
+            };
+        }
+
         function applyPhotoStageTransform(wrap, { snap = false } = {}) {
             const stage = wrap?.querySelector('.stage');
             if (!stage) return;
             const z = getPhotoZoomState(wrap);
             if (snap && z.scale <= 1.04) {
                 z.scale = 1;
-                z.tx = 0;
-                z.ty = 0;
+                clampPhotoStagePan(wrap);
+            }
+            if (wrap.dataset.coverPan === '1' && syncPhotoCoverBox(wrap)) {
+                const cover = wrap._cover;
+                wrap.style.setProperty('--photo-base-w', `${cover.baseW}px`);
+                wrap.style.setProperty('--photo-base-h', `${cover.baseH}px`);
+                wrap.style.setProperty('--photo-tx', `${z.tx}px`);
+                wrap.style.setProperty('--photo-ty', `${z.ty}px`);
+                wrap.style.setProperty('--photo-scale', String(z.scale));
+                stage.style.transform = '';
+                return;
             }
             stage.style.transform = `translate(${z.tx}px, ${z.ty}px) scale(${z.scale})`;
         }
 
         function clampPhotoStagePan(wrap) {
             const z = getPhotoZoomState(wrap);
-            const W = Math.max(1, wrap.clientWidth || 1);
-            const H = Math.max(1, wrap.clientHeight || 1);
-            if (z.scale <= 1.001) {
+            const lim = photoPanLimits(wrap);
+            if (z.scale <= 1.001 && lim.maxTx < 1 && lim.maxTy < 1) {
                 z.scale = 1;
                 z.tx = 0;
                 z.ty = 0;
                 return;
             }
-            const maxTx = (W * (z.scale - 1)) / 2;
-            const maxTy = (H * (z.scale - 1)) / 2;
-            z.tx = Math.max(-maxTx, Math.min(maxTx, z.tx));
-            z.ty = Math.max(-maxTy, Math.min(maxTy, z.ty));
+            if (z.scale <= 1.001) z.scale = 1;
+            z.tx = Math.max(-lim.maxTx, Math.min(lim.maxTx, z.tx));
+            z.ty = Math.max(-lim.maxTy, Math.min(lim.maxTy, z.ty));
         }
 
         function resetPhotoStageZoom(wrap) {
@@ -4290,9 +4331,9 @@
             const z = getPhotoZoomState(wrap);
             wrap.classList.remove('is-photo-gesturing');
             if (z.scale <= 1.04) {
-                wrap.classList.add('is-photo-snap');
-                resetPhotoStageZoom(wrap);
-                window.setTimeout(() => wrap.classList.remove('is-photo-snap'), 240);
+                z.scale = 1;
+                clampPhotoStagePan(wrap);
+                applyPhotoStageTransform(wrap);
             }
         }
 
@@ -4364,16 +4405,27 @@
                 }
                 if (e.touches.length === 1) {
                     const z = getPhotoZoomState(wrap);
-                    if (z.scale > 1.001) {
-                        mode = 'pan';
-                        beginGesture();
+                    const lim = photoPanLimits(wrap);
+                    const canPan = z.scale > 1.001 || lim.maxTx > 1 || lim.maxTy > 1;
+                    wrap._panStartedAtEdge = {
+                        left: z.tx <= -lim.maxTx + 3,
+                        right: z.tx >= lim.maxTx - 3
+                    };
+                    if (!canPan) {
+                        mode = 'idle';
+                        wrap._panStartedAtEdge = null;
+                    } else {
                         panStartX = e.touches[0].clientX;
                         panStartY = e.touches[0].clientY;
                         panBaseTx = z.tx;
                         panBaseTy = z.ty;
-                        wrap.classList.add('is-photo-panning');
-                    } else {
-                        mode = 'idle';
+                        if (z.scale > 1.001) {
+                            mode = 'pan';
+                            beginGesture();
+                            wrap.classList.add('is-photo-panning');
+                        } else {
+                            mode = 'pending';
+                        }
                     }
                 }
             }, { passive: false });
@@ -4393,6 +4445,21 @@
                     applyPhotoStageTransform(wrap);
                     return;
                 }
+                if (mode === 'pending' && e.touches.length === 1) {
+                    const dx = e.touches[0].clientX - panStartX;
+                    const dy = e.touches[0].clientY - panStartY;
+                    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+                    const viewer = !!wrap.closest('.climb-photo-viewer');
+                    if (viewer || Math.abs(dx) > Math.abs(dy) * 1.05) {
+                        mode = 'pan';
+                        beginGesture();
+                        wrap.classList.add('is-photo-panning');
+                    } else {
+                        mode = 'idle';
+                        wrap._panStartedAtEdge = null;
+                        return;
+                    }
+                }
                 if (mode === 'pan' && e.touches.length === 1) {
                     e.preventDefault();
                     const z = getPhotoZoomState(wrap);
@@ -4408,6 +4475,9 @@
                     delete wrap.dataset.photoPinching;
                     mode = 'idle';
                     photoStageSnapAfterGesture(wrap);
+                }
+                if (mode === 'pending' && e.touches.length === 0) {
+                    mode = 'idle';
                 }
                 if (mode === 'pan' && e.touches.length === 0) {
                     mode = 'idle';
@@ -4465,7 +4535,8 @@
                 if (touchActive || Date.now() < (wrap._touchGestureUntil || 0)) return;
                 if (e.pointerType === 'mouse' && e.button !== 0) return;
                 const z = getPhotoZoomState(wrap);
-                if (z.scale <= 1.001) return;
+                const lim = photoPanLimits(wrap);
+                if (z.scale <= 1.001 && lim.maxTx < 1 && lim.maxTy < 1) return;
                 dragging = true;
                 pendingPid = e.pointerId;
                 sx = e.clientX;
@@ -4604,9 +4675,18 @@
                 if (actions) container.insertBefore(wrap, actions);
                 else container.appendChild(wrap);
             }
-            if (options.enableZoom) {
+            const coverPan = !!(options.enableZoom || options.enableCoverPan
+                || container.classList.contains('climb-detail-photo-mount')
+                || container.classList.contains('climb-photo-viewer-mount'));
+            if (coverPan) {
+                wrap.dataset.coverPan = '1';
                 attachPhotoStageZoomPan(wrap);
+                syncPhotoCoverBox(wrap);
+                clampPhotoStagePan(wrap);
+                applyPhotoStageTransform(wrap);
             } else {
+                delete wrap.dataset.coverPan;
+                wrap.classList.remove('is-photo-cover');
                 const stage = wrap?.querySelector('.stage');
                 if (stage) stage.style.transform = 'none';
                 if (wrap) {
@@ -4909,6 +4989,7 @@
                 return base;
             }
 
+            if (wrap?.dataset.coverPan === '1') applyPhotoStageTransform(wrap);
             // Zoom/pan: transform на .stage — getBoundingClientRect даёт «экранные» размеры и ломает overlay.
             if (stage) {
                 const boxW = Math.max(1, stage.clientWidth || cw);
@@ -17052,9 +17133,18 @@
                         },
                         onSwipeLeft: () => this.navigatePhotoGallery(1),
                         onSwipeRight: () => this.navigatePhotoGallery(-1),
-                        canSwipe: () => {
+                        canSwipe: (dx) => {
                             const wrap = findPhotoStageWrap(mount);
-                            return !wrap || !photoWrapBlocksGalleryNav(wrap);
+                            if (!wrap) return true;
+                            if (wrap.dataset.photoPinching === '1' || isPhotoStageZoomed(wrap)) return false;
+                            const lim = photoPanLimits(wrap);
+                            if (lim.maxTx > 1) {
+                                const started = wrap._panStartedAtEdge;
+                                if (!started) return false;
+                                if (dx < 0) return !!started.left;
+                                if (dx > 0) return !!started.right;
+                            }
+                            return !photoWrapBlocksGalleryNav(wrap);
                         }
                     });
                 };
