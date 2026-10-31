@@ -8624,6 +8624,24 @@
                 if (subtitle) subtitle.textContent = 'Новый боулдер сохранится на этой же точке';
             }
 
+            addRouteToSectorFromMap(entry) {
+                if (!this.requireAdmin('Добавление трассы')) return;
+                const sectorId = Number(entry?.kind === 'sector' ? entry.id : entry?.sectorId);
+                if (!Number.isFinite(sectorId) || sectorId <= 0) {
+                    this.showToast('Сектор не найден', true);
+                    return;
+                }
+                const sector = getSectors().find((item) => Number(item.id) === sectorId);
+                this.quickAddRouteInSector(sectorId);
+                const coord = this.validMapCoord(entry?.lat, entry?.lng)
+                    || this.sectorMapPinCoordinate(sectorId)
+                    || this.validMapCoord(sector?.latitude, sector?.longitude);
+                const input = document.getElementById('quickRouteCoordinates');
+                if (input && coord) input.value = this.formatLocationInput(coord.lat, coord.lng);
+                const subtitle = document.getElementById('quickRouteDialogSubtitle');
+                if (subtitle) subtitle.textContent = `Новая трасса в секторе «${sector?.name || 'сектор'}»`;
+            }
+
             bindMapClimbDotMarkerClick(marker, entry) {
                 if (!marker) return;
                 marker.off('click');
@@ -8978,7 +8996,7 @@
                 this._sectorBoulderZoneId = Number(entry?.id);
                 this.map?.closePopup?.();
                 this.closeMapBoulderSheet();
-                if (!climbs.length) {
+                if (!climbs.length && !routeSector) {
                     this.handleMapMarkerSelection(entry, { openNavigation: false, openPopup: true });
                     return;
                 }
@@ -9147,9 +9165,10 @@
                 if (!entry || !title || !meta || !chips || !list) return;
 
                 const isRoutes = stack.some((item) => item.climbType === 'route');
+                const routeSectorSheet = entry.kind === 'sector' && !this.isBoulderSector(entry.id);
                 if (entry.kind === 'sector') {
-                    title.textContent = entry.title || (isRoutes ? 'Трассы' : 'Боулдеры');
-                    meta.textContent = isRoutes
+                    title.textContent = entry.title || (routeSectorSheet ? 'Трассы' : 'Боулдеры');
+                    meta.textContent = routeSectorSheet
                         ? `${stack.length} трасс`
                         : `${stack.length} боулдеров`;
                 } else if (stack.length > 1) {
@@ -9164,8 +9183,16 @@
                 }
                 meta.classList.toggle('hidden', !meta.textContent);
                 const addWrap = document.getElementById('mapBoulderSheetAdd');
-                const showAdd = this.isAdmin() && entry.kind === 'boulder' && !isRoutes;
+                const showAdd = this.isAdmin() && (
+                    (entry.kind === 'boulder' && !isRoutes) || routeSectorSheet
+                );
                 addWrap?.classList.toggle('hidden', !showAdd);
+                const addBtn = document.getElementById('mapBoulderSheetAddBtn');
+                if (addBtn) {
+                    addBtn.textContent = routeSectorSheet
+                        ? 'Добавить трассу в этот сектор'
+                        : 'Добавить боулдер на эту точку';
+                }
 
                 const grades = [...new Set(stack.map((b) => String(b.grade || '').trim()).filter(Boolean))]
                     .sort((a, b) => this.mapGradeSortKey(a) - this.mapGradeSortKey(b)
@@ -14758,6 +14785,16 @@
                     this.renderCatalog();
                     this.renderRoutes();
                     this.updateMapMarkers();
+                    const routeSheet = document.getElementById('mapBoulderSheet');
+                    const routeSheetEntry = this._mapBoulderSheetEntry;
+                    if (
+                        routeSheet
+                        && !routeSheet.classList.contains('hidden')
+                        && routeSheetEntry?.kind === 'sector'
+                        && Number(routeSheetEntry.id) === sid
+                    ) {
+                        this.renderMapBoulderSheet();
+                    }
                     this.showToast(editId ? 'Трасса обновлена' : 'Трасса добавлена');
                     this.showClimbDetailDialog('route', Number(savedRoute.id));
                 } catch (err) {
@@ -15601,7 +15638,12 @@
                     }
                     if (e.target.closest('#mapBoulderSheetAddBtn')) {
                         e.preventDefault();
-                        this.addBoulderOnSamePoint(this._mapBoulderSheetEntry);
+                        const sheetEntry = this._mapBoulderSheetEntry;
+                        if (sheetEntry?.kind === 'sector' && !this.isBoulderSector(sheetEntry.id)) {
+                            this.addRouteToSectorFromMap(sheetEntry);
+                        } else {
+                            this.addBoulderOnSamePoint(sheetEntry);
+                        }
                         return;
                     }
                     const chip = e.target.closest('[data-grade-index]');
