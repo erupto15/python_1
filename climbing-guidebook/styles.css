@@ -6946,6 +6946,13 @@
             font-variant-numeric: tabular-nums;
         }
 
+        .catalog-climb-num {
+            align-self: center;
+            flex: 0 0 auto;
+            margin-top: 0;
+            margin-right: 14px;
+        }
+
         .map-climb-row-side {
             display: flex;
             flex-direction: column;

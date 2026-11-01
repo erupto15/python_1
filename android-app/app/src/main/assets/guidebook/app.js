@@ -8951,7 +8951,7 @@
             mapClimbsForSheet(entry) {
                 if (!entry) return [];
                 if (entry.kind === 'boulder') {
-                    return this.mapBouldersAtPin(entry).map((item) => {
+                    return this.mapBouldersAtPin(entry).map((item, index) => {
                         const live = getBoulders().find((boulder) => Number(boulder.id) === Number(item.id));
                         const liveRating = live?.rating;
                         const rating = liveRating != null && liveRating !== ''
@@ -8962,7 +8962,8 @@
                             author: item.author || live?.authorName || '',
                             rating,
                             sendCount: live ? (Number(live.sendCount) || 0) : (Number(item.sendCount) || 0),
-                            climbType: 'boulder'
+                            climbType: 'boulder',
+                            number: index + 1
                         };
                     });
                 }
@@ -8980,14 +8981,16 @@
                     sectorId: climb.sectorId,
                     climbType
                 });
-                if (this.isBoulderSector(sectorId)) {
-                    return getBoulders()
-                        .filter((boulder) => Number(boulder.sectorId) === sectorId)
-                        .map((boulder) => toItem(boulder, 'boulder'));
-                }
-                return getRoutes()
+                const routes = getRoutes()
                     .filter((route) => Number(route.sectorId) === sectorId)
                     .map((route, index) => ({ ...toItem(route, 'route'), number: index + 1 }));
+                const boulders = [...(getBoulders() || [])]
+                    .filter((boulder) => Number(boulder.sectorId) === sectorId)
+                    .sort((a, b) => Number(a.id) - Number(b.id))
+                    .map((boulder, index) => ({ ...toItem(boulder, 'boulder'), number: index + 1 }));
+                if (!routes.length) return boulders;
+                if (!boulders.length) return routes;
+                return [...routes, ...boulders];
             }
 
             openMapSectorClimbSheet(entry) {
@@ -9011,7 +9014,7 @@
                     this.renderCatalog();
                 }
                 this.updateMapMarkers();
-                if (routeSector) this.openMapBoulderSheet(entry);
+                this.openMapBoulderSheet(entry);
                 this.syncMapDrillBackBtn();
             }
 
@@ -9168,9 +9171,15 @@
                 const routeSectorSheet = entry.kind === 'sector' && !this.isBoulderSector(entry.id);
                 if (entry.kind === 'sector') {
                     title.textContent = entry.title || (routeSectorSheet ? 'Трассы' : 'Боулдеры');
-                    meta.textContent = routeSectorSheet
-                        ? `${stack.length} трасс`
-                        : `${stack.length} боулдеров`;
+                    const routeCount = stack.filter((item) => item.climbType === 'route').length;
+                    const boulderCount = stack.filter((item) => item.climbType === 'boulder').length;
+                    if (routeCount && boulderCount) {
+                        meta.textContent = `${routeCount} трасс · ${boulderCount} боулдеров`;
+                    } else {
+                        meta.textContent = routeSectorSheet
+                            ? `${stack.length} трасс`
+                            : `${stack.length} боулдеров`;
+                    }
                 } else if (stack.length > 1) {
                     const sector = getSectors().find((item) => Number(item.id) === Number(entry.sectorId || stack[0]?.sectorId));
                     title.textContent = sector?.name || entry.title || (isRoutes ? 'Трассы' : 'Боулдеры');
@@ -9229,6 +9238,8 @@
                         b.climbType || 'boulder'
                     ))
                     .sort((a, b) => {
+                        const typeDelta = (a.climbType === 'route' ? 0 : 1) - (b.climbType === 'route' ? 0 : 1);
+                        if (typeDelta) return typeDelta;
                         const an = Number(a.number);
                         const bn = Number(b.number);
                         if (Number.isFinite(an) && Number.isFinite(bn) && an !== bn) return an - bn;
@@ -14155,6 +14166,18 @@
                     }
                     rs = rs.filter((r) => this.climbPassesGuideFilters(r, 'route'));
                     bs = bs.filter((b) => this.climbPassesGuideFilters(b, 'boulder'));
+                    const routeNumbers = new Map(
+                        getRoutes()
+                            .filter((route) => Number(route.sectorId) === Number(this.catalog.sectorId))
+                            .map((route, index) => [Number(route.id), index + 1])
+                    );
+                    const boulderNumbers = new Map(
+                        [...(getBoulders() || [])]
+                            .filter((boulder) => Number(boulder.sectorId) === Number(this.catalog.sectorId))
+                            .sort((a, b) => Number(a.id) - Number(b.id))
+                            .map((boulder, index) => [Number(boulder.id), index + 1])
+                    );
+                    bs.sort((a, b) => (boulderNumbers.get(Number(a.id)) || 0) - (boulderNumbers.get(Number(b.id)) || 0));
                     const blocks = [];
                     const canReorderRoutes = this.isAdmin() && !APP_BOULDER_ONLY && rs.length > 1;
                     if (!APP_BOULDER_ONLY && rs.length) {
@@ -14166,9 +14189,11 @@
                         rs.forEach(r => {
                             const routeDesc = String(r.description || '').trim();
                             const sent = this.climbSentRowAttrs('route', r.id);
+                            const routeNum = routeNumbers.get(Number(r.id));
                             blocks.push(`
                                 <div class="list-item catalog-climb-row${sent.className}${canReorderRoutes ? ' is-route-draggable' : ''}" style="margin-bottom:8px" data-id="${r.id}" data-open-climb="route" data-open-climb-id="${r.id}">
                                     ${canReorderRoutes ? '<button type="button" class="route-drag-handle" title="Перетащить" aria-label="Перетащить трассу"><i class="fas fa-grip-vertical" aria-hidden="true"></i></button>' : ''}
+                                    ${routeNum != null ? `<span class="map-climb-row-num catalog-climb-num">${routeNum}</span>` : ''}
                                     <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(r.name)}">
                                         <div class="item-info">
                                             <h3 style="font-size:16px">${sent.badge}${this.escapeHtml(r.name)}</h3>
@@ -14195,8 +14220,10 @@
                         bs.forEach(b => {
                             const boulderDesc = String(b.description || '').trim();
                             const sent = this.climbSentRowAttrs('boulder', b.id);
+                            const boulderNum = boulderNumbers.get(Number(b.id));
                             blocks.push(`
                                 <div class="list-item catalog-climb-row${sent.className}" style="margin-bottom:8px" data-open-climb="boulder" data-open-climb-id="${b.id}">
+                                    ${boulderNum != null ? `<span class="map-climb-row-num catalog-climb-num">${boulderNum}</span>` : ''}
                                     <button type="button" class="climb-row-open" aria-label="Просмотр: ${this.escapeHtml(b.name)}">
                                         <div class="item-info">
                                             <h3 style="font-size:16px">${sent.badge}${this.escapeHtml(b.name)}</h3>
