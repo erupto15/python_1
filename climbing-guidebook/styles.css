@@ -6929,7 +6929,8 @@
 
         .map-boulder-sheet-item--numbered {
             grid-template-columns: auto auto minmax(0, 1fr);
-            column-gap: 12px;
+            column-gap: 28px;
+            padding-left: 6px;
         }
 
         .map-climb-row-num {
