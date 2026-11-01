@@ -8987,7 +8987,7 @@
                 }
                 return getRoutes()
                     .filter((route) => Number(route.sectorId) === sectorId)
-                    .map((route) => toItem(route, 'route'));
+                    .map((route, index) => ({ ...toItem(route, 'route'), number: index + 1 }));
             }
 
             openMapSectorClimbSheet(entry) {
@@ -9228,8 +9228,13 @@
                         { id: b.id, grade: b.grade },
                         b.climbType || 'boulder'
                     ))
-                    .sort((a, b) => this.mapGradeSortKey(a.grade) - this.mapGradeSortKey(b.grade)
-                        || String(a.title || '').localeCompare(String(b.title || ''), 'ru'));
+                    .sort((a, b) => {
+                        const an = Number(a.number);
+                        const bn = Number(b.number);
+                        if (Number.isFinite(an) && Number.isFinite(bn) && an !== bn) return an - bn;
+                        return this.mapGradeSortKey(a.grade) - this.mapGradeSortKey(b.grade)
+                            || String(a.title || '').localeCompare(String(b.title || ''), 'ru');
+                    });
                 list.replaceChildren();
                 visible.forEach((climb) => {
                     const sourceIndex = stack.indexOf(climb);
@@ -9237,6 +9242,14 @@
                     item.type = 'button';
                     item.className = 'map-popup-boulder-item map-boulder-sheet-item';
                     item.dataset.climbIndex = String(sourceIndex);
+                    if (climb.number != null) item.classList.add('map-boulder-sheet-item--numbered');
+
+                    if (climb.number != null) {
+                        const num = document.createElement('span');
+                        num.className = 'map-climb-row-num';
+                        num.textContent = String(climb.number);
+                        item.appendChild(num);
+                    }
 
                     const side = document.createElement('span');
                     side.className = 'map-climb-row-side';

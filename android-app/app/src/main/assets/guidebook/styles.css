@@ -6927,6 +6927,24 @@
             background: color-mix(in srgb, var(--primary-color) 12%, transparent);
         }
 
+        .map-boulder-sheet-item--numbered {
+            grid-template-columns: auto auto minmax(0, 1fr);
+            column-gap: 12px;
+        }
+
+        .map-climb-row-num {
+            align-self: start;
+            margin-top: 2px;
+            min-width: 1.5em;
+            font-family: var(--display-font);
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--light-text);
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
         .map-climb-row-side {
             display: flex;
             flex-direction: column;
