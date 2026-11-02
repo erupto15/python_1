@@ -7057,7 +7057,7 @@
                     this._setGradePickerOpen(picker, toggle, !open);
                     if (!open) {
                         requestAnimationFrame(() => {
-                            strip.querySelector('.grade-chip.active')?.scrollIntoView({ block: 'nearest' });
+                            this.scrollGradeChipWithinStrip(strip);
                         });
                     }
                 });
@@ -7075,9 +7075,7 @@
                 const strip = document.getElementById(cfg.stripId || `${hiddenId}Strip`);
                 const toggle = document.getElementById(cfg.toggleId || `${hiddenId}Toggle`);
                 this._syncFormGradePicker(strip, value, toggle, cfg);
-                if (opts.scroll !== false) {
-                    strip?.querySelector('.grade-chip.active')?.scrollIntoView({ block: 'nearest' });
-                }
+                if (opts.scroll !== false) this.scrollGradeChipWithinStrip(strip);
                 hidden.dispatchEvent(new Event('change', { bubbles: true }));
                 return value;
             }
@@ -16652,6 +16650,28 @@
                 });
             }
 
+            scrollGradeChipWithinStrip(strip) {
+                const chip = strip?.querySelector?.('.grade-chip.active');
+                if (!chip || !strip) return;
+                const chipBox = chip.getBoundingClientRect();
+                const stripBox = strip.getBoundingClientRect();
+                if (!chipBox.height || !stripBox.height) return;
+                const delta = chipBox.top - stripBox.top - Math.max(0, (stripBox.height - chipBox.height) / 2);
+                strip.scrollTop += delta;
+            }
+
+            resetDialogScroll(dialogEl) {
+                if (!dialogEl) return;
+                const reset = () => {
+                    dialogEl.scrollTop = 0;
+                    dialogEl.querySelectorAll('.dialog-body, .dialog-content').forEach((node) => {
+                        node.scrollTop = 0;
+                    });
+                };
+                reset();
+                requestAnimationFrame(reset);
+            }
+
             syncBodyDialogScreenLock() {
                 const dialogOpen = !!document.querySelector('.dialog-overlay:not(.hidden)');
                 const viewerEl = document.getElementById('climbPhotoViewer');
@@ -16666,6 +16686,7 @@
                     return;
                 }
                 el.classList.remove('hidden');
+                this.resetDialogScroll(el);
                 this.syncBodyDialogScreenLock();
                 this.syncCatalogSectorFocusUi();
                 if (typeof window.applyTelegramMainButtonForDialog === 'function') {
