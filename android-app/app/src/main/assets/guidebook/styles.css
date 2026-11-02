@@ -7767,6 +7767,82 @@
             overflow-x: clip;
         }
 
+        .grade-spread-host {
+            padding: 4px 16px 12px;
+        }
+
+        .grade-spread-host[hidden] {
+            display: none !important;
+        }
+
+        .grade-spread {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .grade-spread-col {
+            flex: 1 1 0;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .grade-spread-count {
+            color: #f4f4f5;
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .grade-spread-bar {
+            position: relative;
+            width: 100%;
+            height: 68px;
+            background: #5a5a5a;
+        }
+
+        .grade-spread-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 3px;
+        }
+
+        .grade-spread-line--45 { background: #3b6cff; }
+        .grade-spread-line--6 { background: #1fa85a; }
+        .grade-spread-line--7 { background: #ff2d95; }
+        .grade-spread-line--8 { background: #e6c200; }
+        .grade-spread-line--9 { background: #8a3ec8; }
+        .grade-spread-line--project { background: #9e9e9e; }
+
+        .grade-spread-label {
+            color: #d5d5d8;
+            font-size: 12px;
+            line-height: 1.1;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        html.theme-light .grade-spread-count,
+        html.tg-theme-light .grade-spread-count {
+            color: #1c1c1e;
+        }
+
+        html.theme-light .grade-spread-label,
+        html.tg-theme-light .grade-spread-label {
+            color: #3a3a3e;
+        }
+
+        html.theme-light .grade-spread-bar,
+        html.tg-theme-light .grade-spread-bar {
+            background: #d2d2d6;
+        }
+
         .search-bar.search-bar--compound {
             display: flex;
             flex-direction: column;

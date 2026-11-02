@@ -3363,6 +3363,55 @@
             return `grade-badge grade-badge--${gradeBandFromValue(grade)}`;
         }
 
+        const GRADE_SPREAD_BANDS = [
+            { id: '45', label: '4-5', match: (n) => n <= 5 },
+            { id: '6', label: '6(abc)', match: (n) => n === 6 },
+            { id: '7', label: '7(abc)', match: (n) => n === 7 },
+            { id: '8', label: '8(abc)', match: (n) => n === 8 },
+            { id: '9', label: '9(ab)', match: (n) => n >= 9 }
+        ];
+
+        function gradeSpreadBucket(grade) {
+            const raw = String(grade || '').trim();
+            if (!raw) return null;
+            if (isProjectGrade(raw)) return 'project';
+            const match = raw.match(/^(\d+)/);
+            const number = match ? Number(match[1]) : NaN;
+            if (!Number.isFinite(number)) return null;
+            return GRADE_SPREAD_BANDS.find((band) => band.match(number))?.id || null;
+        }
+
+        function gradeSpreadHtml(climbs, nineLabel = '9(ab)') {
+            const counts = Object.fromEntries(GRADE_SPREAD_BANDS.map((band) => [band.id, 0]));
+            let projects = 0;
+            (climbs || []).forEach((climb) => {
+                const bucket = gradeSpreadBucket(climb?.grade);
+                if (bucket === 'project') projects += 1;
+                else if (bucket && counts[bucket] != null) counts[bucket] += 1;
+            });
+            const columns = GRADE_SPREAD_BANDS.map((band) => {
+                const label = band.id === '9' ? nineLabel : band.label;
+                const count = counts[band.id];
+                return `<div class="grade-spread-col">
+                    <div class="grade-spread-count">${count}</div>
+                    <div class="grade-spread-bar"><span class="grade-spread-line grade-spread-line--${band.id}"></span></div>
+                    <div class="grade-spread-label">${label}</div>
+                </div>`;
+            });
+            if (projects) {
+                columns.push(`<div class="grade-spread-col">
+                    <div class="grade-spread-count">${projects}</div>
+                    <div class="grade-spread-bar"><span class="grade-spread-line grade-spread-line--project"></span></div>
+                    <div class="grade-spread-label">проект</div>
+                </div>`);
+            }
+            const summary = GRADE_SPREAD_BANDS.map((band) => {
+                const label = band.id === '9' ? nineLabel : band.label;
+                return `${label}: ${counts[band.id]}`;
+            }).join(', ');
+            return `<div class="grade-spread" role="img" aria-label="Категории, ${summary}${projects ? `, проект: ${projects}` : ''}">${columns.join('')}</div>`;
+        }
+
         const ROUTE_GRADE_OPTIONS = [
             '4', '4+', '5', '5a', '5b', '5c',
             '6a', '6a+', '6b', '6b+', '6c', '6c+',
@@ -14221,6 +14270,7 @@
                     const canReorderRoutes = this.isAdmin() && !APP_BOULDER_ONLY && rs.length > 1;
                     if (!APP_BOULDER_ONLY && rs.length) {
                         blocks.push('<h4 style="margin:12px 0 8px;color:var(--light-text)">Трассы</h4>');
+                        blocks.push(`<div class="grade-spread-host">${gradeSpreadHtml(rs, '9(ab)')}</div>`);
                         if (canReorderRoutes) {
                             blocks.push('<p class="route-reorder-hint">Зажмите ⋮⋮ и перетащите трассу, чтобы поменять местами</p>');
                         }
@@ -14256,6 +14306,7 @@
                     }
                     if (bs.length) {
                         blocks.push('<h4 style="margin:16px 0 8px;color:var(--light-text)">Боулдеринг</h4>');
+                        blocks.push(`<div class="grade-spread-host">${gradeSpreadHtml(bs, '9(ab)')}</div>`);
                         bs.forEach(b => {
                             const boulderDesc = String(b.description || '').trim();
                             const sent = this.climbSentRowAttrs('boulder', b.id);
@@ -15153,11 +15204,23 @@
                 this.showToast('Описание боулдеринга удалено');
             }
 
+            renderGradeSpread(host, climbs, nineLabel) {
+                if (!host) return;
+                if (!climbs?.length) {
+                    host.hidden = true;
+                    host.innerHTML = '';
+                    return;
+                }
+                host.hidden = false;
+                host.innerHTML = gradeSpreadHtml(climbs, nineLabel);
+            }
+
             renderRoutes() {
                 if (APP_BOULDER_ONLY) return;
                 const routesList = document.getElementById('routesList');
                 if (!routesList) return;
                 const routes = getRoutes();
+                this.renderGradeSpread(document.getElementById('routesGradeSpread'), routes, '9(ab)');
 
                 if (routes.length === 0) {
                     routesList.innerHTML = `
@@ -15343,6 +15406,7 @@
                 const bouldersList = document.getElementById('bouldersList');
                 if (!bouldersList) return;
                 const boulders = getBoulders();
+                this.renderGradeSpread(document.getElementById('bouldersGradeSpread'), boulders, '9(ab)');
 
                 if (boulders.length === 0) {
                     bouldersList.innerHTML = `
