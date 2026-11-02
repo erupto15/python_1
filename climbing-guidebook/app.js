@@ -9400,7 +9400,7 @@
                 list.replaceChildren();
                 list.classList.toggle('is-split', mixed);
                 if (mixed) {
-                    appendDisciplineSection('Трассы', routeItems, routeStack);
+                    appendDisciplineSection('Трудность', routeItems, routeStack);
                     appendDisciplineSection('Боулдеринг', boulderItems, boulderStack);
                 } else {
                     singleItems.forEach((climb) => appendClimbRow(list, climb));
@@ -14311,7 +14311,7 @@
                     const blocks = [];
                     const canReorderRoutes = this.isAdmin() && !APP_BOULDER_ONLY && rs.length > 1;
                     if (!APP_BOULDER_ONLY && rs.length) {
-                        blocks.push('<h4 style="margin:12px 0 8px;color:var(--light-text)">Трассы</h4>');
+                        blocks.push('<h4 style="margin:12px 0 8px;color:var(--light-text)">Трудность</h4>');
                         blocks.push(`<div class="grade-spread-host">${gradeSpreadHtml(rs, '9(ab)')}</div>`);
                         if (canReorderRoutes) {
                             blocks.push('<p class="route-reorder-hint">Зажмите ⋮⋮ и перетащите трассу, чтобы поменять местами</p>');
