@@ -4649,13 +4649,19 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            border: 1px solid #315be8;
+            border: 0;
             border-radius: 50%;
-            background: #315be8;
+            background: #2c2c30;
             color: #fff;
             cursor: pointer;
-            box-shadow: 0 5px 16px rgba(37, 75, 210, 0.4);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
             touch-action: manipulation;
+        }
+
+        html.theme-light .climb-detail-navigate-btn,
+        html.tg-theme-light .climb-detail-navigate-btn {
+            background: #f4f4f6;
+            color: #1c1c1e;
         }
 
         .climb-detail-navigate-btn svg {
@@ -4666,8 +4672,16 @@
 
         .climb-detail-navigate-btn:hover,
         .climb-detail-navigate-btn:focus-visible {
-            background: #244dd7;
-            border-color: #244dd7;
+            background: #3a3a3e;
+            border-color: transparent;
+        }
+
+        html.theme-light .climb-detail-navigate-btn:hover,
+        html.theme-light .climb-detail-navigate-btn:focus-visible,
+        html.tg-theme-light .climb-detail-navigate-btn:hover,
+        html.tg-theme-light .climb-detail-navigate-btn:focus-visible {
+            background: #e7e7eb;
+            border-color: transparent;
         }
 
         @media (max-width: 720px) {
