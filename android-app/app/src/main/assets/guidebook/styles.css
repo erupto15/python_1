@@ -5846,6 +5846,11 @@
             cursor: grabbing;
         }
 
+        #mapContainer.map-pin-moving .map-sector-badge,
+        #mapContainer.map-pin-moving .parent-label {
+            transition: none;
+        }
+
         .map-popup-boulder-row {
             display: flex;
             gap: 6px;

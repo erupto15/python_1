@@ -8011,9 +8011,10 @@
                 return out;
             }
 
-            snapMapPinCoord(lat, lng, { exclude = [] } = {}) {
+            snapMapPinCoord(lat, lng, { exclude = [], maxMeters = null } = {}) {
                 const coord = this.validMapCoord(lat, lng);
                 if (!coord) return null;
+                const limit = Number.isFinite(Number(maxMeters)) ? Number(maxMeters) : this.mapPinSnapMeters();
                 let best = null;
                 let bestDist = Infinity;
                 this.mapPinCandidateCoords({ exclude }).forEach((item) => {
@@ -8023,7 +8024,7 @@
                         best = item.coord;
                     }
                 });
-                if (best && bestDist <= this.mapPinSnapMeters()) {
+                if (best && bestDist <= limit) {
                     return { lat: best.lat, lng: best.lng };
                 }
                 return coord;
@@ -8726,7 +8727,7 @@
                     icon,
                     interactive: true,
                     draggable: true,
-                    autoPan: true,
+                    autoPan: false,
                     zIndexOffset: 500
                 });
                 marker.dragging?.disable();
@@ -8748,7 +8749,7 @@
                     icon,
                     interactive: true,
                     draggable: true,
-                    autoPan: true,
+                    autoPan: false,
                     zIndexOffset: 600
                 });
                 marker.dragging?.disable();
@@ -8782,7 +8783,7 @@
                 const marker = L.marker([coord.lat, coord.lng], {
                     icon,
                     draggable: true,
-                    autoPan: true,
+                    autoPan: false,
                     zIndexOffset: 400
                 }).addTo(this.map);
                 marker.dragging?.disable();
@@ -10520,11 +10521,48 @@
                 this.syncMapEditUi();
             }
 
+            holdMapStillForPinDrag() {
+                if (!this.map?.dragging || this._mapDragDisabledForPin) return;
+                if (!this.map.dragging.enabled()) return;
+                this.map.dragging.disable();
+                this._mapDragDisabledForPin = true;
+            }
+
+            releaseMapStillForPinDrag() {
+                if (!this._mapDragDisabledForPin) return;
+                this._mapDragDisabledForPin = false;
+                this.map?.dragging?.enable();
+            }
+
             bindCatalogPinDrag(marker, entry) {
                 if (!marker || !entry) return;
+                const holdMap = () => {
+                    if (!this.mapEditMode || !this.isAdmin()) return;
+                    this.holdMapStillForPinDrag();
+                    const release = (e) => {
+                        document.removeEventListener('touchend', release);
+                        document.removeEventListener('touchcancel', release);
+                        if (this._pinDragActive && e?.type !== 'touchcancel') return;
+                        this._pinDragActive = false;
+                        this.map?.getContainer()?.classList.remove('map-pin-moving');
+                        this.releaseMapStillForPinDrag();
+                    };
+                    document.addEventListener('touchend', release);
+                    document.addEventListener('touchcancel', release);
+                };
+                const bindHold = () => {
+                    const el = marker.getElement?.() || marker._icon;
+                    if (!el || el.dataset.pinDragHold === '1') return;
+                    el.dataset.pinDragHold = '1';
+                    el.addEventListener('touchstart', holdMap, { capture: true });
+                };
+                bindHold();
+                marker.on('add', bindHold);
                 marker.off('dragstart').off('dragend');
                 marker.on('dragstart', () => {
                     if (!this.mapEditMode || !this.isAdmin()) return;
+                    this._pinDragActive = true;
+                    this.holdMapStillForPinDrag();
                     this.map?.closePopup?.();
                     this._mapPinJustDragged = false;
                     const ids = this.catalogMapPinMoveIds(entry);
@@ -10532,8 +10570,10 @@
                     this.map?.getContainer()?.classList.add('map-pin-moving');
                 });
                 marker.on('dragend', (e) => {
+                    this._pinDragActive = false;
                     this._mapPinJustDragged = true;
                     this.map?.getContainer()?.classList.remove('map-pin-moving');
+                    this.releaseMapStillForPinDrag();
                     const ll = e.target?.getLatLng?.();
                     if (ll) void this.moveCatalogMapPin(ll.lat, ll.lng);
                     setTimeout(() => { this._mapPinJustDragged = false; }, 250);
@@ -10562,7 +10602,8 @@
                 if (!ids.length) return;
                 const id = ids[0];
                 const snapped = this.snapMapPinCoord(lat, lng, {
-                    exclude: ids.map((pinId) => ({ kind, id: pinId }))
+                    exclude: ids.map((pinId) => ({ kind, id: pinId })),
+                    maxMeters: this.mapBoulderSamePointMeters()
                 }) || { lat, lng };
                 lat = snapped.lat;
                 lng = snapped.lng;
