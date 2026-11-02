@@ -6893,6 +6893,15 @@
             justify-content: center;
         }
 
+        .map-boulder-sheet .grade-spread-host {
+            flex: 0 0 auto;
+            padding: 10px 0 8px;
+        }
+
+        .map-boulder-sheet .grade-spread-bar {
+            height: 52px;
+        }
+
         .map-boulder-sheet-list {
             display: flex;
             min-height: 0;

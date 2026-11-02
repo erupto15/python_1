@@ -9278,6 +9278,12 @@
                     chips.appendChild(chip);
                 });
 
+                this.renderGradeSpread(
+                    document.getElementById('mapBoulderSheetSpread'),
+                    stack.map((item) => ({ grade: item.grade })),
+                    '9(ab)'
+                );
+
                 const visible = (this._mapBoulderSheetGrade
                     ? stack.filter((b) => String(b.grade || '').trim() === this._mapBoulderSheetGrade)
                     : [...stack])
