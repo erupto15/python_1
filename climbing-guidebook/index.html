@@ -216,7 +216,7 @@
             align-items: flex-start;
             padding-top: 0.26rem;
             padding-bottom: 0.2rem;
-            animation: tg-boot-from-top 0.72s cubic-bezier(0.22, 1.15, 0.36, 1) both;
+            animation: tg-boot-from-top 1.85s cubic-bezier(0.16, 0.72, 0.2, 1) both;
         }
         .tg-boot-tri--dark {
             clip-path: polygon(0% 0%, 100% 0%, 50% 100%);
@@ -224,7 +224,7 @@
             color: #f2f5fa;
             margin-top: -0.62rem;
             padding: 0.12rem 0.22rem 0.28rem;
-            animation: tg-boot-from-bottom 0.72s cubic-bezier(0.22, 1.15, 0.36, 1) 0.1s both;
+            animation: tg-boot-from-bottom 1.85s cubic-bezier(0.16, 0.72, 0.2, 1) 0.28s both;
         }
         .tg-boot-tri--dark span {
             display: inline-block;
@@ -239,11 +239,11 @@
         }
         .tg-boot-status[hidden] { display: none !important; }
         @keyframes tg-boot-from-top {
-            from { opacity: 0; transform: translateY(-34px) scale(0.9); }
+            from { opacity: 0; transform: translateY(-78px) scale(0.86); }
             to { opacity: 1; transform: none; }
         }
         @keyframes tg-boot-from-bottom {
-            from { opacity: 0; transform: translateY(34px) scale(0.9); }
+            from { opacity: 0; transform: translateY(78px) scale(0.86); }
             to { opacity: 1; transform: none; }
         }
         @media (prefers-reduced-motion: reduce) {
@@ -312,7 +312,7 @@
             var el = document.getElementById('tgBootOverlay');
             if (!el || el.dataset.bootError || el.classList.contains('hidden') || el.classList.contains('is-leaving') || bootLeaveTimer) return;
             var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            var minMs = reduce ? 320 : 1500;
+            var minMs = reduce ? 320 : 2700;
             var wait = Math.max(0, minMs - (Date.now() - bootShownAt));
             bootLeaveTimer = setTimeout(function () {
                 bootLeaveTimer = null;
