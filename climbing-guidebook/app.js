@@ -9278,30 +9278,35 @@
                     chips.appendChild(chip);
                 });
 
-                this.renderGradeSpread(
-                    document.getElementById('mapBoulderSheetSpread'),
-                    stack.map((item) => ({ grade: item.grade })),
-                    '9(ab)'
-                );
-
                 const visible = (this._mapBoulderSheetGrade
                     ? stack.filter((b) => String(b.grade || '').trim() === this._mapBoulderSheetGrade)
                     : [...stack])
                     .filter((b) => this.climbPassesGuideFilters(
                         { id: b.id, grade: b.grade },
                         b.climbType || 'boulder'
-                    ))
-                    .sort((a, b) => {
-                        const typeDelta = (a.climbType === 'route' ? 0 : 1) - (b.climbType === 'route' ? 0 : 1);
-                        if (typeDelta) return typeDelta;
-                        const an = Number(a.number);
-                        const bn = Number(b.number);
-                        if (Number.isFinite(an) && Number.isFinite(bn) && an !== bn) return an - bn;
-                        return this.mapGradeSortKey(a.grade) - this.mapGradeSortKey(b.grade)
-                            || String(a.title || '').localeCompare(String(b.title || ''), 'ru');
-                    });
-                list.replaceChildren();
-                visible.forEach((climb) => {
+                    ));
+                const byNumber = (a, b) => {
+                    const an = Number(a.number);
+                    const bn = Number(b.number);
+                    if (Number.isFinite(an) && Number.isFinite(bn) && an !== bn) return an - bn;
+                    return this.mapGradeSortKey(a.grade) - this.mapGradeSortKey(b.grade)
+                        || String(a.title || '').localeCompare(String(b.title || ''), 'ru');
+                };
+                const routeStack = stack.filter((item) => item.climbType === 'route');
+                const boulderStack = stack.filter((item) => item.climbType !== 'route');
+                const mixed = routeStack.length > 0 && boulderStack.length > 0;
+                const routeItems = routeStack.filter((item) => visible.includes(item)).sort(byNumber);
+                const boulderItems = boulderStack.filter((item) => visible.includes(item)).sort(byNumber);
+                const singleItems = mixed ? [] : [...visible].sort(byNumber);
+
+                // Трудность и боулдеринг не смешиваются: у каждого свой список и своя шкала.
+                this.renderGradeSpread(
+                    document.getElementById('mapBoulderSheetSpread'),
+                    mixed ? [] : stack.map((item) => ({ grade: item.grade })),
+                    '9(ab)'
+                );
+
+                const appendClimbRow = (parent, climb) => {
                     const sourceIndex = stack.indexOf(climb);
                     const item = document.createElement('button');
                     item.type = 'button';
@@ -9367,9 +9372,40 @@
                         copy.appendChild(author);
                     }
                     item.appendChild(copy);
-                    list.appendChild(item);
-                });
-                if (!visible.length) {
+                    parent.appendChild(item);
+                };
+
+                const appendDisciplineSection = (title, items, scaleClimbs) => {
+                    if (!items.length) return;
+                    const section = document.createElement('section');
+                    section.className = 'map-boulder-sheet-section';
+                    const heading = document.createElement('h4');
+                    heading.className = 'map-boulder-sheet-section-title';
+                    heading.textContent = title;
+                    section.appendChild(heading);
+                    const host = document.createElement('div');
+                    host.className = 'grade-spread-host';
+                    host.innerHTML = gradeSpreadHtml(
+                        scaleClimbs.map((item) => ({ grade: item.grade })),
+                        '9(ab)'
+                    );
+                    section.appendChild(host);
+                    const group = document.createElement('div');
+                    group.className = 'map-boulder-sheet-group';
+                    items.forEach((climb) => appendClimbRow(group, climb));
+                    section.appendChild(group);
+                    list.appendChild(section);
+                };
+
+                list.replaceChildren();
+                list.classList.toggle('is-split', mixed);
+                if (mixed) {
+                    appendDisciplineSection('Трассы', routeItems, routeStack);
+                    appendDisciplineSection('Боулдеринг', boulderItems, boulderStack);
+                } else {
+                    singleItems.forEach((climb) => appendClimbRow(list, climb));
+                }
+                if (!routeItems.length && !boulderItems.length && !singleItems.length) {
                     const empty = document.createElement('p');
                     empty.className = 'app-menu-empty';
                     empty.textContent = this.guideFiltersActive()

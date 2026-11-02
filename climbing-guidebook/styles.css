@@ -6917,6 +6917,33 @@
             background: color-mix(in srgb, var(--surface-elevated) 72%, transparent);
         }
 
+        .map-boulder-sheet-list.is-split {
+            gap: 14px;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+        }
+
+        .map-boulder-sheet-section-title {
+            margin: 0 2px 6px;
+            color: var(--light-text);
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .map-boulder-sheet-section .grade-spread-host {
+            padding: 0 0 8px;
+        }
+
+        .map-boulder-sheet-group {
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            background: color-mix(in srgb, var(--surface-elevated) 72%, transparent);
+        }
+
         .map-boulder-sheet-item {
             display: grid;
             grid-template-columns: auto minmax(0, 1fr);
