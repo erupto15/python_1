@@ -5,6 +5,27 @@
         return;
     }
 
+    function guideWebViewIsModernEnough() {
+        try {
+            return Function('return ({}?.a) ?? 1')() === 1;
+        } catch (err) {
+            return false;
+        }
+    }
+
+    if (!guideWebViewIsModernEnough()) {
+        const overlay = document.getElementById('tgBootOverlay');
+        if (overlay) {
+            overlay.classList.remove('hidden', 'is-leaving');
+            const label = overlay.querySelector('.tg-boot-status');
+            if (label) {
+                label.hidden = false;
+                label.textContent = 'На этом телефоне старый системный браузер. Обновите «Android System WebView» или Chrome в Play Маркете и откройте гайд снова.';
+            }
+        }
+        return;
+    }
+
     function signalReady() {
         if (typeof window.signalTelegramAppReady === 'function') {
             window.signalTelegramAppReady();

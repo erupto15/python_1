@@ -195,44 +195,45 @@
 
         /* Светлая тема (ручной переключатель / system) */
         html.theme-light {
-            --primary-color: #d63f24;
-            --text-color: #1c1c1e;
-            --light-text: #5a5466;
-            --border-color: rgba(32, 24, 48, 0.16);
-            --background-color: #ead7d4;
+            --primary-color: #1c1c1e;
+            --text-color: #111111;
+            --light-text: #6b6b70;
+            --border-color: rgba(0, 0, 0, 0.12);
+            --background-color: #f6f6f7;
             --card-bg: #ffffff;
             --surface-elevated: #ffffff;
-            --accent-soft: rgba(214, 63, 36, 0.1);
-            --accent-glow: rgba(214, 63, 36, 0.18);
-            --shadow: 0 12px 32px rgba(24, 32, 48, 0.08);
-            --title-accent-line: linear-gradient(90deg, #d63f24, #a89cc8, #2aa89c);
-            --canvas-radial-warm: radial-gradient(ellipse 120% 70% at 50% -18%, rgba(232, 71, 42, 0.28), transparent 58%);
-            --canvas-radial-cool: radial-gradient(ellipse 70% 45% at 100% 0%, rgba(34, 184, 168, 0.14), transparent 52%);
-            --canvas-diagonal: linear-gradient(45deg, #e37682 12%, #8f6d9a 52%, #5f4d93 88%);
-            --bg-noise-opacity: 0.22;
-            --logo-shadow: 0 8px 22px rgba(24, 32, 48, 0.18);
-            --logo-shadow-soft: 0 3px 10px rgba(24, 32, 48, 0.12);
-            --tg-blue: #d63f24;
-            --tg-blue-hover: #e04a30;
-            --tg-blue-active: #b8341c;
+            --accent-soft: rgba(0, 0, 0, 0.06);
+            --accent-glow: rgba(0, 0, 0, 0.1);
+            --shadow: 0 10px 28px rgba(0, 0, 0, 0.06);
+            --title-accent-line: #111111;
+            --canvas-radial-warm: none;
+            --canvas-radial-cool: none;
+            --canvas-diagonal: none;
+            --bg-noise-opacity: 0;
+            --logo-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
+            --logo-shadow-soft: 0 3px 10px rgba(0, 0, 0, 0.08);
+            --tg-blue: #1c1c1e;
+            --tg-blue-hover: #3a3a3e;
+            --tg-blue-active: #000000;
             --tg-btn-bg: #ffffff;
-            --tg-btn-bg-hover: #f4f1f8;
-            --tg-btn-border: rgba(32, 24, 48, 0.18);
-            --btn-primary-glow: 0 1px 0 rgba(255, 255, 255, 0.35) inset, 0 2px 8px rgba(214, 63, 36, 0.22);
-            --btn-secondary-inset: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-            --btn-ghost-border: rgba(32, 24, 48, 0.2);
-            --btn-ghost-hover-bg: #f4f1f8;
+            --tg-btn-bg-hover: #f2f2f3;
+            --tg-btn-border: rgba(0, 0, 0, 0.14);
+            --btn-primary-glow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 1px 2px rgba(0, 0, 0, 0.16);
+            --btn-secondary-inset: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+            --btn-ghost-border: rgba(0, 0, 0, 0.16);
+            --btn-ghost-hover-bg: #f2f2f3;
             --on-canvas-bg: #ffffff;
-            --on-canvas-border: rgba(32, 24, 48, 0.2);
-            --on-canvas-shadow: 0 6px 22px rgba(48, 28, 64, 0.18);
-            --on-canvas-placeholder: #5a5466;
-            --nav-dia-light: #e8ecf4;
-            --nav-dia-dark: #12151c;
-            --nav-dia-arrow: var(--primary-color);
+            --on-canvas-border: rgba(0, 0, 0, 0.14);
+            --on-canvas-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+            --on-canvas-placeholder: #8e8e93;
+            --nav-dia-light: #f4f4f5;
+            --nav-dia-dark: #1c1c1e;
+            --nav-dia-arrow: #1c1c1e;
             --tabs-rail-bg: rgba(26, 31, 44, 0.06);
             --tabs-inactive-bg: #ffffff;
             --action-btn-bg: #ffffff;
-            --map-panel: rgba(255, 255, 255, 0.92);
+            --map-accent: #1c1c1e;
+            --map-panel: rgba(255, 255, 255, 0.94);
             --map-popup-float-shadow: 0 1px 2px rgba(255, 255, 255, 0.92), 0 0 1px rgba(255, 255, 255, 0.95);
             --map-popup-float-close-shadow: 0 1px 2px rgba(255, 255, 255, 0.95), 0 0 1px rgba(255, 255, 255, 1);
             --map-popup-boulder-item-bg: color-mix(in srgb, var(--card-bg) 96%, transparent);
@@ -7825,6 +7826,33 @@
             display: none !important;
         }
 
+        html.no-auth .climb-log-add-btn,
+        html.no-auth .climb-action-btn--log,
+        html.no-auth .profile-admin-entry,
+        html.no-auth #profileVkIdBtn,
+        html.no-auth #profileTelegramDeeplinkBtn {
+            display: none !important;
+        }
+
+        @media (max-width: 380px) {
+            .grade-spread {
+                gap: 4px;
+            }
+
+            .grade-spread-label {
+                font-size: 11px;
+            }
+
+            .grade-spread-count {
+                font-size: 16px;
+            }
+
+            .map-boulder-sheet .grade-spread-bar,
+            .grade-spread-bar {
+                height: 44px;
+            }
+        }
+
         .grade-spread {
             display: flex;
             align-items: flex-end;
@@ -9701,6 +9729,15 @@
             background: color-mix(in srgb, var(--danger-color) 10%, var(--card-bg));
         }
 
+        html.theme-light .app-data-status--error,
+        html.tg-theme-light .app-data-status--error,
+        html.theme-light .app-data-status--offline,
+        html.tg-theme-light .app-data-status--offline {
+            border-color: rgba(0, 0, 0, 0.14);
+            background: #ffffff;
+            color: #111111;
+        }
+
         .app-data-status--offline {
             border-color: color-mix(in srgb, var(--warning-color) 45%, var(--border-color));
             background: color-mix(in srgb, var(--warning-color) 12%, var(--card-bg));
@@ -9963,8 +10000,10 @@
             border: 1px solid color-mix(in srgb, var(--text-color) 12%, transparent);
         }
 
-        html.tg-mini-app.tg-theme-light .dialog-content {
-            background-color: var(--background-color);
+        html.tg-mini-app.tg-theme-light .dialog-content,
+        html.theme-light .dialog-content {
+            background-color: #ffffff;
+            color: #111111;
         }
 
         html.tg-mini-app.tg-theme-light #climbDetailDescription {

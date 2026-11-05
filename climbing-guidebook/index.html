@@ -29,6 +29,9 @@
             if (q.get('app') === 'android' || q.get('standalone') === '1') {
                 window.CLIMBING_STANDALONE = true;
             }
+            if (q.get('app') === 'android') {
+                window.CLIMBING_NO_AUTH = true;
+            }
             if (window.CLIMBING_STANDALONE) {
                 document.documentElement.classList.add('standalone-app');
             }
@@ -51,6 +54,10 @@
             var ua = navigator.userAgent || '';
             if (!window.CLIMBING_STANDALONE && /; wv\)/i.test(ua) && !/Telegram/i.test(ua)) {
                 window.CLIMBING_STANDALONE = true;
+                window.CLIMBING_NO_AUTH = true;
+            }
+            if (window.CLIMBING_NO_AUTH) {
+                document.documentElement.classList.add('no-auth');
             }
         } catch (_) {}
         window.handleGuidebookSystemBack = function () { return false; };
@@ -176,7 +183,7 @@
             transition: opacity 0.42s ease;
         }
         html.theme-light .tg-boot-overlay {
-            background: #f2f2f5; color: #1c1c1e;
+            background: #f6f6f7; color: #111111;
         }
         .tg-boot-overlay.is-leaving {
             opacity: 0;

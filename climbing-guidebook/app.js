@@ -6593,12 +6593,26 @@
             prepareStandaloneTelegramLoginUi() {
                 if (!isStandaloneShell()) return;
                 document.getElementById('profileGuestHintMiniApp')?.classList.add('hidden');
+                document.getElementById('telegramLoginWidgetMount')?.classList.add('hidden');
+                if (window.CLIMBING_NO_AUTH) {
+                    document.documentElement.classList.add('no-auth');
+                    const hint = document.getElementById('profileGuestHintStandalone');
+                    if (hint) {
+                        hint.classList.remove('hidden');
+                        hint.textContent = 'Каталог, карта и трассы открыты без входа.';
+                    }
+                    const title = document.querySelector('#profileGuestBlock h3');
+                    if (title) title.textContent = 'Гайд без входа';
+                    document.getElementById('profileTelegramDeeplinkBtn')?.classList.add('hidden');
+                    document.getElementById('profileVkIdBtn')?.classList.add('hidden');
+                    document.getElementById('profileAdminLoginBtn')?.closest('.profile-admin-entry')?.classList.add('hidden');
+                    return;
+                }
                 document.getElementById('profileGuestHintStandalone')?.classList.remove('hidden');
                 document.getElementById('profileTelegramDeeplinkBtn')?.classList.remove('hidden');
                 if (isStandaloneVkIdBridgeAvailable()) {
                     document.getElementById('profileVkIdBtn')?.classList.remove('hidden');
                 }
-                document.getElementById('telegramLoginWidgetMount')?.classList.add('hidden');
             }
 
             async completeStandaloneVkIdLogin(accessToken) {
