@@ -211,31 +211,35 @@
             box-sizing: border-box;
             font-family: "Barlow Condensed", "Arial Narrow", "Helvetica Neue Condensed", sans-serif;
             font-weight: 700;
-            font-size: 1.48rem;
+            font-size: 0.96rem;
             line-height: 1;
             letter-spacing: 0.01em;
-            padding-inline: 0.22rem;
+            text-align: center;
+            padding-inline: 0.2rem;
         }
         .tg-boot-tri--light {
             clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
             background: linear-gradient(168deg, #ffffff 0%, #e8ecf4 52%, #d2dae6 100%);
             color: #0c1018;
-            align-items: flex-start;
-            padding-top: 0.26rem;
-            padding-bottom: 0.2rem;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 0 0.2rem 0.52rem;
             animation: tg-boot-from-top 1.85s cubic-bezier(0.16, 0.72, 0.2, 1) both;
         }
         .tg-boot-tri--dark {
             clip-path: polygon(0% 0%, 100% 0%, 50% 100%);
             background: linear-gradient(348deg, #1c2433 0%, #141a24 45%, #0a0d12 100%);
             color: #f2f5fa;
+            align-items: flex-start;
+            justify-content: center;
             margin-top: -0.62rem;
-            padding: 0.12rem 0.22rem 0.28rem;
+            padding: 0.42rem 0.2rem 0;
             animation: tg-boot-from-bottom 1.85s cubic-bezier(0.16, 0.72, 0.2, 1) 0.28s both;
         }
         .tg-boot-tri--dark span {
-            display: inline-block;
-            transform: translateY(-0.04rem);
+            display: block;
+            line-height: 1;
+            transform: none;
         }
         .tg-boot-status {
             margin: 0;

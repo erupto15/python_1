@@ -39,7 +39,7 @@
             /* Уже ромб + стык треугольников */
             --logo-diamond-w: 4.5rem;
             --logo-diamond-h: 2.35rem;
-            --logo-diamond-font: 1.48rem;
+            --logo-diamond-font: 0.96rem;
             --logo-diamond-overlap: -0.62rem;
             /* Кнопки и акцент */
             --tg-blue: #e8472a;
@@ -710,16 +710,17 @@
             font-variant-numeric: tabular-nums;
             box-sizing: border-box;
             -webkit-font-smoothing: antialiased;
-            padding-inline: 0.22rem;
+            padding-inline: 0.2rem;
+            text-align: center;
         }
 
         .site-logo-tri--light {
             clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
             background: linear-gradient(168deg, var(--logo-light-top) 0%, var(--logo-light-mid) 52%, #d2dae6 100%);
             color: var(--logo-light-ink);
-            padding-top: 0.26rem;
-            align-items: flex-start;
-            padding-bottom: 0.2rem;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 0 0.2rem 0.52rem;
             text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
             transform: scale(0.9);
             transform-origin: 50% 66%;
@@ -730,9 +731,9 @@
             background: linear-gradient(348deg, var(--logo-dark-top) 0%, #141a24 45%, var(--logo-dark-bottom) 100%);
             color: var(--logo-dark-ink);
             margin-top: var(--logo-diamond-overlap);
-            align-items: center;
+            align-items: flex-start;
             justify-content: center;
-            padding: 0.12rem 0.22rem 0.28rem;
+            padding: 0.42rem 0.2rem 0;
             box-shadow:
                 inset 0 1px 0 rgba(255, 255, 255, 0.1),
                 inset 0 -1px 0 rgba(0, 0, 0, 0.25);
@@ -742,8 +743,9 @@
         }
 
         .site-logo-tri-nudge-up {
-            display: inline-block;
-            transform: translateY(-0.04rem);
+            display: block;
+            line-height: 1;
+            transform: none;
         }
 
         .site-tagline {
@@ -7726,8 +7728,8 @@
             .site-logo-tri {
                 width: 3.92rem;
                 height: 2.05rem;
-                font-size: 1.28rem;
-                padding-inline: 0.18rem;
+                font-size: 0.84rem;
+                padding-inline: 0.16rem;
             }
 
             .site-logo-tri--dark {
