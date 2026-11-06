@@ -1116,8 +1116,18 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="areaPhoto">Картинка района</label>
-                        <input type="file" class="form-input" id="areaPhoto" accept="image/*,.heic,.heif,.arw,image/heic,image/heif,image/x-sony-arw">
-                        <p class="form-hint">Можно выбрать JPEG, PNG, HEIC, ARW и др. (до 256 МБ) — перед сохранением фото автоматически сожмётся до формата обложки.</p>
+                        <div class="photo-pick">
+                            <input type="file" class="photo-pick-input" id="areaPhoto" accept="image/*,.heic,.heif,.arw,image/heic,image/heif,image/x-sony-arw">
+                            <label class="photo-pick-face" for="areaPhoto">
+                                <span class="photo-pick-plus" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span>
+                                <span class="photo-pick-copy">
+                                    <span class="photo-pick-title photo-pick-title--empty">Добавить фото</span>
+                                    <span class="photo-pick-title photo-pick-title--filled">Заменить фото</span>
+                                    <span class="photo-pick-sub">Обложка района</span>
+                                </span>
+                            </label>
+                        </div>
+                        <p class="form-hint">JPEG, PNG, HEIC, ARW · до 256 МБ, сожмётся до обложки</p>
                         <div class="area-photo-preview hidden" id="areaPhotoPreview"></div>
                         <div class="markup-actions markup-actions--photo" id="areaPhotoActions" style="display:none; margin-top:8px;">
                             <div class="photo-rotate-group" role="group" aria-label="Поворот фото">
@@ -1237,9 +1247,19 @@
                         <textarea class="form-textarea" id="quickRouteDescription" rows="3"></textarea>
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="quickRoutePhoto">Прикрепить фото</label>
-                        <input type="file" class="form-input" id="quickRoutePhoto" accept="image/*,.heic,.heif,.arw,image/heic,image/heif,image/x-sony-arw">
-                        <p class="form-hint">Можно выбрать JPEG, PNG, HEIC, ARW и др. (до 256 МБ) — перед сохранением фото автоматически сожмётся для разметки и загрузки.</p>
+                        <label class="form-label" for="quickRoutePhoto">Фото</label>
+                        <div class="photo-pick">
+                            <input type="file" class="photo-pick-input" id="quickRoutePhoto" accept="image/*,.heic,.heif,.arw,image/heic,image/heif,image/x-sony-arw">
+                            <label class="photo-pick-face" for="quickRoutePhoto">
+                                <span class="photo-pick-plus" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span>
+                                <span class="photo-pick-copy">
+                                    <span class="photo-pick-title photo-pick-title--empty">Добавить фото</span>
+                                    <span class="photo-pick-title photo-pick-title--filled">Заменить фото</span>
+                                    <span class="photo-pick-sub">Снимок для разметки трассы</span>
+                                </span>
+                            </label>
+                        </div>
+                        <p class="form-hint">JPEG, PNG, HEIC, ARW · до 256 МБ, сожмётся перед сохранением</p>
                         <div class="photo-preview" id="quickRoutePhotoPreview" style="margin-top:10px;"></div>
                         <div class="markup-actions markup-actions--photo" id="quickRoutePhotoActions" style="display:none; margin-top:8px;">
                             <div class="photo-rotate-group" role="group" aria-label="Поворот фото">
@@ -1318,9 +1338,19 @@
                         <textarea class="form-textarea" id="quickBoulderDescription" rows="3"></textarea>
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="quickBoulderPhoto">Прикрепить фото</label>
-                        <input type="file" class="form-input" id="quickBoulderPhoto" accept="image/*,.heic,.heif,.arw,image/heic,image/heif,image/x-sony-arw">
-                        <p class="form-hint">Можно выбрать JPEG, PNG, HEIC, ARW и др. (до 256 МБ) — перед сохранением фото автоматически сожмётся для разметки и загрузки.</p>
+                        <label class="form-label" for="quickBoulderPhoto">Фото</label>
+                        <div class="photo-pick">
+                            <input type="file" class="photo-pick-input" id="quickBoulderPhoto" accept="image/*,.heic,.heif,.arw,image/heic,image/heif,image/x-sony-arw">
+                            <label class="photo-pick-face" for="quickBoulderPhoto">
+                                <span class="photo-pick-plus" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span>
+                                <span class="photo-pick-copy">
+                                    <span class="photo-pick-title photo-pick-title--empty">Добавить фото</span>
+                                    <span class="photo-pick-title photo-pick-title--filled">Заменить фото</span>
+                                    <span class="photo-pick-sub">Снимок для разметки боулдеринга</span>
+                                </span>
+                            </label>
+                        </div>
+                        <p class="form-hint">JPEG, PNG, HEIC, ARW · до 256 МБ, сожмётся перед сохранением</p>
                         <div class="photo-preview" id="quickBoulderPhotoPreview" style="margin-top:10px;"></div>
                         <div class="markup-actions markup-actions--photo" id="quickBoulderPhotoActions" style="display:none; margin-top:8px;">
                             <div class="photo-rotate-group" role="group" aria-label="Поворот фото">

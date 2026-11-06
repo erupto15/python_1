@@ -7373,6 +7373,10 @@
                 }
             }
 
+            setPhotoPickFilled(inputId, filled) {
+                document.getElementById(inputId)?.closest('.photo-pick')?.classList.toggle('photo-pick--filled', !!filled);
+            }
+
             clearQuickDialogPhoto(kind) {
                 const isRoute = kind === 'route';
                 if (isRoute) {
@@ -7383,6 +7387,7 @@
                     if (box) box.innerHTML = '';
                     const actions = document.getElementById('quickRoutePhotoActions');
                     if (actions) actions.style.display = 'none';
+                    this.setPhotoPickFilled('quickRoutePhoto', false);
                 } else {
                     this.quickBoulderPhotoData = null;
                     const input = document.getElementById('quickBoulderPhoto');
@@ -7391,6 +7396,7 @@
                     if (box) box.innerHTML = '';
                     const actions = document.getElementById('quickBoulderPhotoActions');
                     if (actions) actions.style.display = 'none';
+                    this.setPhotoPickFilled('quickBoulderPhoto', false);
                 }
             }
 
@@ -7406,6 +7412,7 @@
                 }
                 const actions = document.getElementById('areaPhotoActions');
                 if (actions) actions.style.display = 'none';
+                this.setPhotoPickFilled('areaPhoto', false);
             }
 
             renderAreaDialogPhotoPreview(src) {
@@ -7417,8 +7424,10 @@
                         box.innerHTML = '';
                     }
                     if (actions) actions.style.display = 'none';
+                    this.setPhotoPickFilled('areaPhoto', false);
                     return;
                 }
+                this.setPhotoPickFilled('areaPhoto', true);
                 box.classList.remove('hidden');
                 box.innerHTML = `
                     <img src="${this.escapeHtml(src)}" alt="Картинка района">
@@ -7572,8 +7581,10 @@
                 box.innerHTML = '';
                 if (!data) {
                     actions.style.display = 'none';
+                    this.setPhotoPickFilled(isRoute ? 'quickRoutePhoto' : 'quickBoulderPhoto', false);
                     return;
                 }
+                this.setPhotoPickFilled(isRoute ? 'quickRoutePhoto' : 'quickBoulderPhoto', true);
                 const item = document.createElement('div');
                 item.className = 'photo-preview-with-markup';
                 item.dataset.climbType = isRoute ? 'route' : 'boulder';

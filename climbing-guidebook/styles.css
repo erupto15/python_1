@@ -1578,6 +1578,129 @@
             background-color: rgba(93, 156, 255, 0.05);
         }
 
+        .photo-pick {
+            position: relative;
+        }
+
+        .photo-pick-input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .photo-pick-face {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-height: 92px;
+            margin: 0;
+            padding: 14px 16px;
+            border-radius: 18px;
+            border: 1.5px dashed color-mix(in srgb, var(--text-color) 28%, transparent);
+            background:
+                radial-gradient(140px 90px at 16% 50%, color-mix(in srgb, var(--text-color) 7%, transparent), transparent 72%),
+                var(--card-bg);
+            color: var(--text-color);
+            cursor: pointer;
+            transition: border-color 0.15s ease, transform 0.12s ease, background 0.15s ease;
+        }
+
+        .photo-pick-face:hover {
+            border-color: color-mix(in srgb, var(--text-color) 55%, transparent);
+        }
+
+        .photo-pick-face:active {
+            transform: scale(0.985);
+        }
+
+        .photo-pick-input:focus-visible + .photo-pick-face {
+            outline: 2px solid var(--text-color);
+            outline-offset: 3px;
+        }
+
+        .photo-pick-plus {
+            width: 52px;
+            height: 52px;
+            flex: 0 0 52px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: #f4f4f6;
+            color: #1c1c1e;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+        }
+
+        .photo-pick-plus svg {
+            width: 22px;
+            height: 22px;
+            display: block;
+        }
+
+        html.theme-light .photo-pick-plus,
+        html.tg-theme-light .photo-pick-plus {
+            background: #1c1c1e;
+            color: #ffffff;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+        }
+
+        .photo-pick-title {
+            display: block;
+            font-size: 16px;
+            font-weight: 650;
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+        }
+
+        .photo-pick-title--filled {
+            display: none;
+        }
+
+        .photo-pick-sub {
+            display: block;
+            margin-top: 3px;
+            font-size: 13px;
+            line-height: 1.3;
+            color: var(--light-text);
+        }
+
+        .photo-pick--filled .photo-pick-title--empty,
+        .photo-pick--filled .photo-pick-sub {
+            display: none;
+        }
+
+        .photo-pick--filled .photo-pick-title--filled {
+            display: block;
+        }
+
+        .photo-pick--filled .photo-pick-face {
+            width: fit-content;
+            min-height: 0;
+            gap: 10px;
+            padding: 5px 14px 5px 5px;
+            border-style: solid;
+            border-radius: 999px;
+            background: var(--card-bg);
+        }
+
+        .photo-pick--filled .photo-pick-plus {
+            width: 36px;
+            height: 36px;
+            flex-basis: 36px;
+            box-shadow: none;
+        }
+
+        .photo-pick--filled .photo-pick-plus svg {
+            width: 16px;
+            height: 16px;
+        }
+
         .photo-preview {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
