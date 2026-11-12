@@ -20,13 +20,15 @@ android {
         applicationId 'io.sixa9a.guide'
         minSdk 24
         targetSdk 34
-        versionCode 20
-        versionName '1.0.19'
+        versionCode 21
+        versionName '1.0.20'
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a'
         }
         buildConfigField 'String', 'GUIDE_URL', '"https://92.246.76.142.sslip.io/"'
         buildConfigField 'boolean', 'VKID_ENABLED', vkIdEnabled ? 'true' : 'false'
+        // Для магазинов (RuStore/Google Play) собирать с -PselfUpdate=false: обновляет магазин.
+        buildConfigField 'boolean', 'SELF_UPDATE_ENABLED', (project.findProperty('selfUpdate') ?: 'true').toString() == 'false' ? 'false' : 'true'
     }
 
     buildTypes {

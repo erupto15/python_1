@@ -41,6 +41,8 @@ public class MainActivity extends AppCompatActivity {
     private String guideBaseUrl;
     private String userAgent;
     private GuideHttpCache httpCache;
+    private GuideUpdater updater;
+    private boolean uiVisible;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -81,6 +83,18 @@ public class MainActivity extends AppCompatActivity {
         guideBaseUrl = baseUrlForProbe();
         guideHost = hostFromGuideUrl(guideBaseUrl);
         httpCache = new GuideHttpCache(this);
+        updater = new GuideUpdater(this, new GuideUpdater.Host() {
+            @Override
+            public void reloadGuide() {
+                loadGuide();
+            }
+
+            @Override
+            public boolean isUiVisible() {
+                return uiVisible && !isFinishing();
+            }
+        }, guideBaseUrl);
+        updater.start();
 
         probeHttpFromJava(guideBaseUrl);
 
@@ -132,6 +146,7 @@ public class MainActivity extends AppCompatActivity {
                         + " mainFrame=" + (request != null && request.isForMainFrame())
                         + " url=" + (request != null ? request.getUrl() : "null"));
                 if (request != null && request.isForMainFrame() && isGuideAppUrl(request.getUrl())) {
+                    updater.markWebLoadedOffline();
                     view.post(() -> view.loadUrl("file:///android_asset/guidebook/offline_fallback.html"));
                 }
             }
@@ -143,9 +158,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        String url = guideBaseUrl + "?app=android&_=" + System.currentTimeMillis();
-        Log.i(TAG, "Loading " + url + " (proxy host=" + guideHost + ")");
-        webView.loadUrl(url);
+        loadGuide();
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
@@ -153,6 +166,32 @@ public class MainActivity extends AppCompatActivity {
                 dispatchGuidebookBack();
             }
         });
+    }
+
+    private void loadGuide() {
+        if (webView == null) return;
+        String url = guideBaseUrl + "?app=android&_=" + System.currentTimeMillis();
+        Log.i(TAG, "Loading " + url + " (proxy host=" + guideHost + ")");
+        webView.loadUrl(url);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        uiVisible = true;
+        if (updater != null) updater.onResume();
+    }
+
+    @Override
+    protected void onPause() {
+        uiVisible = false;
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (updater != null) updater.stop();
+        super.onDestroy();
     }
 
     private void dispatchGuidebookBack() {
@@ -237,7 +276,9 @@ public class MainActivity extends AppCompatActivity {
 
             if (code == 200) {
                 httpCache.save(urlKey, bytes, mime, code, reason);
+                if (request.isForMainFrame()) updater.markWebLoadedOnline();
             } else {
+                if (request.isForMainFrame()) updater.markWebLoadedOffline();
                 WebResourceResponse asset = GuideAssetLoader.open(this, uri);
                 if (asset != null) return asset;
                 return responseFromCache(urlKey, uri);
@@ -252,6 +293,7 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.w(TAG, "Proxy network fail " + uri + ": " + e.getMessage());
             if (conn != null) conn.disconnect();
+            if (request.isForMainFrame()) updater.markWebLoadedOffline();
             WebResourceResponse asset = GuideAssetLoader.open(this, uri);
             if (asset != null) return asset;
             return responseFromCache(urlKey, uri);

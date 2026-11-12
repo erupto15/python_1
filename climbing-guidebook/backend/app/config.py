@@ -165,6 +165,9 @@ class Settings(BaseSettings):
     # CARTO Voyager raster tiles (optional). Without key the frontend uses tile.openstreetmap.org.
     carto_basemaps_api_key: str = ""
 
+    # Публичный GitHub-репозиторий с релизами APK (тег android-vX.Y.Z, файл *-c<versionCode>.apk)
+    android_release_repo: str = "erupto15/python_1"
+
     @property
     def media_upload_path(self) -> Path:
         raw = (self.media_upload_dir or "").strip()
