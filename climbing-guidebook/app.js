@@ -9002,6 +9002,25 @@
                 const entries = [...this.mapMarkerIndex.values()]
                     .filter((entry) => entry.labelEl)
                     .sort((a, b) => this.mapDeclutterPriority(b) - this.mapDeclutterPriority(a));
+                if (this.mapAreasOverviewActive()) {
+                    const keptAreas = [];
+                    entries.forEach((entry) => {
+                        const el = entry.labelEl?.querySelector('.map-sector-badge-label') || entry.labelEl;
+                        if (!el) return;
+                        el.classList.remove('declutter-hidden');
+                        const rect = el.getBoundingClientRect();
+                        if (!rect.width || !rect.height) return;
+                        const overlaps = keptAreas.some((k) => !(
+                            rect.right < k.left - 4
+                            || rect.left > k.right + 4
+                            || rect.bottom < k.top - 2
+                            || rect.top > k.bottom + 2
+                        ));
+                        if (overlaps) el.classList.add('declutter-hidden');
+                        else keptAreas.push(rect);
+                    });
+                    return;
+                }
                 if (this.map.getZoom() <= 10) {
                     entries.forEach((entry) => entry.labelEl?.classList.remove('declutter-hidden'));
                     return;
@@ -9745,6 +9764,35 @@
                     && document.documentElement.classList.contains('app-shell');
             }
 
+            /** Вкладка «Карта» без выбранного района: видны только районы. */
+            mapAreasOverviewActive() {
+                return !this.mapCatalogScope
+                    && !this.catalogEmbeddedMapActive()
+                    && document.documentElement.classList.contains('app-shell')
+                    && !(this.mapEditMode && this.isAdmin());
+            }
+
+            fitMapToAreasOverview(maxZoom = 13) {
+                if (!this.map) return;
+                const points = [];
+                this.mapMarkerIndex.forEach((entry) => {
+                    if (entry?.kind !== 'area' || entry.lat == null || entry.lng == null) return;
+                    points.push({ lat: Number(entry.lat), lng: Number(entry.lng) });
+                });
+                if (points.length) this.applyMapFit(points, maxZoom);
+            }
+
+            resetMapToAreasOverview() {
+                this.closeMapClimbInfoSheet?.();
+                this.closeMapBoulderSheet?.();
+                this.mapCatalogScope = null;
+                this._sectorBoulderZoneId = null;
+                if (!this.map) return;
+                this.updateMapMarkers();
+                this.fitMapToAreasOverview();
+                this.syncMapDrillBackBtn();
+            }
+
             mapEntryInScope(entry) {
                 if (!this.mapCatalogScope) return true;
                 const { areaId, sectorId } = this.mapCatalogScope;
@@ -9886,7 +9934,9 @@
                         besideSector: onSector
                     });
                 });
+                const areasOverview = this.mapAreasOverviewActive();
                 return entries.filter((entry) => {
+                    if (areasOverview) return entry.kind === 'area';
                     if (!this.mapEntryInScope(entry)) return false;
                     if (this.appShellEmbeddedMapActive() && this.catalog?.view === 'problems') {
                         return entry.kind === 'sector'
@@ -10016,7 +10066,8 @@
                 this.updateMapStatus();
 
                 if (!this.catalogEmbeddedMapActive() && !this._mapFitDone && this.mapMarkerIndex.size) {
-                    this.fitMapCloserToArea(16);
+                    if (this.mapAreasOverviewActive()) this.fitMapToAreasOverview();
+                    else this.fitMapCloserToArea(16);
                     this._mapFitDone = true;
                 }
                 this.syncMapZoomClass();
@@ -10137,6 +10188,7 @@
                 if (feature.featureType === 'trail' && !this.mapShowTrails) return false;
                 if (feature.featureType !== 'trail' && !this.mapShowPoi) return false;
                 if (this.mapFeatureCoordsDuplicateEntity(feature)) return false;
+                if (this.mapAreasOverviewActive()) return false;
                 const scopeAreaId = this.mapCatalogScope?.areaId;
                 if (!scopeAreaId) return true;
                 if (this.mapEditMode && this.isAdmin()) {
@@ -11654,8 +11706,7 @@
                     return true;
                 }
                 if (this.mapCatalogScope) {
-                    this.clearMapScope();
-                    this.syncMapDrillBackBtn();
+                    this.resetMapToAreasOverview();
                     return true;
                 }
                 return false;
@@ -15812,7 +15863,20 @@
                 }
                 document.getElementById('profile')?.classList.remove('active');
                 document.getElementById('ranking')?.classList.remove('active');
-                void this.activateMainTab(navId);
+                const openingMap = navId === 'map' && !document.getElementById('map')?.classList.contains('active');
+                if (openingMap) {
+                    this.mapCatalogScope = null;
+                    this._sectorBoulderZoneId = null;
+                    if (this._mapDomInCatalog) {
+                        this._reparentMapDom(false);
+                        this.syncCatalogEmbeddedMapUi(false);
+                    }
+                }
+                void this.activateMainTab(navId).then(() => {
+                    if (openingMap && document.getElementById('map')?.classList.contains('active')) {
+                        this.resetMapToAreasOverview();
+                    }
+                });
             }
 
             setupAppShellNav() {
@@ -15966,6 +16030,8 @@
                         return;
                     }
                     if (mode === 'catalog-tab') {
+                        const onMapTab = document.getElementById('map')?.classList.contains('active');
+                        if (onMapTab && !this.catalogEmbeddedMapActive() && this.stepBackFromMap()) return;
                         this.goToCatalogTab();
                         return;
                     }

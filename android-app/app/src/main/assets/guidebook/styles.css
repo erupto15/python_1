@@ -2430,7 +2430,8 @@
             padding: 4px 0;
         }
 
-        .catalog-map-block .map-pin-label--plain {
+        .catalog-map-block .map-pin-label--plain,
+        #map .map-pin-label--plain {
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
@@ -2439,49 +2440,60 @@
             padding: 2px 4px;
         }
 
-        .catalog-map-block .map-pin-label--plain span {
+        .catalog-map-block .map-pin-label--plain span,
+        #map .map-pin-label--plain span {
             color: #fff !important;
             opacity: 0.88;
         }
 
         .catalog-map-block .map-sector-badge.selected .map-sector-badge-label,
-        .catalog-map-block .map-sector-badge.selected .map-pin-label--plain {
+        .catalog-map-block .map-sector-badge.selected .map-pin-label--plain,
+        #map .map-sector-badge.selected .map-sector-badge-label,
+        #map .map-sector-badge.selected .map-pin-label--plain {
             background: transparent !important;
             border: none !important;
             color: #fff !important;
         }
 
-        .catalog-map-block .map-sector-badge.selected .map-sector-badge-glyph {
+        .catalog-map-block .map-sector-badge.selected .map-sector-badge-glyph,
+        #map .map-sector-badge.selected .map-sector-badge-glyph {
             background: var(--card-bg, #151b24) !important;
         }
 
-        .catalog-map-block .map-sector-badge--route.selected .map-sector-badge-glyph {
+        .catalog-map-block .map-sector-badge--route.selected .map-sector-badge-glyph,
+        #map .map-sector-badge--route.selected .map-sector-badge-glyph {
             border-color: var(--route-color, #22b8a8) !important;
             color: var(--route-color, #22b8a8) !important;
         }
 
-        .catalog-map-block .map-sector-badge--boulder.selected .map-sector-badge-glyph {
+        .catalog-map-block .map-sector-badge--boulder.selected .map-sector-badge-glyph,
+        #map .map-sector-badge--boulder.selected .map-sector-badge-glyph {
             border-color: var(--boulder-color, #f04d23) !important;
             color: var(--boulder-color, #f04d23) !important;
         }
 
-        .catalog-map-block .map-sector-badge.selected .map-sector-badge-pointer {
+        .catalog-map-block .map-sector-badge.selected .map-sector-badge-pointer,
+        #map .map-sector-badge.selected .map-sector-badge-pointer {
             border-top-color: color-mix(in srgb, var(--route-color, #22b8a8) 70%, #fff) !important;
         }
 
-        .catalog-map-block .map-sector-badge--boulder.selected .map-sector-badge-pointer {
+        .catalog-map-block .map-sector-badge--boulder.selected .map-sector-badge-pointer,
+        #map .map-sector-badge--boulder.selected .map-sector-badge-pointer {
             border-top-color: color-mix(in srgb, var(--boulder-color, #f04d23) 70%, #fff) !important;
         }
 
-        .catalog-map-block .map-sector-badge.selected .map-sector-badge-dot {
+        .catalog-map-block .map-sector-badge.selected .map-sector-badge-dot,
+        #map .map-sector-badge.selected .map-sector-badge-dot {
             background: var(--route-color, #22b8a8) !important;
         }
 
-        .catalog-map-block .map-sector-badge--boulder.selected .map-sector-badge-dot {
+        .catalog-map-block .map-sector-badge--boulder.selected .map-sector-badge-dot,
+        #map .map-sector-badge--boulder.selected .map-sector-badge-dot {
             background: var(--boulder-color, #f04d23) !important;
         }
 
-        .catalog-map-block .map-area-badge--catalog .map-area-droplet-pin {
+        .catalog-map-block .map-area-badge--catalog .map-area-droplet-pin,
+        #map .map-area-badge--catalog .map-area-droplet-pin {
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -2494,42 +2506,51 @@
         }
 
         .catalog-map-block .map-sector-badge--route .map-sector-badge-glyph,
-        .catalog-map-block .map-sector-badge--boulder .map-sector-badge-glyph {
+        .catalog-map-block .map-sector-badge--boulder .map-sector-badge-glyph,
+        #map .map-sector-badge--route .map-sector-badge-glyph,
+        #map .map-sector-badge--boulder .map-sector-badge-glyph {
             width: 22px;
             height: 22px;
             border-width: 2px;
         }
 
-        .catalog-map-block .map-sector-badge--route .map-sector-badge-glyph svg {
+        .catalog-map-block .map-sector-badge--route .map-sector-badge-glyph svg,
+        #map .map-sector-badge--route .map-sector-badge-glyph svg {
             width: 14px;
         }
 
-        .catalog-map-block .map-sector-badge--boulder .map-sector-badge-glyph svg {
+        .catalog-map-block .map-sector-badge--boulder .map-sector-badge-glyph svg,
+        #map .map-sector-badge--boulder .map-sector-badge-glyph svg {
             width: 100%;
             height: 100%;
         }
 
-        .catalog-map-block .map-area-badge--catalog .map-area-droplet-pin svg {
+        .catalog-map-block .map-area-badge--catalog .map-area-droplet-pin svg,
+        #map .map-area-badge--catalog .map-area-droplet-pin svg {
             display: block;
             width: 100%;
             height: 100%;
         }
 
-        .catalog-map-block .map-area-droplet-shell {
+        .catalog-map-block .map-area-droplet-shell,
+        #map .map-area-droplet-shell {
             fill: #fff;
         }
 
-        .catalog-map-block .map-area-droplet-inner {
+        .catalog-map-block .map-area-droplet-inner,
+        #map .map-area-droplet-inner {
             stroke: #111;
             stroke-width: 2.8px;
         }
 
-        .catalog-map-block .map-area-badge--catalog.selected .map-area-droplet-inner {
+        .catalog-map-block .map-area-badge--catalog.selected .map-area-droplet-inner,
+        #map .map-area-badge--catalog.selected .map-area-droplet-inner {
             stroke: #111;
             stroke-width: 3px;
         }
 
-        .catalog-map-block .map-sector-badge.selected {
+        .catalog-map-block .map-sector-badge.selected,
+        #map .map-sector-badge.selected {
             z-index: 2;
         }
 
@@ -5659,7 +5680,8 @@
             background: var(--map-accent);
         }
 
-        .map-sector-badge.declutter-hidden {
+        .map-sector-badge.declutter-hidden,
+        .map-sector-badge-label.declutter-hidden {
             visibility: hidden;
             pointer-events: none;
         }
@@ -6606,7 +6628,9 @@
         }
 
         .catalog-map-block .leaflet-popup.map-leaflet-popup--boulder-stack,
-        .catalog-map-block .leaflet-popup:has(.map-popup--boulder-stack) {
+        .catalog-map-block .leaflet-popup:has(.map-popup--boulder-stack),
+        #map .leaflet-popup.map-leaflet-popup--boulder-stack,
+        #map .leaflet-popup:has(.map-popup--boulder-stack) {
             width: min(100%, calc(100% - 12px)) !important;
             max-width: calc(100% - 12px);
         }
@@ -7344,6 +7368,10 @@
         .leaflet-container.z-low .map-sector-badge-label,
         .leaflet-container.z-low .map-sector-badge-pointer {
             display: none;
+        }
+
+        #map .leaflet-container.z-low .map-sector-badge--area .map-sector-badge-label {
+            display: block;
         }
 
         .leaflet-container.z-low .map-sector-badge--route .map-sector-badge-glyph,
@@ -10756,17 +10784,21 @@
         }
 
         html.catalog-map-shell .catalog-map-block .map-sector-badge--route .map-sector-badge-glyph,
-        html.catalog-map-shell .catalog-map-block .map-sector-badge--boulder .map-sector-badge-glyph {
+        html.catalog-map-shell .catalog-map-block .map-sector-badge--boulder .map-sector-badge-glyph,
+        html.app-shell-map-tab #map .map-sector-badge--route .map-sector-badge-glyph,
+        html.app-shell-map-tab #map .map-sector-badge--boulder .map-sector-badge-glyph {
             width: 34px;
             height: 34px;
             border-width: 3px;
         }
 
-        html.catalog-map-shell .catalog-map-block .map-sector-badge--route .map-sector-badge-glyph svg {
+        html.catalog-map-shell .catalog-map-block .map-sector-badge--route .map-sector-badge-glyph svg,
+        html.app-shell-map-tab #map .map-sector-badge--route .map-sector-badge-glyph svg {
             width: 22px;
         }
 
-        html.catalog-map-shell .catalog-map-block .map-area-badge--catalog .map-area-droplet-pin {
+        html.catalog-map-shell .catalog-map-block .map-area-badge--catalog .map-area-droplet-pin,
+        html.app-shell-map-tab #map .map-area-badge--catalog .map-area-droplet-pin {
             width: 60px;
             height: 60px;
         }
