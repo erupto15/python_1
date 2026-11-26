@@ -6730,7 +6730,7 @@
                 const passwordEl = document.getElementById('authLoginPassword');
                 const email = this.normalizeAuthEmail(emailEl?.value);
                 const password = passwordEl?.value || '';
-                const emailErr = this.validateAuthEmail(email);
+                const emailErr = email === 'admin' ? '' : this.validateAuthEmail(email);
                 if (emailErr || !password) {
                     this.setAuthFormError('authLoginError', emailErr || 'Введите пароль');
                     (emailErr ? emailEl : passwordEl)?.focus();
@@ -6924,7 +6924,45 @@
                 this.openAuthDialog('login');
             }
 
+            openAdminLoginDialog() {
+                const emailEl = document.getElementById('authLoginEmail');
+                const passwordEl = document.getElementById('authLoginPassword');
+                if (emailEl) emailEl.value = 'admin';
+                if (passwordEl) passwordEl.value = '';
+                this.openAuthDialog('login');
+                this.showToast('Вход администратора: логин admin');
+            }
+
+            /** 4 быстрых нажатия на логотип — вход администратора, 2 нажатия в режиме админа — выход. */
+            setupHiddenAdminAccess() {
+                const logo = document.querySelector('.site-logo');
+                if (!logo) return;
+                const TAPS_OPEN_ADMIN = 4;
+                const TAPS_EXIT_ADMIN = 2;
+                const TAP_WINDOW_MS = 4000;
+                let clicks = 0;
+                let lastClickTs = 0;
+                logo.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const now = Date.now();
+                    if (now - lastClickTs > TAP_WINDOW_MS) clicks = 0;
+                    lastClickTs = now;
+                    clicks += 1;
+                    if (this.isAdmin()) {
+                        if (clicks < TAPS_EXIT_ADMIN) return;
+                        clicks = 0;
+                        this.clearAuthSession();
+                        this.showToast('Режим администратора выключен');
+                        return;
+                    }
+                    if (clicks < TAPS_OPEN_ADMIN) return;
+                    clicks = 0;
+                    this.openAdminLoginDialog();
+                });
+            }
+
             setupAuthEventListeners() {
+                this.setupHiddenAdminAccess();
                 const onSubmit = (formId, handler) => {
                     document.getElementById(formId)?.addEventListener('submit', (e) => {
                         e.preventDefault();
