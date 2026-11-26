@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app import schemas
 from app.db import get_db
-from app.deps import assert_admin, get_current_user
+from app.deps import assert_admin, get_current_user, reject_null_fields
 from app.models import Area, Photo, Route, Sector, User
 from app.services.ascent_counts import attach_send_counts
 from app.services.climb_community_cleanup import purge_ascents_and_ratings_for_route
@@ -15,10 +15,13 @@ from app.services.climb_rating import sync_climb_star_average
 router = APIRouter(prefix="/routes", tags=["routes"])
 
 
+ROUTE_REQUIRED_FIELDS = ("sector_id", "area_id", "name", "grade", "sort_order")
+
+
 def _apply_route_admin_rating(route: Route, rating: float | None) -> None:
+    # rating=None сбрасывает и показываемое значение, иначе sync вернёт его как оценку админа.
     route.admin_rating = rating
-    if rating is not None:
-        route.rating = rating
+    route.rating = rating
 
 
 def _validate_active_sector_area(db: Session, sector_id: int | None, area_id: int | None) -> Sector:
@@ -145,20 +148,23 @@ def update_route(
         raise HTTPException(status_code=404, detail="Route not found")
     assert_admin(user)
     data = payload.model_dump(exclude_unset=True)
+    reject_null_fields(data, ROUTE_REQUIRED_FIELDS)
     if "sector_id" in data or "area_id" in data:
         _validate_active_sector_area(
             db,
             data.get("sector_id", route.sector_id),
             data.get("area_id", route.area_id),
         )
-    admin_rating_update = data.pop("rating", None) if "rating" in data else None
+    # Нет ключа — рейтинг не трогаем; явный null — сбрасываем оценку админа.
+    rating_given = "rating" in data
+    admin_rating_update = data.pop("rating", None)
     for k, v in data.items():
         setattr(route, k, v)
-    if admin_rating_update is not None:
+    if rating_given:
         _apply_route_admin_rating(route, admin_rating_update)
     db.commit()
     db.refresh(route)
-    if admin_rating_update is not None:
+    if rating_given:
         sync_climb_star_average(db, "route", route_id=route.id)
         db.refresh(route)
     return route

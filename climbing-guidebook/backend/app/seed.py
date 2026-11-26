@@ -14,8 +14,9 @@ def ensure_admin_user(db: Session) -> User:
     password = (settings.admin_password or "").strip()
     existing = db.query(User).filter(func.lower(User.email) == email).first()
     if existing:
-        if password:
+        if password and not security.verify_password(password, existing.password_hash):
             existing.password_hash = security.hash_password(password)
+            existing.token_version = (existing.token_version or 0) + 1
         existing.display_name = settings.admin_display_name
         existing.is_active = True
         db.commit()

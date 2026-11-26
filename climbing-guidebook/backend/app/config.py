@@ -1,4 +1,5 @@
 import os
+from ipaddress import IPv4Network, IPv6Network, ip_network
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus, urlparse
@@ -11,6 +12,7 @@ from app.yaml_settings import YamlSettingsSource
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _ROOT_ENV_FILE = _PROJECT_ROOT / ".env"
 _DEFAULT_SQLITE_URL = f"sqlite:///{(_PROJECT_ROOT / 'climbing-guidebook/backend/climbing.db').resolve()}"
+DEFAULT_JWT_SECRET = "dev-only-change-me-use-openssl-rand-hex-32"
 
 
 class Settings(BaseSettings):
@@ -135,9 +137,22 @@ class Settings(BaseSettings):
     app_title: str = "Climbing Guidebook API"
 
     # JWT: в продакшене обязательно задайте JWT_SECRET в окружении
-    jwt_secret: str = "dev-only-change-me-use-openssl-rand-hex-32"
+    jwt_secret: str = DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
+
+    @field_validator("jwt_secret", mode="after")
+    @classmethod
+    def reject_default_jwt_secret_in_production(cls, v: str) -> str:
+        if cls._is_production_env() and (not v.strip() or v == DEFAULT_JWT_SECRET):
+            raise ValueError(
+                "JWT_SECRET не задан в production: с секретом по умолчанию любой может подделать токен. "
+                "Сгенерируйте секрет (openssl rand -hex 32) и передайте его в переменной JWT_SECRET."
+            )
+        return v
     access_token_expire_minutes: int = 60 * 24 * 7
+
+    # Прокси, которым доверяем X-Forwarded-For (IP или CIDR через запятую). Caddy на том же хосте.
+    trusted_proxy_ips: str = "127.0.0.1,::1"
 
     # Учётка администратора каталога (создаётся при первом старте, если email свободен)
     admin_email: str = "admin@climbing-guidebook.local"
@@ -182,6 +197,19 @@ class Settings(BaseSettings):
 
     # Публичный GitHub-репозиторий с релизами APK (тег android-vX.Y.Z, файл *-c<versionCode>.apk)
     android_release_repo: str = "erupto15/python_1"
+
+    @property
+    def trusted_proxy_networks(self) -> list[IPv4Network | IPv6Network]:
+        networks: list[IPv4Network | IPv6Network] = []
+        for raw in (self.trusted_proxy_ips or "").split(","):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                networks.append(ip_network(raw, strict=False))
+            except ValueError:
+                continue
+        return networks
 
     @property
     def media_upload_path(self) -> Path:

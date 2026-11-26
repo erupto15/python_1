@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app import schemas
 from app.db import get_db
-from app.deps import assert_admin, get_current_user
+from app.deps import assert_admin, get_current_user, reject_null_fields
 from app.models import Area, Boulder, Photo, Sector, User
 from app.services.ascent_counts import attach_send_counts
 from app.services.climb_community_cleanup import purge_ascents_and_ratings_for_boulder
@@ -14,10 +14,13 @@ from app.services.climb_rating import sync_climb_star_average
 router = APIRouter(prefix="/boulders", tags=["boulders"])
 
 
+BOULDER_REQUIRED_FIELDS = ("sector_id", "area_id", "name", "grade")
+
+
 def _apply_boulder_admin_rating(boulder: Boulder, rating: float | None) -> None:
+    # rating=None сбрасывает и показываемое значение, иначе sync вернёт его как оценку админа.
     boulder.admin_rating = rating
-    if rating is not None:
-        boulder.rating = rating
+    boulder.rating = rating
 
 
 def _validate_active_sector_area(db: Session, sector_id: int | None, area_id: int | None) -> Sector:
@@ -107,20 +110,23 @@ def update_boulder(
         raise HTTPException(status_code=404, detail="Boulder not found")
     assert_admin(user)
     data = payload.model_dump(exclude_unset=True)
+    reject_null_fields(data, BOULDER_REQUIRED_FIELDS)
     if "sector_id" in data or "area_id" in data:
         _validate_active_sector_area(
             db,
             data.get("sector_id", b.sector_id),
             data.get("area_id", b.area_id),
         )
-    admin_rating_update = data.pop("rating", None) if "rating" in data else None
+    # Нет ключа — рейтинг не трогаем; явный null — сбрасываем оценку админа.
+    rating_given = "rating" in data
+    admin_rating_update = data.pop("rating", None)
     for k, v in data.items():
         setattr(b, k, v)
-    if admin_rating_update is not None:
+    if rating_given:
         _apply_boulder_admin_rating(b, admin_rating_update)
     db.commit()
     db.refresh(b)
-    if admin_rating_update is not None:
+    if rating_given:
         sync_climb_star_average(db, "boulder", boulder_id=b.id)
         db.refresh(b)
     return b

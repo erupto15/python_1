@@ -35,6 +35,8 @@ class User(Base):
     must_change_password: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    # Растёт при смене/сбросе пароля; JWT с другой версией (claim `tv`) отклоняются.
+    token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     telegram_id: Mapped[Optional[int]] = mapped_column(
         BigInteger().with_variant(Integer, "sqlite"), unique=True, nullable=True, index=True
     )

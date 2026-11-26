@@ -6271,7 +6271,7 @@
             transform: scale(0.96);
         }
 
-        html.app-shell.catalog-map-shell header,
+        html.app-shell.catalog-map-shell .container > header,
         html.app-shell.catalog-map-shell .tabs {
             display: none !important;
         }
@@ -10546,7 +10546,7 @@
             background: transparent;
         }
 
-        html.app-shell.app-shell-map-tab header {
+        html.app-shell.app-shell-map-tab .container > header {
             display: none !important;
         }
 

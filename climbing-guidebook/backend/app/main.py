@@ -26,6 +26,18 @@ FRONTEND_HEADERS = {
     "Cache-Control": "no-store, max-age=0",
     "Pragma": "no-cache",
 }
+UPLOADS_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    # Даже если в uploads когда-то попал HTML (до проверки сигнатур), скрипты в нём не исполнятся.
+    "Content-Security-Policy": "default-src 'none'; img-src 'self'; media-src 'self'; sandbox",
+}
+
+
+class UploadsStaticFiles(StaticFiles):
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers.update(UPLOADS_SECURITY_HEADERS)
+        return response
 
 
 @asynccontextmanager
@@ -85,7 +97,7 @@ app.include_router(app_meta.router, prefix="/api")
 ensure_upload_dir()
 app.mount(
     settings.media_url_prefix,
-    StaticFiles(directory=str(settings.media_upload_path)),
+    UploadsStaticFiles(directory=str(settings.media_upload_path)),
     name="uploads",
 )
 

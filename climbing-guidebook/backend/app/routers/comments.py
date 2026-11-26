@@ -25,6 +25,11 @@ def _active_boulder(db: Session, boulder_id: int | None) -> Boulder | None:
     return boulder
 
 
+DETAIL_EMPTY_BODY = "Комментарий не может быть пустым"
+DETAIL_PARENT_NOT_FOUND = "Комментарий, на который вы отвечаете, не найден"
+DETAIL_PARENT_OTHER_CLIMB = "Ответ должен относиться к той же трассе, что и исходный комментарий"
+
+
 def _validate_comment_payload(payload: schemas.CommentCreate) -> None:
     if payload.climb_type == "route":
         if payload.route_id is None or payload.boulder_id is not None:
@@ -32,6 +37,27 @@ def _validate_comment_payload(payload: schemas.CommentCreate) -> None:
     else:
         if payload.boulder_id is None or payload.route_id is not None:
             raise HTTPException(status_code=400, detail="boulder_id required and route_id must be null")
+
+
+def _clean_body(body: str) -> str:
+    cleaned = (body or "").strip()
+    if not cleaned:
+        raise HTTPException(status_code=422, detail=DETAIL_EMPTY_BODY)
+    return cleaned
+
+
+def _validate_parent(db: Session, payload: schemas.CommentCreate) -> None:
+    if payload.parent_id is None:
+        return
+    parent = db.get(Comment, payload.parent_id)
+    if not parent or parent.deleted_at is not None:
+        raise HTTPException(status_code=404, detail=DETAIL_PARENT_NOT_FOUND)
+    if (parent.climb_type, parent.route_id, parent.boulder_id) != (
+        payload.climb_type,
+        payload.route_id,
+        payload.boulder_id,
+    ):
+        raise HTTPException(status_code=422, detail=DETAIL_PARENT_OTHER_CLIMB)
 
 
 def _serialize_comment(comment: Comment) -> schemas.CommentRead:
@@ -83,7 +109,9 @@ def create_comment(
         raise HTTPException(status_code=404, detail="Route not found")
     if payload.climb_type == "boulder" and not _active_boulder(db, payload.boulder_id):
         raise HTTPException(status_code=404, detail="Boulder not found")
+    _validate_parent(db, payload)
     data = payload.model_dump(exclude={"attachments"})
+    data["body"] = _clean_body(payload.body)
     data["user_id"] = user.id
     comment = Comment(**data)
     for attachment in payload.attachments:
@@ -106,7 +134,7 @@ def update_comment(
     if not c or c.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Comment not found")
     assert_owner(user, c.user_id)
-    c.body = payload.body
+    c.body = _clean_body(payload.body)
     db.commit()
     db.refresh(c)
     return _serialize_comment(c)

@@ -6,6 +6,7 @@ import threading
 import time
 from collections import deque
 from datetime import datetime, timedelta, timezone
+from ipaddress import ip_address
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import validate_email
@@ -17,7 +18,7 @@ from sqlalchemy.orm import Session
 from app import schemas, security
 from app.config import settings
 from app.db import get_db
-from app.deps import get_current_user
+from app.deps import get_current_user_allow_password_change
 from app.models import PasswordResetCode, User
 from app.services import mailer
 
@@ -82,7 +83,7 @@ def _validated_password(raw: str) -> str:
 
 def _token_response(user: User) -> dict:
     return {
-        "access_token": security.create_access_token(user.id),
+        "access_token": security.create_access_token(user.id, user.token_version or 0),
         "token_type": "bearer",
         "user": schemas.UserRead.model_validate(user),
     }
@@ -92,12 +93,24 @@ def _find_user_by_email(db: Session, email: str) -> User | None:
     return db.query(User).filter(func.lower(User.email) == email).first()
 
 
+def _is_trusted_proxy(address: str) -> bool:
+    try:
+        ip = ip_address(address)
+    except ValueError:
+        return False
+    return any(ip in network for network in settings.trusted_proxy_networks)
+
+
 def _client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for", "")
-    first = forwarded.split(",", 1)[0].strip()
-    if first:
-        return first
-    return request.client.host if request.client else "unknown"
+    """X-Forwarded-For учитываем только от доверенного прокси (Caddy дописывает реальный IP справа)."""
+    peer = request.client.host if request.client else "unknown"
+    if not _is_trusted_proxy(peer):
+        return peer
+    chain = [part.strip() for part in request.headers.get("x-forwarded-for", "").split(",")]
+    for address in reversed([part for part in chain if part]):
+        if not _is_trusted_proxy(address):
+            return address
+    return peer
 
 
 def _recent_failures(key: tuple[str, str], now: float) -> deque[float] | None:
@@ -174,15 +187,25 @@ def _reset_email_body(email: str, temp_password: str) -> str:
     )
 
 
-def _invalidate_reset_passwords(db: Session, user: User, now: datetime) -> None:
-    db.query(PasswordResetCode).filter(
+def _invalidate_reset_passwords(db: Session, user: User, now: datetime, except_id: int | None = None) -> None:
+    query = db.query(PasswordResetCode).filter(
         PasswordResetCode.user_id == user.id,
         PasswordResetCode.used_at.is_(None),
-    ).update({PasswordResetCode.used_at: now}, synchronize_session=False)
+    )
+    if except_id is not None:
+        query = query.filter(PasswordResetCode.id != except_id)
+    query.update({PasswordResetCode.used_at: now}, synchronize_session=False)
+
+
+def _revoke_sessions(user: User) -> None:
+    """Все ранее выданные токены перестают действовать (см. deps: claim `tv`)."""
+    user.token_version = (user.token_version or 0) + 1
 
 
 def _consume_temp_password(db: Session, user: User, password: str) -> bool:
     """Пароль из письма заменяет прежний (тот перестаёт работать), дальше обязательна смена на свой."""
+    if not user.is_active:
+        return False
     now = datetime.now(timezone.utc)
     record = (
         db.query(PasswordResetCode)
@@ -197,6 +220,7 @@ def _consume_temp_password(db: Session, user: User, password: str) -> bool:
     _invalidate_reset_passwords(db, user, now)
     user.password_hash = record.code_hash
     user.must_change_password = True
+    _revoke_sessions(user)
     db.commit()
     db.refresh(user)
     return True
@@ -272,25 +296,28 @@ def password_reset_request(payload: schemas.PasswordResetRequest, db: Session = 
         return {"ok": True}
 
     now = datetime.now(timezone.utc)
-    _invalidate_reset_passwords(db, user, now)
-
     temp_password = _generate_temp_password()
-    db.add(
-        PasswordResetCode(
-            user_id=user.id,
-            code_hash=security.hash_password(temp_password),
-            expires_at=now + TEMP_PASSWORD_TTL,
-            attempts=0,
-        )
+    record = PasswordResetCode(
+        user_id=user.id,
+        code_hash=security.hash_password(temp_password),
+        expires_at=now + TEMP_PASSWORD_TTL,
+        attempts=0,
     )
+    db.add(record)
     db.commit()
 
     try:
         mailer.send_email_sync(user.email, RESET_EMAIL_SUBJECT, _reset_email_body(user.email, temp_password))
     except Exception:
         logger.exception("Failed to send password reset email to user %s", user.id)
+        # Письмо не ушло — новый пароль никто не знает, а предыдущий из письма остаётся в силе.
+        db.delete(record)
+        db.commit()
         _release_reset_slot(email)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=DETAIL_RESET_UNAVAILABLE)
+
+    _invalidate_reset_passwords(db, user, now, except_id=record.id)
+    db.commit()
     return {"ok": True}
 
 
@@ -298,9 +325,12 @@ def password_reset_request(payload: schemas.PasswordResetRequest, db: Session = 
 def change_password(
     payload: schemas.PasswordChangeRequest,
     db: Session = Depends(get_db),
-    current: User = Depends(get_current_user),
+    current: User = Depends(get_current_user_allow_password_change),
 ) -> dict:
-    """Свой новый пароль. После входа по паролю из письма текущий пароль не спрашиваем."""
+    """Свой новый пароль. После входа по паролю из письма текущий пароль не спрашиваем.
+
+    Остальные сессии отзываются; в ответе — свежий токен для текущего устройства.
+    """
     new_password = _validated_password(payload.new_password)
     if not current.must_change_password:
         if not payload.current_password or not security.verify_password(
@@ -313,11 +343,12 @@ def change_password(
     _invalidate_reset_passwords(db, current, datetime.now(timezone.utc))
     current.password_hash = security.hash_password(new_password)
     current.must_change_password = False
+    _revoke_sessions(current)
     db.commit()
     db.refresh(current)
     return _token_response(current)
 
 
 @router.get("/me", response_model=schemas.UserRead)
-def me(current: User = Depends(get_current_user)) -> User:
+def me(current: User = Depends(get_current_user_allow_password_change)) -> User:
     return current

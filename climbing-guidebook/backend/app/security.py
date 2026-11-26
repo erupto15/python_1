@@ -25,18 +25,22 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def create_access_token(subject_user_id: str) -> str:
+def create_access_token(subject_user_id: str, token_version: int = 0) -> str:
     expire_ts = int(time.time()) + settings.access_token_expire_minutes * 60
-    payload = {"sub": subject_user_id, "exp": expire_ts}
+    payload = {"sub": subject_user_id, "exp": expire_ts, "tv": int(token_version or 0)}
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def decode_access_token(token: str) -> str:
+def decode_access_token(token: str) -> tuple[str, int]:
+    """Возвращает (user_id, token_version). Токены без `tv` (выданы до введения версий) — версия 0."""
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
         sub = payload.get("sub")
         if not isinstance(sub, str) or not sub:
             raise JWTError("missing sub")
-        return sub
+        version = payload.get("tv", 0)
+        if isinstance(version, bool) or not isinstance(version, int):
+            raise JWTError("bad tv")
+        return sub, version
     except JWTError as e:
         raise ValueError(str(e)) from e

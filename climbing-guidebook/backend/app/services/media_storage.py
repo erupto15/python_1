@@ -3,13 +3,44 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from fastapi import HTTPException, UploadFile, status
 
 from app.config import settings
 
-_EXTRA_EXTENSIONS = {".mov", ".m4v", ".3gp", ".heic", ".heif"}
+MediaKind = Literal["image", "video"]
+
+DETAIL_UNSUPPORTED_MEDIA = (
+    "Неподдерживаемый формат файла: можно загружать фото (JPEG, PNG, WebP, GIF, HEIC) "
+    "и видео (MP4, MOV, 3GP, WebM, MKV, AVI)"
+)
+DETAIL_EMPTY_FILE = "Пустой файл"
+DETAIL_NOT_AN_IMAGE = "Файл не является фото"
+DETAIL_NOT_A_VIDEO = "Файл не является видео"
+
+_CHUNK_SIZE = 1024 * 1024
+
+# Major brand ISO BMFF (байты 8..12 после `ftyp`) → тип. Неизвестные бренды считаем MP4.
+_HEIF_BRANDS = {
+    b"heic": ("image/heic", ".heic"),
+    b"heix": ("image/heic", ".heic"),
+    b"hevc": ("image/heic", ".heic"),
+    b"hevx": ("image/heic", ".heic"),
+    b"heim": ("image/heic", ".heic"),
+    b"heis": ("image/heic", ".heic"),
+    b"mif1": ("image/heif", ".heif"),
+    b"msf1": ("image/heif", ".heif"),
+}
+
+
+@dataclass(frozen=True)
+class DetectedMedia:
+    kind: MediaKind
+    mime_type: str
+    extension: str
 
 
 def ensure_upload_dir() -> Path:
@@ -18,97 +49,101 @@ def ensure_upload_dir() -> Path:
     return root
 
 
-def _guess_extension(file_name: str | None, mime_type: str | None) -> str:
-    if file_name:
-        ext = Path(file_name).suffix.lower()
-        if ext:
-            return ext
-    if mime_type:
-        guess = {
-            "image/jpeg": ".jpg",
-            "image/png": ".png",
-            "image/webp": ".webp",
-            "image/gif": ".gif",
-            "image/heic": ".heic",
-            "image/heif": ".heif",
-            "video/mp4": ".mp4",
-            "video/quicktime": ".mov",
-            "video/webm": ".webm",
-            "video/3gpp": ".3gp",
-        }.get(mime_type.lower())
-        if guess:
-            return guess
-    return ""
+def detect_media_type(head: bytes) -> DetectedMedia | None:
+    """Тип по сигнатуре (magic bytes); присланным Content-Type и имени файла не доверяем."""
+    if head.startswith(b"\xff\xd8\xff"):
+        return DetectedMedia("image", "image/jpeg", ".jpg")
+    if head.startswith(b"\x89PNG\r\n\x1a\n"):
+        return DetectedMedia("image", "image/png", ".png")
+    if head.startswith((b"GIF87a", b"GIF89a")):
+        return DetectedMedia("image", "image/gif", ".gif")
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return DetectedMedia("image", "image/webp", ".webp")
+    if head[:4] == b"RIFF" and head[8:12] == b"AVI ":
+        return DetectedMedia("video", "video/x-msvideo", ".avi")
+    if head.startswith(b"\x1a\x45\xdf\xa3"):
+        # EBML: WebM и Matroska различаются DocType в заголовке.
+        if b"webm" in head[:64]:
+            return DetectedMedia("video", "video/webm", ".webm")
+        return DetectedMedia("video", "video/x-matroska", ".mkv")
+    if head[4:8] == b"ftyp" and len(head) >= 12:
+        brand = head[8:12]
+        if brand in _HEIF_BRANDS:
+            mime, ext = _HEIF_BRANDS[brand]
+            return DetectedMedia("image", mime, ext)
+        if brand == b"qt  ":
+            return DetectedMedia("video", "video/quicktime", ".mov")
+        if brand.startswith(b"3g"):
+            return DetectedMedia("video", "video/3gpp", ".3gp")
+        if brand == b"M4V ":
+            return DetectedMedia("video", "video/x-m4v", ".m4v")
+        return DetectedMedia("video", "video/mp4", ".mp4")
+    return None
 
 
-def _validate_media_type(file_name: str | None, mime_type: str | None) -> None:
-    mime = (mime_type or "").lower()
-    ext = Path(file_name or "").suffix.lower()
-
-    if mime.startswith("image/") or mime.startswith("video/"):
-        return
-    if ext in _EXTRA_EXTENSIONS:
-        return
-    # Некоторые мобильные клиенты отправляют общий octet-stream — доверяем расширению.
-    if mime in ("application/octet-stream", "") and ext in _EXTRA_EXTENSIONS:
-        return
-
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Unsupported media type: only images and videos are allowed",
-    )
+def _check_declared_kind(detected: DetectedMedia, declared_mime: str | None, requested_kind: str | None) -> None:
+    """Если клиент явно заявил фото/видео, а внутри другое — отказ (подтип вроде png/jpeg не сверяем)."""
+    declared = (declared_mime or "").lower()
+    expected = requested_kind
+    if expected is None and declared.startswith(("image/", "video/")):
+        expected = declared.split("/", 1)[0]
+    if expected in ("image", "video") and expected != detected.kind:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DETAIL_NOT_AN_IMAGE if expected == "image" else DETAIL_NOT_A_VIDEO,
+        )
 
 
-def save_upload_file(file: UploadFile, *, subdir: str) -> dict:
-    """Сохраняет UploadFile на диск и возвращает метаданные о файле."""
+def save_upload_file(file: UploadFile, *, requested_kind: str | None = None) -> dict:
+    """Сохраняет UploadFile на диск и возвращает метаданные о файле.
 
-    _validate_media_type(file.filename, file.content_type)
-
-    root = ensure_upload_dir()
-    target_dir = root / subdir
-    target_dir.mkdir(parents=True, exist_ok=True)
-
-    ext = _guess_extension(file.filename, file.content_type)
-    stored_name = f"{uuid.uuid4()}{ext}"
-    target_path = target_dir / stored_name
-
-    max_bytes = settings.media_max_upload_bytes
-    size = 0
+    Тип и расширение определяются только по содержимому; подкаталог — images/ или videos/.
+    """
     try:
-        with target_path.open("wb") as out:
-            while True:
-                chunk = file.file.read(1024 * 1024)
-                if not chunk:
-                    break
-                size += len(chunk)
-                if size > max_bytes:
-                    raise HTTPException(
-                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                        detail=f"File too large: max {max_bytes} bytes",
-                    )
-                out.write(chunk)
-    except HTTPException:
-        target_path.unlink(missing_ok=True)
-        raise
-    except Exception:
-        target_path.unlink(missing_ok=True)
-        raise
+        first_chunk = file.file.read(_CHUNK_SIZE)
+        if not first_chunk:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DETAIL_EMPTY_FILE)
+        detected = detect_media_type(first_chunk[:64])
+        if detected is None:
+            raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail=DETAIL_UNSUPPORTED_MEDIA)
+        _check_declared_kind(detected, file.content_type, requested_kind)
+
+        subdir = "videos" if detected.kind == "video" else "images"
+        target_dir = ensure_upload_dir() / subdir
+        target_dir.mkdir(parents=True, exist_ok=True)
+        stored_name = f"{uuid.uuid4()}{detected.extension}"
+        target_path = target_dir / stored_name
+
+        max_bytes = settings.media_max_upload_bytes
+        size = 0
+        try:
+            with target_path.open("wb") as out:
+                chunk = first_chunk
+                while chunk:
+                    size += len(chunk)
+                    if size > max_bytes:
+                        raise HTTPException(
+                            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                            detail=f"Файл слишком большой: максимум {max_bytes} байт",
+                        )
+                    out.write(chunk)
+                    chunk = file.file.read(_CHUNK_SIZE)
+        except Exception:
+            target_path.unlink(missing_ok=True)
+            raise
     finally:
         try:
             file.file.close()
         except Exception:
             pass
 
-    if size == 0:
-        target_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file upload")
-
     url = f"{settings.media_url_prefix.rstrip('/')}/{subdir}/{stored_name}"
 
     return {
         "url": url,
         "file_name": file.filename,
-        "mime_type": file.content_type,
+        "mime_type": detected.mime_type,
         "file_size_bytes": size,
         "stored_name": stored_name,
+        "media_kind": detected.kind,
     }

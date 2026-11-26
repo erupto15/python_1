@@ -193,7 +193,7 @@
         window.initTelegramWebApp = function initTelegramWebApp() {
             if (window.CLIMBING_STANDALONE) return;
             const tg = window.Telegram && window.Telegram.WebApp;
-            if (!tg) return;
+            if (!tg || !window.isTelegramMiniAppLaunch?.()) return;
             if (window.__TG_WEB_APP_INITIALIZED) return;
             window.__TG_WEB_APP_INITIALIZED = true;
 
@@ -343,6 +343,7 @@
         };
 
         window.getTelegramWebApp = function getTelegramWebApp() {
+            if (!window.isTelegramMiniAppLaunch?.()) return null;
             return (window.Telegram && window.Telegram.WebApp) || null;
         };
 
@@ -669,11 +670,14 @@
             const tg = window.getTelegramWebApp();
             if (!tg || !tg.BackButton) return;
             const app = window.app;
-            const dialogOpen = !!window.findOpenTelegramDialogId();
+            const openDialogId = window.findOpenTelegramDialogId();
+            const dialogOpen = !!openDialogId;
             const overlayTab = app && typeof app.getOpenOverlayTabId === 'function'
                 ? app.getOpenOverlayTabId()
                 : null;
-            if (dialogOpen) {
+            if (openDialogId === 'authNewPasswordDialog' && app?._authNewPasswordForced) {
+                tg.BackButton.hide();
+            } else if (dialogOpen) {
                 tg.BackButton.show();
             } else if (overlayTab) {
                 tg.BackButton.show();
@@ -3058,7 +3062,7 @@
         /** Подтверждение удаления: в Telegram Mini App window.confirm часто не работает. */
         function confirmDestructive(message) {
             return new Promise((resolve) => {
-                const tg = window.Telegram?.WebApp;
+                const tg = window.isTelegramMiniApp?.() ? window.Telegram?.WebApp : null;
                 if (tg && typeof tg.showConfirm === 'function') {
                     tg.showConfirm(message, (ok) => resolve(!!ok));
                     return;
@@ -6404,6 +6408,10 @@
                 saveAuthData({ accessToken: null, currentUser: null });
                 this.auth = getAuthData();
                 this._ascentSummary = null;
+                if (this._authNewPasswordForced) {
+                    this._authNewPasswordForced = false;
+                    this.hideDialog('authNewPasswordDialog');
+                }
                 this.renderAuthUI();
                 this.applyRoleUI();
                 this.refreshListsAfterRoleChange();
@@ -6854,6 +6862,7 @@
                     : 'Придумайте новый пароль — он заменит текущий.';
                 document.getElementById('authNewPasswordCurrentGroup')?.classList.toggle('hidden', forced);
                 document.getElementById('authNewPasswordDialogCloseBtn')?.classList.toggle('hidden', forced);
+                document.getElementById('authNewPasswordLogoutBtn')?.classList.toggle('hidden', !forced);
                 const usernameEl = document.getElementById('authNewPasswordUsername');
                 if (usernameEl) usernameEl.value = user.email || '';
                 const rememberEl = document.getElementById('authNewPasswordRemember');
@@ -6978,6 +6987,7 @@
                 });
                 document.getElementById('authResetToLoginBtn')?.addEventListener('click', () => this.openLoginAfterReset());
                 onSubmit('authNewPasswordForm', () => this.submitNewPassword());
+                document.getElementById('authNewPasswordLogoutBtn')?.addEventListener('click', () => this.logout());
                 document.getElementById('profileChangePasswordBtn')?.addEventListener('click', () => this.openNewPasswordDialog());
                 document.getElementById('authLoginForgotBtn')?.addEventListener('click', () => this.openAuthDialog('reset'));
                 document.getElementById('authLoginToRegisterBtn')?.addEventListener('click', () => this.openAuthDialog('register'));
@@ -8116,8 +8126,11 @@
             }
 
             validMapCoord(lat, lng) {
+                // Number(null) === 0: пустые координаты и (0, 0) считаем отсутствующими.
+                if (lat == null || lng == null || String(lat).trim() === '' || String(lng).trim() === '') return null;
                 const la = Number(lat);
                 const ln = Number(lng);
+                if (la === 0 && ln === 0) return null;
                 return Number.isFinite(la) && Number.isFinite(ln) && Math.abs(la) <= 90 && Math.abs(ln) <= 180
                     ? { lat: la, lng: ln }
                     : null;
@@ -12401,7 +12414,7 @@
 
             openMapsLink(url) {
                 if (!url) return;
-                if (window.Telegram?.WebApp?.openLink) {
+                if (window.isTelegramMiniApp?.() && window.Telegram?.WebApp?.openLink) {
                     window.Telegram.WebApp.openLink(url);
                     return;
                 }
@@ -13660,9 +13673,24 @@
                     || document.getElementById('catalogSearch')
                     || document.getElementById('globalSearch');
                 if (!input) return;
-                input.focus();
+                const which = input.id === 'globalSearch' ? 'global' : 'catalog';
+                this._activeSearchSource = which;
                 if (!document.documentElement.classList.contains('search-screen-open')) {
-                    this.openSearchScreen(input.id === 'globalSearch' ? 'global' : 'catalog');
+                    this.openSearchScreen(which);
+                }
+                // Фокус синхронно в том же жесте — иначе iOS не откроет клавиатуру; rAF — если поле ещё не видно.
+                const focusInput = () => {
+                    try {
+                        input.focus({ preventScroll: true });
+                    } catch (_) {
+                        input.focus();
+                    }
+                };
+                focusInput();
+                if (document.activeElement !== input) {
+                    requestAnimationFrame(() => {
+                        if (document.activeElement !== input) focusInput();
+                    });
                 }
             }
 
@@ -17038,6 +17066,10 @@
             hideDialog(dialogId) {
                 if (dialogId === 'mapPromptDialog' && this._mapPromptResolver) {
                     this.finishMapPromptDialog(false);
+                    return;
+                }
+                // Обязательная смена временного пароля: закрывается только после сохранения или выхода.
+                if (dialogId === 'authNewPasswordDialog' && this._authNewPasswordForced && getAuthData().currentUser) {
                     return;
                 }
                 const el = document.getElementById(dialogId);
@@ -20786,7 +20818,7 @@
 
         function bootTelegramShell() {
             if (window.CLIMBING_STANDALONE) return;
-            if (window.Telegram?.WebApp && typeof window.initTelegramWebApp === 'function') {
+            if (window.Telegram?.WebApp && window.isTelegramMiniAppLaunch?.() && typeof window.initTelegramWebApp === 'function') {
                 window.initTelegramWebApp();
             } else {
                 window.syncOpenProfileButtonVisibility?.({ loggedIn: window.app?.isLoggedIn?.() || false });
@@ -20798,7 +20830,7 @@
             let attempts = 0;
             const timer = setInterval(() => {
                 attempts += 1;
-                if (window.Telegram?.WebApp) {
+                if (window.Telegram?.WebApp && window.isTelegramMiniAppLaunch?.()) {
                     bootTelegramShell();
                 }
                 if (window.isTelegramMiniApp?.() || attempts >= 120) {

@@ -24,6 +24,29 @@
     <title>6А9А — скалолазные районы и маршруты</title>
     <script>
     (function () {
+        /* telegram-web-app.js создаёт Telegram.WebApp в любом браузере — Mini App только при наличии initData. */
+        window.isTelegramMiniAppLaunch = function isTelegramMiniAppLaunch() {
+            if (window.__TG_MINI_APP_LAUNCH) return true;
+            var found = false;
+            try {
+                var tg = window.Telegram && window.Telegram.WebApp;
+                if (tg && typeof tg.initData === 'string' && tg.initData) found = true;
+            } catch (_) {}
+            if (!found) {
+                try {
+                    var re = /(?:^|[#?&])tgWebAppData=[^&]/;
+                    found = re.test(window.location.hash || '') || re.test(window.location.search || '');
+                } catch (_) {}
+            }
+            if (!found) {
+                try {
+                    var saved = JSON.parse(sessionStorage.getItem('__telegram__initParams') || 'null');
+                    found = !!(saved && typeof saved.tgWebAppData === 'string' && saved.tgWebAppData);
+                } catch (_) {}
+            }
+            if (found) window.__TG_MINI_APP_LAUNCH = true;
+            return found;
+        };
         try {
             var q = new URLSearchParams(window.location.search || '');
             if (q.get('app') === 'android' || q.get('standalone') === '1') {
@@ -32,22 +55,13 @@
             if (window.CLIMBING_STANDALONE) {
                 document.documentElement.classList.add('standalone-app');
             }
+            /* app-shell (нижняя навигация) везде: Mini App, Android и обычный браузер любой ширины. */
             window.syncAppShellClass = function () {
                 try {
-                    var root = document.documentElement;
-                    var q = new URLSearchParams(window.location.search || '');
-                    var appParam = q.get('app') === 'android' || q.get('app') === '1';
-                    var tg = root.classList.contains('tg-mini-app');
-                    var standalone = root.classList.contains('standalone-app') || window.CLIMBING_STANDALONE;
-                    var narrow = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
-                    root.classList.toggle('app-shell', !!(standalone || tg || appParam || narrow));
+                    document.documentElement.classList.add('app-shell');
                 } catch (_) {}
             };
             window.syncAppShellClass();
-            window.addEventListener('resize', function () {
-                clearTimeout(window._appShellResizeTimer);
-                window._appShellResizeTimer = setTimeout(window.syncAppShellClass, 120);
-            });
             var ua = navigator.userAgent || '';
             if (!window.CLIMBING_STANDALONE && /; wv\)/i.test(ua) && !/Telegram/i.test(ua)) {
                 window.CLIMBING_STANDALONE = true;
@@ -144,8 +158,7 @@
 
         function enforceSingleMiniAppInstance() {
             if (window.CLIMBING_TG_DUPLICATE_INSTANCE) return true;
-            var tg = window.Telegram && window.Telegram.WebApp;
-            if (!tg) return false;
+            if (!window.isTelegramMiniAppLaunch()) return false;
 
             var id = sessionId();
             writeLeader(id);
@@ -155,11 +168,11 @@
 
         window.enforceSingleTelegramMiniAppInstance = enforceSingleMiniAppInstance;
         enforceSingleMiniAppInstance();
-        if (!window.CLIMBING_TG_DUPLICATE_INSTANCE && !(window.Telegram && window.Telegram.WebApp)) {
+        if (!window.CLIMBING_TG_DUPLICATE_INSTANCE && !window._6a9aTgMiniAppLeaderBound) {
             var started = Date.now();
             var timer = setInterval(function () {
                 enforceSingleMiniAppInstance();
-                if (window.CLIMBING_TG_DUPLICATE_INSTANCE || Date.now() - started > 12000) {
+                if (window.CLIMBING_TG_DUPLICATE_INSTANCE || window._6a9aTgMiniAppLeaderBound || Date.now() - started > 12000) {
                     clearInterval(timer);
                 }
             }, 25);

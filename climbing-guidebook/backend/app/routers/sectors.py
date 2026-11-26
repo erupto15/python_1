@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app import schemas
 from app.db import get_db
-from app.deps import assert_admin, assert_owner, get_current_user
+from app.deps import assert_admin, assert_owner, get_current_user, reject_null_fields
 from app.models import Area, Sector, User
 from app.services.catalog_delete import soft_delete_sector_with_contents
 
@@ -79,7 +79,9 @@ def update_sector(
     if not sector or sector.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Sector not found")
     assert_admin(user)
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    reject_null_fields(data, ("name",))
+    for k, v in data.items():
         setattr(sector, k, v)
     db.commit()
     db.refresh(sector)
