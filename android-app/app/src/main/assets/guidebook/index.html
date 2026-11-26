@@ -775,6 +775,7 @@
                         <button type="button" class="btn btn-ghost btn-small" id="profileLogoutBtn"><i class="fas fa-sign-out-alt" aria-hidden="true"></i> Выйти</button>
                     </div>
                     <div class="profile-stats-grid" id="profileStatsGrid"></div>
+                    <button type="button" class="btn btn-ghost profile-change-password-btn" id="profileChangePasswordBtn"><i class="fas fa-key" aria-hidden="true"></i> Сменить пароль</button>
                 </div>
         </div>
     </div>
@@ -1539,6 +1540,7 @@
                             <button type="button" class="auth-password-toggle" data-password-toggle="authLoginPassword" aria-label="Показать пароль" aria-pressed="false"><i class="fas fa-eye" aria-hidden="true"></i></button>
                         </div>
                     </div>
+                    <label class="auth-remember"><input type="checkbox" id="authLoginRemember" checked> <span>Запомнить меня на этом устройстве</span></label>
                     <p class="auth-form-error hidden" id="authLoginError" role="alert"></p>
                     <button type="submit" class="btn btn-primary auth-btn-lg auth-submit-btn" id="authLoginSubmitBtn" data-idle-text="Войти" data-busy-text="Вход…">Войти</button>
                     <button type="button" class="auth-link-btn auth-link-btn--center" id="authLoginForgotBtn">Забыли пароль?</button>
@@ -1578,6 +1580,7 @@
                         <label class="form-label" for="authRegisterPassword2">Повторите пароль</label>
                         <input type="password" class="form-input" id="authRegisterPassword2" name="new-password-repeat" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="128" enterkeyhint="go">
                     </div>
+                    <label class="auth-remember"><input type="checkbox" id="authRegisterRemember" checked> <span>Запомнить меня на этом устройстве</span></label>
                     <p class="auth-form-error hidden" id="authRegisterError" role="alert"></p>
                     <button type="submit" class="btn btn-primary auth-btn-lg auth-submit-btn" id="authRegisterSubmitBtn" data-idle-text="Зарегистрироваться" data-busy-text="Регистрация…">Зарегистрироваться</button>
                     <p class="auth-switch">Уже есть аккаунт? <button type="button" class="auth-link-btn" id="authRegisterToLoginBtn">Войти</button></p>
@@ -1596,13 +1599,13 @@
             </div>
             <div class="dialog-body">
                 <form id="authResetRequestForm" class="auth-form" novalidate>
-                    <p class="auth-form-lead">Укажите почту, на которую зарегистрирован аккаунт. Мы пришлём на неё новый пароль.</p>
+                    <p class="auth-form-lead">Укажите почту, на которую зарегистрирован аккаунт. Мы пришлём на неё временный пароль для входа.</p>
                     <div class="form-group">
                         <label class="form-label" for="authResetEmail">Почта</label>
                         <input type="email" class="form-input" id="authResetEmail" name="email" autocomplete="username" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="255" placeholder="you@example.com" enterkeyhint="send">
                     </div>
                     <p class="auth-form-error hidden" id="authResetRequestError" role="alert"></p>
-                    <button type="submit" class="btn btn-primary auth-btn-lg auth-submit-btn" id="authResetRequestSubmitBtn" data-idle-text="Прислать новый пароль" data-busy-text="Отправка…">Прислать новый пароль</button>
+                    <button type="submit" class="btn btn-primary auth-btn-lg auth-submit-btn" id="authResetRequestSubmitBtn" data-idle-text="Прислать временный пароль" data-busy-text="Отправка…">Прислать временный пароль</button>
                 </form>
                 <div id="authResetSentBlock" class="auth-form hidden">
                     <p class="auth-form-lead" id="authResetSentText"></p>
@@ -1610,6 +1613,45 @@
                     <button type="button" class="btn btn-primary auth-btn-lg" id="authResetToLoginBtn">Войти</button>
                     <button type="button" class="auth-link-btn auth-link-btn--center" id="authResetResendBtn" data-idle-text="Прислать ещё раз" data-busy-text="Отправка…">Прислать ещё раз</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dialog-overlay hidden auth-dialog" id="authNewPasswordDialog" style="z-index: 1112;">
+        <div class="dialog-content">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="authNewPasswordDialogCloseBtn" data-close-dialog="authNewPasswordDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
+                <div class="dialog-header-text">
+                    <div class="dialog-title" id="authNewPasswordTitle">Смена пароля</div>
+                </div>
+            </div>
+            <div class="dialog-body">
+                <form id="authNewPasswordForm" class="auth-form" novalidate>
+                    <p class="auth-form-lead" id="authNewPasswordLead"></p>
+                    <input type="email" class="auth-hidden-username" id="authNewPasswordUsername" name="email" autocomplete="username" tabindex="-1" aria-hidden="true" readonly>
+                    <div class="form-group" id="authNewPasswordCurrentGroup">
+                        <label class="form-label" for="authNewPasswordCurrent">Текущий пароль</label>
+                        <div class="auth-password-field">
+                            <input type="password" class="form-input" id="authNewPasswordCurrent" name="current-password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="128" enterkeyhint="next">
+                            <button type="button" class="auth-password-toggle" data-password-toggle="authNewPasswordCurrent" aria-label="Показать пароль" aria-pressed="false"><i class="fas fa-eye" aria-hidden="true"></i></button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="authNewPassword">Новый пароль</label>
+                        <div class="auth-password-field">
+                            <input type="password" class="form-input" id="authNewPassword" name="new-password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="128" enterkeyhint="next">
+                            <button type="button" class="auth-password-toggle" data-password-toggle="authNewPassword" aria-label="Показать пароль" aria-pressed="false"><i class="fas fa-eye" aria-hidden="true"></i></button>
+                        </div>
+                        <p class="form-hint">Не менее 6 символов</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="authNewPassword2">Повторите новый пароль</label>
+                        <input type="password" class="form-input" id="authNewPassword2" name="new-password-repeat" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="128" enterkeyhint="go">
+                    </div>
+                    <label class="auth-remember"><input type="checkbox" id="authNewPasswordRemember" checked> <span>Запомнить меня на этом устройстве</span></label>
+                    <p class="auth-form-error hidden" id="authNewPasswordError" role="alert"></p>
+                    <button type="submit" class="btn btn-primary auth-btn-lg auth-submit-btn" id="authNewPasswordSubmitBtn" data-idle-text="Сохранить пароль" data-busy-text="Сохранение…">Сохранить пароль</button>
+                </form>
             </div>
         </div>
     </div>

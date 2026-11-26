@@ -9481,6 +9481,39 @@
             text-align: center;
         }
 
+        .auth-remember {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 14px;
+            font-size: 15px;
+            color: var(--text-color);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .auth-remember input {
+            width: 20px;
+            height: 20px;
+            margin: 0;
+            flex: 0 0 auto;
+            accent-color: #e8472a;
+        }
+
+        .auth-hidden-username {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .profile-change-password-btn {
+            width: 100%;
+            margin-top: 12px;
+            justify-content: center;
+        }
+
         .profile-stat-card {
             padding: 12px;
             border-radius: 8px;

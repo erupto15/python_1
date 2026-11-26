@@ -46,6 +46,8 @@ DETAIL_TOO_MANY_ATTEMPTS = "Слишком много попыток, попро
 DETAIL_RESET_UNAVAILABLE = "Восстановление пароля временно недоступно"
 DETAIL_RESET_COOLDOWN = "Новый пароль уже отправлен, повторите через минуту"
 DETAIL_BAD_EMAIL = "Некорректная почта"
+DETAIL_BAD_CURRENT_PASSWORD = "Неверный текущий пароль"
+DETAIL_SAME_PASSWORD = "Новый пароль совпадает с текущим — придумайте другой"
 DETAIL_BAD_PASSWORD = f"Пароль должен быть от {PASSWORD_MIN_LEN} до {PASSWORD_MAX_LEN} символов"
 DETAIL_BAD_DISPLAY_NAME = f"Укажите имя (от 1 до {DISPLAY_NAME_MAX_LEN} символов)"
 
@@ -163,17 +165,24 @@ def _reset_email_body(email: str, temp_password: str) -> str:
         "Здравствуйте!\n\n"
         "Вы запросили восстановление пароля в гайде 6А9А.\n\n"
         f"Логин: {email}\n"
-        f"Новый пароль: {temp_password}\n\n"
-        "Пароль из письма действует 24 часа. После первого входа с ним он станет вашим постоянным "
-        "паролем. При каждом новом запросе приходит другой пароль, а предыдущий из письма "
-        "перестаёт работать.\n\n"
+        f"Временный пароль: {temp_password}\n\n"
+        "Это временный пароль, он действует 24 часа. Войдите с ним — приложение сразу попросит "
+        "придумать новый постоянный пароль, а прежний после этого перестанет работать. При каждом "
+        "новом запросе приходит другой временный пароль, предыдущий из письма отменяется.\n\n"
         "Если вы не запрашивали восстановление, просто проигнорируйте письмо — ваш прежний пароль "
         "продолжает работать.\n"
     )
 
 
+def _invalidate_reset_passwords(db: Session, user: User, now: datetime) -> None:
+    db.query(PasswordResetCode).filter(
+        PasswordResetCode.user_id == user.id,
+        PasswordResetCode.used_at.is_(None),
+    ).update({PasswordResetCode.used_at: now}, synchronize_session=False)
+
+
 def _consume_temp_password(db: Session, user: User, password: str) -> bool:
-    """Пароль из письма: при совпадении становится постоянным паролем пользователя."""
+    """Пароль из письма заменяет прежний (тот перестаёт работать), дальше обязательна смена на свой."""
     now = datetime.now(timezone.utc)
     record = (
         db.query(PasswordResetCode)
@@ -185,8 +194,9 @@ def _consume_temp_password(db: Session, user: User, password: str) -> bool:
         return False
     if not security.verify_password(password, record.code_hash):
         return False
-    record.used_at = now
+    _invalidate_reset_passwords(db, user, now)
     user.password_hash = record.code_hash
+    user.must_change_password = True
     db.commit()
     db.refresh(user)
     return True
@@ -261,10 +271,7 @@ def password_reset_request(payload: schemas.PasswordResetRequest, db: Session = 
         return {"ok": True}
 
     now = datetime.now(timezone.utc)
-    db.query(PasswordResetCode).filter(
-        PasswordResetCode.user_id == user.id,
-        PasswordResetCode.used_at.is_(None),
-    ).update({PasswordResetCode.used_at: now}, synchronize_session=False)
+    _invalidate_reset_passwords(db, user, now)
 
     temp_password = _generate_temp_password()
     db.add(
@@ -284,6 +291,30 @@ def password_reset_request(payload: schemas.PasswordResetRequest, db: Session = 
         _release_reset_slot(email)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=DETAIL_RESET_UNAVAILABLE)
     return {"ok": True}
+
+
+@router.post("/change-password", response_model=schemas.Token)
+def change_password(
+    payload: schemas.PasswordChangeRequest,
+    db: Session = Depends(get_db),
+    current: User = Depends(get_current_user),
+) -> dict:
+    """Свой новый пароль. После входа по паролю из письма текущий пароль не спрашиваем."""
+    new_password = _validated_password(payload.new_password)
+    if not current.must_change_password:
+        if not payload.current_password or not security.verify_password(
+            payload.current_password, current.password_hash
+        ):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DETAIL_BAD_CURRENT_PASSWORD)
+    if security.verify_password(new_password, current.password_hash):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=DETAIL_SAME_PASSWORD)
+
+    _invalidate_reset_passwords(db, current, datetime.now(timezone.utc))
+    current.password_hash = security.hash_password(new_password)
+    current.must_change_password = False
+    db.commit()
+    db.refresh(current)
+    return _token_response(current)
 
 
 @router.get("/me", response_model=schemas.UserRead)

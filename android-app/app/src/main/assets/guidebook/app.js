@@ -85,6 +85,11 @@
                 resolve() {
                     return null;
                 }
+            },
+            authNewPasswordDialog: {
+                resolve() {
+                    return null;
+                }
             }
         };
 
@@ -101,7 +106,8 @@
             profileStylesDialog: 'profileStylesDialogCloseBtn',
             authLoginDialog: 'authLoginDialogCloseBtn',
             authRegisterDialog: 'authRegisterDialogCloseBtn',
-            authResetDialog: 'authResetDialogCloseBtn'
+            authResetDialog: 'authResetDialogCloseBtn',
+            authNewPasswordDialog: 'authNewPasswordDialogCloseBtn'
         };
 
         function blurStickyControlFocus() {
@@ -2737,8 +2743,21 @@
 
         const downscaleDataUrlForUpload = compressDataUrlForUpload;
 
+        function readSessionAuthRaw() {
+            try {
+                return sessionStorage.getItem(AUTH_STORAGE_KEY);
+            } catch (_) {
+                return null;
+            }
+        }
+
+        /** Без «Запомнить меня» вход живёт в sessionStorage — до закрытия приложения. */
+        function isAuthRemembered() {
+            return !readSessionAuthRaw();
+        }
+
         function getAuthData() {
-            const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+            const raw = readSessionAuthRaw() || localStorage.getItem(AUTH_STORAGE_KEY);
             if (!raw) return { accessToken: null, currentUser: null };
             try {
                 const parsed = JSON.parse(raw);
@@ -2751,8 +2770,23 @@
             }
         }
 
-        function saveAuthData(data) {
-            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data));
+        function saveAuthData(data, { remember = isAuthRemembered() } = {}) {
+            const json = JSON.stringify(data);
+            if (!data?.accessToken || remember) {
+                try {
+                    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+                } catch (_) {
+                    /* ignore */
+                }
+                localStorage.setItem(AUTH_STORAGE_KEY, json);
+                return;
+            }
+            try {
+                sessionStorage.setItem(AUTH_STORAGE_KEY, json);
+                localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ accessToken: null, currentUser: null }));
+            } catch (_) {
+                localStorage.setItem(AUTH_STORAGE_KEY, json);
+            }
         }
 
         /** Текст ошибки из тела ответа FastAPI (`detail` строка, массив валидации или объект). */
@@ -6391,7 +6425,7 @@
             }
 
             /** Сохранить ответ {access_token, user} и обновить UI, как после любого входа. */
-            async applyAuthTokenResponse(tokenData) {
+            async applyAuthTokenResponse(tokenData, { remember } = {}) {
                 const token = String(tokenData?.access_token || '').trim();
                 if (!token) {
                     throw new AuthApiError('Сервер не вернул токен входа');
@@ -6400,7 +6434,7 @@
                 if (!user) {
                     user = await authApiRequest('/api/auth/me', { method: 'GET', token });
                 }
-                saveAuthData({ accessToken: token, currentUser: user });
+                saveAuthData({ accessToken: token, currentUser: user }, remember === undefined ? undefined : { remember });
                 this.auth = getAuthData();
                 this.renderAuthUI();
                 this.applyRoleUI();
@@ -6432,6 +6466,7 @@
                     this.applyRoleUI();
                     await this.loadAscentSummary();
                     this.refreshListsAfterRoleChange();
+                    if (me.must_change_password) this.openNewPasswordDialog({ forced: true });
                 } catch (err) {
                     if (err?.status === 401 && getAuthData().accessToken === auth.accessToken) {
                         this.clearAuthSession();
@@ -6701,11 +6736,17 @@
                     (emailErr ? emailEl : passwordEl)?.focus();
                     return;
                 }
+                const remember = document.getElementById('authLoginRemember')?.checked !== false;
                 await this.runAuthSubmit({ btnId: 'authLoginSubmitBtn', errorId: 'authLoginError' }, async () => {
                     const data = await authApiRequest('/api/auth/login', { body: { email, password } });
-                    const user = await this.applyAuthTokenResponse(data);
+                    const user = await this.applyAuthTokenResponse(data, { remember });
                     if (passwordEl) passwordEl.value = '';
                     this.hideDialog('authLoginDialog');
+                    if (user?.must_change_password) {
+                        this.openNewPasswordDialog({ forced: true });
+                        return;
+                    }
+                    if (remember) void this.offerSavePassword(email, password, user?.display_name);
                     this.showToast(`Вы вошли как ${this.authUserGreetingName(user)}`);
                 });
             }
@@ -6741,14 +6782,16 @@
                     focusEl?.focus();
                     return;
                 }
+                const remember = document.getElementById('authRegisterRemember')?.checked !== false;
                 await this.runAuthSubmit({ btnId: 'authRegisterSubmitBtn', errorId: 'authRegisterError' }, async () => {
                     const data = await authApiRequest('/api/auth/register', {
                         body: { email, password, display_name: displayName }
                     });
-                    const user = await this.applyAuthTokenResponse(data);
+                    const user = await this.applyAuthTokenResponse(data, { remember });
                     if (passwordEl) passwordEl.value = '';
                     if (password2El) password2El.value = '';
                     this.hideDialog('authRegisterDialog');
+                    if (remember) void this.offerSavePassword(email, password, displayName);
                     this.showToast(`Добро пожаловать, ${this.authUserGreetingName(user)}!`);
                 });
             }
@@ -6760,8 +6803,8 @@
                 if (sentStep) {
                     const sent = document.getElementById('authResetSentText');
                     if (sent) {
-                        sent.textContent = `Если ${this._authResetEmail} зарегистрирована, на неё отправлен новый пароль. ` +
-                            'Войдите с ним — прежний пароль тоже продолжает работать.';
+                        sent.textContent = `Если ${this._authResetEmail} зарегистрирована, на неё отправлен временный пароль. ` +
+                            'Войдите с ним — сразу после входа нужно будет придумать свой новый пароль.';
                     }
                 }
             }
@@ -6789,6 +6832,90 @@
                 });
             }
 
+            /** Системное «Сохранить пароль?» (Chrome / Android). Safari и iOS предлагают сами по autocomplete. */
+            async offerSavePassword(email, password, name) {
+                try {
+                    if (typeof window.PasswordCredential !== 'function' || !navigator.credentials?.store) return;
+                    const cred = new window.PasswordCredential({ id: email, password, name: name || email });
+                    await navigator.credentials.store(cred);
+                } catch (_) {
+                    /* браузер не поддерживает или пользователь отказался */
+                }
+            }
+
+            openNewPasswordDialog({ forced = false } = {}) {
+                const user = getAuthData().currentUser;
+                if (!user) return;
+                this._authNewPasswordForced = !!forced;
+                document.getElementById('authNewPasswordTitle').textContent = forced ? 'Новый пароль' : 'Смена пароля';
+                document.getElementById('authNewPasswordLead').textContent = forced
+                    ? 'Вы вошли по временному паролю из письма. Придумайте свой постоянный пароль — он заменит прежний.'
+                    : 'Придумайте новый пароль — он заменит текущий.';
+                document.getElementById('authNewPasswordCurrentGroup')?.classList.toggle('hidden', forced);
+                document.getElementById('authNewPasswordDialogCloseBtn')?.classList.toggle('hidden', forced);
+                const usernameEl = document.getElementById('authNewPasswordUsername');
+                if (usernameEl) usernameEl.value = user.email || '';
+                const rememberEl = document.getElementById('authNewPasswordRemember');
+                if (rememberEl) rememberEl.checked = isAuthRemembered();
+                ['authNewPasswordCurrent', 'authNewPassword', 'authNewPassword2'].forEach((id) => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                this.setAuthFormError('authNewPasswordError', '');
+                document.querySelectorAll('#authNewPasswordDialog [data-password-toggle]')
+                    .forEach((btn) => this.setPasswordVisible(btn, false));
+                this.showDialog('authNewPasswordDialog');
+                const focusId = forced ? 'authNewPassword' : 'authNewPasswordCurrent';
+                setTimeout(() => {
+                    try {
+                        document.getElementById(focusId)?.focus({ preventScroll: true });
+                    } catch (_) {
+                        /* ignore */
+                    }
+                }, 60);
+            }
+
+            async submitNewPassword() {
+                const forced = !!this._authNewPasswordForced;
+                const currentEl = document.getElementById('authNewPasswordCurrent');
+                const passwordEl = document.getElementById('authNewPassword');
+                const password2El = document.getElementById('authNewPassword2');
+                const currentPassword = currentEl?.value || '';
+                const newPassword = passwordEl?.value || '';
+                const newPassword2 = password2El?.value || '';
+                let error = '';
+                let focusEl = null;
+                if (!forced && !currentPassword) {
+                    error = 'Введите текущий пароль';
+                    focusEl = currentEl;
+                } else if ((error = this.validateAuthNewPassword(newPassword))) {
+                    focusEl = passwordEl;
+                } else if (newPassword !== newPassword2) {
+                    error = 'Пароли не совпадают';
+                    focusEl = password2El;
+                }
+                if (error) {
+                    this.setAuthFormError('authNewPasswordError', error);
+                    focusEl?.focus();
+                    return;
+                }
+                const auth = getAuthData();
+                const remember = document.getElementById('authNewPasswordRemember')?.checked !== false;
+                await this.runAuthSubmit({ btnId: 'authNewPasswordSubmitBtn', errorId: 'authNewPasswordError' }, async () => {
+                    const body = { new_password: newPassword };
+                    if (!forced) body.current_password = currentPassword;
+                    const data = await authApiRequest('/api/auth/change-password', { body, token: auth.accessToken });
+                    const user = await this.applyAuthTokenResponse(data, { remember });
+                    [currentEl, passwordEl, password2El].forEach((el) => {
+                        if (el) el.value = '';
+                    });
+                    this._authNewPasswordForced = false;
+                    this.hideDialog('authNewPasswordDialog');
+                    if (remember) void this.offerSavePassword(user?.email || '', newPassword, user?.display_name);
+                    this.showToast('Новый пароль сохранён');
+                });
+            }
+
             openLoginAfterReset() {
                 const loginEmailEl = document.getElementById('authLoginEmail');
                 if (loginEmailEl && this._authResetEmail) loginEmailEl.value = this._authResetEmail;
@@ -6811,6 +6938,8 @@
                     void this.submitAuthResetRequest({ resend: true });
                 });
                 document.getElementById('authResetToLoginBtn')?.addEventListener('click', () => this.openLoginAfterReset());
+                onSubmit('authNewPasswordForm', () => this.submitNewPassword());
+                document.getElementById('profileChangePasswordBtn')?.addEventListener('click', () => this.openNewPasswordDialog());
                 document.getElementById('authLoginForgotBtn')?.addEventListener('click', () => this.openAuthDialog('reset'));
                 document.getElementById('authLoginToRegisterBtn')?.addEventListener('click', () => this.openAuthDialog('register'));
                 document.getElementById('authRegisterToLoginBtn')?.addEventListener('click', () => this.openAuthDialog('login'));

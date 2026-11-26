@@ -77,6 +77,7 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE boulders ADD COLUMN IF NOT EXISTS admin_rating DOUBLE PRECISION",
             "ALTER TABLE routes ADD COLUMN IF NOT EXISTS author_name VARCHAR(120)",
             "ALTER TABLE boulders ADD COLUMN IF NOT EXISTS author_name VARCHAR(120)",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE",
         ]
     else:
         statements = [
@@ -110,6 +111,7 @@ def ensure_optional_columns() -> None:
             "ALTER TABLE boulders ADD COLUMN admin_rating FLOAT",
             "ALTER TABLE routes ADD COLUMN author_name VARCHAR(120)",
             "ALTER TABLE boulders ADD COLUMN author_name VARCHAR(120)",
+            "ALTER TABLE users ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT 0",
         ]
     with engine.begin() as conn:
         for stmt in statements:

@@ -23,6 +23,11 @@ class PasswordResetRequest(BaseModel):
     email: str = Field(max_length=320)
 
 
+class PasswordChangeRequest(BaseModel):
+    current_password: Optional[str] = Field(default=None, max_length=1024)
+    new_password: str = Field(max_length=1024)
+
+
 class OkResponse(BaseModel):
     ok: bool = True
 
@@ -34,6 +39,7 @@ class UserRead(BaseModel):
     email: str
     display_name: str
     is_active: bool
+    must_change_password: bool = False
     created_at: datetime
     telegram_id: Optional[int] = None
     telegram_username: Optional[str] = None
