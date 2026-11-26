@@ -330,16 +330,6 @@
             transform: scale(0.96);
         }
 
-        .profile-vkid-btn {
-            width: 100%;
-            max-width: 320px;
-            margin-bottom: 10px;
-        }
-
-        .profile-telegram-deeplink-btn {
-            margin-top: 14px;
-        }
-
         /* На вкладке «Районы» — один поиск (в карточке), без дубля в шапке и заголовка карточки */
         html.catalog-tab-active header .global-search-wrap {
             display: none !important;
@@ -358,16 +348,6 @@
             min-width: 0;
         }
 
-        .header-toolbar {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 8px;
-            width: 100%;
-            min-width: 0;
-        }
-
         .header-brand {
             display: flex;
             flex-direction: column;
@@ -382,20 +362,6 @@
 
         .header-brand h1.site-logo {
             margin: 0;
-        }
-
-        .auth-panel {
-            display: none;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-            justify-content: center;
-            flex: 1 1 auto;
-            min-width: 0;
-        }
-
-        .auth-panel.auth-panel--visible {
-            display: flex;
         }
 
         .global-search-wrap {
@@ -580,45 +546,6 @@
         .global-search-empty {
             padding: 12px;
             text-align: center;
-        }
-
-        /* Блок пароля админа скрыт до 4 тапов по логотипу */
-        .admin-password-login-block {
-            display: none;
-            align-items: flex-end;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .admin-password-login-block.is-visible {
-            display: flex;
-        }
-
-        .header-search-auth .admin-password-login-block.is-visible {
-            width: 100%;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .auth-panel .form-input {
-            width: 160px;
-            min-width: 120px;
-        }
-
-        .auth-field {
-            display: inline-flex;
-            flex-direction: column;
-            align-items: stretch;
-            gap: 2px;
-        }
-
-        .auth-label {
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 0.03em;
-            color: var(--text-color);
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-            text-align: left;
         }
 
         .role-badge {
@@ -7859,10 +7786,6 @@
                 margin-top: -0.54rem;
             }
 
-            .auth-panel {
-                row-gap: 4px;
-            }
-
             .form-row {
                 grid-template-columns: 1fr;
             }
@@ -7948,14 +7871,6 @@
         }
 
         .grade-spread-host[hidden] {
-            display: none !important;
-        }
-
-        html.no-auth .climb-log-add-btn,
-        html.no-auth .climb-action-btn--log,
-        html.no-auth .profile-admin-entry,
-        html.no-auth #profileVkIdBtn,
-        html.no-auth #profileTelegramDeeplinkBtn {
             display: none !important;
         }
 
@@ -9321,24 +9236,6 @@
             margin-bottom: 8px;
         }
 
-        .profile-telegram-login {
-            display: flex;
-            justify-content: center;
-            margin-top: 16px;
-            min-height: 48px;
-        }
-
-        .profile-login-hint {
-            margin: 12px 0 0;
-            font-size: 14px;
-            color: var(--light-text);
-            text-align: center;
-        }
-
-        #profileTelegramLogoutBtn {
-            margin-top: 4px;
-        }
-
         .profile-avatar-wrap {
             position: relative;
             width: 60px;
@@ -9391,6 +9288,204 @@
 
         .profile-identity p:empty {
             display: none;
+        }
+
+        .profile-identity .role-badge {
+            margin-top: 8px;
+        }
+
+        #profileLogoutBtn {
+            margin-top: 4px;
+            min-height: 40px;
+        }
+
+        /* Профиль гостя: вход по почте и паролю */
+        .profile-auth-guest {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 32px 16px 24px;
+            text-align: center;
+        }
+
+        .profile-auth-brand {
+            padding: 4px 0 8px;
+        }
+
+        .profile-auth-brand .site-logo-mark {
+            animation: none;
+        }
+
+        .profile-auth-title {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-color);
+        }
+
+        .profile-auth-lead {
+            max-width: 320px;
+            margin: 0;
+            font-size: 15px;
+            line-height: 1.45;
+            color: var(--light-text);
+        }
+
+        .profile-auth-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        .auth-btn-lg {
+            width: 100%;
+            min-height: 48px;
+            font-size: 16px;
+        }
+
+        /* Диалоги входа / регистрации / восстановления пароля */
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 8px 0 24px;
+        }
+
+        .auth-form .form-group {
+            margin-bottom: 16px;
+        }
+
+        .auth-form .form-input {
+            min-height: 48px;
+            font-size: 16px;
+        }
+
+        .auth-form .form-input:-webkit-autofill {
+            -webkit-text-fill-color: var(--text-color);
+            caret-color: var(--text-color);
+            box-shadow: 0 0 0 1000px var(--card-bg) inset;
+        }
+
+        .auth-form-lead {
+            margin: 0 0 16px;
+            font-size: 15px;
+            line-height: 1.45;
+            color: var(--light-text);
+            overflow-wrap: anywhere;
+        }
+
+        .auth-password-field {
+            position: relative;
+        }
+
+        .auth-password-field .form-input {
+            padding-right: 52px;
+        }
+
+        .auth-password-toggle {
+            position: absolute;
+            top: 0;
+            right: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 100%;
+            padding: 0;
+            border: 0;
+            border-radius: 0 8px 8px 0;
+            background: transparent;
+            color: var(--light-text);
+            font-size: 17px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .auth-password-toggle:hover,
+        .auth-password-toggle[aria-pressed="true"] {
+            color: var(--text-color);
+        }
+
+        .auth-password-toggle:focus-visible {
+            outline: 2px solid color-mix(in srgb, var(--tg-blue) 75%, transparent);
+            outline-offset: -6px;
+        }
+
+        .auth-form .auth-code-input {
+            font-size: 20px;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.4em;
+            text-align: center;
+        }
+
+        .auth-form-error {
+            margin: 0 0 12px;
+            padding: 10px 12px;
+            border: 1px solid color-mix(in srgb, var(--danger-color) 35%, transparent);
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--danger-color) 12%, transparent);
+            color: var(--danger-color);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        html.theme-light .auth-form-error {
+            color: #c62828;
+        }
+
+        .auth-submit-btn {
+            margin-top: 4px;
+        }
+
+        .auth-spinner {
+            flex-shrink: 0;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.75s linear infinite;
+        }
+
+        .auth-link-btn {
+            display: inline-flex;
+            align-items: center;
+            min-height: 44px;
+            padding: 6px 4px;
+            border: 0;
+            background: none;
+            color: var(--primary-color);
+            font: inherit;
+            font-size: 15px;
+            font-weight: 600;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .auth-link-btn:disabled {
+            opacity: 0.55;
+            cursor: default;
+        }
+
+        .auth-link-btn--center {
+            align-self: center;
+            margin-top: 8px;
+        }
+
+        .auth-switch {
+            margin: 8px 0 0;
+            font-size: 15px;
+            color: var(--light-text);
+            text-align: center;
         }
 
         .profile-stat-card {
@@ -10148,10 +10243,6 @@
             box-shadow: 0 8px 24px color-mix(in srgb, var(--text-color) 12%, transparent);
         }
 
-        html.tg-mini-app.tg-theme-light .auth-label {
-            text-shadow: none;
-        }
-
         html.tg-mini-app.tg-theme-light .catalog-breadcrumb button,
         html.tg-mini-app.tg-theme-light .catalog-row-actions .btn {
             background-color: transparent;
@@ -10355,27 +10446,6 @@
 
         html.app-shell.app-shell-global-search-open .header-search-auth {
             display: flex;
-        }
-
-        html.app-shell .header-toolbar {
-            display: none;
-        }
-
-        html.app-shell .header-search-auth:has(.auth-panel--visible),
-        html.app-shell .header-search-auth:has(#adminPasswordLoginBlock.is-visible) {
-            display: flex !important;
-        }
-
-        html.app-shell .header-search-auth:has(.auth-panel--visible) .header-toolbar {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 8px;
-            width: 100%;
-        }
-
-        html.app-shell .profile-admin-entry {
-            margin-top: 14px;
         }
 
         html.app-shell.catalog-tab-active header .global-search-wrap {
@@ -10812,8 +10882,7 @@
             box-shadow: none;
         }
 
-        html.search-screen-open[data-search-screen="global"] .header-top > :not(.header-search-auth),
-        html.search-screen-open[data-search-screen="global"] .header-toolbar {
+        html.search-screen-open[data-search-screen="global"] .header-top > :not(.header-search-auth) {
             display: none !important;
         }
 
@@ -11335,4 +11404,78 @@
         .leaflet-overlay-pane path.sector-boulder-zone {
             pointer-events: none;
             filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.28));
+        }
+
+        /* Широкий экран: приложение в колонке шириной с телефон по центру */
+        @media (min-width: 700px) {
+            html.app-shell {
+                --app-frame-w: 480px;
+                --app-frame-x: max(0px, calc((100vw - var(--app-frame-w)) / 2));
+            }
+
+            html.app-shell body,
+            html.app-shell:not(.tg-mini-app) body,
+            html.app-shell.tg-mini-app body {
+                left: var(--app-frame-x);
+                right: var(--app-frame-x);
+                width: auto;
+                max-width: var(--app-frame-w);
+                box-shadow: 0 0 0 1px var(--border-color), 0 24px 80px rgba(0, 0, 0, 0.45);
+            }
+
+            html.app-shell .app-bottom-nav,
+            html.app-shell.catalog-map-shell #catalogMapBlock,
+            html.app-shell.app-shell-map-tab #mapContainer,
+            html.app-shell .map-boulder-sheet:not(.hidden),
+            html.app-shell .map-climb-info-sheet:not(.hidden),
+            html.app-shell.search-screen-open:not(.search-screen-has-query) .search-screen-hero {
+                left: var(--app-frame-x);
+                right: var(--app-frame-x);
+            }
+
+            html.app-shell .map-admin-add-bar {
+                left: calc(var(--app-frame-x) + 12px);
+                right: calc(var(--app-frame-x) + 12px);
+            }
+
+            html.app-shell .map-drill-back-btn,
+            html.app-shell.catalog-map-shell .map-drill-back-btn {
+                left: calc(var(--app-frame-x) + 12px);
+            }
+
+            html.app-shell .toast {
+                left: calc(var(--app-frame-x) + 12px);
+                right: calc(var(--app-frame-x) + 12px);
+            }
+
+            html.app-shell .dialog-overlay,
+            html.app-shell .climb-photo-viewer,
+            html.app-shell .app-global-busy {
+                left: var(--app-frame-x);
+                right: var(--app-frame-x);
+            }
+
+            html.app-shell .climb-photo-viewer .zoom-controls--viewer {
+                right: calc(var(--app-frame-x) + 12px);
+            }
+
+            html.app-shell.app-shell-map-tab #map > .map-overlay-back {
+                left: calc(var(--app-frame-x) + 12px);
+            }
+
+            html.app-shell.app-shell-map-tab #mapGuideStrip:not(.hidden) {
+                left: calc(var(--app-frame-x) + 10px);
+                right: calc(var(--app-frame-x) + 10px);
+            }
+
+            html.app-shell.search-screen-open[data-search-screen="catalog"] #catalog .catalog-card-search .global-search-field,
+            html.app-shell.search-screen-open[data-search-screen="global"] .header-search-auth .global-search-field {
+                left: calc(var(--app-frame-x) + 16px);
+                right: calc(var(--app-frame-x) + 16px);
+            }
+
+            html.app-shell.search-screen-open[data-search-screen="global"] #globalSearchResults:not(.hidden) {
+                left: calc(var(--app-frame-x) + 12px);
+                right: calc(var(--app-frame-x) + 12px);
+            }
         }

@@ -1,7 +1,6 @@
         /**
          * Telegram Mini App: высота viewport, тема, MainButton / BackButton.
-         * Для авторизации на своём API передайте initData на бэкенд и проверьте подпись (см. документацию Telegram);
-         * настройте CORS для домена Mini App. Сырые данные: window.__TG_INIT_DATA
+         * Вход — только по почте и паролю (/api/auth/*), Telegram используется лишь как оболочка UI.
          */
         window.__TG_DIALOG_MAIN = {
             areaDialog: {
@@ -71,6 +70,21 @@
                 resolve() {
                     return null;
                 }
+            },
+            authLoginDialog: {
+                resolve() {
+                    return null;
+                }
+            },
+            authRegisterDialog: {
+                resolve() {
+                    return null;
+                }
+            },
+            authResetDialog: {
+                resolve() {
+                    return null;
+                }
             }
         };
 
@@ -84,7 +98,10 @@
             routeLineMarkupDialog: 'closeRouteLineMarkupDialogBtn',
             boulderHoldsMarkupDialog: 'closeBoulderHoldsMarkupDialogBtn',
             profileSendsDialog: 'profileSendsDialogCloseBtn',
-            profileStylesDialog: 'profileStylesDialogCloseBtn'
+            profileStylesDialog: 'profileStylesDialogCloseBtn',
+            authLoginDialog: 'authLoginDialogCloseBtn',
+            authRegisterDialog: 'authRegisterDialogCloseBtn',
+            authResetDialog: 'authResetDialogCloseBtn'
         };
 
         function blurStickyControlFocus() {
@@ -177,7 +194,6 @@
             document.documentElement.classList.add('tg-mini-app');
             if (typeof window.syncAppShellClass === 'function') window.syncAppShellClass();
             bindPreventHorizontalPageShift();
-            window.__TG_INIT_DATA = tg.initData || '';
 
             function hexColor(c) {
                 if (c == null || c === '') return '';
@@ -314,7 +330,7 @@
             }
 
             window.syncOpenProfileButtonVisibility?.({
-                telegramUser: window.app?.isTelegramUser?.() || false
+                loggedIn: window.app?.isLoggedIn?.() || false
             });
             window.app?.renderAuthUI?.();
 
@@ -333,7 +349,7 @@
             const profileBtn = document.getElementById('openProfileBtn');
             if (!profileBtn) return;
             const inTg = window.isTelegramMiniApp?.();
-            const show = inTg || options.telegramUser === true || window.CLIMBING_STANDALONE === true;
+            const show = inTg || options.loggedIn === true || window.CLIMBING_STANDALONE === true;
             if (!show) {
                 profileBtn.style.display = 'none';
                 return;
@@ -2952,9 +2968,6 @@
                 leaveOfflineMode();
                 if (window.app) {
                     await window.app.restoreAuthSession();
-                    if (!getAuthData().accessToken) {
-                        await window.app.tryTelegramLogin();
-                    }
                 }
                 setAppDataStatus('hidden');
             } catch (err) {
@@ -2970,29 +2983,23 @@
             }
         }
 
-        async function runTelegramAuthBootstrap() {
+        /** Старт: проверить сохранённый токен через GET /api/auth/me (401 — тихо выйти). */
+        async function runAuthSessionBootstrap() {
             if (!window.app) return;
             try {
                 await window.app.restoreAuthSession();
-                if (!getAuthData().accessToken) {
-                    const loggedIn = await window.app.tryTelegramLogin();
-                    if (!loggedIn && window.isTelegramMiniApp?.()) {
-                        console.warn('Telegram login skipped or failed; catalog still available');
-                    }
-                }
-                if (isStandaloneShell()) {
-                    window.syncOpenProfileButtonVisibility?.({
-                        telegramUser: window.app?.isTelegramUser?.() || false
-                    });
-                    void window.app.prepareStandaloneTelegramLoginUi?.();
-                }
                 await window.app.syncLegacyLocalStorageToBackend();
-                if (window.app?.isLoggedIn?.()) {
-                    window.app.refreshListsAfterRoleChange();
-                    void window.app.renderProfileTab?.();
-                }
             } catch (err) {
                 console.warn('auth bootstrap', err);
+            }
+        }
+
+        /** Сессии бывших входов через Telegram / VK больше не действуют. */
+        function purgeLegacySocialAuthSession() {
+            const auth = getAuthData();
+            if (!auth.accessToken && !auth.currentUser) return;
+            if (isLegacySocialAuthUser(auth.currentUser)) {
+                saveAuthData({ accessToken: null, currentUser: null });
             }
         }
 
@@ -3768,20 +3775,79 @@
             return window.CLIMBING_STANDALONE === true;
         }
 
-        function authTelegramGateMessage() {
-            if (isStandaloneShell()) {
-                return 'Войдите через VK ID или Telegram в разделе «Профиль»';
-            }
-            return 'Войдите через Telegram Mini App';
+        const AUTH_REQUIRED_MESSAGE = 'Войдите или зарегистрируйтесь во вкладке «Профиль»';
+        const AUTH_OFFLINE_MESSAGE = 'Нужен интернет для входа';
+        const AUTH_PASSWORD_MIN_LENGTH = 6;
+        const AUTH_DISPLAY_NAME_MAX_LENGTH = 80;
+        const AUTH_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        function isLegacySocialAuthUser(user) {
+            const em = String(user?.email || '').trim().toLowerCase();
+            return em.endsWith('@telegram.local') || em.endsWith('@vk.local');
         }
 
-        function isStandaloneVkIdBridgeAvailable() {
-            try {
-                const bridge = window.GuideAndroidBridge;
-                return !!(bridge && bridge.isVkIdLoginAvailable && bridge.isVkIdLoginAvailable());
-            } catch (_) {
-                return false;
+        class AuthApiError extends Error {
+            constructor(message, status = 0, { network = false } = {}) {
+                super(message);
+                this.name = 'AuthApiError';
+                this.status = status;
+                this.network = network;
             }
+        }
+
+        function formatAuthApiError(status, body) {
+            const detail = body?.detail;
+            if (typeof detail === 'string' && detail.trim()) return detail.trim();
+            if (Array.isArray(detail) || status === 422) return 'Проверьте почту и пароль';
+            if (detail && typeof detail === 'object' && typeof detail.msg === 'string') return detail.msg;
+            if (status === 401) return 'Неверная почта или пароль';
+            if (status === 429) return 'Слишком много попыток. Попробуйте позже';
+            if (status === 503) return 'Сервис временно недоступен. Попробуйте позже';
+            if (status >= 500) return 'Ошибка сервера. Попробуйте позже';
+            return `Ошибка (HTTP ${status})`;
+        }
+
+        /**
+         * Запросы /api/auth/* мимо офлайн-очереди apiFetch: вход без сети не имеет смысла.
+         * Ошибки — AuthApiError с текстом для пользователя и HTTP-статусом.
+         */
+        async function authApiRequest(path, { method = 'POST', body, token, timeoutMs = 20000 } = {}) {
+            if (shouldTrustOfflineHint()) {
+                throw new AuthApiError(AUTH_OFFLINE_MESSAGE, 0, { network: true });
+            }
+            const headers = { Accept: 'application/json' };
+            if (body !== undefined) headers['Content-Type'] = 'application/json';
+            if (token) headers.Authorization = `Bearer ${token}`;
+            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+            let res;
+            try {
+                res = await fetch(`${API_BASE_URL}${path}`, {
+                    method,
+                    headers,
+                    body: body !== undefined ? JSON.stringify(body) : undefined,
+                    cache: 'no-store',
+                    signal: controller ? controller.signal : undefined
+                });
+            } catch (err) {
+                if (err?.name === 'AbortError') {
+                    throw new AuthApiError('Сервер не отвечает. Попробуйте ещё раз', 0, { network: true });
+                }
+                throw new AuthApiError(AUTH_OFFLINE_MESSAGE, 0, { network: true });
+            } finally {
+                if (timeoutId) clearTimeout(timeoutId);
+            }
+            let data = null;
+            try {
+                const text = await res.text();
+                data = text ? JSON.parse(text) : null;
+            } catch (_) {
+                data = null;
+            }
+            if (!res.ok) {
+                throw new AuthApiError(formatAuthApiError(res.status, data), res.status);
+            }
+            return data;
         }
 
         /** WebView (MIUI и др.) часто ошибочно сообщает navigator.onLine === false при рабочей сети. */
@@ -6049,8 +6115,8 @@
             constructor() {
                 this.data = getClimbingData();
                 this.auth = getAuthData();
-                /** Форма входа админа — только после 4 тапов по логотипу в этой вкладке. */
-                this._adminFormUnlocked = false;
+                this._authRequestInFlight = false;
+                this._authResetEmail = '';
                 this._climbDetailImgGen = 0;
                 this._climbViewerImgGen = 0;
                 this._photoGallery = null;
@@ -6238,7 +6304,6 @@
 
             init() {
                 this.data = getClimbingData();
-                this.setupHiddenAdminAccess();
                 this.renderAuthUI();
                 this.fillSectorSelects();
                 if (!APP_BOULDER_ONLY) {
@@ -6301,127 +6366,78 @@
                 return em === String(ADMIN_EMAIL_HINT).toLowerCase();
             }
 
-            /** Показ полей логина/пароля только после 4 тапов по логотипу. */
-            isAdminPasswordFormUnlocked() {
-                return this._adminFormUnlocked === true;
-            }
-
-            clearAdminLoginFields() {
-                const userInput = document.getElementById('loginUsername');
-                const pwd = document.getElementById('loginPassword');
-                if (userInput) userInput.value = '';
-                if (pwd) pwd.value = '';
-            }
-
-            logoutAdminSession(message = 'Режим администратора выключен') {
-                this._adminFormUnlocked = false;
+            clearAuthSession() {
                 saveAuthData({ accessToken: null, currentUser: null });
                 this.auth = getAuthData();
                 this._ascentSummary = null;
-                this.clearAdminLoginFields();
                 this.renderAuthUI();
                 this.applyRoleUI();
                 this.refreshListsAfterRoleChange();
-                this.showToast(message);
+                this.refreshOpenClimbDetailAfterAuthChange();
             }
 
-            async exitAdminAndRestoreUserMode() {
-                this.logoutAdminSession('Выход из админа');
-                if (window.isTelegramMiniApp?.() && window.__TG_INIT_DATA) {
-                    const ok = await this.tryTelegramLogin();
-                    if (ok) {
-                        this.showToast('Вход как пользователь Telegram');
-                    }
-                }
+            /** Открытая карточка трассы: «мои» оценка / лайк / пролаз зависят от аккаунта. */
+            refreshOpenClimbDetailAfterAuthChange() {
+                this.syncClimbCommentComposerAuth();
+                const ctx = this._climbDetailContext;
+                const detail = document.getElementById('climbDetailDialog');
+                if (!ctx || !detail || detail.classList.contains('hidden')) return;
+                void this.refreshClimbDetailViewPanel(ctx.climbType, ctx.climbId);
             }
 
-            openAdminPasswordForm() {
-                if (this.isLoggedIn() && !this.isAdmin()) {
-                    saveAuthData({ accessToken: null, currentUser: null });
-                    this.auth = getAuthData();
-                    this._ascentSummary = null;
+            logout() {
+                this.clearAuthSession();
+                this.showToast('Вы вышли из аккаунта');
+            }
+
+            /** Сохранить ответ {access_token, user} и обновить UI, как после любого входа. */
+            async applyAuthTokenResponse(tokenData) {
+                const token = String(tokenData?.access_token || '').trim();
+                if (!token) {
+                    throw new AuthApiError('Сервер не вернул токен входа');
                 }
-                this._adminFormUnlocked = true;
-                const userInput = document.getElementById('loginUsername');
-                if (userInput && !userInput.value.trim()) {
-                    userInput.value = 'admin';
+                let user = tokenData.user || null;
+                if (!user) {
+                    user = await authApiRequest('/api/auth/me', { method: 'GET', token });
                 }
+                saveAuthData({ accessToken: token, currentUser: user });
+                this.auth = getAuthData();
                 this.renderAuthUI();
-                this.showToast('Вход администратора: логин admin');
-                setTimeout(() => userInput?.focus(), 0);
-            }
-
-            closeAdminPasswordForm() {
-                this._adminFormUnlocked = false;
-                this.clearAdminLoginFields();
-                this.renderAuthUI();
-                this.showToast('Форма входа администратора скрыта');
-            }
-
-            setupHiddenAdminAccess() {
-                const logo = document.querySelector('.site-logo');
-                if (!logo) return;
-                const TAPS_OPEN_ADMIN = 4;
-                const TAPS_EXIT_ADMIN = 2;
-                const TAP_WINDOW_MS = 4000;
-                let clicks = 0;
-                let lastClickTs = 0;
-                const onLogoTap = (e) => {
-                    e.preventDefault();
-                    const now = Date.now();
-                    if (now - lastClickTs > TAP_WINDOW_MS) clicks = 0;
-                    lastClickTs = now;
-                    clicks += 1;
-
-                    if (this.isAdmin()) {
-                        if (clicks < TAPS_EXIT_ADMIN) return;
-                        clicks = 0;
-                        void this.exitAdminAndRestoreUserMode();
-                        return;
-                    }
-
-                    if (clicks < TAPS_OPEN_ADMIN) return;
-                    clicks = 0;
-
-                    if (this._adminFormUnlocked) {
-                        this.closeAdminPasswordForm();
-                        return;
-                    }
-                    this.openAdminPasswordForm();
-                };
-                logo.addEventListener('click', onLogoTap);
-            }
-
-            formatAdminLoginError(loginRes, errBody) {
-                const detail = formatApiErrorDetail(errBody?.detail);
-                if (loginRes.status === 403) {
-                    return detail || 'Вход разрешён только для учётной записи администратора';
-                }
-                if (loginRes.status === 401) {
-                    return 'Неверный логин или пароль. Логин и пароль: admin.';
-                }
-                return detail || `Ошибка входа (HTTP ${loginRes.status})`;
+                this.applyRoleUI();
+                await this.loadAscentSummary();
+                this.refreshListsAfterRoleChange();
+                this.refreshOpenClimbDetailAfterAuthChange();
+                void this.syncLegacyLocalStorageToBackend();
+                return user;
             }
 
             async restoreAuthSession() {
                 const auth = getAuthData();
                 if (!auth.accessToken) return;
+                if (isLegacySocialAuthUser(auth.currentUser)) {
+                    this.clearAuthSession();
+                    return;
+                }
+                if (shouldTrustOfflineHint()) return;
                 try {
-                    const me = await apiFetch('/api/auth/me');
-                    auth.currentUser = me;
-                    saveAuthData(auth);
-                    this.auth = auth;
+                    const me = await authApiRequest('/api/auth/me', { method: 'GET', token: auth.accessToken });
+                    if (getAuthData().accessToken !== auth.accessToken) return;
+                    if (!me || isLegacySocialAuthUser(me)) {
+                        this.clearAuthSession();
+                        return;
+                    }
+                    saveAuthData({ accessToken: auth.accessToken, currentUser: me });
+                    this.auth = getAuthData();
                     this.renderAuthUI();
                     this.applyRoleUI();
                     await this.loadAscentSummary();
                     this.refreshListsAfterRoleChange();
-                } catch {
-                    saveAuthData({ accessToken: null, currentUser: null });
-                    this.auth = getAuthData();
-                    this._ascentSummary = null;
-                    this.renderAuthUI();
-                    this.applyRoleUI();
-                    this.refreshListsAfterRoleChange();
+                } catch (err) {
+                    if (err?.status === 401 && getAuthData().accessToken === auth.accessToken) {
+                        this.clearAuthSession();
+                        return;
+                    }
+                    console.warn('auth session restore', err);
                 }
             }
 
@@ -6429,251 +6445,12 @@
                 return !!(getAuthData().accessToken && getAuthData().currentUser);
             }
 
-            isTelegramUser() {
-                const em = String(this.getCurrentUser()?.email || '').toLowerCase();
-                return em.endsWith('@telegram.local') || em.endsWith('@vk.local');
-            }
-
-            async tryTelegramLogin() {
-                if (!window.isTelegramMiniApp?.() || !window.__TG_INIT_DATA) return false;
-                if (getAuthData().accessToken) {
-                    if (!getAuthData().currentUser) {
-                        try {
-                            const me = await apiFetch('/api/auth/me');
-                            saveAuthData({ ...getAuthData(), currentUser: me });
-                            this.auth = getAuthData();
-                            this.renderAuthUI();
-                            this.applyRoleUI();
-                        } catch (err) {
-                            console.warn('telegram session restore', err);
-                            return false;
-                        }
-                    }
-                    if (this.isTelegramUser()) {
-                        await this.loadAscentSummary();
-                        this.refreshListsAfterRoleChange();
-                    }
-                    return true;
-                }
-                try {
-                    const tokenData = await apiFetch('/api/auth/telegram', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ init_data: window.__TG_INIT_DATA })
-                    });
-                    const auth = {
-                        accessToken: tokenData.access_token,
-                        currentUser: tokenData.user || null
-                    };
-                    if (!auth.currentUser) {
-                        saveAuthData(auth);
-                        auth.currentUser = await apiFetch('/api/auth/me');
-                    }
-                    saveAuthData(auth);
-                    this.auth = auth;
-                    this.renderAuthUI();
-                    this.applyRoleUI();
-                    await this.loadAscentSummary();
-                    this.refreshListsAfterRoleChange();
-                    return true;
-                } catch (err) {
-                    console.warn('telegram login', err);
-                    return false;
-                }
-            }
-
-            async loginWithTelegramWidget(user) {
-                const tokenData = await apiFetch('/api/auth/telegram-widget', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(user)
-                });
-                await this.applyTelegramAuthTokenData(tokenData);
-                return true;
-            }
-
-            async applyTelegramAuthTokenData(tokenData) {
-                const auth = {
-                    accessToken: tokenData.access_token,
-                    currentUser: tokenData.user || null
-                };
-                if (!auth.currentUser) {
-                    saveAuthData(auth);
-                    auth.currentUser = await apiFetch('/api/auth/me');
-                }
-                saveAuthData(auth);
-                this.auth = auth;
-                this.renderAuthUI();
-                this.applyRoleUI();
-                await this.loadAscentSummary();
-                this.refreshListsAfterRoleChange();
-                window.syncOpenProfileButtonVisibility?.({ telegramUser: true });
-            }
-
-            openTelegramDeepLink(url) {
-                const link = String(url || '').trim();
-                if (!link) return;
-                try {
-                    const opened = window.open(link, '_blank', 'noopener,noreferrer');
-                    if (!opened) {
-                        window.location.href = link;
-                    }
-                } catch (_) {
-                    window.location.href = link;
-                }
-            }
-
-            async startStandaloneTelegramDeeplinkLogin() {
-                if (!isStandaloneShell()) return;
-                if (this._apkDeeplinkLoginInFlight) return;
-                this._apkDeeplinkLoginInFlight = true;
-                this._apkDeeplinkPollAbort = false;
-                const btn = document.getElementById('profileTelegramDeeplinkBtn');
-                const statusEl = document.getElementById('profileTelegramDeeplinkStatus');
-                if (btn) btn.disabled = true;
-                if (statusEl) {
-                    statusEl.classList.remove('hidden');
-                    statusEl.textContent = 'Запрашиваем ссылку для входа…';
-                }
-                try {
-                    const start = await apiFetch('/api/auth/telegram-deeplink', {
-                        method: 'POST',
-                        timeoutMs: 20000
-                    });
-                    const deepLink = String(start?.deep_link || '').trim();
-                    const startParam = String(start?.start_param || '').trim();
-                    const ttlSec = Number(start?.expires_in) || 300;
-                    if (!deepLink || !startParam) {
-                        throw new Error('Сервер не вернул ссылку для входа');
-                    }
-                    if (statusEl) {
-                        statusEl.textContent = 'Откройте Telegram, нажмите «Start» / «Запустить», затем вернитесь в гайд.';
-                    }
-                    this.openTelegramDeepLink(deepLink);
-                    const deadline = Date.now() + ttlSec * 1000;
-                    while (Date.now() < deadline && !this._apkDeeplinkPollAbort) {
-                        await new Promise((r) => setTimeout(r, 2000));
-                        if (this._apkDeeplinkPollAbort) break;
-                        let poll;
-                        try {
-                            poll = await apiFetch(
-                                `/api/auth/telegram-deeplink?start=${encodeURIComponent(startParam)}`,
-                                { timeoutMs: 12000 }
-                            );
-                        } catch (err) {
-                            if (statusEl && isFetchNetworkError(err)) {
-                                statusEl.textContent = 'Нет связи с сервером гайда. Отключите VPN или проверьте сеть.';
-                            }
-                            continue;
-                        }
-                        if (poll?.status === 'ready' && poll.access_token) {
-                            await this.applyTelegramAuthTokenData(poll);
-                            await this.renderProfileTab();
-                            this.showToast('Вход через Telegram выполнен');
-                            if (statusEl) statusEl.classList.add('hidden');
-                            return;
-                        }
-                        if (poll?.status === 'expired') {
-                            break;
-                        }
-                    }
-                    if (!this._apkDeeplinkPollAbort && statusEl) {
-                        statusEl.textContent = 'Время вышло. Нажмите «Войти через Telegram» ещё раз.';
-                    }
-                } catch (err) {
-                    const msg = err?.message || 'Не удалось начать вход';
-                    if (statusEl) statusEl.textContent = msg;
-                    this.showToast(msg, true);
-                } finally {
-                    this._apkDeeplinkLoginInFlight = false;
-                    if (btn) btn.disabled = false;
-                }
-            }
-
-            prepareStandaloneTelegramLoginUi() {
-                if (!isStandaloneShell()) return;
-                document.getElementById('profileGuestHintMiniApp')?.classList.add('hidden');
-                document.getElementById('telegramLoginWidgetMount')?.classList.add('hidden');
-                if (window.CLIMBING_NO_AUTH) {
-                    document.documentElement.classList.add('no-auth');
-                    const hint = document.getElementById('profileGuestHintStandalone');
-                    if (hint) {
-                        hint.classList.remove('hidden');
-                        hint.textContent = 'Каталог, карта и трассы открыты без входа.';
-                    }
-                    const title = document.querySelector('#profileGuestBlock h3');
-                    if (title) title.textContent = 'Гайд без входа';
-                    document.getElementById('profileTelegramDeeplinkBtn')?.classList.add('hidden');
-                    document.getElementById('profileVkIdBtn')?.classList.add('hidden');
-                    document.getElementById('profileAdminLoginBtn')?.closest('.profile-admin-entry')?.classList.add('hidden');
-                    return;
-                }
-                document.getElementById('profileGuestHintStandalone')?.classList.remove('hidden');
-                document.getElementById('profileTelegramDeeplinkBtn')?.classList.remove('hidden');
-                if (isStandaloneVkIdBridgeAvailable()) {
-                    document.getElementById('profileVkIdBtn')?.classList.remove('hidden');
-                }
-            }
-
-            async completeStandaloneVkIdLogin(accessToken) {
-                if (!isStandaloneShell()) return;
-                const token = String(accessToken || '').trim();
-                if (!token) {
-                    throw new Error('Пустой токен VK ID');
-                }
-                const statusEl = document.getElementById('profileTelegramDeeplinkStatus');
-                const vkBtn = document.getElementById('profileVkIdBtn');
-                const tgBtn = document.getElementById('profileTelegramDeeplinkBtn');
-                if (vkBtn) vkBtn.disabled = true;
-                if (tgBtn) tgBtn.disabled = true;
-                if (statusEl) {
-                    statusEl.classList.remove('hidden');
-                    statusEl.textContent = 'Проверяем вход VK ID…';
-                }
-                try {
-                    const tokenData = await apiFetch('/api/auth/vk-id', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ access_token: token }),
-                        timeoutMs: 25000
-                    });
-                    await this.applyTelegramAuthTokenData(tokenData);
-                    await this.renderProfileTab();
-                    this.showToast('Вход через VK ID выполнен');
-                    if (statusEl) statusEl.classList.add('hidden');
-                } catch (err) {
-                    const msg = err?.message || 'Не удалось войти через VK ID';
-                    if (statusEl) statusEl.textContent = msg;
-                    this.showToast(msg, true);
-                } finally {
-                    if (vkBtn) vkBtn.disabled = false;
-                    if (tgBtn) tgBtn.disabled = false;
-                }
-            }
-
-            startStandaloneVkIdLogin() {
-                if (!isStandaloneShell() || !isStandaloneVkIdBridgeAvailable()) {
-                    this.showToast('VK ID доступен только в APK с настроенным client_id', true);
-                    return;
-                }
-                try {
-                    window.GuideAndroidBridge.startVkIdLogin();
-                } catch (err) {
-                    this.showToast(err?.message || 'Не удалось открыть VK ID', true);
-                }
-            }
-
-            logoutTelegramSession() {
-                this._apkDeeplinkPollAbort = true;
-                saveAuthData({ accessToken: null, currentUser: null });
-                this.auth = getAuthData();
-                this._ascentSummary = null;
-                this.renderAuthUI();
-                this.applyRoleUI();
-                this.refreshListsAfterRoleChange();
-                window.syncOpenProfileButtonVisibility?.({ telegramUser: false });
-                void this.renderProfileTab();
-                void this.prepareStandaloneTelegramLoginUi();
+            /** Гость нажал действие, требующее аккаунта: подсказка + форма входа. */
+            requireLoginForAction() {
+                if (this.isLoggedIn()) return true;
+                this.showToast(AUTH_REQUIRED_MESSAGE, true);
+                this.openAuthDialog('login');
+                return false;
             }
 
             async loadAscentSummary() {
@@ -6692,7 +6469,7 @@
             }
 
             canUseClimbLogbook() {
-                return this.isLoggedIn() && this.isTelegramUser();
+                return this.isLoggedIn();
             }
 
             hasUserSent(climbType, climbId) {
@@ -6756,10 +6533,7 @@
             }
 
             async openClimbLogFromList(climbType, climbId) {
-                if (!this.isLoggedIn() || !this.isTelegramUser()) {
-                    this.showToast(authTelegramGateMessage(), true);
-                    return;
-                }
+                if (!this.requireLoginForAction()) return;
                 const idStr = String(climbId);
                 const climb = climbType === 'route'
                     ? getRoutes().find((r) => String(r.id) === idStr)
@@ -6781,114 +6555,306 @@
 
             renderAuthUI() {
                 this.auth = getAuthData();
-                const user = this.isAdmin() ? this.getCurrentUser() : null;
-                const authPanel = document.getElementById('authPanel');
-                const adminBlock = document.getElementById('adminPasswordLoginBlock');
-                const usernameInput = document.getElementById('loginUsername');
-                const passwordInput = document.getElementById('loginPassword');
-                const loginBtn = document.getElementById('loginBtn');
-                const logoutBtn = document.getElementById('logoutBtn');
-                const status = document.getElementById('authStatus');
-                if (!usernameInput || !passwordInput || !loginBtn || !logoutBtn || !status) return;
-
-                const showAdminForm = !user && this.isAdminPasswordFormUnlocked();
-
-                if (user) {
-                    adminBlock?.classList.remove('is-visible');
-                    adminBlock?.setAttribute('aria-hidden', 'true');
-                    status.style.display = 'inline-flex';
-                    const isAdmin = this.isAdmin();
-                    const badgeClass = isAdmin ? 'admin' : 'user';
-                    const icon = isAdmin ? 'fa-user-shield' : 'fa-user';
-                    status.innerHTML = `<span class="role-badge ${badgeClass}"><i class="fas ${icon}"></i> ${this.escapeHtml(user.display_name || user.email || 'Пользователь')}</span>`;
-                    logoutBtn.style.display = 'inline-flex';
-                    window.syncOpenProfileButtonVisibility?.({ telegramUser: this.isTelegramUser() });
-                    authPanel?.classList.add('auth-panel--visible');
-                } else {
-                    window.syncOpenProfileButtonVisibility?.({ telegramUser: false });
-                    if (showAdminForm) {
-                        adminBlock?.classList.add('is-visible');
-                        adminBlock?.setAttribute('aria-hidden', 'false');
-                        authPanel?.classList.add('auth-panel--visible');
-                    } else {
-                        adminBlock?.classList.remove('is-visible');
-                        adminBlock?.setAttribute('aria-hidden', 'true');
-                        authPanel?.classList.remove('auth-panel--visible');
-                    }
-                    status.style.display = 'none';
-                    status.innerHTML = '';
-                    logoutBtn.style.display = 'none';
+                const loggedIn = this.isLoggedIn();
+                document.documentElement.classList.toggle('is-logged-in', loggedIn);
+                window.syncOpenProfileButtonVisibility?.({ loggedIn });
+                if (document.getElementById('profile')?.classList.contains('active')) {
+                    void this.renderProfileTab();
                 }
             }
 
-            setupAuthEventListeners() {
-                document.getElementById('loginBtn')?.addEventListener('click', async () => {
-                    const username = (document.getElementById('loginUsername')?.value || '').trim().toLowerCase();
-                    const password = document.getElementById('loginPassword')?.value || '';
-                    if (!username || !password) {
-                        this.showToast('Введите логин и пароль', true);
+            authDialogId(kind) {
+                if (kind === 'register') return 'authRegisterDialog';
+                if (kind === 'reset') return 'authResetDialog';
+                return 'authLoginDialog';
+            }
+
+            /** Почта, уже введённая в любой из форм входа, — чтобы не набирать её заново. */
+            currentAuthEmailDraft() {
+                const ids = ['authLoginEmail', 'authRegisterEmail', 'authResetEmail'];
+                for (const id of ids) {
+                    const v = String(document.getElementById(id)?.value || '').trim();
+                    if (v) return v;
+                }
+                return '';
+            }
+
+            openAuthDialog(kind = 'login') {
+                const targetId = this.authDialogId(kind);
+                const email = this.currentAuthEmailDraft();
+                ['authLoginDialog', 'authRegisterDialog', 'authResetDialog'].forEach((id) => {
+                    if (id !== targetId) this.hideDialog(id);
+                });
+                ['authLoginError', 'authRegisterError', 'authResetRequestError', 'authResetConfirmError']
+                    .forEach((id) => this.setAuthFormError(id, ''));
+                document.querySelectorAll('[data-password-toggle]').forEach((btn) => this.setPasswordVisible(btn, false));
+
+                let focusId = '';
+                if (kind === 'register') {
+                    const emailEl = document.getElementById('authRegisterEmail');
+                    if (emailEl && !emailEl.value && email) emailEl.value = email;
+                    focusId = document.getElementById('authRegisterName')?.value ? 'authRegisterEmail' : 'authRegisterName';
+                } else if (kind === 'reset') {
+                    this.showAuthResetStep('request');
+                    const emailEl = document.getElementById('authResetEmail');
+                    if (emailEl && !emailEl.value && email) emailEl.value = email;
+                    focusId = 'authResetEmail';
+                } else {
+                    const emailEl = document.getElementById('authLoginEmail');
+                    if (emailEl && !emailEl.value && email) emailEl.value = email;
+                    focusId = emailEl?.value ? 'authLoginPassword' : 'authLoginEmail';
+                }
+                this.showDialog(targetId);
+                if (focusId) {
+                    setTimeout(() => {
+                        try {
+                            document.getElementById(focusId)?.focus({ preventScroll: true });
+                        } catch (_) {
+                            /* ignore */
+                        }
+                    }, 60);
+                }
+            }
+
+            setAuthFormError(errorId, message) {
+                const el = document.getElementById(errorId);
+                if (!el) return;
+                const text = String(message || '').trim();
+                el.textContent = text;
+                el.classList.toggle('hidden', !text);
+            }
+
+            setAuthSubmitBusy(btnId, busy) {
+                const btn = document.getElementById(btnId);
+                if (!btn) return;
+                const text = busy ? (btn.dataset.busyText || btn.dataset.idleText) : btn.dataset.idleText;
+                btn.disabled = !!busy;
+                btn.classList.toggle('is-busy', !!busy);
+                btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+                btn.innerHTML = busy
+                    ? `<span class="auth-spinner" aria-hidden="true"></span>${this.escapeHtml(text || '')}`
+                    : this.escapeHtml(text || '');
+            }
+
+            setPasswordVisible(toggleBtn, visible) {
+                const input = document.getElementById(toggleBtn?.dataset?.passwordToggle || '');
+                if (!input) return;
+                input.type = visible ? 'text' : 'password';
+                toggleBtn.setAttribute('aria-pressed', visible ? 'true' : 'false');
+                toggleBtn.setAttribute('aria-label', visible ? 'Скрыть пароль' : 'Показать пароль');
+                const icon = toggleBtn.querySelector('i');
+                if (icon) {
+                    icon.classList.toggle('fa-eye', !visible);
+                    icon.classList.toggle('fa-eye-slash', visible);
+                }
+            }
+
+            normalizeAuthEmail(raw) {
+                return String(raw || '').trim().toLowerCase();
+            }
+
+            validateAuthEmail(email) {
+                if (!email) return 'Введите почту';
+                if (!AUTH_EMAIL_RE.test(email)) return 'Проверьте адрес почты';
+                return '';
+            }
+
+            validateAuthNewPassword(password) {
+                if (!password) return 'Введите пароль';
+                if (password.length < AUTH_PASSWORD_MIN_LENGTH) {
+                    return `Пароль должен быть не короче ${AUTH_PASSWORD_MIN_LENGTH} символов`;
+                }
+                return '';
+            }
+
+            authUserGreetingName(user) {
+                const name = String(user?.display_name || '').trim();
+                return name || String(user?.email || '').trim() || 'пользователь';
+            }
+
+            /** Общая обёртка отправки: защита от двойного нажатия, спиннер, ошибка под формой. */
+            async runAuthSubmit({ btnId, errorId }, action) {
+                if (this._authRequestInFlight) return;
+                this._authRequestInFlight = true;
+                this.setAuthFormError(errorId, '');
+                this.setAuthSubmitBusy(btnId, true);
+                try {
+                    await action();
+                } catch (err) {
+                    const msg = err?.message || 'Не удалось выполнить запрос';
+                    this.setAuthFormError(errorId, msg);
+                    if (err?.network) this.showToast(AUTH_OFFLINE_MESSAGE, true);
+                } finally {
+                    this._authRequestInFlight = false;
+                    this.setAuthSubmitBusy(btnId, false);
+                }
+            }
+
+            async submitAuthLogin() {
+                const emailEl = document.getElementById('authLoginEmail');
+                const passwordEl = document.getElementById('authLoginPassword');
+                const email = this.normalizeAuthEmail(emailEl?.value);
+                const password = passwordEl?.value || '';
+                const emailErr = this.validateAuthEmail(email);
+                if (emailErr || !password) {
+                    this.setAuthFormError('authLoginError', emailErr || 'Введите пароль');
+                    (emailErr ? emailEl : passwordEl)?.focus();
+                    return;
+                }
+                await this.runAuthSubmit({ btnId: 'authLoginSubmitBtn', errorId: 'authLoginError' }, async () => {
+                    const data = await authApiRequest('/api/auth/login', { body: { email, password } });
+                    const user = await this.applyAuthTokenResponse(data);
+                    if (passwordEl) passwordEl.value = '';
+                    this.hideDialog('authLoginDialog');
+                    this.showToast(`Вы вошли как ${this.authUserGreetingName(user)}`);
+                });
+            }
+
+            async submitAuthRegister() {
+                const nameEl = document.getElementById('authRegisterName');
+                const emailEl = document.getElementById('authRegisterEmail');
+                const passwordEl = document.getElementById('authRegisterPassword');
+                const password2El = document.getElementById('authRegisterPassword2');
+                const displayName = String(nameEl?.value || '').trim();
+                const email = this.normalizeAuthEmail(emailEl?.value);
+                const password = passwordEl?.value || '';
+                const password2 = password2El?.value || '';
+
+                let error = '';
+                let focusEl = null;
+                if (!displayName) {
+                    error = 'Введите имя';
+                    focusEl = nameEl;
+                } else if (displayName.length > AUTH_DISPLAY_NAME_MAX_LENGTH) {
+                    error = `Имя должно быть не длиннее ${AUTH_DISPLAY_NAME_MAX_LENGTH} символов`;
+                    focusEl = nameEl;
+                } else if ((error = this.validateAuthEmail(email))) {
+                    focusEl = emailEl;
+                } else if ((error = this.validateAuthNewPassword(password))) {
+                    focusEl = passwordEl;
+                } else if (password !== password2) {
+                    error = 'Пароли не совпадают';
+                    focusEl = password2El;
+                }
+                if (error) {
+                    this.setAuthFormError('authRegisterError', error);
+                    focusEl?.focus();
+                    return;
+                }
+                await this.runAuthSubmit({ btnId: 'authRegisterSubmitBtn', errorId: 'authRegisterError' }, async () => {
+                    const data = await authApiRequest('/api/auth/register', {
+                        body: { email, password, display_name: displayName }
+                    });
+                    const user = await this.applyAuthTokenResponse(data);
+                    if (passwordEl) passwordEl.value = '';
+                    if (password2El) password2El.value = '';
+                    this.hideDialog('authRegisterDialog');
+                    this.showToast(`Добро пожаловать, ${this.authUserGreetingName(user)}!`);
+                });
+            }
+
+            showAuthResetStep(step) {
+                const confirmStep = step === 'confirm';
+                document.getElementById('authResetRequestForm')?.classList.toggle('hidden', confirmStep);
+                document.getElementById('authResetConfirmForm')?.classList.toggle('hidden', !confirmStep);
+                if (confirmStep) {
+                    const sent = document.getElementById('authResetSentText');
+                    if (sent) {
+                        sent.textContent = `Мы отправили 6-значный код на ${this._authResetEmail}, если она зарегистрирована`;
+                    }
+                }
+            }
+
+            async submitAuthResetRequest({ resend = false } = {}) {
+                const emailEl = document.getElementById('authResetEmail');
+                const email = resend ? this._authResetEmail : this.normalizeAuthEmail(emailEl?.value);
+                const errorId = resend ? 'authResetConfirmError' : 'authResetRequestError';
+                const btnId = resend ? 'authResetResendBtn' : 'authResetRequestSubmitBtn';
+                const emailErr = this.validateAuthEmail(email);
+                if (emailErr) {
+                    this.setAuthFormError(errorId, emailErr);
+                    if (!resend) emailEl?.focus();
+                    return;
+                }
+                await this.runAuthSubmit({ btnId, errorId }, async () => {
+                    await authApiRequest('/api/auth/password-reset/request', { body: { email } });
+                    this._authResetEmail = email;
+                    if (resend) {
+                        this.showToast('Код отправлен ещё раз');
                         return;
                     }
-                    const loginBtn = document.getElementById('loginBtn');
-                    if (loginBtn) loginBtn.disabled = true;
-                    try {
-                        const formBody = new URLSearchParams({ username, password }).toString();
-                        const loginRes = await fetch(`${API_BASE_URL}/api/auth/login`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: formBody
-                        });
-                        let errBody = null;
-                        if (!loginRes.ok) {
-                            try {
-                                errBody = await loginRes.json();
-                            } catch (_) {
-                                /* ignore */
-                            }
-                            throw new Error(this.formatAdminLoginError(loginRes, errBody));
-                        }
-                        const tokenData = await loginRes.json();
-                        let me = tokenData.user || null;
-                        if (!me) {
-                            const authProbe = { accessToken: tokenData.access_token, currentUser: null };
-                            saveAuthData(authProbe);
-                            me = await apiFetch('/api/auth/me');
-                        }
-                        const adminEmail = String(ADMIN_EMAIL_HINT).toLowerCase();
-                        if (String(me?.email || '').toLowerCase() !== adminEmail) {
-                            throw new Error('Вошли не как администратор. Используйте логин admin или email администратора.');
-                        }
-                        const auth = { accessToken: tokenData.access_token, currentUser: me };
-                        saveAuthData(auth);
-                        this.auth = auth;
-                        this._adminFormUnlocked = false;
-                        this.clearAdminLoginFields();
-                        this.renderAuthUI();
-                        this.applyRoleUI();
-                        await this.loadAscentSummary();
-                        this.refreshListsAfterRoleChange();
-                        this.showToast(`Вход выполнен: ${me.display_name || me.email}`);
-                    } catch (err) {
-                        const msg = err?.message || '';
-                        if (!msg || msg === 'Failed to fetch' || msg.includes('NetworkError')) {
-                            this.showToast('Нет связи с сервером. Закройте Mini App и откройте снова через /start.', true);
-                        } else {
-                            this.showToast(msg || 'Ошибка входа', true);
-                        }
-                    } finally {
-                        if (loginBtn) loginBtn.disabled = false;
-                    }
+                    const codeEl = document.getElementById('authResetCode');
+                    if (codeEl) codeEl.value = '';
+                    this.setAuthFormError('authResetConfirmError', '');
+                    this.showAuthResetStep('confirm');
+                    setTimeout(() => codeEl?.focus(), 60);
                 });
+            }
 
-                document.getElementById('logoutBtn')?.addEventListener('click', () => {
-                    void this.exitAdminAndRestoreUserMode();
+            async submitAuthResetConfirm() {
+                const codeEl = document.getElementById('authResetCode');
+                const passwordEl = document.getElementById('authResetNewPassword');
+                const code = String(codeEl?.value || '').replace(/\D/g, '');
+                const newPassword = passwordEl?.value || '';
+                let error = '';
+                let focusEl = null;
+                if (code.length !== 6) {
+                    error = 'Введите 6-значный код из письма';
+                    focusEl = codeEl;
+                } else if ((error = this.validateAuthNewPassword(newPassword))) {
+                    focusEl = passwordEl;
+                }
+                if (error) {
+                    this.setAuthFormError('authResetConfirmError', error);
+                    focusEl?.focus();
+                    return;
+                }
+                await this.runAuthSubmit({ btnId: 'authResetConfirmSubmitBtn', errorId: 'authResetConfirmError' }, async () => {
+                    const data = await authApiRequest('/api/auth/password-reset/confirm', {
+                        body: { email: this._authResetEmail, code, new_password: newPassword }
+                    });
+                    const user = await this.applyAuthTokenResponse(data);
+                    if (passwordEl) passwordEl.value = '';
+                    if (codeEl) codeEl.value = '';
+                    this.showAuthResetStep('request');
+                    this.hideDialog('authResetDialog');
+                    this.showToast(`Пароль сохранён. Вы вошли как ${this.authUserGreetingName(user)}`);
                 });
+            }
 
-                document.getElementById('loginPassword')?.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') {
+            setupAuthEventListeners() {
+                const onSubmit = (formId, handler) => {
+                    document.getElementById(formId)?.addEventListener('submit', (e) => {
                         e.preventDefault();
-                        document.getElementById('loginBtn')?.click();
-                    }
+                        void handler();
+                    });
+                };
+                onSubmit('authLoginForm', () => this.submitAuthLogin());
+                onSubmit('authRegisterForm', () => this.submitAuthRegister());
+                onSubmit('authResetRequestForm', () => this.submitAuthResetRequest());
+                onSubmit('authResetConfirmForm', () => this.submitAuthResetConfirm());
+
+                document.getElementById('authResetResendBtn')?.addEventListener('click', () => {
+                    void this.submitAuthResetRequest({ resend: true });
+                });
+                document.getElementById('authLoginForgotBtn')?.addEventListener('click', () => this.openAuthDialog('reset'));
+                document.getElementById('authLoginToRegisterBtn')?.addEventListener('click', () => this.openAuthDialog('register'));
+                document.getElementById('authRegisterToLoginBtn')?.addEventListener('click', () => this.openAuthDialog('login'));
+                document.getElementById('profileLoginBtn')?.addEventListener('click', () => this.openAuthDialog('login'));
+                document.getElementById('profileRegisterBtn')?.addEventListener('click', () => this.openAuthDialog('register'));
+                document.getElementById('profileLogoutBtn')?.addEventListener('click', () => this.logout());
+
+                document.getElementById('authResetCode')?.addEventListener('input', (e) => {
+                    const el = e.target;
+                    const digits = String(el.value || '').replace(/\D/g, '').slice(0, 6);
+                    if (el.value !== digits) el.value = digits;
+                });
+                document.querySelectorAll('[data-password-toggle]').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        const input = document.getElementById(btn.dataset.passwordToggle || '');
+                        if (!input) return;
+                        this.setPasswordVisible(btn, input.type === 'password');
+                    });
                 });
             }
 
@@ -6999,7 +6965,7 @@
                 });
                 this.syncMapEditUi();
                 this.syncMapAdminAddBar();
-                const showSentFilter = loggedIn && this.isTelegramUser();
+                const showSentFilter = loggedIn;
                 document.getElementById('hideSentRoutesWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
                 document.getElementById('hideSentBouldersWrap')?.style.setProperty('display', showSentFilter ? '' : 'none');
                 if (!adminMode) {
@@ -7011,9 +6977,6 @@
                 }
                 const activeTab = document.querySelector('.tab-content.active')?.id || '';
                 if (activeTab === 'photos' || activeTab === 'updates') {
-                    document.querySelector('.tab-btn[data-tab="catalog"]')?.click();
-                }
-                if (activeTab === 'profile' && !loggedIn) {
                     document.querySelector('.tab-btn[data-tab="catalog"]')?.click();
                 }
             }
@@ -13536,7 +13499,7 @@
                 const list = document.getElementById('favoritesList');
                 if (!list) return;
                 if (!this.canUseClimbLogbook()) {
-                    list.innerHTML = `<div class="empty-state"><p>${this.escapeHtml(authTelegramGateMessage())}</p></div>`;
+                    list.innerHTML = `<div class="empty-state"><p>${this.escapeHtml(AUTH_REQUIRED_MESSAGE)}</p></div>`;
                     return;
                 }
                 let rows = [];
@@ -18058,10 +18021,7 @@
 
             toggleClimbDetailRatePopover() {
                 if (!this._climbDetailContext) return;
-                if (!this.canUseClimbLogbook()) {
-                    this.showToast(authTelegramGateMessage(), true);
-                    return;
-                }
+                if (!this.requireLoginForAction()) return;
                 const pop = document.getElementById('climbDetailRatePopover');
                 const rateBtn = document.getElementById('climbDetailRateBtn');
                 if (!pop) return;
@@ -18073,10 +18033,7 @@
             async pickClimbDetailStars(starValue) {
                 const ctx = this._climbDetailContext;
                 if (!ctx) return;
-                if (!this.canUseClimbLogbook()) {
-                    this.showToast(authTelegramGateMessage(), true);
-                    return;
-                }
+                if (!this.requireLoginForAction()) return;
                 const current = Math.min(3, Number(this._climbCommunityStats?.my_stars) || 0);
                 try {
                     const next = await this.saveCommunityStarRating(ctx.climbType, ctx.climbId, starValue, current);
@@ -18100,10 +18057,7 @@
             async toggleClimbDetailLike() {
                 const ctx = this._climbDetailContext;
                 if (!ctx) return;
-                if (!this.canUseClimbLogbook()) {
-                    this.showToast(authTelegramGateMessage(), true);
-                    return;
-                }
+                if (!this.requireLoginForAction()) return;
                 const btn = document.getElementById('climbDetailLikeBtn');
                 if (btn?.disabled) return;
                 if (btn) btn.disabled = true;
@@ -19157,14 +19111,6 @@
                 document.getElementById('openRankingBtn')?.addEventListener('click', () => {
                     this.openRankingTab();
                 });
-                document.getElementById('profileAdminLoginBtn')?.addEventListener('click', () => {
-                    this.openAdminPasswordForm();
-                    if (document.documentElement.classList.contains('app-shell')) {
-                        document.documentElement.classList.add('app-shell-global-search-open');
-                        document.getElementById('headerSearchToggleBtn')?.setAttribute('aria-expanded', 'true');
-                        requestAnimationFrame(() => document.getElementById('loginPassword')?.focus());
-                    }
-                });
                 document.getElementById('profileBackBtn')?.addEventListener('click', () => {
                     this.closeOverlayTab();
                     if (typeof window.syncTelegramMiniAppUi === 'function') {
@@ -19177,15 +19123,6 @@
                         window.syncTelegramMiniAppUi();
                     }
                 });
-                document.getElementById('profileTelegramLogoutBtn')?.addEventListener('click', () => {
-                    this.logoutTelegramSession();
-                });
-                document.getElementById('profileTelegramDeeplinkBtn')?.addEventListener('click', () => {
-                    void this.startStandaloneTelegramDeeplinkLogin();
-                });
-                document.getElementById('profileVkIdBtn')?.addEventListener('click', () => {
-                    this.startStandaloneVkIdLogin();
-                });
                 document.getElementById('hideSentRoutes')?.addEventListener('change', () => this.renderRoutes());
                 document.getElementById('hideSentBoulders')?.addEventListener('change', () => this.renderBoulders());
             }
@@ -19195,8 +19132,8 @@
                 if (!ctx) {
                     throw new Error('Откройте трассу из каталога');
                 }
-                if (!this.isLoggedIn() || !this.isTelegramUser()) {
-                    throw new Error(authTelegramGateMessage());
+                if (!this.isLoggedIn()) {
+                    throw new Error(AUTH_REQUIRED_MESSAGE);
                 }
                 const climbType = ctx.climbType;
                 const climbId = ctx.climbId;
@@ -19740,10 +19677,7 @@
                 const files = [...(input?.files || [])];
                 if (input) input.value = '';
                 if (!files.length) return;
-                if (!this.isLoggedIn()) {
-                    this.showToast('Войдите, чтобы прикрепить файл', true);
-                    return;
-                }
+                if (!this.requireLoginForAction()) return;
                 if (!this._commentDraftAttachments) this._commentDraftAttachments = [];
                 try {
                     setGlobalUiBusy(true);
@@ -19786,10 +19720,7 @@
             }
 
             async submitClimbDetailComment() {
-                if (!this.isLoggedIn()) {
-                    this.showToast('Войдите через Telegram, чтобы комментировать', true);
-                    return;
-                }
+                if (!this.requireLoginForAction()) return;
                 const ctx = this._climbDetailContext;
                 if (!ctx) return;
                 const bodyEl = document.getElementById('climbDetailCommentBody');
@@ -19842,10 +19773,7 @@
                     this.showToast('Откройте трассу из каталога', true);
                     return;
                 }
-                if (!this.isLoggedIn() || !this.isTelegramUser()) {
-                    this.showToast(authTelegramGateMessage(), true);
-                    return;
-                }
+                if (!this.requireLoginForAction()) return;
                 const climbType = ctx.climbType;
                 const climbId = ctx.climbId;
                 const climb = climbType === 'route'
@@ -19960,45 +19888,6 @@
                 return cleaned || 'Пользователь';
             }
 
-            getTelegramUserPhotoUrl() {
-                const photo = window.Telegram?.WebApp?.initDataUnsafe?.user?.photo_url;
-                return photo ? String(photo).trim() : '';
-            }
-
-            async refreshTelegramProfile() {
-                if (window.isTelegramMiniApp?.() && window.__TG_INIT_DATA) {
-                    try {
-                        const tokenData = await apiFetch('/api/auth/telegram', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ init_data: window.__TG_INIT_DATA })
-                        });
-                        const auth = getAuthData();
-                        auth.accessToken = tokenData.access_token || auth.accessToken;
-                        auth.currentUser = tokenData.user || auth.currentUser;
-                        if (!auth.currentUser && auth.accessToken) {
-                            auth.currentUser = await apiFetch('/api/auth/me');
-                        }
-                        saveAuthData(auth);
-                        this.auth = auth;
-                        return auth.currentUser;
-                    } catch {
-                        return null;
-                    }
-                }
-                if (isStandaloneShell() && this.isTelegramUser() && getAuthData().accessToken) {
-                    try {
-                        const me = await apiFetch('/api/auth/me');
-                        saveAuthData({ ...getAuthData(), currentUser: me });
-                        this.auth = getAuthData();
-                        return me;
-                    } catch {
-                        return null;
-                    }
-                }
-                return null;
-            }
-
             updateProfileAvatar(user, profile) {
                 const img = document.getElementById('profileAvatarImg');
                 const fallback = document.getElementById('profileAvatarFallback');
@@ -20007,7 +19896,6 @@
                 const photoUrl = (
                     profile?.telegram_photo_url
                     || user?.telegram_photo_url
-                    || this.getTelegramUserPhotoUrl()
                     || ''
                 ).trim();
                 const initials = this.profileAvatarInitials(user?.display_name || 'П');
@@ -20039,11 +19927,11 @@
 
             renderProfileIdentity(user) {
                 const nameEl = document.getElementById('profileDisplayName');
-                const usernameEl = document.getElementById('profileUsername');
-                if (!nameEl || !usernameEl) return;
+                const emailEl = document.getElementById('profileEmail');
+                if (!nameEl || !emailEl) return;
                 nameEl.textContent = this.formatProfileDisplayName(user);
-                const un = user?.telegram_username ? `@${user.telegram_username}` : '';
-                usernameEl.textContent = un;
+                emailEl.textContent = String(user?.email || '').trim();
+                document.getElementById('profileRoleBadge')?.classList.toggle('hidden', !this.isAdmin());
             }
 
             formatRankingPoints(n) {
@@ -20199,33 +20087,18 @@
             async renderProfileTab() {
                 const guest = document.getElementById('profileGuestBlock');
                 const userBlock = document.getElementById('profileUserBlock');
-                const logoutBtn = document.getElementById('profileTelegramLogoutBtn');
                 if (!guest || !userBlock) return;
-                if (!this.isLoggedIn() || !this.isTelegramUser()) {
+                if (!this.isLoggedIn()) {
                     guest.classList.remove('hidden');
                     userBlock.classList.add('hidden');
-                    if (isStandaloneShell()) {
-                        this.prepareStandaloneTelegramLoginUi();
-                    } else {
-                        document.getElementById('profileGuestHintMiniApp')?.classList.remove('hidden');
-                        document.getElementById('profileGuestHintStandalone')?.classList.add('hidden');
-                        document.getElementById('telegramLoginWidgetMount')?.classList.add('hidden');
-                    }
                     return;
                 }
                 guest.classList.add('hidden');
                 userBlock.classList.remove('hidden');
-                if (logoutBtn) {
-                    const showLogout = isStandaloneShell() && this.isTelegramUser();
-                    logoutBtn.classList.toggle('hidden', !showLogout);
-                }
 
-                let user = this.getCurrentUser();
-                if (this.isTelegramUser()) {
-                    const refreshed = await this.refreshTelegramProfile();
-                    if (refreshed) user = refreshed;
-                }
+                const user = this.getCurrentUser();
                 this.renderProfileIdentity(user);
+                this.updateProfileAvatar(user, null);
 
                 try {
                     const [profile, ascents, leaderboard] = await Promise.all([
@@ -20598,7 +20471,7 @@
 
             async openProfileSendsDialog() {
                 if (!this.isLoggedIn()) {
-                    this.showToast('Войдите через Telegram', true);
+                    this.showToast(AUTH_REQUIRED_MESSAGE, true);
                     return;
                 }
                 const listEl = document.getElementById('profileSendsList');
@@ -20616,7 +20489,7 @@
 
             async openProfileStylesDialog() {
                 if (!this.isLoggedIn()) {
-                    this.showToast('Войдите через Telegram', true);
+                    this.showToast(AUTH_REQUIRED_MESSAGE, true);
                     return;
                 }
                 const listEl = document.getElementById('profileStylesList');
@@ -20660,7 +20533,6 @@
                 if (!online && hadLocalCatalog) {
                     enterOfflineMode('Офлайн — показаны сохранённые данные.');
                     void hydrateAreaCoverImages();
-                    void runTelegramAuthBootstrap();
                     return;
                 }
                 if (online) {
@@ -20674,7 +20546,6 @@
                 if (!awake && catalogHasContent(getClimbingData())) {
                     enterOfflineMode('Офлайн — показаны сохранённые данные. Подключите сеть для обновления.');
                     void hydrateAreaCoverImages();
-                    void runTelegramAuthBootstrap();
                     return;
                 }
                 if (!awake) {
@@ -20688,7 +20559,7 @@
                 });
                 leaveOfflineMode();
                 void flushOfflineOutbox();
-                void runTelegramAuthBootstrap();
+                void runAuthSessionBootstrap();
                 if (typeof window.syncTelegramMiniAppUi === 'function') {
                     window.syncTelegramMiniAppUi();
                 }
@@ -20698,7 +20569,6 @@
                     enterOfflineMode(
                         'Офлайн — показаны сохранённые данные. Подключите сеть и нажмите «Повторить».'
                     );
-                    void runTelegramAuthBootstrap();
                     return;
                 }
                 setAppDataStatus(
@@ -20717,7 +20587,7 @@
             if (window.Telegram?.WebApp && typeof window.initTelegramWebApp === 'function') {
                 window.initTelegramWebApp();
             } else {
-                window.syncOpenProfileButtonVisibility?.({ telegramUser: false });
+                window.syncOpenProfileButtonVisibility?.({ loggedIn: window.app?.isLoggedIn?.() || false });
             }
         }
 
@@ -20745,6 +20615,7 @@
             bindPreventHorizontalPageShift();
             bindBlurControlFocusAfterTap();
             bootTelegramShell();
+            purgeLegacySocialAuthSession();
             window.app = new ClimbingApp();
             bootTelegramShell();
             scheduleTelegramShellRetry();
@@ -20753,7 +20624,7 @@
                 void hydrateAreaCoverImages();
             }
             if (window.CLIMBING_STANDALONE) {
-                window.syncOpenProfileButtonVisibility?.({ telegramUser: false });
+                window.syncOpenProfileButtonVisibility?.({ loggedIn: window.app.isLoggedIn() });
             } else if (typeof window.syncTelegramMiniAppUi === 'function') {
                 window.syncTelegramMiniAppUi();
             }
@@ -20770,19 +20641,6 @@
                 void ensureLeafletLoaded().catch(() => {});
             }
         }
-
-        window.__guidebookHandleVkIdAccessToken = (token) => {
-            void window.app?.completeStandaloneVkIdLogin?.(token).catch((err) => {
-                window.app?.showToast?.(err?.message || 'Ошибка входа VK ID', true);
-            });
-        };
-        window.__guidebookHandleVkIdAccessTokenError = (message) => {
-            const statusEl = document.getElementById('profileTelegramDeeplinkStatus');
-            if (statusEl) {
-                statusEl.classList.remove('hidden');
-                statusEl.textContent = String(message || 'Вход VK ID отменён');
-            }
-        };
 
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => { void bootClimbingApp(); });

@@ -27,8 +27,13 @@ jobs:
           PUBLIC_URL: ${{ vars.PUBLIC_URL }}
           ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
           ADMIN_DISPLAY_NAME: ${{ vars.ADMIN_DISPLAY_NAME }}
-          TELEGRAM_AUTH_MAX_AGE_SEC: ${{ vars.TELEGRAM_AUTH_MAX_AGE_SEC }}
           DISABLE_CATALOG_SEED: ${{ vars.DISABLE_CATALOG_SEED }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_SECURITY: ${{ vars.SMTP_SECURITY }}
+          SMTP_FROM: ${{ vars.SMTP_FROM }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
@@ -48,7 +53,6 @@ jobs:
           CADDY_HOST="${CADDY_HOST%%/*}"
           APP_ENV="${APP_ENV:-production}"
           ADMIN_DISPLAY_NAME="${ADMIN_DISPLAY_NAME:-Administrator}"
-          TELEGRAM_AUTH_MAX_AGE_SEC="${TELEGRAM_AUTH_MAX_AGE_SEC:-86400}"
           DISABLE_CATALOG_SEED="${DISABLE_CATALOG_SEED:-1}"
 
           for required in TIMEWEB_SSH_KEY DATABASE_URL JWT_SECRET ADMIN_EMAIL ADMIN_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_WEBHOOK_SECRET; do
@@ -80,12 +84,17 @@ jobs:
               "ADMIN_PASSWORD": os.environ["ADMIN_PASSWORD"],
               "ADMIN_DISPLAY_NAME": os.environ["ADMIN_DISPLAY_NAME"],
               "TELEGRAM_BOT_TOKEN": os.environ["TELEGRAM_BOT_TOKEN"],
-              "TELEGRAM_AUTH_MAX_AGE_SEC": os.environ["TELEGRAM_AUTH_MAX_AGE_SEC"],
               "TELEGRAM_WEBHOOK_SECRET": os.environ["TELEGRAM_WEBHOOK_SECRET"],
               "PUBLIC_URL": os.environ["PUBLIC_URL"],
               "DISABLE_CATALOG_SEED": os.environ["DISABLE_CATALOG_SEED"],
               "MEDIA_UPLOAD_DIR": "/var/lib/guide-rus/uploads",
               "CARTO_BASEMAPS_API_KEY": os.environ.get("CARTO_BASEMAPS_API_KEY", ""),
+              "SMTP_HOST": os.environ.get("SMTP_HOST", ""),
+              "SMTP_PORT": os.environ.get("SMTP_PORT", "") or "465",
+              "SMTP_SECURITY": os.environ.get("SMTP_SECURITY", "") or "ssl",
+              "SMTP_FROM": os.environ.get("SMTP_FROM", ""),
+              "SMTP_USER": os.environ.get("SMTP_USER", ""),
+              "SMTP_PASSWORD": os.environ.get("SMTP_PASSWORD", ""),
           }
           with open(os.environ["BACKEND_ENV"], "w", encoding="utf-8") as handle:
               for key, value in pairs.items():

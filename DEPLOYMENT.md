@@ -69,11 +69,18 @@ ADMIN_EMAIL=<admin-email>
 ADMIN_PASSWORD=<admin-password>
 ADMIN_DISPLAY_NAME=Administrator
 TELEGRAM_BOT_TOKEN=<bot-token>
-TELEGRAM_AUTH_MAX_AGE_SEC=86400
 TELEGRAM_WEBHOOK_SECRET=<long-random-secret>
 PUBLIC_URL=https://92.246.76.142.sslip.io
 DISABLE_CATALOG_SEED=1
+SMTP_HOST=smtp.yandex.ru
+SMTP_PORT=465
+SMTP_SECURITY=ssl
+SMTP_FROM=<box>@yandex.ru
+SMTP_USER=<box>@yandex.ru
+SMTP_PASSWORD=<yandex-app-password>
 ```
+
+`SMTP_*` нужны для писем с кодом восстановления пароля (вход — только email + пароль). Без `SMTP_HOST` сайт работает, но `POST /api/auth/password-reset/request` отвечает 503. Для Яндекса используйте пароль приложения (id.yandex.ru → Безопасность → Пароли приложений), `SMTP_FROM` должен совпадать с ящиком.
 
 `DISABLE_CATALOG_SEED=1` важен: после миграции каталог должен жить в БД, а не восстанавливаться из seed-файла при рестарте. `TELEGRAM_WEBHOOK_SECRET` используется Telegram webhook-ом для проверки заголовка `X-Telegram-Bot-Api-Secret-Token`.
 
@@ -227,8 +234,11 @@ GitHub repository variables:
 | `PUBLIC_URL` | `https://92.246.76.142.sslip.io` |
 | `ADMIN_EMAIL` | email админа |
 | `ADMIN_DISPLAY_NAME` | `Administrator` |
-| `TELEGRAM_AUTH_MAX_AGE_SEC` | `86400` |
 | `DISABLE_CATALOG_SEED` | `1` |
+| `SMTP_HOST` | SMTP-сервер, например `smtp.yandex.ru` (пусто — восстановление пароля выключено) |
+| `SMTP_PORT` | `465` (по умолчанию) |
+| `SMTP_SECURITY` | `ssl` (по умолчанию), `starttls` или `none` |
+| `SMTP_FROM` | адрес отправителя (пусто — берётся `SMTP_USER`) |
 
 GitHub repository secrets:
 
@@ -240,6 +250,8 @@ GitHub repository secrets:
 | `ADMIN_PASSWORD` | пароль админа |
 | `TELEGRAM_BOT_TOKEN` | токен production Telegram bot |
 | `TELEGRAM_WEBHOOK_SECRET` | случайный secret для Telegram webhook |
+| `SMTP_USER` | логин SMTP (для Яндекса — полный адрес ящика) |
+| `SMTP_PASSWORD` | пароль SMTP (для Яндекса — пароль приложения) |
 
 После настройки:
 

@@ -49,8 +49,13 @@ ADMIN_EMAIL=<admin-email>
 ADMIN_PASSWORD=<admin-password>
 ADMIN_DISPLAY_NAME=Administrator
 TELEGRAM_BOT_TOKEN=<bot-token>
-TELEGRAM_AUTH_MAX_AGE_SEC=86400
 DISABLE_CATALOG_SEED=1
+SMTP_HOST=smtp.yandex.ru
+SMTP_PORT=465
+SMTP_SECURITY=ssl
+SMTP_USER=<box>@yandex.ru
+SMTP_PASSWORD=<app-password>
+SMTP_FROM=<box>@yandex.ru
 ```
 
 Local development can keep `DATABASE_URL=sqlite:///./climbing-guidebook/backend/climbing.db`. In `APP_ENV=production`, SQLite is rejected to avoid accidental data loss. Production PostgreSQL runs on the VPS at `127.0.0.1`; coworkers do not need it locally.
@@ -80,19 +85,17 @@ Main public reads:
 
 Auth and admin writes:
 
-- `POST /api/auth/login`
-- `POST /api/auth/telegram` — Mini App (initData)
-- `GET /api/auth/telegram-config` — @username бота для Login Widget (APK)
-- `POST /api/auth/telegram-widget` — вход через Telegram Login Widget
-- `POST /api/auth/telegram-deeplink` — ссылка для входа в APK через бота
-- `GET /api/auth/telegram-deeplink?start=login_…` — опрос готовности JWT после /start в Telegram
+- `POST /api/auth/register` — `{email, password, display_name}` → 201 `{access_token, token_type, user}`
+- `POST /api/auth/login` — JSON `{email, password}` (алиас `admin` → `ADMIN_EMAIL`); 10 неудач за 10 минут с одного IP на почту → 429
+- `POST /api/auth/password-reset/request` — `{email}` → `{ok: true}`, 6-значный код на почту (нужен SMTP, иначе 503)
+- `POST /api/auth/password-reset/confirm` — `{email, code, new_password}` → токен как при входе
 - `GET /api/auth/me`
 - `POST/PATCH/DELETE /api/areas`
 - `POST/PATCH/DELETE /api/routes`
 - `POST/PATCH/DELETE /api/boulders`
 - `POST/PATCH/DELETE /api/photos`
 
-Catalog mutations require an authenticated admin user. Telegram auth validates `Telegram.WebApp.initData` with `TELEGRAM_BOT_TOKEN`.
+Catalog mutations require an authenticated admin user. Auth is email + password only; password reset codes are sent via SMTP (`SMTP_*` env vars, see root `.env.example`). The Telegram bot (`POST /api/telegram/webhook`) only answers `/start` with the «Открыть гайд» button.
 
 ## Deployment
 

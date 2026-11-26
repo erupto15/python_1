@@ -1,16 +1,6 @@
 plugins {
     id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
-    id 'vkid.manifest.placeholders'
 }
-
-def vkProps = new Properties()
-def vkLocal = rootProject.file('local.properties')
-if (vkLocal.exists()) {
-    vkLocal.withInputStream { vkProps.load(it) }
-}
-def vkClientId = (vkProps.getProperty('VKIDClientID') ?: '0').trim()
-def vkIdEnabled = vkClientId != '' && vkClientId != '0'
 
 android {
     namespace 'io.sixa9a.guide'
@@ -26,7 +16,6 @@ android {
             abiFilters 'armeabi-v7a', 'arm64-v8a'
         }
         buildConfigField 'String', 'GUIDE_URL', '"https://92.246.76.142.sslip.io/"'
-        buildConfigField 'boolean', 'VKID_ENABLED', vkIdEnabled ? 'true' : 'false'
         // Для магазинов (RuStore/Google Play) собирать с -PselfUpdate=false: обновляет магазин.
         buildConfigField 'boolean', 'SELF_UPDATE_ENABLED', (project.findProperty('selfUpdate') ?: 'true').toString() == 'false' ? 'false' : 'true'
     }
@@ -43,10 +32,6 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = '17'
-    }
-
     buildFeatures {
         buildConfig true
     }
@@ -55,7 +40,4 @@ android {
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.4'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
-    implementation 'com.vk.id:vkid:2.7.3'
 }

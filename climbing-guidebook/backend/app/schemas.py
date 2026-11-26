@@ -3,54 +3,34 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-class VkIdAuthRequest(BaseModel):
-    access_token: str = Field(min_length=16, max_length=4096)
+class RegisterRequest(BaseModel):
+    """Строгая валидация полей — в роутере, чтобы detail ошибок был строкой на русском."""
+
+    email: str = Field(max_length=320)
+    password: str = Field(max_length=1024)
+    display_name: str = Field(max_length=1024)
 
 
-class TelegramAuthRequest(BaseModel):
-    init_data: str = Field(min_length=1)
+class LoginRequest(BaseModel):
+    email: str = Field(max_length=320)
+    password: str = Field(max_length=1024)
 
 
-class TelegramLoginWidgetAuthRequest(BaseModel):
-    id: int
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    username: Optional[str] = Field(None, max_length=64)
-    photo_url: Optional[str] = Field(None, max_length=512)
-    auth_date: int
-    hash: str = Field(min_length=1)
+class PasswordResetRequest(BaseModel):
+    email: str = Field(max_length=320)
 
 
-class TelegramLoginConfigRead(BaseModel):
-    bot_username: str
+class PasswordResetConfirm(BaseModel):
+    email: str = Field(max_length=320)
+    code: str = Field(max_length=64)
+    new_password: str = Field(max_length=1024)
 
 
-class TelegramDeeplinkStartResponse(BaseModel):
-    start_param: str
-    deep_link: str
-    expires_in: int = 300
-
-
-class TelegramDeeplinkPollResponse(BaseModel):
-    status: Literal["pending", "ready", "expired"]
-    expires_in: Optional[int] = None
-    access_token: Optional[str] = None
-    token_type: str = "bearer"
-    user: Optional["UserRead"] = None
-
-
-class UserCreate(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=1, max_length=128)
-    display_name: str = Field(default="", max_length=120)
-
-    @field_validator("email")
-    @classmethod
-    def normalize_email(cls, v: str) -> str:
-        return str(v).strip().lower()
+class OkResponse(BaseModel):
+    ok: bool = True
 
 
 class UserRead(BaseModel):
@@ -86,16 +66,6 @@ class UserProfileRead(UserPublicRead):
     created_boulders_count: int = 0
     # Обратная совместимость (styles_count)
     attempts_count: int = 0
-
-
-class TelegramUserUpsertRequest(BaseModel):
-    telegram_id: int
-    username: Optional[str] = Field(None, max_length=64)
-
-
-class TelegramUserUpsertResponse(BaseModel):
-    ok: bool = True
-    user: UserRead
 
 
 class Token(BaseModel):

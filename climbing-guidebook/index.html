@@ -29,9 +29,6 @@
             if (q.get('app') === 'android' || q.get('standalone') === '1') {
                 window.CLIMBING_STANDALONE = true;
             }
-            if (q.get('app') === 'android') {
-                window.CLIMBING_NO_AUTH = true;
-            }
             if (window.CLIMBING_STANDALONE) {
                 document.documentElement.classList.add('standalone-app');
             }
@@ -54,10 +51,6 @@
             var ua = navigator.userAgent || '';
             if (!window.CLIMBING_STANDALONE && /; wv\)/i.test(ua) && !/Telegram/i.test(ua)) {
                 window.CLIMBING_STANDALONE = true;
-                window.CLIMBING_NO_AUTH = true;
-            }
-            if (window.CLIMBING_NO_AUTH) {
-                document.documentElement.classList.add('no-auth');
             }
         } catch (_) {}
         window.handleGuidebookSystemBack = function () { return false; };
@@ -445,23 +438,6 @@
                         </div>
                         <div class="global-search-results hidden" id="globalSearchResults" role="listbox" aria-label="Результаты поиска"></div>
                     </div>
-                    <div class="header-toolbar">
-                        <div class="auth-panel" id="authPanel">
-                        <div id="adminPasswordLoginBlock" class="admin-password-login-block" aria-hidden="true">
-                            <div class="auth-field">
-                                <label class="auth-label" for="loginUsername">Логин</label>
-                                <input type="text" class="form-input" id="loginUsername" placeholder="admin" title="Логин: admin или email администратора" autocomplete="username" maxlength="255" inputmode="email">
-                            </div>
-                            <div class="auth-field">
-                                <label class="auth-label" for="loginPassword">Пароль</label>
-                                <input type="password" class="form-input" id="loginPassword" placeholder="Пароль" autocomplete="off" autocapitalize="off" spellcheck="false">
-                            </div>
-                            <button type="button" class="btn btn-primary" id="loginBtn">Войти</button>
-                        </div>
-                        <div id="authStatus" style="display:none;"></div>
-                        <button type="button" class="btn btn-ghost" id="logoutBtn" style="display:none;"><i class="fas fa-sign-out-alt"></i> Выйти</button>
-                        </div>
-                    </div>
                 </div>
             </div>
         </header>
@@ -771,17 +747,19 @@
                     <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="profileBackBtn" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
                     <div class="card-title"><i class="fas fa-user-circle"></i> Профиль</div>
                 </div>
-                <div id="profileGuestBlock" class="empty-state">
-                    <h3>Войдите в аккаунт</h3>
-                    <p id="profileGuestHintMiniApp">Откройте гайдбук как Mini App в Telegram — тогда можно логировать пролазы и ставить оценки.</p>
-                    <p id="profileGuestHintStandalone" class="hidden">В APK: вход через <strong>VK ID</strong> (рекомендуется для RuStore) или Telegram. Каталог можно смотреть офлайн; для синхронизации пролазов нужен доступ к серверу гайда <strong>без VPN</strong>.</p>
-                    <button type="button" class="btn btn-primary profile-vkid-btn hidden" id="profileVkIdBtn">Войти через VK ID</button>
-                    <button type="button" class="btn btn-secondary profile-telegram-deeplink-btn hidden" id="profileTelegramDeeplinkBtn">Войти через Telegram</button>
-                    <p id="profileTelegramDeeplinkStatus" class="profile-login-hint hidden" aria-live="polite"></p>
-                    <div id="telegramLoginWidgetMount" class="profile-telegram-login hidden" aria-live="polite"></div>
-                    <p class="profile-admin-entry app-shell-only">
-                        <button type="button" class="btn btn-ghost btn-small" id="profileAdminLoginBtn">Вход администратора</button>
-                    </p>
+                <div id="profileGuestBlock" class="profile-auth-guest">
+                    <div class="profile-auth-brand" aria-hidden="true">
+                        <span class="site-logo-mark">
+                            <span class="site-logo-tri site-logo-tri--light">6А</span>
+                            <span class="site-logo-tri site-logo-tri--dark"><span class="site-logo-tri-nudge-up">9А</span></span>
+                        </span>
+                    </div>
+                    <h3 class="profile-auth-title">Аккаунт 6А9А</h3>
+                    <p class="profile-auth-lead">Войдите, чтобы отмечать пролазы, ставить оценки и писать комментарии</p>
+                    <div class="profile-auth-actions">
+                        <button type="button" class="btn btn-primary auth-btn-lg" id="profileRegisterBtn">Регистрация</button>
+                        <button type="button" class="btn btn-secondary auth-btn-lg" id="profileLoginBtn">Вход</button>
+                    </div>
                 </div>
                 <div id="profileUserBlock" class="hidden">
                     <div class="profile-header">
@@ -791,9 +769,10 @@
                         </div>
                         <div class="profile-identity">
                             <h2 id="profileDisplayName">—</h2>
-                            <p id="profileUsername"></p>
+                            <p id="profileEmail"></p>
+                            <span id="profileRoleBadge" class="role-badge admin hidden"><i class="fas fa-user-shield" aria-hidden="true"></i> Администратор</span>
                         </div>
-                        <button type="button" class="btn btn-ghost btn-small hidden" id="profileTelegramLogoutBtn">Выйти</button>
+                        <button type="button" class="btn btn-ghost btn-small" id="profileLogoutBtn"><i class="fas fa-sign-out-alt" aria-hidden="true"></i> Выйти</button>
                     </div>
                     <div class="profile-stats-grid" id="profileStatsGrid"></div>
                 </div>
@@ -1535,6 +1514,114 @@
                     <button type="button" class="btn btn-primary" data-maps-provider="yandex" data-maps-mode="dir">Яндекс</button>
                     <button type="button" class="btn btn-secondary" data-maps-provider="gis" data-maps-mode="dir">2ГИС</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dialog-overlay hidden auth-dialog" id="authLoginDialog" style="z-index: 1110;">
+        <div class="dialog-content">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="authLoginDialogCloseBtn" data-close-dialog="authLoginDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
+                <div class="dialog-header-text">
+                    <div class="dialog-title">Вход</div>
+                </div>
+            </div>
+            <div class="dialog-body">
+                <form id="authLoginForm" class="auth-form" novalidate>
+                    <div class="form-group">
+                        <label class="form-label" for="authLoginEmail">Почта</label>
+                        <input type="email" class="form-input" id="authLoginEmail" name="email" autocomplete="username" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="255" placeholder="you@example.com" enterkeyhint="next">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="authLoginPassword">Пароль</label>
+                        <div class="auth-password-field">
+                            <input type="password" class="form-input" id="authLoginPassword" name="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="128" enterkeyhint="go">
+                            <button type="button" class="auth-password-toggle" data-password-toggle="authLoginPassword" aria-label="Показать пароль" aria-pressed="false"><i class="fas fa-eye" aria-hidden="true"></i></button>
+                        </div>
+                    </div>
+                    <p class="auth-form-error hidden" id="authLoginError" role="alert"></p>
+                    <button type="submit" class="btn btn-primary auth-btn-lg auth-submit-btn" id="authLoginSubmitBtn" data-idle-text="Войти" data-busy-text="Вход…">Войти</button>
+                    <button type="button" class="auth-link-btn auth-link-btn--center" id="authLoginForgotBtn">Забыли пароль?</button>
+                    <p class="auth-switch">Нет аккаунта? <button type="button" class="auth-link-btn" id="authLoginToRegisterBtn">Зарегистрироваться</button></p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="dialog-overlay hidden auth-dialog" id="authRegisterDialog" style="z-index: 1110;">
+        <div class="dialog-content">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="authRegisterDialogCloseBtn" data-close-dialog="authRegisterDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
+                <div class="dialog-header-text">
+                    <div class="dialog-title">Регистрация</div>
+                </div>
+            </div>
+            <div class="dialog-body">
+                <form id="authRegisterForm" class="auth-form" novalidate>
+                    <div class="form-group">
+                        <label class="form-label" for="authRegisterName">Имя</label>
+                        <input type="text" class="form-input" id="authRegisterName" name="name" autocomplete="name" autocapitalize="words" maxlength="80" placeholder="Как вас показывать в рейтинге" enterkeyhint="next">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="authRegisterEmail">Почта</label>
+                        <input type="email" class="form-input" id="authRegisterEmail" name="email" autocomplete="email" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="255" placeholder="you@example.com" enterkeyhint="next">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="authRegisterPassword">Пароль</label>
+                        <div class="auth-password-field">
+                            <input type="password" class="form-input" id="authRegisterPassword" name="new-password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="128" enterkeyhint="next">
+                            <button type="button" class="auth-password-toggle" data-password-toggle="authRegisterPassword" aria-label="Показать пароль" aria-pressed="false"><i class="fas fa-eye" aria-hidden="true"></i></button>
+                        </div>
+                        <p class="form-hint">Не менее 6 символов</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="authRegisterPassword2">Повторите пароль</label>
+                        <input type="password" class="form-input" id="authRegisterPassword2" name="new-password-repeat" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="128" enterkeyhint="go">
+                    </div>
+                    <p class="auth-form-error hidden" id="authRegisterError" role="alert"></p>
+                    <button type="submit" class="btn btn-primary auth-btn-lg auth-submit-btn" id="authRegisterSubmitBtn" data-idle-text="Зарегистрироваться" data-busy-text="Регистрация…">Зарегистрироваться</button>
+                    <p class="auth-switch">Уже есть аккаунт? <button type="button" class="auth-link-btn" id="authRegisterToLoginBtn">Войти</button></p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="dialog-overlay hidden auth-dialog" id="authResetDialog" style="z-index: 1111;">
+        <div class="dialog-content">
+            <div class="dialog-header dialog-header--with-back">
+                <button type="button" class="overlay-screen-back btn btn-ghost btn-small" id="authResetDialogCloseBtn" data-close-dialog="authResetDialog" aria-label="Назад"><i class="fas fa-arrow-left" aria-hidden="true"></i> Назад</button>
+                <div class="dialog-header-text">
+                    <div class="dialog-title">Восстановление пароля</div>
+                </div>
+            </div>
+            <div class="dialog-body">
+                <form id="authResetRequestForm" class="auth-form" novalidate>
+                    <p class="auth-form-lead">Укажите почту, на которую зарегистрирован аккаунт. Мы пришлём код для смены пароля.</p>
+                    <div class="form-group">
+                        <label class="form-label" for="authResetEmail">Почта</label>
+                        <input type="email" class="form-input" id="authResetEmail" name="email" autocomplete="username" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="255" placeholder="you@example.com" enterkeyhint="send">
+                    </div>
+                    <p class="auth-form-error hidden" id="authResetRequestError" role="alert"></p>
+                    <button type="submit" class="btn btn-primary auth-btn-lg auth-submit-btn" id="authResetRequestSubmitBtn" data-idle-text="Отправить код" data-busy-text="Отправка…">Отправить код</button>
+                </form>
+                <form id="authResetConfirmForm" class="auth-form hidden" novalidate>
+                    <p class="auth-form-lead" id="authResetSentText"></p>
+                    <div class="form-group">
+                        <label class="form-label" for="authResetCode">Код</label>
+                        <input type="text" class="form-input auth-code-input" id="authResetCode" name="one-time-code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="000000" enterkeyhint="next">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="authResetNewPassword">Новый пароль</label>
+                        <div class="auth-password-field">
+                            <input type="password" class="form-input" id="authResetNewPassword" name="new-password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="128" enterkeyhint="go">
+                            <button type="button" class="auth-password-toggle" data-password-toggle="authResetNewPassword" aria-label="Показать пароль" aria-pressed="false"><i class="fas fa-eye" aria-hidden="true"></i></button>
+                        </div>
+                        <p class="form-hint">Не менее 6 символов</p>
+                    </div>
+                    <p class="auth-form-error hidden" id="authResetConfirmError" role="alert"></p>
+                    <button type="submit" class="btn btn-primary auth-btn-lg auth-submit-btn" id="authResetConfirmSubmitBtn" data-idle-text="Сохранить пароль" data-busy-text="Сохранение…">Сохранить пароль</button>
+                    <button type="button" class="auth-link-btn auth-link-btn--center" id="authResetResendBtn" data-idle-text="Отправить код ещё раз" data-busy-text="Отправка…">Отправить код ещё раз</button>
+                </form>
             </div>
         </div>
     </div>

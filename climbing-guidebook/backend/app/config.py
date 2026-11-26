@@ -144,13 +144,26 @@ class Settings(BaseSettings):
     admin_password: str = ""
     admin_display_name: str = "Administrator"
     telegram_bot_token: str = ""
-    # Опционально: @username бота для Login Widget (иначе берётся из getMe).
-    telegram_bot_username: str = ""
-    telegram_auth_max_age_sec: int = 86400
     telegram_webhook_secret: str = ""
-    # VK ID (RuStore APK): client_id из кабинета VK ID — для проверки access_token на /auth/vk-id
-    vk_id_client_id: str = ""
     public_url: str = ""
+
+    # SMTP для писем с кодом восстановления пароля. Без SMTP_HOST восстановление недоступно.
+    smtp_host: str = ""
+    smtp_port: int = 465
+    smtp_user: str = ""
+    smtp_password: str = ""
+    # Адрес отправителя; если пусто — используется SMTP_USER.
+    smtp_from: str = ""
+    # ssl | starttls | none
+    smtp_security: str = "ssl"
+    smtp_timeout_sec: float = 15.0
+
+    @field_validator("smtp_port", mode="before")
+    @classmethod
+    def default_empty_smtp_port(cls, v: object) -> object:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return 465
+        return v
 
     # Медиа-хранилище (фото/видео к маршрутам и вложения комментариев)
     media_upload_dir: str = ""

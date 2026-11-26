@@ -6,13 +6,21 @@ from jose import JWTError, jwt
 from app.config import settings
 
 
+_BCRYPT_MAX_BYTES = 72
+
+
+def _bcrypt_input(plain: str) -> bytes:
+    # bcrypt>=5 падает на паролях длиннее 72 байт; старые версии молча обрезали — сохраняем то же поведение.
+    return plain.encode("utf-8")[:_BCRYPT_MAX_BYTES]
+
+
 def hash_password(plain: str) -> str:
-    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("ascii")
+    return bcrypt.hashpw(_bcrypt_input(plain), bcrypt.gensalt()).decode("ascii")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     try:
-        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("ascii"))
+        return bcrypt.checkpw(_bcrypt_input(plain), hashed.encode("ascii"))
     except ValueError:
         return False
 

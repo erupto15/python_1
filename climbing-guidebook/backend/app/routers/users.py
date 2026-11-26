@@ -11,9 +11,9 @@ from app.services.climb_community_cleanup import purge_community_for_soft_delete
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.post("", response_model=schemas.UserRead, status_code=201)
-def register_user() -> User:
-    raise HTTPException(status_code=403, detail="User self-registration is disabled")
+@router.post("", include_in_schema=False)
+def register_user() -> None:
+    raise HTTPException(status_code=403, detail="Регистрация доступна через POST /api/auth/register")
 
 
 def _profile_counts(db: Session, user_id: str) -> dict[str, int]:
@@ -91,11 +91,3 @@ def get_user(user_id: str, db: Session = Depends(get_db)) -> User:
     if not user or not user.is_active:
         raise HTTPException(status_code=404, detail="User not found")
     return user
-
-
-@router.post("/upsert-telegram", response_model=schemas.TelegramUserUpsertResponse)
-def upsert_telegram_user(_: schemas.TelegramUserUpsertRequest) -> None:
-    raise HTTPException(
-        status_code=410,
-        detail="Legacy Telegram upsert is disabled; use /api/auth/telegram with signed initData",
-    )
