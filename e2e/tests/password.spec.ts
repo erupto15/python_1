@@ -1,4 +1,4 @@
-import { test, expect, openApp, shot, waitForAppReady } from './helpers/fixtures';
+import { test, expect, openApp, shot, waitForAppBooted, waitForAppReady } from './helpers/fixtures';
 import { loginStatus, registerViaApi, uniqueEmail } from './helpers/api';
 import { insertTempPassword } from './helpers/db';
 import { expectGuest, expectLoggedIn, fillLogin, loginViaUi, openLoginDialog, openProfile, recordRequests } from './helpers/auth';
@@ -59,10 +59,11 @@ test.describe('forced new password after a temporary one', () => {
     await expect(page.locator('#authNewPasswordDialogCloseBtn')).toBeHidden();
     await shot(page, testInfo, 'forced-new-password');
 
-    // Reload keeps forcing (server says must_change_password).
+    // Reload keeps forcing (server says must_change_password); the dialog covers the shell, so no bottom nav.
     await page.reload();
-    await waitForAppReady(page);
+    await waitForAppBooted(page);
     await expect(dialog).toBeVisible();
+    await expect(page.locator('#appBottomNav')).toBeHidden();
     await expect(page.locator('#authNewPasswordCurrentGroup')).toBeHidden();
     await expect(page.locator('#authNewPasswordDialogCloseBtn')).toBeHidden();
 

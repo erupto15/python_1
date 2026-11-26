@@ -6648,15 +6648,22 @@
                     focusId = emailEl?.value ? 'authLoginPassword' : 'authLoginEmail';
                 }
                 this.showDialog(targetId);
-                if (focusId) {
-                    setTimeout(() => {
-                        try {
-                            document.getElementById(focusId)?.focus({ preventScroll: true });
-                        } catch (_) {
-                            /* ignore */
-                        }
-                    }, 60);
-                }
+                if (focusId) this.focusAuthFieldSoon(targetId, focusId);
+            }
+
+            /** Автофокус после открытия формы; не перехватывает поле, в которое пользователь уже начал вводить. */
+            focusAuthFieldSoon(dialogId, focusId) {
+                setTimeout(() => {
+                    const dialog = document.getElementById(dialogId);
+                    if (!dialog || dialog.classList.contains('hidden')) return;
+                    const active = document.activeElement;
+                    if (active && active !== document.body && dialog.contains(active)) return;
+                    try {
+                        document.getElementById(focusId)?.focus({ preventScroll: true });
+                    } catch (_) {
+                        /* ignore */
+                    }
+                }, 60);
             }
 
             setAuthFormError(errorId, message) {
@@ -6855,6 +6862,8 @@
             openNewPasswordDialog({ forced = false } = {}) {
                 const user = getAuthData().currentUser;
                 if (!user) return;
+                const dialogEl = document.getElementById('authNewPasswordDialog');
+                if (dialogEl && !dialogEl.classList.contains('hidden') && this._authNewPasswordForced === !!forced) return;
                 this._authNewPasswordForced = !!forced;
                 document.getElementById('authNewPasswordTitle').textContent = forced ? 'Новый пароль' : 'Смена пароля';
                 document.getElementById('authNewPasswordLead').textContent = forced
@@ -6875,14 +6884,7 @@
                 document.querySelectorAll('#authNewPasswordDialog [data-password-toggle]')
                     .forEach((btn) => this.setPasswordVisible(btn, false));
                 this.showDialog('authNewPasswordDialog');
-                const focusId = forced ? 'authNewPassword' : 'authNewPasswordCurrent';
-                setTimeout(() => {
-                    try {
-                        document.getElementById(focusId)?.focus({ preventScroll: true });
-                    } catch (_) {
-                        /* ignore */
-                    }
-                }, 60);
+                this.focusAuthFieldSoon('authNewPasswordDialog', forced ? 'authNewPassword' : 'authNewPasswordCurrent');
             }
 
             async submitNewPassword() {

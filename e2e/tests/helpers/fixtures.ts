@@ -118,9 +118,14 @@ export async function openApp(page: Page, pathname = '/'): Promise<void> {
   await waitForAppReady(page);
 }
 
-export async function waitForAppReady(page: Page): Promise<void> {
+/** App script is up and the splash is gone; a full-screen dialog may already cover the shell. */
+export async function waitForAppBooted(page: Page): Promise<void> {
   await page.waitForFunction(() => typeof (window as any).app === 'object' && !!(window as any).app);
   await expect(page.locator('#tgBootOverlay')).toBeHidden({ timeout: 15_000 });
+}
+
+export async function waitForAppReady(page: Page): Promise<void> {
+  await waitForAppBooted(page);
   await expect(page.locator('#appBottomNav')).toBeVisible();
 }
 
