@@ -238,11 +238,11 @@ jobs:
               db.close()
           PY
 
+          LOGIN_BODY="$(ADMIN_PASSWORD="${ADMIN_PASSWORD}" python3 -c 'import json, os; print(json.dumps({"email": "admin", "password": os.environ["ADMIN_PASSWORD"]}))')"
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
             if curl -fsS --max-time 15 -X POST "http://127.0.0.1:8000/api/auth/login" \
-              -H "Content-Type: application/x-www-form-urlencoded" \
-              --data-urlencode "username=admin" \
-              --data-urlencode "password=${ADMIN_PASSWORD}" >/dev/null 2>/dev/null; then
+              -H "Content-Type: application/json" \
+              --data "${LOGIN_BODY}" >/dev/null 2>/dev/null; then
               echo "admin login verified on VPS (attempt ${attempt})"
               break
             fi
