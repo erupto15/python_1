@@ -87,8 +87,7 @@ Auth and admin writes:
 
 - `POST /api/auth/register` — `{email, password, display_name}` → 201 `{access_token, token_type, user}`
 - `POST /api/auth/login` — JSON `{email, password}` (алиас `admin` → `ADMIN_EMAIL`); 10 неудач за 10 минут с одного IP на почту → 429
-- `POST /api/auth/password-reset/request` — `{email}` → `{ok: true}`, 6-значный код на почту (нужен SMTP, иначе 503)
-- `POST /api/auth/password-reset/confirm` — `{email, code, new_password}` → токен как при входе
+- `POST /api/auth/password-reset/request` — `{email}` → `{ok: true}`; на почту уходит новый случайный пароль (свой на каждый запрос, 24 ч, нужен SMTP, иначе 503). Старый пароль продолжает работать; первый вход с паролем из письма делает его постоянным, новый запрос отменяет предыдущий пароль из письма.
 - `GET /api/auth/me`
 - `POST/PATCH/DELETE /api/areas`
 - `POST/PATCH/DELETE /api/routes`

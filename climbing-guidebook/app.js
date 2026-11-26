@@ -6585,7 +6585,7 @@
                 ['authLoginDialog', 'authRegisterDialog', 'authResetDialog'].forEach((id) => {
                     if (id !== targetId) this.hideDialog(id);
                 });
-                ['authLoginError', 'authRegisterError', 'authResetRequestError', 'authResetConfirmError']
+                ['authLoginError', 'authRegisterError', 'authResetRequestError', 'authResetSentError']
                     .forEach((id) => this.setAuthFormError(id, ''));
                 document.querySelectorAll('[data-password-toggle]').forEach((btn) => this.setPasswordVisible(btn, false));
 
@@ -6754,13 +6754,14 @@
             }
 
             showAuthResetStep(step) {
-                const confirmStep = step === 'confirm';
-                document.getElementById('authResetRequestForm')?.classList.toggle('hidden', confirmStep);
-                document.getElementById('authResetConfirmForm')?.classList.toggle('hidden', !confirmStep);
-                if (confirmStep) {
+                const sentStep = step === 'sent';
+                document.getElementById('authResetRequestForm')?.classList.toggle('hidden', sentStep);
+                document.getElementById('authResetSentBlock')?.classList.toggle('hidden', !sentStep);
+                if (sentStep) {
                     const sent = document.getElementById('authResetSentText');
                     if (sent) {
-                        sent.textContent = `Мы отправили 6-значный код на ${this._authResetEmail}, если она зарегистрирована`;
+                        sent.textContent = `Если ${this._authResetEmail} зарегистрирована, на неё отправлен новый пароль. ` +
+                            'Войдите с ним — прежний пароль тоже продолжает работать.';
                     }
                 }
             }
@@ -6768,7 +6769,7 @@
             async submitAuthResetRequest({ resend = false } = {}) {
                 const emailEl = document.getElementById('authResetEmail');
                 const email = resend ? this._authResetEmail : this.normalizeAuthEmail(emailEl?.value);
-                const errorId = resend ? 'authResetConfirmError' : 'authResetRequestError';
+                const errorId = resend ? 'authResetSentError' : 'authResetRequestError';
                 const btnId = resend ? 'authResetResendBtn' : 'authResetRequestSubmitBtn';
                 const emailErr = this.validateAuthEmail(email);
                 if (emailErr) {
@@ -6780,46 +6781,20 @@
                     await authApiRequest('/api/auth/password-reset/request', { body: { email } });
                     this._authResetEmail = email;
                     if (resend) {
-                        this.showToast('Код отправлен ещё раз');
+                        this.showToast('Новый пароль отправлен ещё раз');
                         return;
                     }
-                    const codeEl = document.getElementById('authResetCode');
-                    if (codeEl) codeEl.value = '';
-                    this.setAuthFormError('authResetConfirmError', '');
-                    this.showAuthResetStep('confirm');
-                    setTimeout(() => codeEl?.focus(), 60);
+                    this.setAuthFormError('authResetSentError', '');
+                    this.showAuthResetStep('sent');
                 });
             }
 
-            async submitAuthResetConfirm() {
-                const codeEl = document.getElementById('authResetCode');
-                const passwordEl = document.getElementById('authResetNewPassword');
-                const code = String(codeEl?.value || '').replace(/\D/g, '');
-                const newPassword = passwordEl?.value || '';
-                let error = '';
-                let focusEl = null;
-                if (code.length !== 6) {
-                    error = 'Введите 6-значный код из письма';
-                    focusEl = codeEl;
-                } else if ((error = this.validateAuthNewPassword(newPassword))) {
-                    focusEl = passwordEl;
-                }
-                if (error) {
-                    this.setAuthFormError('authResetConfirmError', error);
-                    focusEl?.focus();
-                    return;
-                }
-                await this.runAuthSubmit({ btnId: 'authResetConfirmSubmitBtn', errorId: 'authResetConfirmError' }, async () => {
-                    const data = await authApiRequest('/api/auth/password-reset/confirm', {
-                        body: { email: this._authResetEmail, code, new_password: newPassword }
-                    });
-                    const user = await this.applyAuthTokenResponse(data);
-                    if (passwordEl) passwordEl.value = '';
-                    if (codeEl) codeEl.value = '';
-                    this.showAuthResetStep('request');
-                    this.hideDialog('authResetDialog');
-                    this.showToast(`Пароль сохранён. Вы вошли как ${this.authUserGreetingName(user)}`);
-                });
+            openLoginAfterReset() {
+                const loginEmailEl = document.getElementById('authLoginEmail');
+                if (loginEmailEl && this._authResetEmail) loginEmailEl.value = this._authResetEmail;
+                const passwordEl = document.getElementById('authLoginPassword');
+                if (passwordEl) passwordEl.value = '';
+                this.openAuthDialog('login');
             }
 
             setupAuthEventListeners() {
@@ -6832,23 +6807,16 @@
                 onSubmit('authLoginForm', () => this.submitAuthLogin());
                 onSubmit('authRegisterForm', () => this.submitAuthRegister());
                 onSubmit('authResetRequestForm', () => this.submitAuthResetRequest());
-                onSubmit('authResetConfirmForm', () => this.submitAuthResetConfirm());
-
                 document.getElementById('authResetResendBtn')?.addEventListener('click', () => {
                     void this.submitAuthResetRequest({ resend: true });
                 });
+                document.getElementById('authResetToLoginBtn')?.addEventListener('click', () => this.openLoginAfterReset());
                 document.getElementById('authLoginForgotBtn')?.addEventListener('click', () => this.openAuthDialog('reset'));
                 document.getElementById('authLoginToRegisterBtn')?.addEventListener('click', () => this.openAuthDialog('register'));
                 document.getElementById('authRegisterToLoginBtn')?.addEventListener('click', () => this.openAuthDialog('login'));
                 document.getElementById('profileLoginBtn')?.addEventListener('click', () => this.openAuthDialog('login'));
                 document.getElementById('profileRegisterBtn')?.addEventListener('click', () => this.openAuthDialog('register'));
                 document.getElementById('profileLogoutBtn')?.addEventListener('click', () => this.logout());
-
-                document.getElementById('authResetCode')?.addEventListener('input', (e) => {
-                    const el = e.target;
-                    const digits = String(el.value || '').replace(/\D/g, '').slice(0, 6);
-                    if (el.value !== digits) el.value = digits;
-                });
                 document.querySelectorAll('[data-password-toggle]').forEach((btn) => {
                     btn.addEventListener('click', () => {
                         const input = document.getElementById(btn.dataset.passwordToggle || '');

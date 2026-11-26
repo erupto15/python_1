@@ -23,12 +23,6 @@ class PasswordResetRequest(BaseModel):
     email: str = Field(max_length=320)
 
 
-class PasswordResetConfirm(BaseModel):
-    email: str = Field(max_length=320)
-    code: str = Field(max_length=64)
-    new_password: str = Field(max_length=1024)
-
-
 class OkResponse(BaseModel):
     ok: bool = True
 

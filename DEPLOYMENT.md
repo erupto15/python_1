@@ -80,7 +80,7 @@ SMTP_USER=<box>@yandex.ru
 SMTP_PASSWORD=<yandex-app-password>
 ```
 
-`SMTP_*` нужны для писем с кодом восстановления пароля (вход — только email + пароль). Без `SMTP_HOST` сайт работает, но `POST /api/auth/password-reset/request` отвечает 503. Для Яндекса используйте пароль приложения (id.yandex.ru → Безопасность → Пароли приложений), `SMTP_FROM` должен совпадать с ящиком.
+`SMTP_*` нужны для писем с новым паролем при восстановлении (вход — только email + пароль). Без `SMTP_HOST` сайт работает, но `POST /api/auth/password-reset/request` отвечает 503. Для Яндекса используйте пароль приложения (id.yandex.ru → Безопасность → Пароли приложений), `SMTP_FROM` должен совпадать с ящиком.
 
 `DISABLE_CATALOG_SEED=1` важен: после миграции каталог должен жить в БД, а не восстанавливаться из seed-файла при рестарте. `TELEGRAM_WEBHOOK_SECRET` используется Telegram webhook-ом для проверки заголовка `X-Telegram-Bot-Api-Secret-Token`.
 

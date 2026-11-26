@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import hmac
 import logging
 import secrets
 import threading
@@ -35,22 +33,23 @@ _RESERVED_EMAIL_DOMAINS = {"telegram.local", "vk.local"}
 LOGIN_MAX_FAILURES = 10
 LOGIN_FAILURE_WINDOW_SEC = 10 * 60
 
-RESET_CODE_TTL = timedelta(minutes=30)
-RESET_CODE_MAX_ATTEMPTS = 5
 RESET_REQUEST_COOLDOWN_SEC = 60.0
+TEMP_PASSWORD_TTL = timedelta(hours=24)
+TEMP_PASSWORD_LENGTH = 10
+# Без похожих символов (0/O, 1/l/I), чтобы пароль из письма легко перепечатать.
+TEMP_PASSWORD_ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 DETAIL_EMAIL_TAKEN = "Пользователь с такой почтой уже зарегистрирован"
 DETAIL_BAD_CREDENTIALS = "Неверная почта или пароль"
 DETAIL_INACTIVE = "Аккаунт отключён"
 DETAIL_TOO_MANY_ATTEMPTS = "Слишком много попыток, попробуйте позже"
 DETAIL_RESET_UNAVAILABLE = "Восстановление пароля временно недоступно"
-DETAIL_RESET_COOLDOWN = "Код уже отправлен, повторите через минуту"
-DETAIL_BAD_CODE = "Неверный или просроченный код"
+DETAIL_RESET_COOLDOWN = "Новый пароль уже отправлен, повторите через минуту"
 DETAIL_BAD_EMAIL = "Некорректная почта"
 DETAIL_BAD_PASSWORD = f"Пароль должен быть от {PASSWORD_MIN_LEN} до {PASSWORD_MAX_LEN} символов"
 DETAIL_BAD_DISPLAY_NAME = f"Укажите имя (от 1 до {DISPLAY_NAME_MAX_LEN} символов)"
 
-RESET_EMAIL_SUBJECT = "Код для восстановления пароля 6А9А"
+RESET_EMAIL_SUBJECT = "Новый пароль для гайда 6А9А"
 
 _login_failures: dict[tuple[str, str], deque[float]] = {}
 _reset_requests: dict[str, float] = {}
@@ -150,26 +149,47 @@ def _release_reset_slot(email: str) -> None:
         _reset_requests.pop(email, None)
 
 
-def _hash_reset_code(user_id: str, code: str) -> str:
-    return hmac.new(
-        settings.jwt_secret.encode("utf-8"),
-        f"{user_id}:{code}".encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-
-
 def _as_utc(value: datetime) -> datetime:
     # SQLite отдаёт naive datetime; в БД пишем UTC.
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
-def _reset_email_body(code: str) -> str:
+def _generate_temp_password() -> str:
+    return "".join(secrets.choice(TEMP_PASSWORD_ALPHABET) for _ in range(TEMP_PASSWORD_LENGTH))
+
+
+def _reset_email_body(email: str, temp_password: str) -> str:
     return (
         "Здравствуйте!\n\n"
-        f"Ваш код для восстановления пароля в гайде 6А9А: {code}\n\n"
-        "Код действует 30 минут. Если вы не запрашивали восстановление пароля, "
-        "просто проигнорируйте это письмо.\n"
+        "Вы запросили восстановление пароля в гайде 6А9А.\n\n"
+        f"Логин: {email}\n"
+        f"Новый пароль: {temp_password}\n\n"
+        "Пароль из письма действует 24 часа. После первого входа с ним он станет вашим постоянным "
+        "паролем. При каждом новом запросе приходит другой пароль, а предыдущий из письма "
+        "перестаёт работать.\n\n"
+        "Если вы не запрашивали восстановление, просто проигнорируйте письмо — ваш прежний пароль "
+        "продолжает работать.\n"
     )
+
+
+def _consume_temp_password(db: Session, user: User, password: str) -> bool:
+    """Пароль из письма: при совпадении становится постоянным паролем пользователя."""
+    now = datetime.now(timezone.utc)
+    record = (
+        db.query(PasswordResetCode)
+        .filter(PasswordResetCode.user_id == user.id, PasswordResetCode.used_at.is_(None))
+        .order_by(PasswordResetCode.id.desc())
+        .first()
+    )
+    if not record or _as_utc(record.expires_at) <= now:
+        return False
+    if not security.verify_password(password, record.code_hash):
+        return False
+    record.used_at = now
+    user.password_hash = record.code_hash
+    db.commit()
+    db.refresh(user)
+    return True
 
 
 @router.post("/register", response_model=schemas.Token, status_code=status.HTTP_201_CREATED)
@@ -211,7 +231,11 @@ def login(payload: schemas.LoginRequest, request: Request, db: Session = Depends
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=DETAIL_TOO_MANY_ATTEMPTS)
 
     user = _find_user_by_email(db, email) if email else None
-    if not user or not payload.password or not security.verify_password(payload.password, user.password_hash):
+    password_ok = bool(user and payload.password) and (
+        security.verify_password(payload.password, user.password_hash)
+        or _consume_temp_password(db, user, payload.password)
+    )
+    if not password_ok:
         _register_login_failure(throttle_key)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -242,56 +266,24 @@ def password_reset_request(payload: schemas.PasswordResetRequest, db: Session = 
         PasswordResetCode.used_at.is_(None),
     ).update({PasswordResetCode.used_at: now}, synchronize_session=False)
 
-    code = f"{secrets.randbelow(1_000_000):06d}"
+    temp_password = _generate_temp_password()
     db.add(
         PasswordResetCode(
             user_id=user.id,
-            code_hash=_hash_reset_code(user.id, code),
-            expires_at=now + RESET_CODE_TTL,
+            code_hash=security.hash_password(temp_password),
+            expires_at=now + TEMP_PASSWORD_TTL,
             attempts=0,
         )
     )
     db.commit()
 
     try:
-        mailer.send_email_sync(user.email, RESET_EMAIL_SUBJECT, _reset_email_body(code))
+        mailer.send_email_sync(user.email, RESET_EMAIL_SUBJECT, _reset_email_body(user.email, temp_password))
     except Exception:
         logger.exception("Failed to send password reset email to user %s", user.id)
         _release_reset_slot(email)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=DETAIL_RESET_UNAVAILABLE)
     return {"ok": True}
-
-
-@router.post("/password-reset/confirm", response_model=schemas.Token)
-def password_reset_confirm(payload: schemas.PasswordResetConfirm, db: Session = Depends(get_db)) -> dict:
-    email = _normalize_email(payload.email)
-    new_password = _validated_password(payload.new_password)
-    code = (payload.code or "").strip()
-
-    user = _find_user_by_email(db, email) if email else None
-    if not user or not user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DETAIL_BAD_CODE)
-
-    now = datetime.now(timezone.utc)
-    record = (
-        db.query(PasswordResetCode)
-        .filter(PasswordResetCode.user_id == user.id, PasswordResetCode.used_at.is_(None))
-        .order_by(PasswordResetCode.id.desc())
-        .first()
-    )
-    if not record or _as_utc(record.expires_at) <= now or record.attempts >= RESET_CODE_MAX_ATTEMPTS:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DETAIL_BAD_CODE)
-
-    if not code.isdigit() or not hmac.compare_digest(record.code_hash, _hash_reset_code(user.id, code)):
-        record.attempts = (record.attempts or 0) + 1
-        db.commit()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DETAIL_BAD_CODE)
-
-    record.used_at = now
-    user.password_hash = security.hash_password(new_password)
-    db.commit()
-    db.refresh(user)
-    return _token_response(user)
 
 
 @router.get("/me", response_model=schemas.UserRead)

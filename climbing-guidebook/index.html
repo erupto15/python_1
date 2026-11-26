@@ -1596,32 +1596,20 @@
             </div>
             <div class="dialog-body">
                 <form id="authResetRequestForm" class="auth-form" novalidate>
-                    <p class="auth-form-lead">Укажите почту, на которую зарегистрирован аккаунт. Мы пришлём код для смены пароля.</p>
+                    <p class="auth-form-lead">Укажите почту, на которую зарегистрирован аккаунт. Мы пришлём на неё новый пароль.</p>
                     <div class="form-group">
                         <label class="form-label" for="authResetEmail">Почта</label>
                         <input type="email" class="form-input" id="authResetEmail" name="email" autocomplete="username" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="255" placeholder="you@example.com" enterkeyhint="send">
                     </div>
                     <p class="auth-form-error hidden" id="authResetRequestError" role="alert"></p>
-                    <button type="submit" class="btn btn-primary auth-btn-lg auth-submit-btn" id="authResetRequestSubmitBtn" data-idle-text="Отправить код" data-busy-text="Отправка…">Отправить код</button>
+                    <button type="submit" class="btn btn-primary auth-btn-lg auth-submit-btn" id="authResetRequestSubmitBtn" data-idle-text="Прислать новый пароль" data-busy-text="Отправка…">Прислать новый пароль</button>
                 </form>
-                <form id="authResetConfirmForm" class="auth-form hidden" novalidate>
+                <div id="authResetSentBlock" class="auth-form hidden">
                     <p class="auth-form-lead" id="authResetSentText"></p>
-                    <div class="form-group">
-                        <label class="form-label" for="authResetCode">Код</label>
-                        <input type="text" class="form-input auth-code-input" id="authResetCode" name="one-time-code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="000000" enterkeyhint="next">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="authResetNewPassword">Новый пароль</label>
-                        <div class="auth-password-field">
-                            <input type="password" class="form-input" id="authResetNewPassword" name="new-password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="128" enterkeyhint="go">
-                            <button type="button" class="auth-password-toggle" data-password-toggle="authResetNewPassword" aria-label="Показать пароль" aria-pressed="false"><i class="fas fa-eye" aria-hidden="true"></i></button>
-                        </div>
-                        <p class="form-hint">Не менее 6 символов</p>
-                    </div>
-                    <p class="auth-form-error hidden" id="authResetConfirmError" role="alert"></p>
-                    <button type="submit" class="btn btn-primary auth-btn-lg auth-submit-btn" id="authResetConfirmSubmitBtn" data-idle-text="Сохранить пароль" data-busy-text="Сохранение…">Сохранить пароль</button>
-                    <button type="button" class="auth-link-btn auth-link-btn--center" id="authResetResendBtn" data-idle-text="Отправить код ещё раз" data-busy-text="Отправка…">Отправить код ещё раз</button>
-                </form>
+                    <p class="auth-form-error hidden" id="authResetSentError" role="alert"></p>
+                    <button type="button" class="btn btn-primary auth-btn-lg" id="authResetToLoginBtn">Войти</button>
+                    <button type="button" class="auth-link-btn auth-link-btn--center" id="authResetResendBtn" data-idle-text="Прислать ещё раз" data-busy-text="Отправка…">Прислать ещё раз</button>
+                </div>
             </div>
         </div>
     </div>
