@@ -141,6 +141,8 @@ class Settings(BaseSettings):
 
     # Учётка администратора каталога (создаётся при первом старте, если email свободен)
     admin_email: str = "admin@climbing-guidebook.local"
+    # Короткий логин администратора вместо почты в форме входа
+    admin_login: str = "admin"
     admin_password: str = ""
     admin_display_name: str = "Administrator"
     telegram_bot_token: str = ""

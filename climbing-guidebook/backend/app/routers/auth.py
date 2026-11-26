@@ -231,9 +231,10 @@ def register(payload: schemas.RegisterRequest, db: Session = Depends(get_db)) ->
 
 @router.post("/login", response_model=schemas.Token)
 def login(payload: schemas.LoginRequest, request: Request, db: Session = Depends(get_db)) -> dict:
-    """`email` — почта (регистр не важен) или короткий алиас `admin`; `password` — пароль."""
+    """`email` — почта (регистр не важен) или логин администратора `ADMIN_LOGIN`; `password` — пароль."""
     email = _normalize_email(payload.email)
-    if email == "admin":
+    admin_login = _normalize_email(settings.admin_login)
+    if admin_login and email == admin_login:
         email = _normalize_email(settings.admin_email)
 
     throttle_key = (_client_ip(request), email)

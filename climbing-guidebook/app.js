@@ -6730,7 +6730,8 @@
                 const passwordEl = document.getElementById('authLoginPassword');
                 const email = this.normalizeAuthEmail(emailEl?.value);
                 const password = passwordEl?.value || '';
-                const emailErr = email === 'admin' ? '' : this.validateAuthEmail(email);
+                const isLoginName = /^[a-z0-9._-]{3,64}$/.test(email);
+                const emailErr = isLoginName ? '' : this.validateAuthEmail(email);
                 if (emailErr || !password) {
                     this.setAuthFormError('authLoginError', emailErr || 'Введите пароль');
                     (emailErr ? emailEl : passwordEl)?.focus();
@@ -6927,10 +6928,10 @@
             openAdminLoginDialog() {
                 const emailEl = document.getElementById('authLoginEmail');
                 const passwordEl = document.getElementById('authLoginPassword');
-                if (emailEl) emailEl.value = 'admin';
+                if (emailEl) emailEl.value = '';
                 if (passwordEl) passwordEl.value = '';
                 this.openAuthDialog('login');
-                this.showToast('Вход администратора: логин admin');
+                this.showToast('Вход администратора: введите логин и пароль');
             }
 
             /** 4 быстрых нажатия на логотип — вход администратора, 2 нажатия в режиме админа — выход. */

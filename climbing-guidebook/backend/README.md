@@ -46,6 +46,7 @@ APP_ENV=production
 DATABASE_URL=postgresql+psycopg2://guide_rus:PASSWORD@127.0.0.1:5432/guide_rus
 JWT_SECRET=<long-random-secret>
 ADMIN_EMAIL=<admin-email>
+ADMIN_LOGIN=<короткий логин админа>
 ADMIN_PASSWORD=<admin-password>
 ADMIN_DISPLAY_NAME=Administrator
 TELEGRAM_BOT_TOKEN=<bot-token>

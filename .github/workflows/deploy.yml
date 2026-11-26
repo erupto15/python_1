@@ -26,6 +26,7 @@ jobs:
           APP_ENV: ${{ vars.APP_ENV }}
           PUBLIC_URL: ${{ vars.PUBLIC_URL }}
           ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
+          ADMIN_LOGIN: ${{ vars.ADMIN_LOGIN }}
           ADMIN_DISPLAY_NAME: ${{ vars.ADMIN_DISPLAY_NAME }}
           DISABLE_CATALOG_SEED: ${{ vars.DISABLE_CATALOG_SEED }}
           SMTP_HOST: ${{ vars.SMTP_HOST }}
@@ -81,6 +82,7 @@ jobs:
               "DATABASE_URL": os.environ["DATABASE_URL"],
               "JWT_SECRET": os.environ["JWT_SECRET"],
               "ADMIN_EMAIL": os.environ["ADMIN_EMAIL"],
+              "ADMIN_LOGIN": os.environ.get("ADMIN_LOGIN", "") or "admin",
               "ADMIN_PASSWORD": os.environ["ADMIN_PASSWORD"],
               "ADMIN_DISPLAY_NAME": os.environ["ADMIN_DISPLAY_NAME"],
               "TELEGRAM_BOT_TOKEN": os.environ["TELEGRAM_BOT_TOKEN"],
@@ -238,7 +240,7 @@ jobs:
               db.close()
           PY
 
-          LOGIN_BODY="$(ADMIN_PASSWORD="${ADMIN_PASSWORD}" python3 -c 'import json, os; print(json.dumps({"email": "admin", "password": os.environ["ADMIN_PASSWORD"]}))')"
+          LOGIN_BODY="$(ADMIN_PASSWORD="${ADMIN_PASSWORD}" ADMIN_LOGIN="${ADMIN_LOGIN:-admin}" python3 -c 'import json, os; print(json.dumps({"email": os.environ["ADMIN_LOGIN"], "password": os.environ["ADMIN_PASSWORD"]}))')"
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
             if curl -fsS --max-time 15 -X POST "http://127.0.0.1:8000/api/auth/login" \
               -H "Content-Type: application/json" \
